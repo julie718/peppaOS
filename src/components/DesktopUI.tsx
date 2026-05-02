@@ -40,8 +40,10 @@ import {
   Disc,
   Headphones,
   BrainCircuit,
-  Sparkles
+  Sparkles,
+  Box
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { GlassCard } from './SharedUI';
 import { LocalAgentSphere } from './LocalAgentSphere';
 import { VoiceCallButton } from './VoiceCallButton';
@@ -1198,69 +1200,6 @@ export function DesktopUI({
         className="absolute inset-0 z-10 flex flex-col pointer-events-none"
       >
         <div className="relative w-full h-full pointer-events-auto">
-          {/* Desktop Files Icons */}
-          <div className="p-8 grid grid-flow-col grid-rows-6 gap-8 items-start justify-start w-fit">
-            <DesktopIcon 
-              label="Neural Vault" 
-              icon={<Shield size={24} />} 
-              colorClass="from-indigo-600 to-blue-500" 
-              onClick={() => toggleWindow('vault')} 
-            />
-            <DesktopIcon 
-              label="OS Kernel" 
-              icon={<Cpu size={24} />} 
-              colorClass="from-orange-600 to-red-500" 
-              onClick={() => toggleWindow('kernel')} 
-            />
-            {nativeFiles.map((file, idx) => (
-              <DesktopIcon 
-                key={idx}
-                label={file.name}
-                icon={file.isDirectory ? <Folder size={24} /> : <FileText size={24} />}
-                colorClass={file.isDirectory ? "from-yellow-600 to-orange-500" : "from-blue-400 to-blue-600"}
-                onClick={() => {
-                  if (!file.isDirectory) toggleWindow('terminal');
-                }}
-              />
-            ))}
-          </div>
-
-          {/* Desktop Widgets */}
-          <div className="absolute top-20 right-8 space-y-6 pointer-events-auto">
-             <div className="glass-dark p-6 rounded-[2.5rem] border border-white/5 w-64 backdrop-blur-3xl shadow-xl">
-                <div className="flex justify-between items-start mb-6">
-                   <div className="text-4xl font-black text-white">{time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}</div>
-                   <div className="text-[10px] font-black text-celestial-saturn uppercase tracking-widest bg-celestial-saturn/10 px-2 py-1 rounded">Live</div>
-                </div>
-                <div className="space-y-4">
-                   <div className="flex justify-between items-center text-[10px] font-black text-white/30 uppercase tracking-[0.2em]">
-                      <span>Mesh Connectivity</span>
-                      <span className="text-green-400">Excellent</span>
-                   </div>
-                   <div className="flex gap-1 h-1">
-                      {[1,1,1,1,1,1,0,0,0,0].map((v, i) => (
-                        <div key={i} className={`flex-1 rounded-full ${v ? 'bg-celestial-saturn' : 'bg-white/5'}`} />
-                      ))}
-                   </div>
-                </div>
-             </div>
-
-             <div className="glass-dark p-6 rounded-[2.5rem] border border-white/5 w-64 backdrop-blur-3xl shadow-xl overflow-hidden relative group">
-                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="relative z-10 flex items-center gap-4">
-                   <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-purple-400">
-                      <Music size={24} />
-                   </div>
-                   <div>
-                      <div className="text-[10px] font-black text-white/40 uppercase tracking-widest">Now Streaming</div>
-                      <div className="text-sm font-bold text-white truncate w-32">Stellar Drift v2.4</div>
-                   </div>
-                </div>
-             </div>
-          </div>
-
-          {/* Removed Neural Integrity Monitor as requested for manual removal */}
-
           {/* Central Interactive Entity */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <motion.div 
@@ -1380,15 +1319,18 @@ export function DesktopUI({
       <div className="relative z-10 w-full h-full p-8 md:p-12 lg:p-16 overflow-y-auto custom-scrollbar pt-20">
         <div className="flex flex-col xl:flex-row justify-between items-start gap-12">
             <div className="desktop-grid !h-auto !p-0 !grid-cols-[repeat(auto-fill,minmax(110px,1fr))] max-w-2xl flex-1 w-full">
-              {appIcons.map((app) => (
-                <DesktopIcon 
-                  key={app.id}
-                  label={app.label}
-                  icon={app.icon}
-                  colorClass={app.color}
-                  onClick={() => toggleWindow(app.id)}
-                />
-              ))}
+              <DesktopIcon 
+                label="Neural Vault" 
+                icon={<Shield size={24} />} 
+                colorClass="from-indigo-600 to-blue-500" 
+                onClick={() => toggleWindow('vault')} 
+              />
+              <DesktopIcon 
+                label="OS Kernel" 
+                icon={<Cpu size={24} />} 
+                colorClass="from-orange-600 to-red-500" 
+                onClick={() => toggleWindow('kernel')} 
+              />
             </div>
 
             <div className="flex flex-col gap-6 w-full lg:w-96">
