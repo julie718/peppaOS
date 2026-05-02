@@ -111,7 +111,9 @@ function OSWindow({ id, title, icon, children, onClose, isActive, onFocus, color
       >
         <div className="flex items-center gap-4 select-none">
           <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${colorClass} flex items-center justify-center p-1.5 shadow-lg border border-white/10 group-hover:rotate-6 transition-transform`}>
-            {React.cloneElement(icon as React.ReactElement<any>, { size: 16, className: 'text-white' })}
+            {React.isValidElement(icon) 
+              ? React.cloneElement(icon as React.ReactElement<any>, { size: 16, className: 'text-white' }) 
+              : icon}
           </div>
           <div className="flex flex-col">
             <span className="text-[10px] font-black tracking-[0.2em] uppercase text-white/80 leading-none mb-0.5">{title}</span>
