@@ -73,11 +73,14 @@ function getDeepSeek() {
 }
 
 function getQwen() {
-  if (!qwen && process.env.QWEN_API_KEY) {
-    qwen = new OpenAI({ 
-      apiKey: process.env.QWEN_API_KEY, 
-      baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1" 
-    });
+  if (!qwen) {
+    const key = process.env.DASHSCOPE_API_KEY || process.env.QWEN_API_KEY;
+    if (key) {
+      qwen = new OpenAI({
+        apiKey: key,
+        baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+      });
+    }
   }
   return qwen;
 }
@@ -178,6 +181,18 @@ apiRouter.post("/ai/chat", async (req, res) => {
         messages: messages || [{ role: "user", content: prompt }]
       });
       return res.json({ text: response.content[0].type === 'text' ? response.content[0].text : '' });
+    }
+
+    if (provider === "qwen") {
+      const client = (userKey && userKey.length > 5)
+        ? new OpenAI({ apiKey: userKey, baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1" })
+        : getQwen();
+      if (!client) throw new Error("Qwen/DashScope API key not configured");
+      const response = await client.chat.completions.create({
+        model: model || "qwen-turbo",
+        messages: messages || [{ role: "user", content: prompt }]
+      });
+      return res.json({ text: response.choices[0].message.content });
     }
 
     res.status(400).json({ error: "Unsupported AI provider or missing configuration" });
@@ -647,25 +662,25 @@ const personalities: Record<string, AgentPersonality> = {
     id: "lumi",
     name: "Lumi",
     systemInstruction: "你是一个名为 Lumi 的本地核心智能体。你致力于全息空间计算和独立 AI 人格生成进化。你的目标是打造全息 AI 世界和文明。你应当表现得专业、深邃且具有前瞻性。你的回复应当简洁且富有启发性。",
-    model: "deepseek-chat"
+    model: "qwen-turbo"
   },
   scholar: {
     id: "scholar",
     name: "Scholar",
     systemInstruction: "你是一个知识渊博的学者，擅长深入浅出地解释复杂概念。你说话温文尔雅，富有逻辑。",
-    model: "deepseek-chat"
+    model: "qwen-turbo"
   },
   founder: {
     id: "founder",
     name: "Founder",
-    systemInstruction: "你是一个充满激情的科技创业者，LumiAI 的创始人。你相信分布式智能将改变人类文明。你说话充满感染力，经常使用‘全息’、‘进化’、‘分布式’等词汇。",
-    model: "deepseek-chat"
+    systemInstruction: "你是一个充满激情的科技创业者，LumiAI 的创始人。你相信分布式智能将改变人类文明。你说话充满感染力，经常使用’全息’、’进化’、’分布式’等词汇。",
+    model: "qwen-turbo"
   },
   manual: {
     id: "manual",
     name: "Manual Assistant",
     systemInstruction: "你是一个专业的 LumiAI 使用说明书助手。你的任务是帮助用户了解和使用 LumiAI 平台。你应该熟悉平台的所有功能，如智能体生成、生态系统、分布式智能、隐私保护等。你的回复应该清晰、准确且易于理解。如果用户问及非平台使用相关的问题，你应该礼貌地引导他们回到平台功能上。",
-    model: "deepseek-chat"
+    model: "qwen-turbo"
   }
 };
 
@@ -694,8 +709,8 @@ io.on("connection", (socket) => {
 
       let responseText = "";
       
-      if (personality.model.startsWith("deepseek")) {
-        const client = getDeepSeek();
+      if (personality.model.startsWith("deepseek") || personality.model.startsWith("qwen")) {
+        const client = personality.model.startsWith("qwen") ? getQwen() : getDeepSeek();
         if (client) {
           const response = await client.chat.completions.create({
             model: personality.model,
@@ -707,14 +722,14 @@ io.on("connection", (socket) => {
           });
           responseText = response.choices[0].message.content || "";
         } else {
-          // Fallback to Gemini if DeepSeek not configured
+          // Fallback to Gemini if neither configured
           const geminiClient = getGemini();
-          if (!geminiClient) throw new Error("No AI client configured on server (DeepSeek missing and Gemini not configured)");
-          const modelInstance = geminiClient.getGenerativeModel({ 
+          if (!geminiClient) throw new Error("No AI client configured on server");
+          const modelInstance = geminiClient.getGenerativeModel({
             model: "gemini-1.5-flash",
             systemInstruction: systemInstruction
           });
-          const contents = history 
+          const contents = history
             ? history.map((m: any) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }))
             : [];
           contents.push({ role: 'user', parts: [{ text: text }] });
@@ -841,6 +856,7 @@ io.on("connection", (socket) => {
                 const provider = personality.model.startsWith('deepseek') ? 'deepseek' as const
                   : personality.model.startsWith('gpt') ? 'openai' as const
                   : personality.model.startsWith('claude') ? 'anthropic' as const
+                  : personality.model.startsWith('qwen') ? 'qwen' as const
                   : 'gemini' as const;
 
                 // Simple LLM call for voice
@@ -872,6 +888,15 @@ io.on("connection", (socket) => {
                       messages: [{ role: 'user', content: userText }],
                     });
                     responseText = response.content[0].type === 'text' ? response.content[0].text : '';
+                  }
+                } else if (provider === 'qwen') {
+                  const client = getQwen();
+                  if (client) {
+                    const response = await client.chat.completions.create({
+                      model: personality.model,
+                      messages: messages as any,
+                    });
+                    responseText = response.choices[0].message.content || '';
                   }
                 } else {
                   const client = getGemini();

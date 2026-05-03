@@ -204,6 +204,11 @@ export function parseGeminiResponse(rawResponse: any): NormalizedLLMResponse {
 export const formatOpenAIRequest = formatDeepSeekRequest;
 export const parseOpenAIResponse = parseDeepSeekResponse;
 
+// ── Qwen / DashScope (OpenAI-compatible API) ──
+
+export const formatQwenRequest = formatDeepSeekRequest;
+export const parseQwenResponse = parseDeepSeekResponse;
+
 // ── Anthropic ──
 
 export function formatAnthropicRequest(params: {
@@ -291,15 +296,16 @@ export function parseAnthropicResponse(rawResponse: any): NormalizedLLMResponse 
 export async function makeLLMCall(
   messages: NormalizedMessage[],
   toolDeclarations: ToolDeclaration[],
-  config: { provider: 'deepseek' | 'gemini' | 'openai' | 'anthropic'; model: string; maxTokens?: number },
+  config: { provider: 'deepseek' | 'gemini' | 'openai' | 'anthropic' | 'qwen'; model: string; maxTokens?: number },
   getDeepSeek: () => any,
   getGemini: () => any,
   getOpenAI?: () => any,
   getAnthropic?: () => any,
+  getQwen?: () => any,
 ): Promise<NormalizedLLMResponse> {
-  if (config.provider === 'deepseek') {
-    const client = getDeepSeek();
-    if (!client) throw new Error('DeepSeek not configured (DEEPSEEK_API_KEY missing)');
+  if (config.provider === 'deepseek' || config.provider === 'qwen') {
+    const client = config.provider === 'deepseek' ? getDeepSeek() : getQwen?.();
+    if (!client) throw new Error(`${config.provider} not configured (API key missing)`);
 
     const params = formatDeepSeekRequest({
       model: config.model,
@@ -368,16 +374,19 @@ export type StreamCallback = (chunk: string) => void;
 export async function makeLLMCallStreaming(
   messages: NormalizedMessage[],
   toolDeclarations: ToolDeclaration[],
-  config: { provider: 'deepseek' | 'gemini' | 'openai' | 'anthropic'; model: string; maxTokens?: number },
+  config: { provider: 'deepseek' | 'gemini' | 'openai' | 'anthropic' | 'qwen'; model: string; maxTokens?: number },
   onChunk: StreamCallback,
   getDeepSeek: () => any,
   getGemini: () => any,
   getOpenAI?: () => any,
   getAnthropic?: () => any,
+  getQwen?: () => any,
 ): Promise<NormalizedLLMResponse> {
-  // ── DeepSeek / OpenAI (OpenAI-compatible streaming) ──
-  if (config.provider === 'deepseek' || config.provider === 'openai') {
-    const client = config.provider === 'deepseek' ? getDeepSeek() : getOpenAI?.();
+  // ── DeepSeek / OpenAI / Qwen (OpenAI-compatible streaming) ──
+  if (config.provider === 'deepseek' || config.provider === 'openai' || config.provider === 'qwen') {
+    const client = config.provider === 'deepseek' ? getDeepSeek()
+      : config.provider === 'openai' ? getOpenAI?.()
+      : getQwen?.();
     if (!client) throw new Error(`${config.provider} not configured`);
 
     const params: any = formatDeepSeekRequest({

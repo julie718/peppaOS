@@ -2,6 +2,7 @@ import { TTSConfig, TTSResult, TTSProvider, VoiceCloneRequest, VoiceListItem } f
 import * as elevenlabs from './providers/elevenlabs';
 import * as fishaudio from './providers/fishaudio';
 import * as gptsovits from './providers/gptsovits';
+import * as cosyvoice from './providers/cosyvoice';
 
 export async function synthesizeSpeech(text: string, config: TTSConfig): Promise<TTSResult> {
   switch (config.provider) {
@@ -18,6 +19,8 @@ export async function synthesizeSpeech(text: string, config: TTSConfig): Promise
       return fishaudio.synthesizeSpeech(text, config.voiceId, config.signal);
     case 'gptsovits':
       return gptsovits.synthesizeSpeech(text, config.voiceId, config.signal);
+    case 'cosyvoice':
+      return cosyvoice.synthesizeSpeech(text, config.voiceId, config.signal);
     default:
       throw new Error(`Unknown TTS provider: ${config.provider}`);
   }
@@ -40,6 +43,8 @@ export async function listVoices(provider: TTSProvider): Promise<VoiceListItem[]
       return elevenlabs.listVoices();
     case 'fishaudio':
       return fishaudio.listVoices();
+    case 'cosyvoice':
+      return cosyvoice.listVoices();
     case 'gptsovits':
       return [{ voiceId: 'lumi', name: 'Lumi Voice', category: 'cloned', language: 'zh' }];
     default:
@@ -48,8 +53,8 @@ export async function listVoices(provider: TTSProvider): Promise<VoiceListItem[]
 }
 
 export function getActiveProvider(): TTSProvider | null {
+  if (process.env.DASHSCOPE_API_KEY || process.env.QWEN_API_KEY) return 'cosyvoice';
   if (process.env.FISHAUDIO_API_KEY) return 'fishaudio';
   if (process.env.ELEVENLABS_API_KEY) return 'elevenlabs';
-  // Default to local GPT-SoVITS when no cloud API keys are set
   return 'gptsovits';
 }

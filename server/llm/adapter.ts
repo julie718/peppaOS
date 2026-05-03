@@ -3,7 +3,7 @@ import { ToolExecutionRecord } from '../tools/types';
 import { NormalizedMessage, makeLLMCall, makeLLMCallStreaming, StreamCallback } from './providers';
 
 export interface LLMConfig {
-  provider: 'deepseek' | 'gemini' | 'openai' | 'anthropic';
+  provider: 'deepseek' | 'gemini' | 'openai' | 'anthropic' | 'qwen';
   model: string;
   maxTokens?: number;
 }
@@ -23,6 +23,7 @@ export async function runWithTools(
   getGemini?: () => any,
   getOpenAI?: () => any,
   getAnthropic?: () => any,
+  getQwen?: () => any,
   onStreamChunk?: StreamCallback,
 ): Promise<LLMResult> {
   const executionLog: ToolExecutionRecord[] = [];
@@ -41,6 +42,7 @@ export async function runWithTools(
           getGemini || (() => null),
           getOpenAI || (() => null),
           getAnthropic || (() => null),
+          getQwen || (() => null),
         )
       : await makeLLMCall(
           conversationHistory,
@@ -50,6 +52,7 @@ export async function runWithTools(
           getGemini || (() => null),
           getOpenAI || (() => null),
           getAnthropic || (() => null),
+          getQwen || (() => null),
         );
 
     if (!response.toolCalls || response.toolCalls.length === 0) {
