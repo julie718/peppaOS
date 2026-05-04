@@ -1,9 +1,16 @@
 node_modules/
 build/
 dist/
+dist-server/
 desktop-resources/
 coverage/
 .DS_Store
 *.log
 .env*
 !.env.example
+*.db
+*.tar.gz
+data/
+gpt-sovits-src/
+src-tauri/target/
+.claude/
