@@ -57,6 +57,7 @@ import { GitHubMCPBrowser } from './GitHubMCPBrowser';
 import { PersonalityDashboard } from './PersonalityDashboard';
 import { NotificationCenter } from './NotificationCenter';
 import { DesktopOnboarding } from './DesktopOnboarding';
+import { DeviceSyncCenter } from './DeviceSyncCenter';
 import { useSocket } from '@/hooks/useSocket';
 import { useVoiceCall } from '@/hooks/useVoiceCall';
 import { useApp } from '@/contexts/AppContext';
@@ -940,6 +941,7 @@ export function DesktopUI({
     if (windowId === 'github-mcp') return { w: '850px', h: '620px' };
     if (windowId === 'llm') return { w: '700px', h: '550px' };
     if (windowId === 'notifications') return { w: '700px', h: '550px' };
+    if (windowId === 'devices') return { w: '900px', h: '700px' };
     return { w: '900px', h: '700px' };
   };
 
@@ -1542,6 +1544,12 @@ export function DesktopUI({
                 colorClass="from-violet-500 to-fuchsia-600"
                 onClick={() => toggleWindow('persona-stats')}
               />
+              <DesktopIcon
+                label={t.deviceMesh || "Device Mesh"}
+                icon={<Wifi size={24} />}
+                colorClass="from-cyan-500 to-blue-600"
+                onClick={() => toggleWindow('devices')}
+              />
             </div>
 
             <div className="flex flex-col gap-6 w-full lg:w-96">
@@ -1754,6 +1762,8 @@ export function DesktopUI({
                     <PersonalityDashboard />
                   ) : windowId === 'notifications' ? (
                     <NotificationCenter />
+                  ) : windowId === 'devices' ? (
+                    <DeviceSyncCenter t={t} />
                   ) : renderTabContent(windowId)}
                 </div>
               </OSWindow>

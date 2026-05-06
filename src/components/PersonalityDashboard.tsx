@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { UserIcon, BrainCircuit, TrendingUp, Activity, Calendar, Loader2, Sparkles } from 'lucide-react';
+import { UserIcon, BrainCircuit, TrendingUp, Activity, Calendar, Loader2, Sparkles, Clock, GitBranch } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 
 interface PersonalityStats {
@@ -150,6 +150,64 @@ export function PersonalityDashboard() {
                 <span className="text-[7px] text-white/20 font-mono">{m.month.slice(2)}</span>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Evolution Timeline */}
+        <div className="p-5 rounded-2xl bg-white/5 border border-white/5 space-y-3">
+          <h3 className="text-[10px] font-black uppercase text-white/30 tracking-wider flex items-center gap-2">
+            <Clock size={12} /> Evolution Timeline
+          </h3>
+          <div className="relative pl-5 space-y-0">
+            <div className="absolute left-[7px] top-0 bottom-0 w-px bg-white/10" />
+            {stats.monthlyTrend.map((m, i) => {
+              const monthLabel = m.month;
+              const isMilestone = m.count > 0 && (i === 0 || m.count >= stats.monthlyTrend[i - 1]?.count * 2);
+              const isLatest = i === stats.monthlyTrend.length - 1;
+              return (
+                <div key={m.month} className="relative pb-5 last:pb-0">
+                  <div className={`absolute left-[-17px] top-1 w-[15px] h-[15px] rounded-full border-2 flex items-center justify-center ${
+                    isMilestone
+                      ? 'bg-violet-500/20 border-violet-500'
+                      : isLatest
+                      ? 'bg-emerald-500/20 border-emerald-500'
+                      : 'bg-white/10 border-white/20'
+                  }`}>
+                    <div className={`w-[5px] h-[5px] rounded-full ${
+                      isMilestone ? 'bg-violet-500' : isLatest ? 'bg-emerald-500' : 'bg-white/30'
+                    }`} />
+                  </div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[8px] font-bold text-white/40 min-w-[32px]">{monthLabel.slice(2)}</span>
+                    <span className={`text-[10px] font-bold ${
+                      isMilestone ? 'text-violet-300' : 'text-white/60'
+                    }`}>
+                      {m.count > 0 ? `+${m.count} ${m.count === 1 ? 'memory' : 'memories'}` : 'Baseline'}
+                    </span>
+                    {isMilestone && (
+                      <span className="text-[7px] font-black px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-400 uppercase tracking-wider">
+                        Milestone
+                      </span>
+                    )}
+                    {isLatest && (
+                      <span className="text-[7px] font-black px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 uppercase tracking-wider">
+                        Now
+                      </span>
+                    )}
+                  </div>
+                  {isMilestone && (
+                    <p className="text-[8px] text-white/20 ml-[36px]">
+                      Memory threshold crossed — pattern recognition activated
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-3 pt-3 border-t border-white/5 flex items-center gap-3 text-[7px] text-white/20 font-bold">
+            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-violet-500/20 border border-violet-500" /> Milestone</span>
+            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500/20 border border-emerald-500" /> Current</span>
+            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-white/10 border border-white/20" /> Normal</span>
           </div>
         </div>
       </div>
