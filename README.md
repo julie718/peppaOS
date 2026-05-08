@@ -154,8 +154,8 @@ LumiOS 是灵序科技 Personal AI 生态的软件核心，配合以下硬件终
 
 **联系创始人：毛先生**
 - 官网：[lumiai.asia](https://lumiai.asia)
-- 邮箱：（请填入你的邮箱）
-- 微信：（请填入你的微信号）
+- 邮箱：3565286431@qq.com
+- 微信：Cap_William
 
 ---
 
