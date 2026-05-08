@@ -1,11 +1,49 @@
 import { ToolRegistry } from '../registry';
 
+async function tryBingSearch(query: string, maxResults: number): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const response = await fetch(
+      `https://cn.bing.com/search?q=${encodeURIComponent(query)}&count=${maxResults}`,
+      {
+        signal: controller.signal,
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+      },
+    );
+    clearTimeout(timeout);
+    if (!response.ok) return null;
+
+    const html = await response.text();
+    // Extract search result snippets from Bing HTML
+    const results: string[] = [];
+    const blockRe = /<li class="b_algo"[^>]*>([\s\S]*?)<\/li>/gi;
+    let blockMatch;
+    while ((blockMatch = blockRe.exec(html)) !== null && results.length < maxResults) {
+      const block = blockMatch[1];
+      const urlMatch = block.match(/<a[^>]*href="(https?:\/\/[^"]*)"[^>]*>/i);
+      const titleMatch = block.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i);
+      const snippetMatch = block.match(/<p class="b_lineclamp\d*"[^>]*>([\s\S]*?)<\/p>/i);
+      if (urlMatch && titleMatch) {
+        const url = urlMatch[1];
+        const title = titleMatch[1].replace(/<[^>]+>/g, '').trim();
+        const snippet = snippetMatch ? snippetMatch[1].replace(/<[^>]+>/g, '').trim() : '';
+        results.push(`${title}\n${snippet}\n${url}`);
+      }
+    }
+    return results.length > 0 ? results.join('\n\n') : null;
+  } catch {
+    return null;
+  }
+}
+
 async function webSearchHandler(args: Record<string, any>): Promise<string> {
   const query = String(args.query || '');
   if (!query.trim()) throw new Error('Search query is required.');
 
   const maxResults = Math.min(Math.max(Number(args.maxResults) || 5, 1), 10);
 
+  // Try DuckDuckGo JSON API first
   try {
     const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
     const controller = new AbortController();
@@ -14,42 +52,41 @@ async function webSearchHandler(args: Record<string, any>): Promise<string> {
     const response = await fetch(url, { signal: controller.signal });
     clearTimeout(timeout);
 
-    if (!response.ok) {
-      throw new Error(`DuckDuckGo API returned ${response.status}`);
-    }
+    if (response.ok) {
+      const data = await response.json() as any;
+      const results: string[] = [];
 
-    const data = await response.json() as any;
-    const results: string[] = [];
+      if (data.AbstractText) {
+        results.push(`Abstract: ${data.AbstractText}${data.AbstractURL ? ` (${data.AbstractURL})` : ''}`);
+      }
 
-    if (data.AbstractText) {
-      results.push(`Abstract: ${data.AbstractText}${data.AbstractURL ? ` (${data.AbstractURL})` : ''}`);
-    }
-
-    if (data.RelatedTopics && Array.isArray(data.RelatedTopics)) {
-      for (const topic of data.RelatedTopics.slice(0, maxResults)) {
-        if (topic.Text && topic.FirstURL) {
-          results.push(`${topic.Text} — ${topic.FirstURL}`);
+      if (data.RelatedTopics && Array.isArray(data.RelatedTopics)) {
+        for (const topic of data.RelatedTopics.slice(0, maxResults)) {
+          if (topic.Text && topic.FirstURL) {
+            results.push(`${topic.Text}\n${topic.FirstURL}`);
+          }
         }
       }
-    }
 
-    if (data.Results && Array.isArray(data.Results)) {
-      for (const r of data.Results.slice(0, maxResults)) {
-        if (r.Text && r.FirstURL) {
-          results.push(`${r.Text} — ${r.FirstURL}`);
+      if (data.Results && Array.isArray(data.Results)) {
+        for (const r of data.Results.slice(0, maxResults)) {
+          if (r.Text && r.FirstURL) {
+            results.push(`${r.Text}\n${r.FirstURL}`);
+          }
         }
       }
-    }
 
-    return results.length > 0
-      ? results.join('\n\n')
-      : `No results found for "${query}".`;
-  } catch (err: any) {
-    if (err.name === 'AbortError') {
-      return `Web search timed out for query "${query}".`;
+      if (results.length > 0) return results.join('\n\n');
     }
-    return `Web search failed: ${err.message}`;
+  } catch {
+    // DuckDuckGo failed, try fallback
   }
+
+  // Fallback: Bing search (accessible in China)
+  const bingResults = await tryBingSearch(query, maxResults);
+  if (bingResults) return bingResults;
+
+  return `No search results found for "${query}". DuckDuckGo and Bing are both unavailable from this network.`;
 }
 
 async function urlFetchHandler(args: Record<string, any>): Promise<string> {

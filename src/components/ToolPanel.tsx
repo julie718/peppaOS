@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Wrench, Shield, AlertTriangle, CheckCircle, Loader2, Eye, EyeOff } from 'lucide-react';
+import { toast } from 'sonner';
 import { useApp } from '@/contexts/AppContext';
 
 interface ToolInfo {
@@ -16,7 +17,7 @@ const SECURITY_COLORS: Record<string, { bg: string; border: string; text: string
   forbidden: { bg: 'bg-red-500/10', border: 'border-red-500/30', text: 'text-red-400', icon: <EyeOff size={10} /> },
 };
 
-export function ToolPanel() {
+export function ToolPanel({ t }: { t?: any }) {
   const { toolOverrides, setToolOverride } = useApp();
   const [tools, setTools] = useState<ToolInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,7 +26,7 @@ export function ToolPanel() {
     fetch('/api/tools')
       .then(r => r.json())
       .then(data => setTools(data || []))
-      .catch(() => {})
+      .catch(() => toast.error(t?.failedToLoadTools || 'Failed to load tools'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -45,9 +46,9 @@ export function ToolPanel() {
   };
 
   const sections = [
-    { label: 'Auto-Execute', items: safeTools, color: 'emerald' },
-    { label: 'Require Confirmation', items: confirmTools, color: 'amber' },
-    { label: 'Forbidden', items: forbiddenTools, color: 'red' },
+    { label: 'autoExecute', items: safeTools, color: 'emerald' },
+    { label: 'requireConfirmation', items: confirmTools, color: 'amber' },
+    { label: 'forbidden', items: forbiddenTools, color: 'red' },
   ];
 
   return (
@@ -57,9 +58,9 @@ export function ToolPanel() {
           <Wrench size={20} className="text-amber-400" />
         </div>
         <div>
-          <h2 className="text-sm font-bold text-white/90">Tool Control Panel</h2>
+          <h2 className="text-sm font-bold text-white/90">{t?.toolControlPanel || 'Tool Control Panel'}</h2>
           <p className="text-[10px] text-white/30">
-            {loading ? 'Loading...' : `${tools.length} tools registered`}
+            {loading ? (t?.loading || 'Loading...') : `${tools.length} ${t?.toolsRegistered || 'tools registered'}`}
           </p>
         </div>
       </div>
@@ -67,20 +68,22 @@ export function ToolPanel() {
       <div className="flex-1 p-6 space-y-6">
         {loading ? (
           <div className="flex items-center justify-center py-12 text-white/30">
-            <Loader2 size={24} className="animate-spin mr-2" /> Loading tools...
+            <Loader2 size={24} className="animate-spin mr-2" /> {t?.loadingTools || 'Loading tools...'}
           </div>
         ) : (
           sections.map(section => {
-            if (section.items.length === 0) return null;
             const colorKey = section.color as keyof typeof SECURITY_COLORS;
             return (
               <div key={section.label} className="space-y-2">
                 <div className="flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full bg-${section.color}-500`} />
                   <span className="text-[10px] font-black uppercase text-white/30 tracking-wider">
-                    {section.label} ({section.items.length})
+                    {t?.[section.label] || section.label} ({section.items.length})
                   </span>
                 </div>
+                {section.items.length === 0 ? (
+                  <p className="text-[10px] text-white/15 italic px-4 py-2">{t?.noToolsInCategory || 'No tools in this category'}</p>
+                ) : (
                 <div className="space-y-1">
                   {section.items.map(tool => {
                     const sec = SECURITY_COLORS[tool.securityLevel] || SECURITY_COLORS.confirm;
@@ -121,6 +124,7 @@ export function ToolPanel() {
                     );
                   })}
                 </div>
+                )}
               </div>
             );
           })

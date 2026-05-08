@@ -81,7 +81,15 @@ router.post('/voice/clone', async (req: Request, res: Response) => {
 
     const activeProvider = provider || getActiveProvider();
     if (!activeProvider) {
-      return res.status(400).json({ error: 'No TTS provider configured. Set ELEVENLABS_API_KEY or FISHAUDIO_API_KEY.' });
+      return res.status(400).json({ error: 'No TTS provider configured. Add an API key in Settings → Voice Services or Settings → API Matrix.' });
+    }
+
+    // Only certain providers support voice cloning
+    if (activeProvider === 'cosyvoice' || activeProvider === 'gptsovits') {
+      return res.status(400).json({
+        error: `${activeProvider === 'cosyvoice' ? 'DashScope CosyVoice' : 'GPT-SoVITS'} does not support voice cloning. Use ElevenLabs or FishAudio for cloud cloning, or use GPT-SoVITS locally to clone then import.`,
+        activeProvider,
+      });
     }
 
     // Convert relative URLs to absolute
@@ -108,7 +116,7 @@ router.post('/voice/clone', async (req: Request, res: Response) => {
     res.json({ voiceId, name, provider: activeProvider });
   } catch (err: any) {
     logger.error('[Voice Clone Error]', err);
-    res.status(500).json({ error: 'Voice cloning service unavailable' });
+    res.status(500).json({ error: err.message || 'Voice cloning service unavailable' });
   }
 });
 

@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useSocket } from '@/hooks/useSocket';
 import { ShieldAlert, Check, X, AlertTriangle } from 'lucide-react';
 import { Button } from './ui/button';
 import { motion, AnimatePresence } from 'motion/react';
@@ -10,18 +9,13 @@ interface PendingConfirm {
   arguments: Record<string, any>;
 }
 
-const LEVEL_META: Record<string, { color: string; label: string }> = {
-  confirm: { color: 'text-yellow-400', label: 'Confirmation Required' },
-  forbidden: { color: 'text-red-400', label: 'Blocked' },
-};
-
 /**
  * Listens for agent:confirm_tool socket events and renders a modal dialog
  * asking the user to approve or deny tool execution.
- * Mount once at the app root — no visual rendering when idle.
+ * Must receive the SAME socket instance used by the task handler,
+ * since confirm_tool events are emitted on the task socket specifically.
  */
-export function ToolConfirmDialog() {
-  const socket = useSocket();
+export function ToolConfirmDialog({ socket }: { socket: any }) {
   const [pending, setPending] = useState<PendingConfirm[]>([]);
 
   useEffect(() => {

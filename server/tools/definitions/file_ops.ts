@@ -151,6 +151,113 @@ async function searchFilesHandler(args: Record<string, any>, context?: { cwd?: s
   return JSON.stringify(results.slice(0, maxResults), null, 2);
 }
 
+async function grepFilesHandler(args: Record<string, any>, context?: { cwd?: string }): Promise<string> {
+  const directory = resolveSafePath(args.directory || '.', context?.cwd);
+  const pattern = args.pattern || '';
+  if (!pattern) throw new Error('Search pattern is required.');
+
+  let regex: RegExp;
+  try {
+    regex = new RegExp(pattern, 'gi');
+  } catch (e: any) {
+    throw new Error(`Invalid regex pattern: ${e.message}`);
+  }
+
+  const globPattern = args.glob || '*';
+  const maxResults = Math.min(Math.max(Number(args.maxResults) || 100, 1), 500);
+  const globRegex = simpleGlobToRegex(globPattern);
+
+  interface Match {
+    file: string;
+    line: number;
+    content: string;
+  }
+  const results: Match[] = [];
+
+  function walk(dir: string) {
+    if (results.length >= maxResults) return;
+    let entries: fs.Dirent[];
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const entry of entries) {
+      if (results.length >= maxResults) return;
+      if (entry.isDirectory()) {
+        if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === 'target' || entry.name === 'dist') continue;
+        walk(path.join(dir, entry.name));
+      } else if (globRegex.test(entry.name)) {
+        const filePath = path.join(dir, entry.name);
+        try {
+          const stat = fs.statSync(filePath);
+          if (stat.size > 500 * 1024) continue; // skip files > 500KB
+          const content = fs.readFileSync(filePath, 'utf-8');
+          const lines = content.split('\n');
+          for (let i = 0; i < lines.length && results.length < maxResults; i++) {
+            if (regex.test(lines[i])) {
+              results.push({
+                file: path.relative(directory, filePath),
+                line: i + 1,
+                content: lines[i].trim().slice(0, 200),
+              });
+            }
+          }
+        } catch {
+          // skip unreadable files
+        }
+      }
+    }
+  }
+
+  walk(directory);
+
+  if (results.length === 0) {
+    return `No matches found for pattern "${pattern}" in ${directory}`;
+  }
+
+  // Group by file
+  const byFile = new Map<string, Match[]>();
+  for (const m of results) {
+    if (!byFile.has(m.file)) byFile.set(m.file, []);
+    byFile.get(m.file)!.push(m);
+  }
+
+  const lines: string[] = [`Found ${results.length} matches for "${pattern}":\n`];
+  for (const [file, matches] of byFile) {
+    lines.push(`${file}:`);
+    for (const m of matches) {
+      lines.push(`  ${m.line}: ${m.content}`);
+    }
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+
+async function readFilesBatchHandler(args: Record<string, any>, context?: { cwd?: string }): Promise<string> {
+  const paths: string[] = args.paths || [];
+  if (!paths.length) throw new Error('At least one file path is required.');
+  if (paths.length > 10) throw new Error('Maximum 10 files per batch request.');
+
+  const results: string[] = [];
+  for (const userPath of paths) {
+    try {
+      const targetPath = resolveSafePath(userPath, context?.cwd);
+      const stat = fs.statSync(targetPath);
+      if (stat.isDirectory()) {
+        results.push(`── ${userPath} ──\n[DIRECTORY — use list_directory to browse]`);
+        continue;
+      }
+      if (stat.size > 100 * 1024) {
+        results.push(`── ${userPath} ──\n[FILE TOO LARGE: ${(stat.size / 1024).toFixed(1)}KB]`);
+        continue;
+      }
+      const content = fs.readFileSync(targetPath, 'utf-8');
+      const truncated = content.length > 5000 ? content.slice(0, 5000) + '\n[...truncated]' : content;
+      results.push(`── ${userPath} ──\n${truncated}`);
+    } catch (e: any) {
+      results.push(`── ${userPath} ──\n[ERROR: ${e.message}]`);
+    }
+  }
+  return results.join('\n\n');
+}
+
 export function registerFileOpsTools(registry: ToolRegistry): void {
   registry.register({
     name: 'read_file',
@@ -210,6 +317,41 @@ export function registerFileOpsTools(registry: ToolRegistry): void {
       required: ['pattern'],
     },
     handler: searchFilesHandler,
+    permission: 'user',
+    securityLevel: 'safe',
+  });
+
+  // ── grep_files: full-text regex search ──
+  registry.register({
+    name: 'grep_files',
+    description: 'Search file CONTENTS with a regex pattern. Returns matching lines with file paths and line numbers. Essential for code exploration — find where symbols are defined, where functions are called, or where patterns appear across the codebase.',
+    parameters: {
+      type: 'object',
+      properties: {
+        pattern: { type: 'string', description: 'Regex pattern to search for in file contents (e.g. "function\\s+loadConfig", "import.*from")' },
+        directory: { type: 'string', description: 'Directory to search in. Defaults to current directory.' },
+        glob: { type: 'string', description: 'Optional file filter, e.g. "*.ts" or "*.{ts,tsx}" to only search matching files.' },
+        maxResults: { type: 'number', description: 'Maximum matches to return (default 100, max 500).' },
+      },
+      required: ['pattern'],
+    },
+    handler: grepFilesHandler,
+    permission: 'user',
+    securityLevel: 'safe',
+  });
+
+  // ── read_files_batch: parallel file reading ──
+  registry.register({
+    name: 'read_files_batch',
+    description: 'Read multiple files at once. Useful for understanding cross-file relationships — read a function definition and all its callers simultaneously. Max 10 files per call.',
+    parameters: {
+      type: 'object',
+      properties: {
+        paths: { type: 'array', items: { type: 'string' }, description: 'Array of file paths to read (max 10).' },
+      },
+      required: ['paths'],
+    },
+    handler: readFilesBatchHandler,
     permission: 'user',
     securityLevel: 'safe',
   });

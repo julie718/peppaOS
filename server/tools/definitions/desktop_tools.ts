@@ -17,6 +17,15 @@ async function desktopListFiles(args: Record<string, any>, context?: any): Promi
   });
 }
 
+async function desktopOpen(args: Record<string, any>, context?: any): Promise<string> {
+  if (!context?.desktopRelay) {
+    throw new Error('Desktop tools require a Tauri frontend relay (not available in web mode)');
+  }
+  return context.desktopRelay('desktop_open', {
+    target: args.target || '',
+  });
+}
+
 async function desktopRunCommand(args: Record<string, any>, context?: any): Promise<string> {
   if (!context?.desktopRelay) {
     throw new Error('Desktop tools require a Tauri frontend relay (not available in web mode)');
@@ -57,6 +66,22 @@ export function registerDesktopTools(registry: ToolRegistry): void {
     handler: desktopListFiles,
     permission: 'user',
     securityLevel: 'safe',
+  });
+
+  registry.register({
+    name: 'desktop_open',
+    description:
+      'Open a file, folder, application, or URL using the OS default handler. Use this to launch apps (e.g., "notepad.exe", "calc.exe"), open folders (e.g., "C:\\Users"), open files with their default app, or open URLs in the browser. This is the preferred way to visibly launch something on the user\'s desktop.',
+    parameters: {
+      type: 'object',
+      properties: {
+        target: { type: 'string', description: 'The file, folder, app name, or URL to open. Examples: "notepad.exe", "calc.exe", "C:\\Users", "https://github.com"' },
+      },
+      required: ['target'],
+    },
+    handler: desktopOpen,
+    permission: 'user',
+    securityLevel: 'confirm',
   });
 
   registry.register({

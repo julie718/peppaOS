@@ -13,6 +13,8 @@ export interface ToolContext {
   requestConfirmation?: (toolName: string, args: Record<string, any>) => Promise<boolean>;
   /** Personality's tool policy for security level resolution */
   toolPolicy?: import('../personality/types').ToolPolicy;
+  /** Returns true if the task has been cancelled — checked between tool iterations */
+  isCancelled?: () => boolean;
 }
 
 export interface ToolDefinition {
@@ -34,6 +36,7 @@ export interface ParsedToolCall {
 export interface NormalizedLLMResponse {
   text: string | null;
   toolCalls: ParsedToolCall[] | null;
+  reasoningContent?: string | null;
 }
 
 export interface ToolExecutionRecord {

@@ -22,7 +22,7 @@ export function LocalAgentSphere({
   t: any;
   onMessage?: (text: string) => void;
   sentiment?: 'default' | 'excited' | 'focused' | 'zen';
-  callState?: 'idle' | 'connecting' | 'listening' | 'thinking' | 'speaking';
+  callState?: 'idle' | 'connecting' | 'listening' | 'thinking' | 'speaking' | 'queued';
   audioLevel?: number;
   isMuted?: boolean;
   elapsedSeconds?: number;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mic, MicOff, Phone, Loader2, Volume2, Trash2, Plus, Sparkles, CheckCircle2, History, Play, Pause, Cpu } from 'lucide-react';
+import { Mic, MicOff, Phone, Loader2, Volume2, Trash2, Plus, Sparkles, CheckCircle2, History, Play, Pause, Cpu, Upload, FileAudio } from 'lucide-react';
 import { useVoiceCloning } from '../hooks/useVoiceCloning';
 import { deleteVoice } from '../services/voiceService';
 import { Button } from './ui/button';
@@ -8,19 +8,20 @@ import { Input } from './ui/input';
 import { toast } from 'sonner';
 
 export function VoiceForge({ t }: { t: any }) {
-  const { 
-    isRecording, 
-    audioLevel, 
-    recordings, 
-    isUploading, 
-    isCloning, 
-    cloneProgress, 
-    voices, 
+  const {
+    isRecording,
+    audioLevel,
+    recordings,
+    isUploading,
+    isCloning,
+    cloneProgress,
+    voices,
     error,
-    startRecording, 
-    stopRecording, 
-    removeRecording, 
-    uploadAndClone, 
+    startRecording,
+    stopRecording,
+    removeRecording,
+    addFiles,
+    uploadAndClone,
     refreshVoices,
     clearError
   } = useVoiceCloning();
@@ -87,6 +88,17 @@ export function VoiceForge({ t }: { t: any }) {
     render();
     return () => cancelAnimationFrame(animationFrame);
   }, [isRecording, audioLevel]);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      addFiles(files);
+      toast.success(`Added ${files.length} file(s)`);
+    }
+    if (e.target) e.target.value = ''; // Reset so same file can be re-selected
+  };
 
   const handleClone = async () => {
     if (!voiceName.trim()) {
@@ -181,6 +193,28 @@ export function VoiceForge({ t }: { t: any }) {
                     <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest italic leading-relaxed">
                        {isRecording ? "Capturing synaptic vocal patterns..." : "Speak naturally for 15-30 seconds for optimal capture."}
                     </p>
+
+                    {/* File upload alternative */}
+                    <div className="flex items-center gap-2 pt-2">
+                      <div className="flex-1 h-px bg-white/5" />
+                      <span className="text-[8px] text-white/15 uppercase tracking-widest">or</span>
+                      <div className="flex-1 h-px bg-white/5" />
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="audio/*"
+                      multiple
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                    <Button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="h-10 px-6 rounded-full bg-white/5 border border-white/10 text-[10px] font-black uppercase tracking-widest text-white/50 hover:bg-white/10 hover:text-white transition-all"
+                    >
+                      <Upload size={14} className="mr-1" />
+                      Upload Audio File
+                    </Button>
                  </div>
               </div>
            </div>

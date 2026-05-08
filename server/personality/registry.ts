@@ -4,6 +4,7 @@ import { PersonalityConfig, PersonalityContext } from './types';
 import { generateSystemPrompt } from './engine';
 import { Memory } from '../memory/types';
 import { EmotionalState } from './state';
+import { EvolutionStep, EvolutionConfig, DEFAULT_EVOLUTION_CONFIG } from './evolution';
 
 class PersonalityRegistry {
   private personalities: Map<string, PersonalityConfig> = new Map();
@@ -61,10 +62,10 @@ class PersonalityRegistry {
         languages: ['zh', 'en'],
         vocabularyHints: ['全息', '进化', '分布式'],
       },
-      toolPolicy: { allowedTools: ['*'], requireConfirmation: ['desktop_run_command'], forbiddenTools: [], maxIterations: 5 },
+      toolPolicy: { allowedTools: ['*'], requireConfirmation: ['desktop_run_command', 'desktop_open', 'write_file', 'url_fetch', 'code_execution'], forbiddenTools: [], maxIterations: 10 },
       memoryPolicy: { retrieveLimit: 5, minConfidence: 0.4, includeTypes: ['preference', 'fact', 'habit', 'knowledge'], autoExtract: true },
-      defaultModel: 'qwen-plus',
-      fallbackModel: 'gemini-1.5-flash',
+      defaultModel: 'deepseek-v4-pro',
+      fallbackModel: 'qwen-plus',
     };
     this.personalities.set('lumi', lumi);
     console.log('[Personality] Loaded built-in fallback personality');
@@ -93,6 +94,86 @@ class PersonalityRegistry {
   }
 
   /**
+   * Apply an evolution step to a personality, persisting the changes.
+   * Returns the updated config.
+   */
+  applyEvolution(personalityId: string, step: EvolutionStep): PersonalityConfig | null {
+    const config = this.get(personalityId);
+    if (!config) return null;
+
+    // Apply each mutation
+    for (const m of step.mutations) {
+      this.applyMutation(config, m);
+    }
+
+    // Update version
+    config.version = step.version;
+
+    // Store evolution metadata
+    const extConfig = config as any;
+    extConfig.lastEvolvedAt = step.timestamp;
+    if (!extConfig.evolutionHistory) extConfig.evolutionHistory = [];
+    extConfig.evolutionHistory.push({
+      version: step.version,
+      timestamp: step.timestamp,
+      trigger: step.trigger,
+      mutations: step.mutations,
+      narrative: step.narrative,
+    });
+
+    // Persist to disk
+    this.save();
+
+    console.log(`[Personality] ${config.name} evolved to ${step.version}: ${step.mutations.length} mutation(s)`);
+    return config;
+  }
+
+  /** Apply a single mutation by dot-path */
+  private applyMutation(config: PersonalityConfig, mutation: EvolutionStep['mutations'][0]): void {
+    const parts = mutation.field.split('.');
+    let target: any = config;
+    for (let i = 0; i < parts.length - 1; i++) {
+      target = target[parts[i]];
+      if (!target) return;
+    }
+    target[parts[parts.length - 1]] = mutation.to;
+  }
+
+  /** Get the evolution config for a personality (with defaults) */
+  getEvolutionConfig(personalityId: string): EvolutionConfig {
+    const config = this.get(personalityId);
+    if (!config) return DEFAULT_EVOLUTION_CONFIG;
+    const stored = (config as any).evolutionConfig as Partial<EvolutionConfig> | undefined;
+    return { ...DEFAULT_EVOLUTION_CONFIG, ...stored };
+  }
+
+  /** Get evolution history for a personality */
+  getEvolutionHistory(personalityId: string): EvolutionStep[] {
+    const config = this.get(personalityId);
+    if (!config) return [];
+    return (config as any).evolutionHistory || [];
+  }
+
+  /** Persist the current registry state back to the JSON file */
+  save(configPath?: string): void {
+    const filePath = configPath || path.join(process.cwd(), 'server', 'personality', 'personalities.json');
+    const altPath = path.join(process.cwd(), '..', 'server', 'personality', 'personalities.json');
+
+    const configs = Array.from(this.personalities.values());
+    const json = JSON.stringify(configs, null, 2);
+
+    try {
+      fs.writeFileSync(filePath, json, 'utf-8');
+    } catch {
+      try {
+        fs.writeFileSync(altPath, json, 'utf-8');
+      } catch (err) {
+        console.error('[Personality] Failed to save config:', err);
+      }
+    }
+  }
+
+  /**
    * Build the full system prompt for a personality in a given context,
    * optionally enriched with skill overrides and memories.
    */
@@ -102,6 +183,7 @@ class PersonalityRegistry {
     options?: {
       skillOverride?: string;
       memories?: Memory[];
+      ragKnowledge?: string[];
       emotionalState?: EmotionalState;
     },
   ): { config: PersonalityConfig; systemPrompt: string } {

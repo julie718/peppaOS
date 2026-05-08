@@ -9,6 +9,8 @@ import { autoGenerateSkill } from './skills/generator';
 import { readDB } from '../db_layer';
 import { AgentRuntime, AgentRecord } from './agents/runtime';
 import { personalityRegistry } from './personality';
+import { evolvePersonality } from './personality/evolution';
+import { loadEmotionalState } from './personality/state';
 
 interface ScheduledTask {
   id: string;
@@ -109,14 +111,24 @@ export function registerScheduledTasks(
   getAnthropic?: () => any,
   getQwen?: () => any,
 ) {
-  const DEFAULT_USER = 'anonymous';
-  const DEFAULT_CTX: ConsolidationContext = {
-    userId: DEFAULT_USER,
-    provider: 'deepseek',
-    model: 'deepseek-chat',
-  };
+  /** Get all unique user IDs from DB (registered users + anonymous fallback) */
+  function getAllUserIds(): string[] {
+    const db = readDB();
+    const ids = new Set<string>();
+    for (const u of db.users || []) {
+      if (u.uid) ids.add(u.uid);
+    }
+    for (const m of db.memories || []) {
+      if (m.userId) ids.add(m.userId);
+    }
+    for (const i of db.interactions || []) {
+      if (i.userId) ids.add(i.userId);
+    }
+    if (ids.size === 0) ids.add('anonymous');
+    return [...ids];
+  }
 
-  // Reminder check-in (every 5 min)
+  // Reminder check-in (every 5 min) — checks all users' reminders
   scheduler.register({
     id: 'reminder_check',
     cron: 'every_5m',
@@ -132,13 +144,16 @@ export function registerScheduledTasks(
     },
   });
 
-  // Memory decay — applies tier-based decay (every 6h)
+  // Memory decay — applies tier-based decay for all users (every 6h)
   scheduler.register({
     id: 'memory_decay',
     cron: 'every_6h',
     lastRun: null,
     handler: async () => {
-      decayMemories(DEFAULT_USER);
+      const userIds = getAllUserIds();
+      for (const userId of userIds) {
+        decayMemories(userId);
+      }
       const lowConf = queryMemories({ minConfidence: 0, limit: 5 });
       const decayed = lowConf.filter(m => m.confidence < 0.25 && m.confidence > 0.1);
       if (decayed.length > 0) {
@@ -154,21 +169,21 @@ export function registerScheduledTasks(
     cron: 'every_30m',
     lastRun: null,
     handler: async () => {
-      const episodic = getUnconsolidatedEpisodic(DEFAULT_USER);
-      if (episodic.length < 10) return null;
-      const consolidated = await consolidateEpisodic(
-        DEFAULT_CTX,
-        10,
-        getDeepSeek,
-        getGemini,
-        getOpenAI,
-        getAnthropic,
-        getQwen,
-      );
-      if (consolidated) {
-        return `I've grown from our conversations: ${consolidated.content.slice(0, 200)}`;
+      const userIds = getAllUserIds();
+      const messages: string[] = [];
+      for (const userId of userIds) {
+        const episodic = getUnconsolidatedEpisodic(userId);
+        if (episodic.length < 10) continue;
+        const ctx: ConsolidationContext = { userId, provider: 'deepseek', model: 'deepseek-chat' };
+        const consolidated = await consolidateEpisodic(
+          ctx, 10,
+          getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
+        );
+        if (consolidated) {
+          messages.push(`[${userId}] I've grown from our conversations: ${consolidated.content.slice(0, 200)}`);
+        }
       }
-      return null;
+      return messages.length > 0 ? messages.join('\n') : null;
     },
   });
 
@@ -216,38 +231,86 @@ export function registerScheduledTasks(
     },
   });
 
-  // Behavioral pattern analysis (every 6h, observer mode)
+  // Behavioral pattern analysis (every 6h) — for all users
   scheduler.register({
     id: 'behavioral_analysis',
     cron: 'every_6h',
     lastRun: null,
     handler: async () => {
-      const count = runBehavioralAnalysis(DEFAULT_USER);
-      if (count > 0) {
-        return `I've discovered ${count} new behavioral patterns from your interactions. Check Memory Explorer to review.`;
+      const userIds = getAllUserIds();
+      let totalCount = 0;
+      for (const userId of userIds) {
+        totalCount += runBehavioralAnalysis(userId);
+      }
+      if (totalCount > 0) {
+        return `I've discovered ${totalCount} new behavioral patterns from your interactions. Check Memory Explorer to review.`;
       }
       return null;
     },
   });
 
-  // Self-reflection (every 7 days) — introspective growth narrative
+  // Personality evolution (every 7 days, offset by 12h from self-reflection)
+  // Lumi's personality grows toward the owner through accumulated interaction data
+  scheduler.register({
+    id: 'personality_evolution',
+    cron: 'every_7d',
+    lastRun: null,
+    handler: async () => {
+      const userIds = getAllUserIds();
+      const messages: string[] = [];
+      for (const userId of userIds) {
+        try {
+          // Only evolve the 'lumi' personality (owner-mirroring for Lumi specifically)
+          const config = personalityRegistry.get('lumi');
+          if (!config) continue;
+
+          const evolutionConfig = personalityRegistry.getEvolutionConfig('lumi');
+          const emotionalState = loadEmotionalState(userId);
+
+          const step = await evolvePersonality(
+            config,
+            userId,
+            emotionalState.connection,
+            getDeepSeek,
+            getGemini,
+            getQwen,
+            evolutionConfig,
+          );
+
+          if (step) {
+            personalityRegistry.applyEvolution('lumi', step);
+            messages.push(
+              `I've grown closer to understanding you. ${step.narrative}`
+            );
+            console.log(`[Scheduler] Personality evolution complete for ${userId}: ${step.version}`);
+          }
+        } catch (err: any) {
+          console.error(`[Scheduler] Personality evolution failed for ${userId}:`, err.message);
+        }
+      }
+      return messages.length > 0 ? messages.join('\n') : null;
+    },
+  });
+
+  // Self-reflection (every 7 days) — introspective growth narrative, per-user
   scheduler.register({
     id: 'self_reflection',
     cron: 'every_7d',
     lastRun: null,
     handler: async () => {
-      const reflection = await selfReflect(
-        DEFAULT_CTX,
-        getDeepSeek,
-        getGemini,
-        getOpenAI,
-        getAnthropic,
-        getQwen,
-      );
-      if (reflection) {
-        return `I've been reflecting on our time together: ${reflection.content.slice(0, 200)}`;
+      const userIds = getAllUserIds();
+      const messages: string[] = [];
+      for (const userId of userIds) {
+        const ctx: ConsolidationContext = { userId, provider: 'deepseek', model: 'deepseek-chat' };
+        const reflection = await selfReflect(
+          ctx,
+          getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
+        );
+        if (reflection) {
+          messages.push(`I've been reflecting on our time together: ${reflection.content.slice(0, 200)}`);
+        }
       }
-      return null;
+      return messages.length > 0 ? messages.join('\n') : null;
     },
   });
 
@@ -291,7 +354,7 @@ export function registerScheduledTasks(
         try {
           const personality = personalityRegistry.get(agentRecord.personalityId || 'lumi') || personalityRegistry.getDefault();
           const runtime = new AgentRuntime(agentRecord, personality);
-          const userId = agentRecord.ownerUid || agentRecord.userId || DEFAULT_USER;
+          const userId = agentRecord.ownerUid || agentRecord.userId || 'anonymous';
           runtime.loadState(userId);
 
           const recentMemories = runtime.queryMemories('recent', 5);

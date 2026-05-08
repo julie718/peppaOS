@@ -107,7 +107,7 @@ export function PersonalityEditor({ t }: { t?: any }) {
     }
   };
 
-  useEffect(() => { fetchPersonalities(); fetch('/api/tools').then(r => r.json()).then(setTools).catch(() => {}); }, []);
+  useEffect(() => { fetchPersonalities(); fetch('/api/tools').then(r => r.json()).then(setTools).catch(err => toast.error('Failed to load tools')); }, []);
 
   const handleSelect = (id: string) => {
     setSelectedId(id);

@@ -76,13 +76,14 @@ export async function ingestDocument(
 /**
  * Retrieve relevant chunks for a query from agent-scoped knowledge.
  */
+import { queryMemories } from '../memory/store';
+
 export function retrieveChunks(
   userId: string,
   agentId: string,
   query: string,
   limit = 5,
 ): Memory[] {
-  const { queryMemories } = require('../memory/store');
   return queryMemories({
     userId,
     agentId,

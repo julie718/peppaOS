@@ -53,7 +53,7 @@ export function AgentChatPage({ t, user, agent, onBack }: { t: any; user: any; a
       if (all.length > 0 && !selectedVoiceId) {
         setSelectedVoiceId(all[0].voiceId);
       }
-    }).catch(() => {});
+    }).catch(err => toast.error('Failed to load voices'));
   }, [selectedVoiceId]);
 
   useEffect(() => {
@@ -135,7 +135,7 @@ export function AgentChatPage({ t, user, agent, onBack }: { t: any; user: any; a
             }
           }
         })
-        .catch(() => {});
+        .catch(err => toast.error('Failed to load conversation'));
     }
   }, [agentId, agentName, user, isFounder]);
 
@@ -233,7 +233,7 @@ export function AgentChatPage({ t, user, agent, onBack }: { t: any; user: any; a
             { role: 'assistant', content: response.text },
           ],
         }),
-      }).catch(() => {});
+      }).catch(err => toast.error('Failed to save message'));
     } catch (err) {
       toast.error("Failed to route through Neural Mesh.");
     } finally {

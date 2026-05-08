@@ -21,6 +21,7 @@ export function VoiceCallButton({ callState, audioLevel, onStart, onEnd, hasVoic
     listening: { icon: <Mic size={20} />, color: 'bg-celestial-saturn text-black border-celestial-saturn shadow-[0_0_20px_rgba(255,204,0,0.4)]', label: 'Listening' },
     thinking: { icon: <Loader2 size={20} className="animate-spin" />, color: 'bg-celestial-mars/10 text-celestial-mars border-celestial-mars/30', label: 'Thinking' },
     speaking: { icon: <Volume2 size={20} />, color: 'bg-celestial-glow/10 text-celestial-glow border-celestial-glow/30', label: 'Speaking' },
+    queued: { icon: <Loader2 size={20} className="animate-spin" />, color: 'bg-purple-500/10 text-purple-400 border-purple-500/30', label: 'Queued' },
   };
 
   const config = stateConfig[callState];

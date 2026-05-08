@@ -1283,16 +1283,7 @@ export function DesktopUI({
                <span className="text-[8px] font-black text-white/20 uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/5 border border-white/5">{personalityId}</span>
             </div>
 
-            {!navigator.userAgent.toLowerCase().includes('electron') && (
-              <button 
-                onClick={onExit} 
-                className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white px-3 py-1 rounded-lg text-[9px] font-black transition-all border border-red-500/20 uppercase tracking-widest"
-              >
-                {t.termSession || 'Term Session'}
-              </button>
-            )}
-
-            <button 
+            <button
               onClick={() => setIsControlCenterOpen(!isControlCenterOpen)}
               className="flex items-center gap-3 px-3 py-1 bg-white/5 hover:bg-white/10 rounded-full border border-white/5 transition-all group"
             >

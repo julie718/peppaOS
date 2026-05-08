@@ -13,6 +13,7 @@ import {
   Music,
   Disc,
   Headphones,
+  Volume2,
   MessagesSquare,
   Sparkle,
   Zap,
@@ -54,6 +55,7 @@ function buildSidebarGroups(t: any) {
       label: t.sidebarVoiceMedia || 'Voice & Media',
       items: [
         { id: 'voice', label: t.voiceForge || 'Voice Forge', icon: <Mic size={16} /> },
+        { id: 'voice-services', label: t.settingsVoiceServices || 'Voice Services', icon: <Headphones size={16} /> },
         { id: 'music', label: t.sidebarMediaServices || 'Media Services', icon: <Music size={16} /> },
       ],
     },
@@ -70,8 +72,8 @@ function buildSidebarGroups(t: any) {
       items: [
         { id: 'sync', label: t.sidebarSyncHub || 'Sync Hub', icon: <Radio size={16} /> },
         { id: 'security', label: t.settings || 'Security', icon: <Shield size={16} /> },
-        { id: 'hardware', label: 'Hardware', icon: <Camera size={16} /> },
-        { id: 'mcp', label: 'MCP', icon: <Cpu size={16} /> },
+        { id: 'hardware', label: t.settingsHardware || 'Hardware', icon: <Camera size={16} /> },
+        { id: 'mcp', label: t.settingsMCP || 'MCP', icon: <Cpu size={16} /> },
       ],
     },
   ];
@@ -108,11 +110,11 @@ export function Settings({
     fetch('/api/personalities')
       .then(r => r.json())
       .then(setPersonalities)
-      .catch(() => {});
+      .catch(() => toast.error(t.failedToLoadPersonalities || 'Failed to load personalities'));
     fetch('/api/llm/providers')
       .then(r => r.json())
       .then(d => setProviderStatus(d.providers || {}))
-      .catch(() => {});
+      .catch(() => toast.error(t.failedToLoadProviderStatus || 'Failed to load provider status'));
   }, []);
 
   const handleSectionChange = (section: string) => {
@@ -274,18 +276,49 @@ export function Settings({
         );
       case 'voice':
         return <VoiceForge t={t} />;
+      case 'voice-services':
+        return (
+          <div className="space-y-8">
+            <SettingsSection title={t.voiceServicesApi || "Voice Services API"} icon={<Headphones size={18} className="text-amber-400" />}>
+              <p className="text-sm text-white/40 max-w-xl mb-6">
+                {t.voiceServicesDesc || "API keys for speech recognition (STT) and speech synthesis (TTS). These are required for Lumi to hear you and speak back."}
+              </p>
+              <div className="grid grid-cols-1 gap-6">
+                <ApiKeyField
+                  icon={<Mic size={18} className="text-cyan-400" />}
+                  label={t.deepgramSTT || "Deepgram (Speech-to-Text)"}
+                  placeholder={t.deepgramPlaceholder || "Enter Deepgram API key..."}
+                  storageKey="lumi_deepgram_key"
+                  serverKey="DEEPGRAM_API_KEY"
+                  hint={t.deepgramHint || "Required for voice input. Get your key at console.deepgram.com"}
+                  t={t}
+                />
+                <ApiKeyField
+                  icon={<Volume2 size={18} className="text-violet-400" />}
+                  label={t.dashscopeTTS || "DashScope / CosyVoice (Text-to-Speech)"}
+                  placeholder={t.dashscopePlaceholder || "Enter DashScope API key..."}
+                  storageKey="lumi_dashscope_key"
+                  serverKey="DASHSCOPE_API_KEY"
+                  hint={t.dashscopeHint || "Alibaba Cloud DashScope. Powers CosyVoice TTS and Qwen LLM. Get your key at dashscope.aliyun.com"}
+                  t={t}
+                />
+              </div>
+            </SettingsSection>
+          </div>
+        );
       case 'api':
         return (
           <div className="space-y-8">
             <SettingsSection title={t.neuralApiMatrix || "Neural API Matrix"} icon={<Key size={18} className="text-celestial-saturn" />}>
               <div className="grid grid-cols-1 gap-6">
-                <ApiKeyField icon={<Sparkle size={18} className="text-purple-400" />} label="Anthropic / Claude 3.5 API" placeholder="sk-ant-..." storageKey="lumi_anthropic_key" />
-                <ApiKeyField icon={<MessagesSquare size={18} className="text-green-400" />} label="OpenAI / GPT-4o API" placeholder="sk-..." storageKey="lumi_openai_key" />
+                <ApiKeyField icon={<Sparkle size={18} className="text-purple-400" />} label="Anthropic / Claude 3.5 API" placeholder="sk-ant-..." storageKey="lumi_anthropic_key" serverKey="ANTHROPIC_API_KEY" t={t} />
+                <ApiKeyField icon={<MessagesSquare size={18} className="text-green-400" />} label="OpenAI / GPT-4o API" placeholder="sk-..." storageKey="lumi_openai_key" serverKey="OPENAI_API_KEY" t={t} />
                 <ApiKeyField icon={<BrainCircuit size={18} className="text-blue-400" />}
                   label={`Google Gemini API${providerStatus.gemini?.available ? ` (${providerStatus.gemini.model})` : ''}`}
                   placeholder={providerStatus.gemini?.available ? (t.connectedViaEnv || 'Connected via environment') : (t.noKeyConfigured || 'No key configured')}
-                  disabled={providerStatus.gemini?.available} storageKey="lumi_gemini_key" />
-                <ApiKeyField icon={<Cpu size={18} className="text-orange-400" />} label="DeepSeek / LLM API" placeholder="sk-..." storageKey="lumi_deepseek_key" />
+                  disabled={providerStatus.gemini?.available} storageKey="lumi_gemini_key" serverKey="GEMINI_API_KEY" t={t} />
+                <ApiKeyField icon={<Cpu size={18} className="text-orange-400" />} label="DeepSeek / LLM API" placeholder="sk-..." storageKey="lumi_deepseek_key" serverKey="DEEPSEEK_API_KEY" t={t} />
+                <ApiKeyField icon={<Zap size={18} className="text-violet-400" />} label="Qwen / DashScope (Alibaba Cloud)" placeholder="sk-..." storageKey="lumi_qwen_key" serverKey="DASHSCOPE_API_KEY" t={t} />
               </div>
             </SettingsSection>
           </div>
@@ -315,9 +348,9 @@ export function Settings({
         return (
           <div className="space-y-8">
             <SettingsSection title={t.privacySecurity || "Privacy & Security"} icon={<Shield size={18} className="text-celestial-mars" />}>
-              <SettingsItem label={t.localEncryption || "Local Encryption"} desc={t.localEncryptionDesc || "Encrypt all Agent data stored on your local disk."} active />
-              <SettingsItem label={t.anonymousMode || "Anonymous Mode"} desc={t.anonymousModeDesc || "Hide your node ID from the collaborative network."} />
-              <SettingsItem label={t.biometricLock || "Biometric Lock"} desc={t.biometricLockDesc || "Require fingerprint or face ID for Agent generation."} />
+              <SettingsItem label={t.localEncryption || "Local Encryption"} desc={t.localEncryptionDesc || "Encrypt all Agent data stored on your local disk."} active t={t} />
+              <SettingsItem label={t.anonymousMode || "Anonymous Mode"} desc={t.anonymousModeDesc || "Hide your node ID from the collaborative network."} t={t} />
+              <SettingsItem label={t.biometricLock || "Biometric Lock"} desc={t.biometricLockDesc || "Require fingerprint or face ID for Agent generation."} t={t} />
             </SettingsSection>
             {isElectron && (
               <SettingsSection title={t.desktopNodeRuntime || "Desktop Node Runtime"} icon={<Database size={18} className="text-celestial-jupiter" />}>
@@ -325,8 +358,8 @@ export function Settings({
                   <div className="flex justify-between items-center text-sm"><span className="text-white/60">{t.platform || "Platform"}:</span><span className="font-mono text-celestial-jupiter uppercase">{platform}</span></div>
                   <div className="flex justify-between items-center text-sm"><span className="text-white/60">{t.nodeStatus || "Node Status"}:</span><div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /><span className="font-bold text-green-500 underline decoration-green-500/20 underline-offset-4">{t.nodeActive || "ACTIVE"}</span></div></div>
                 </div>
-                <SettingsItem label={t.hardwareAcceleration || "Hardware Acceleration"} desc={t.hardwareAccelerationDesc || "Use GPU for neural core inference."} active />
-                <SettingsItem label={t.systemTrayMode || "System Tray Mode"} desc={t.systemTrayModeDesc || "Keep Lumi running in the background."} active />
+                <SettingsItem label={t.hardwareAcceleration || "Hardware Acceleration"} desc={t.hardwareAccelerationDesc || "Use GPU for neural core inference."} active t={t} />
+                <SettingsItem label={t.systemTrayMode || "System Tray Mode"} desc={t.systemTrayModeDesc || "Keep Lumi running in the background."} active t={t} />
               </SettingsSection>
             )}
           </div>
@@ -542,19 +575,44 @@ function SidebarItem({ active, onClick, icon, label }: { active: boolean, onClic
   );
 }
 
-function ApiKeyField({ icon, label, placeholder, disabled = false, storageKey }: { icon: React.ReactNode, label: string, placeholder: string, disabled?: boolean, storageKey: string }) {
+function ApiKeyField({ icon, label, placeholder, disabled = false, storageKey, serverKey, hint, t }: { icon: React.ReactNode, label: string, placeholder: string, disabled?: boolean, storageKey: string, serverKey?: string, hint?: string, t?: any }) {
   const [value, setValue] = useState(() => {
     try { return localStorage.getItem(storageKey) || ''; } catch { return ''; }
   });
   const [saved, setSaved] = useState(false);
+  const [serverConfigured, setServerConfigured] = useState(false);
+
+  useEffect(() => {
+    if (!serverKey) return;
+    fetch('/api/settings/keys')
+      .then(r => r.json())
+      .then(data => setServerConfigured(!!data[serverKey]))
+      .catch(() => {});
+  }, [serverKey]);
 
   const handleSave = () => {
     if (!value.trim()) {
       localStorage.removeItem(storageKey);
-      toast.success('API key removed');
+      if (serverKey) {
+        fetch('/api/settings/keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keys: { [serverKey]: '' } }),
+        }).catch(() => {});
+      }
+      toast.success(t?.apiKeyRemoved || 'API key removed');
     } else {
       localStorage.setItem(storageKey, value.trim());
-      toast.success('API key saved');
+      if (serverKey) {
+        fetch('/api/settings/keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keys: { [serverKey]: value.trim() } }),
+        }).then(r => r.json())
+          .then(() => setServerConfigured(true))
+          .catch(() => toast.error(t?.failedToSaveKey || 'Failed to save key to server'));
+      }
+      toast.success(t?.apiKeySaved || 'API key saved');
     }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -565,6 +623,7 @@ function ApiKeyField({ icon, label, placeholder, disabled = false, storageKey }:
       <div className="flex items-center gap-2">
         <div className="p-2 bg-white/5 rounded-lg">{icon}</div>
         <label className="text-[10px] font-black uppercase tracking-widest text-white/50">{label}</label>
+        {serverConfigured && <span className="text-[8px] px-2 py-0.5 bg-green-500/10 border border-green-500/20 text-green-400 rounded-full font-bold">{t?.configured || 'CONFIGURED'}</span>}
         {saved && <CheckCircle size={14} className="text-green-400 ml-auto" />}
       </div>
       <div className="relative">
@@ -574,7 +633,7 @@ function ApiKeyField({ icon, label, placeholder, disabled = false, storageKey }:
           value={value}
           onChange={e => setValue(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleSave()}
-          placeholder={placeholder}
+          placeholder={serverConfigured && !value ? (t?.keySavedOnServer || 'Key saved on server (type to replace)') : placeholder}
           className="w-full bg-black/40 border border-white/10 rounded-xl p-4 pr-24 text-white font-mono text-sm outline-none focus:border-celestial-saturn/50 transition-colors disabled:opacity-50"
         />
         <Button
@@ -582,9 +641,10 @@ function ApiKeyField({ icon, label, placeholder, disabled = false, storageKey }:
           disabled={disabled}
           className="absolute right-2 top-2 h-10 bg-white/5 hover:bg-white/10 text-[10px] font-black uppercase tracking-widest border border-white/10 rounded-lg"
         >
-          {value ? 'Save' : 'Clear'}
+          {value ? (t?.save || 'Save') : (serverConfigured ? (t?.clear || 'Clear') : (t?.save || 'Save'))}
         </Button>
       </div>
+      {hint && <p className="text-[9px] text-white/20 leading-relaxed">{hint}</p>}
     </div>
   );
 }
@@ -618,7 +678,7 @@ function SettingsSection({ title, icon, children }: { title: string; icon: React
   );
 }
 
-function SettingsItem({ label, desc, active = false, storageKey, onChange }: { label: string; desc: string; active?: boolean; storageKey?: string; onChange?: (v: boolean) => void }) {
+function SettingsItem({ label, desc, active = false, storageKey, onChange, t }: { label: string; desc: string; active?: boolean; storageKey?: string; onChange?: (v: boolean) => void; t?: any }) {
   const [isActive, setIsActive] = useState(() => {
     if (storageKey) {
       try { return localStorage.getItem(storageKey) === 'true'; } catch { return active; }
@@ -633,7 +693,7 @@ function SettingsItem({ label, desc, active = false, storageKey, onChange }: { l
       localStorage.setItem(storageKey, String(next));
     }
     onChange?.(next);
-    toast.info(`${label}: ${next ? 'Enabled' : 'Disabled'}`);
+    toast.info(`${label}: ${next ? (t?.enabled || 'Enabled') : (t?.disabled || 'Disabled')}`);
   };
 
   return (

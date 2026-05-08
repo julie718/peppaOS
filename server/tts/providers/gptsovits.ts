@@ -1,21 +1,72 @@
-import { TTSResult } from '../types';
+import { TTSResult, VoiceListItem } from '../types';
+import fs from 'fs';
+import path from 'path';
 
 const BASE_URL = 'http://127.0.0.1:9880';
 
-// Default reference audio for the Lumi voice
-const DEFAULT_REF_AUDIO = '../data/voice_training/segments/segment_0000.wav';
-const DEFAULT_PROMPT_TEXT = '各位朋友大家好，今天想和大家分享的';
+const SEGMENTS_DIR = path.join(process.cwd(), 'data', 'voice_training', 'segments');
+
+function listReferenceFiles(): { path: string; name: string }[] {
+  try {
+    if (!fs.existsSync(SEGMENTS_DIR)) return [];
+    return fs.readdirSync(SEGMENTS_DIR)
+      .filter(f => f.endsWith('.wav'))
+      .map(f => ({
+        path: path.join(SEGMENTS_DIR, f),
+        name: f.replace(/\.wav$/, '').replace(/_/g, ' '),
+      }));
+  } catch {
+    return [];
+  }
+}
+
+export function listVoices(): VoiceListItem[] {
+  const refs = listReferenceFiles();
+  if (refs.length === 0) {
+    return [{ voiceId: 'lumi', name: 'Lumi Voice', category: 'cloned', language: 'zh' }];
+  }
+  return refs.map(r => ({
+    voiceId: `gptsovits:${r.name.replace(/\s+/g, '_')}`,
+    name: r.name,
+    category: 'cloned' as const,
+    language: 'zh',
+  }));
+}
 
 export async function synthesizeSpeech(
   text: string,
-  _voiceId?: string,
+  voiceId?: string,
   signal?: AbortSignal,
 ): Promise<TTSResult> {
+  // Resolve reference audio based on voiceId
+  let refAudioPath: string;
+  let promptText: string;
+
+  const refs = listReferenceFiles();
+  if (voiceId && voiceId.startsWith('gptsovits:')) {
+    const voiceName = voiceId.replace('gptsovits:', '').replace(/_/g, ' ');
+    const match = refs.find(r => r.name === voiceName);
+    if (match) {
+      refAudioPath = match.path;
+      promptText = match.name;
+    } else {
+      // Fallback to first available or default
+      refAudioPath = refs.length > 0 ? refs[0].path : path.join(process.cwd(), 'data', 'voice_training', 'segments', 'segment_0000.wav');
+      promptText = refs.length > 0 ? refs[0].name : '各位朋友大家好，今天想和大家分享的';
+    }
+  } else if (refs.length > 0) {
+    refAudioPath = refs[0].path;
+    promptText = refs[0].name;
+  } else {
+    refAudioPath = path.join(process.cwd(), 'data', 'voice_training', 'segments', 'segment_0000.wav');
+    promptText = '各位朋友大家好，今天想和大家分享的';
+  }
+
   const body: Record<string, unknown> = {
     text,
     text_lang: 'zh',
-    ref_audio_path: DEFAULT_REF_AUDIO,
-    prompt_text: DEFAULT_PROMPT_TEXT,
+    ref_audio_path: refAudioPath,
+    prompt_text: promptText,
     prompt_lang: 'zh',
     text_split_method: 'cut0',
     batch_size: 1,

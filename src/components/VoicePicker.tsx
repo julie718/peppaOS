@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Play, Star, ChevronDown, Volume2, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { listVoices, synthesizeSpeech } from '@/services/voiceService';
 import { useApp } from '@/contexts/AppContext';
 
@@ -27,7 +28,7 @@ export function VoicePicker({ t }: { t: any }) {
     setLoadingVoices(true);
     listVoices()
       .then(data => { setVoices([...data.cloned, ...data.premade]); })
-      .catch(() => {})
+      .catch(err => toast.error('Failed to load voices'))
       .finally(() => setLoadingVoices(false));
   }, []);
 

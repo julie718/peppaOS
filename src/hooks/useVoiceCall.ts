@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 
-export type CallState = 'idle' | 'connecting' | 'listening' | 'thinking' | 'speaking';
+export type CallState = 'idle' | 'connecting' | 'listening' | 'thinking' | 'speaking' | 'queued';
 
 interface UseVoiceCallOptions {
   socket: any;
@@ -137,6 +137,7 @@ export function useVoiceCall({ socket, onTranscript, onResponse }: UseVoiceCallO
         listening: 'listening',
         thinking: 'thinking',
         speaking: 'speaking',
+        queued: 'queued',
         idle: 'idle',
       };
       setCallState(map[data.status] || 'idle');
@@ -221,6 +222,20 @@ export function useVoiceCall({ socket, onTranscript, onResponse }: UseVoiceCallO
       socket.off('audio:interrupt-ack');
     };
   }, [socket, onTranscript, onResponse, stopAllPlayback]);
+
+  // Push audio emotion perception events when call state changes
+  useEffect(() => {
+    if (!socket?.connected || callState === 'idle' || callState === 'connecting') return;
+    const emotionMap: Record<string, { emotion: string; intensity: number }> = {
+      listening: { emotion: 'attentive', intensity: 0.4 },
+      thinking: { emotion: 'focused', intensity: 0.6 },
+      speaking: { emotion: 'engaged', intensity: 0.7 },
+    };
+    const entry = emotionMap[callState];
+    if (entry) {
+      socket.emit('perception:audio_emotion', entry);
+    }
+  }, [callState, socket]);
 
   const startCall = useCallback(async (voiceId?: string, personalityId: string = 'lumi') => {
     try {

@@ -1,0 +1,114 @@
+import { Router } from "express";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import { readDB, writeDB } from "../../db_layer";
+
+export function mountAuthRoutes(router: Router, jwtSecret: string, getCookieOptions: () => any) {
+  router.post("/auth/register", async (req, res) => {
+    const { username, password, phone } = req.body;
+    if (!username || !password || !phone) {
+      return res.status(400).json({ error: "Username, password and phone are required" });
+    }
+
+    const db = readDB();
+    if (db.users.find((u: any) => u.username === username)) {
+      return res.status(400).json({ error: "User already exists" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = {
+      uid: Math.random().toString(36).substring(2, 15),
+      username,
+      password: hashedPassword,
+      phone,
+      role: "user",
+      balance: 10.0,
+      createdAt: new Date().toISOString()
+    };
+
+    db.users.push(newUser);
+    writeDB(db);
+
+    const token = jwt.sign({ uid: newUser.uid, username, role: newUser.role }, jwtSecret, { expiresIn: "24h" });
+    res.cookie("token", token, getCookieOptions());
+
+    const { password: _, ...userWithoutPassword } = newUser;
+    return res.json({ success: true, user: userWithoutPassword });
+  });
+
+  router.post("/auth/login", async (req, res) => {
+    const { username, password } = req.body;
+    const db = readDB();
+    const user = db.users.find((u: any) => u.username === username);
+    if (!user) return res.status(401).json({ error: "Invalid credentials" });
+
+    const passwordMatch = user.password.startsWith('$2')
+      ? await bcrypt.compare(password, user.password)
+      : user.password === password;
+
+    if (passwordMatch) {
+      const token = jwt.sign({ uid: user.uid, username, role: user.role }, jwtSecret, { expiresIn: "24h" });
+      res.cookie("token", token, getCookieOptions());
+      const { password: _, ...userWithoutPassword } = user;
+      return res.json({ success: true, user: userWithoutPassword });
+    }
+    res.status(401).json({ error: "Invalid credentials" });
+  });
+
+  router.get("/auth/me", (req, res) => {
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ error: "Not authenticated" });
+    try {
+      const decoded: any = jwt.verify(token, jwtSecret);
+      const db = readDB();
+      const user = db.users.find((u: any) => u.uid === decoded.uid);
+      if (!user) return res.status(401).json({ error: "User not found" });
+      const { password: _, ...userWithoutPassword } = user;
+      res.json({ user: userWithoutPassword });
+    } catch (e) {
+      res.status(401).json({ error: "Invalid token" });
+    }
+  });
+
+  router.post("/auth/logout", (req, res) => {
+    res.clearCookie("token", getCookieOptions());
+    res.json({ success: true });
+  });
+
+  router.post("/auth/change-password", async (req, res) => {
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const decoded: any = jwt.verify(token, jwtSecret);
+      const { currentPassword, newPassword } = req.body;
+
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ error: "Current and new passwords are required" });
+      }
+
+      const db = readDB();
+      const userIndex = db.users.findIndex((u: any) => u.uid === decoded.uid);
+
+      if (userIndex === -1) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const storedPassword = db.users[userIndex].password || "";
+      const passwordMatches = storedPassword.startsWith('$2')
+        ? await bcrypt.compare(currentPassword, storedPassword)
+        : storedPassword === currentPassword;
+
+      if (!passwordMatches) {
+        return res.status(400).json({ error: "Incorrect current password" });
+      }
+
+      db.users[userIndex].password = await bcrypt.hash(newPassword, 10);
+      writeDB(db);
+
+      res.json({ success: true });
+    } catch (e) {
+      res.status(401).json({ error: "Invalid token" });
+    }
+  });
+}

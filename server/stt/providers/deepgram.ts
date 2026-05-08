@@ -1,9 +1,10 @@
 import { STTResult } from '../types';
 import { logger } from '../../../logger';
+import { getKey } from '../../config/keys';
 
 function getApiKey(): string {
-  const key = process.env.DEEPGRAM_API_KEY;
-  if (!key) throw new Error('DEEPGRAM_API_KEY is not configured');
+  const key = process.env.DEEPGRAM_API_KEY || getKey('DEEPGRAM_API_KEY');
+  if (!key) throw new Error('DEEPGRAM_API_KEY is not configured. Add it in Settings → Voice Services.');
   return key;
 }
 

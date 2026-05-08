@@ -27,6 +27,7 @@ import { registerAllTools } from "./server/tools/definitions/index";
 import { queryMemories, addMemory, removeMemory, formatMemoriesForContext, extractMemories, addReminder, fireReminder, runBehavioralAnalysis, getUnconsolidatedEpisodic, markConsolidated, initMemorySync, registerUserSocket, unregisterUserSocket, broadcastMemoryChange } from "./server/memory";
 import { consolidateEpisodic, selfReflect, ConsolidationContext } from "./server/memory/consolidator";
 import { personalityRegistry } from "./server/personality";
+import { evolvePersonality } from "./server/personality/evolution";
 import { loadEmotionalState, saveEmotionalState, updateEmotionalState } from "./server/personality/state";
 import { mcpManager, registerMCPTools, getMCPConfig, updateMCPConfig } from "./server/mcp";
 import { createLumiMcpServer, handleMcpSSE, handleMcpMessage } from "./server/mcp/lumi_server";
@@ -39,6 +40,13 @@ import { canOutputHolographic, textToHolographicOutput } from "./server/output/h
 import type { SensoryContext } from "./server/personality/types";
 import voiceRoutes from "./routes/voice";
 import fileRoutes from "./routes/files";
+import { mountAuthRoutes } from "./server/routes/auth";
+import { mountMemoryRoutes } from "./server/routes/memory_routes";
+import { registerChatHandler } from "./server/socket/chat";
+import { registerTaskHandler } from "./server/socket/task";
+import { registerVoiceHandlers } from "./server/socket/voice";
+import { getSensory, perceptionEvents, MAX_PERCEPTION_EVENTS } from "./server/socket/shared";
+import { loadKeys, saveKeys, getKey, getAllKeyNames } from "./server/config/keys";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -69,22 +77,24 @@ let deepseek: OpenAI | null = null;
 let qwen: OpenAI | null = null;
 
 function getOpenAI() {
-  if (!openai && process.env.OPENAI_API_KEY) {
-    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const key = process.env.OPENAI_API_KEY || getKey('OPENAI_API_KEY');
+  if (!openai && key) {
+    openai = new OpenAI({ apiKey: key });
   }
   return openai;
 }
 
 function getAnthropic() {
-  if (!anthropic && process.env.ANTHROPIC_API_KEY) {
-    anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const key = process.env.ANTHROPIC_API_KEY || getKey('ANTHROPIC_API_KEY');
+  if (!anthropic && key) {
+    anthropic = new Anthropic({ apiKey: key });
   }
   return anthropic;
 }
 
 function getGemini() {
   if (!gemini) {
-    const key = process.env.GEMINI_API_KEY;
+    const key = process.env.GEMINI_API_KEY || getKey('GEMINI_API_KEY');
     if (key && key !== "undefined" && key !== "null" && key.length > 0) {
       gemini = new GoogleGenerativeAI(key);
     }
@@ -93,10 +103,11 @@ function getGemini() {
 }
 
 function getDeepSeek() {
-  if (!deepseek && process.env.DEEPSEEK_API_KEY) {
-    deepseek = new OpenAI({ 
-      apiKey: process.env.DEEPSEEK_API_KEY, 
-      baseURL: "https://api.deepseek.com" 
+  const key = process.env.DEEPSEEK_API_KEY || getKey('DEEPSEEK_API_KEY');
+  if (!deepseek && key) {
+    deepseek = new OpenAI({
+      apiKey: key,
+      baseURL: "https://api.deepseek.com"
     });
   }
   return deepseek;
@@ -104,7 +115,7 @@ function getDeepSeek() {
 
 function getQwen() {
   if (!qwen) {
-    const key = process.env.DASHSCOPE_API_KEY || process.env.QWEN_API_KEY;
+    const key = process.env.DASHSCOPE_API_KEY || process.env.QWEN_API_KEY || getKey('DASHSCOPE_API_KEY') || getKey('QWEN_API_KEY');
     if (key) {
       qwen = new OpenAI({
         apiKey: key,
@@ -113,33 +124,6 @@ function getQwen() {
     }
   }
   return qwen;
-}
-
-// Store recent perception events per user (for fusion layer)
-const perceptionEvents: Map<string, RawModalityInput[]> = new Map();
-const MAX_PERCEPTION_EVENTS = 20;
-
-/** Build sensory context from connected devices + fused perception events */
-function getSensory(userId: string, locationTag?: string): SensoryContext {
-  const ds = deviceRegistry.getSensoryContext(userId);
-  const recentEvents = perceptionEvents.get(userId) || [];
-
-  if (recentEvents.length > 0) {
-    const fused = fuseContext(recentEvents, userId, locationTag);
-    return fused.sensory;
-  }
-
-  // Fallback to raw device capabilities
-  return {
-    audio: ds.hasAudio,
-    visual: ds.hasVideo,
-    spatial: ds.hasSpatial,
-    haptic: ds.hasHaptic,
-    holographic: ds.hasHolographic,
-    activeDeviceTypes: ds.activeDeviceTypes,
-    deviceCount: ds.deviceCount,
-    locationTag,
-  };
 }
 
 // Allow credentials from any origin (Tauri webview, localhost, etc.)
@@ -295,6 +279,49 @@ apiRouter.get("/personality/stats", (req, res) => {
   }
 });
 
+// Personality evolution — get evolution history for a personality
+apiRouter.get("/personality/:id/evolution", (req, res) => {
+  const history = personalityRegistry.getEvolutionHistory(req.params.id);
+  const evolutionConfig = personalityRegistry.getEvolutionConfig(req.params.id);
+  res.json({ personalityId: req.params.id, evolutionConfig, history });
+});
+
+// Personality evolution — manually trigger evolution for a personality
+apiRouter.post("/personality/:id/evolve", async (req, res) => {
+  try {
+    const config = personalityRegistry.get(req.params.id);
+    if (!config) return res.status(404).json({ error: "Personality not found" });
+
+    const token = req.cookies.token;
+    let uid = 'anonymous';
+    if (token) {
+      try { const decoded: any = jwt.verify(token, JWT_SECRET); uid = decoded.uid; } catch {}
+    }
+
+    const emotionalState = loadEmotionalState(uid);
+    const evolutionConfig = personalityRegistry.getEvolutionConfig(req.params.id);
+
+    const step = await evolvePersonality(
+      config,
+      uid,
+      emotionalState.connection,
+      getDeepSeek,
+      getGemini,
+      getQwen,
+      evolutionConfig,
+    );
+
+    if (!step) {
+      return res.json({ evolved: false, reason: 'Evolution not needed or not ready. Check evolution config cooldown, connection score, and memory count.' });
+    }
+
+    const updated = personalityRegistry.applyEvolution(req.params.id, step);
+    res.json({ evolved: true, version: step.version, narrative: step.narrative, mutations: step.mutations.length, config: updated });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 0.2. MCP management
 apiRouter.get("/mcp", (_req, res) => {
   const config = getMCPConfig();
@@ -417,13 +444,16 @@ apiRouter.get("/scheduler/tasks", (_req, res) => {
 
 // 0.5 Provider status
 apiRouter.get("/llm/providers", (_req, res) => {
+  const stored = loadKeys();
+  const envOrStore = (envKey: string, storeKey: string) =>
+    !!(process.env[envKey] && process.env[envKey]!.length > 0) || !!stored[storeKey as keyof typeof stored];
   res.json({
     providers: {
-      deepseek: { available: !!(process.env.DEEPSEEK_API_KEY && process.env.DEEPSEEK_API_KEY.length > 0), model: process.env.DEEPSEEK_MODEL || 'deepseek-chat' },
-      gemini: { available: !!(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.length > 0), model: process.env.GEMINI_MODEL || 'gemini-2.0-flash' },
-      openai: { available: !!(process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.length > 0), model: process.env.OPENAI_MODEL || 'gpt-4o' },
-      anthropic: { available: !!(process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY.length > 0), model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6' },
-      qwen: { available: !!(process.env.QWEN_API_KEY && process.env.QWEN_API_KEY.length > 0), model: process.env.QWEN_MODEL || 'qwen-plus' },
+      deepseek: { available: envOrStore('DEEPSEEK_API_KEY', 'DEEPSEEK_API_KEY'), model: process.env.DEEPSEEK_MODEL || 'deepseek-chat' },
+      gemini: { available: envOrStore('GEMINI_API_KEY', 'GEMINI_API_KEY'), model: process.env.GEMINI_MODEL || 'gemini-2.0-flash' },
+      openai: { available: envOrStore('OPENAI_API_KEY', 'OPENAI_API_KEY'), model: process.env.OPENAI_MODEL || 'gpt-4o' },
+      anthropic: { available: envOrStore('ANTHROPIC_API_KEY', 'ANTHROPIC_API_KEY'), model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6' },
+      qwen: { available: envOrStore('QWEN_API_KEY', 'DASHSCOPE_API_KEY') || envOrStore('DASHSCOPE_API_KEY', 'DASHSCOPE_API_KEY'), model: process.env.QWEN_MODEL || 'qwen-plus' },
     },
   });
 });
@@ -432,22 +462,48 @@ apiRouter.get("/llm/providers", (_req, res) => {
 apiRouter.post("/llm/test", async (req, res) => {
   const { provider } = req.body || {};
   try {
-    // Quick availability check — just verify the API key is configured
+    const stored = loadKeys();
     const keyMap: Record<string, string | undefined> = {
-      deepseek: process.env.DEEPSEEK_API_KEY,
-      gemini: process.env.GEMINI_API_KEY,
-      openai: process.env.OPENAI_API_KEY,
-      anthropic: process.env.ANTHROPIC_API_KEY,
-      qwen: process.env.QWEN_API_KEY || process.env.DASHSCOPE_API_KEY,
+      deepseek: process.env.DEEPSEEK_API_KEY || stored.DEEPSEEK_API_KEY,
+      gemini: process.env.GEMINI_API_KEY || stored.GEMINI_API_KEY,
+      openai: process.env.OPENAI_API_KEY || stored.OPENAI_API_KEY,
+      anthropic: process.env.ANTHROPIC_API_KEY || stored.ANTHROPIC_API_KEY,
+      qwen: process.env.QWEN_API_KEY || process.env.DASHSCOPE_API_KEY || stored.QWEN_API_KEY || stored.DASHSCOPE_API_KEY,
     };
     const key = keyMap[provider];
     if (!key) {
-      return res.status(400).json({ ok: false, error: `No API key configured for ${provider}. Set ${provider.toUpperCase()}_API_KEY in environment.` });
+      return res.status(400).json({ ok: false, error: `No API key configured for ${provider}. Add it in Settings → API Matrix or Voice Services.` });
     }
     res.json({ ok: true, provider, message: 'API key configured' });
   } catch (err: any) {
     res.status(500).json({ ok: false, error: err.message?.slice(0, 200) || 'Connection check failed' });
   }
+});
+
+// 0.65 API Keys — read/write user-configured keys
+apiRouter.get("/settings/keys", (_req, res) => {
+  const stored = loadKeys();
+  const masked: Record<string, boolean> = {};
+  for (const name of getAllKeyNames()) {
+    masked[name] = !!(process.env[name] || stored[name]);
+  }
+  res.json(masked);
+});
+
+apiRouter.post("/settings/keys", (req, res) => {
+  const { keys } = req.body || {};
+  if (!keys || typeof keys !== 'object') {
+    return res.status(400).json({ error: 'Invalid keys payload' });
+  }
+  const allowed = new Set<string>(getAllKeyNames());
+  const filtered: Record<string, string> = {};
+  for (const [k, v] of Object.entries(keys)) {
+    if (allowed.has(k) && typeof v === 'string' && v.trim().length > 0) {
+      filtered[k] = v.trim();
+    }
+  }
+  saveKeys(filtered);
+  res.json({ success: true, saved: Object.keys(filtered) });
 });
 
 // 0.7 Conversation API
@@ -577,119 +633,8 @@ apiRouter.post("/ai/chat", async (req, res) => {
 });
 
 // 2. Custom Auth with Persistence
-apiRouter.post("/auth/register", async (req, res) => {
-  const { username, password, phone } = req.body;
-  if (!username || !password || !phone) {
-    return res.status(400).json({ error: "Username, password and phone are required" });
-  }
-
-  const db = readDB();
-  if (db.users.find((u: any) => u.username === username)) {
-    return res.status(400).json({ error: "User already exists" });
-  }
-
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const newUser = {
-    uid: Math.random().toString(36).substring(2, 15),
-    username,
-    password: hashedPassword,
-    phone,
-    role: "user",
-    balance: 10.0,
-    createdAt: new Date().toISOString()
-  };
-
-  db.users.push(newUser);
-  writeDB(db);
-
-  const token = jwt.sign({ uid: newUser.uid, username, role: newUser.role }, JWT_SECRET, { expiresIn: "24h" });
-  res.cookie("token", token, getCookieOptions());
-
-  const { password: _, ...userWithoutPassword } = newUser;
-  return res.json({ success: true, user: userWithoutPassword });
-});
-
-apiRouter.post("/auth/login", async (req, res) => {
-  const { username, password } = req.body;
-  const db = readDB();
-  const user = db.users.find((u: any) => u.username === username);
-  if (!user) return res.status(401).json({ error: "Invalid credentials" });
-
-  const passwordMatch = user.password.startsWith('$2')
-    ? await bcrypt.compare(password, user.password)
-    : user.password === password;
-
-  if (passwordMatch) {
-    const token = jwt.sign({ uid: user.uid, username, role: user.role }, JWT_SECRET, { expiresIn: "24h" });
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-      maxAge: 24 * 60 * 60 * 1000
-    });
-    const { password: _, ...userWithoutPassword } = user;
-    return res.json({ success: true, user: userWithoutPassword });
-  }
-  res.status(401).json({ error: "Invalid credentials" });
-});
-
-apiRouter.get("/auth/me", (req, res) => {
-  const token = req.cookies.token;
-  if (!token) return res.status(401).json({ error: "Not authenticated" });
-  try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    const db = readDB();
-    const user = db.users.find((u: any) => u.uid === decoded.uid);
-    if (!user) return res.status(401).json({ error: "User not found" });
-    
-    const { password: _, ...userWithoutPassword } = user;
-    res.json({ user: userWithoutPassword });
-  } catch (e) {
-    res.status(401).json({ error: "Invalid token" });
-  }
-});
-
-apiRouter.post("/auth/logout", (req, res) => {
-  res.clearCookie("token", getCookieOptions());
-  res.json({ success: true });
-});
-
-apiRouter.post("/auth/change-password", async (req, res) => {
-  const token = req.cookies.token;
-  if (!token) return res.status(401).json({ error: "Unauthorized" });
-
-  try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    const { currentPassword, newPassword } = req.body;
-    
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ error: "Current and new passwords are required" });
-    }
-
-    const db = readDB();
-    const userIndex = db.users.findIndex((u: any) => u.uid === decoded.uid);
-    
-    if (userIndex === -1) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    const storedPassword = db.users[userIndex].password || "";
-    const passwordMatches = storedPassword.startsWith('$2')
-      ? await bcrypt.compare(currentPassword, storedPassword)
-      : storedPassword === currentPassword;
-
-    if (!passwordMatches) {
-      return res.status(400).json({ error: "Incorrect current password" });
-    }
-
-    db.users[userIndex].password = await bcrypt.hash(newPassword, 10);
-    writeDB(db);
-
-    res.json({ success: true });
-  } catch (e) {
-    res.status(401).json({ error: "Invalid token" });
-  }
-});
+// Auth routes
+mountAuthRoutes(apiRouter, JWT_SECRET, getCookieOptions);
 
 // 3. Agent Management
 apiRouter.get("/agents/:id/history", (req, res) => {
@@ -861,676 +806,10 @@ apiRouter.post("/interactions", (req, res) => {
   }
 });
 
-// 4.1 Memories
-apiRouter.get("/memories", (req, res) => {
-  const token = req.cookies.token;
-  if (!token) return res.status(401).json({ error: "Unauthorized" });
+// Memory & Reminder routes
+mountMemoryRoutes(apiRouter, JWT_SECRET, { getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen });
 
-  try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    const type = req.query.type as string | undefined;
-    const search = req.query.search as string | undefined;
-    const limit = parseInt(req.query.limit as string) || 50;
-
-    const memories = queryMemories({
-      userId: decoded.uid,
-      type: type as any,
-      query: search,
-      limit,
-      minConfidence: 0,
-    });
-    res.json(memories);
-  } catch (e) {
-    res.status(401).json({ error: "Invalid token" });
-  }
-});
-
-apiRouter.post("/memories", (req, res) => {
-  const token = req.cookies.token;
-  if (!token) return res.status(401).json({ error: "Unauthorized" });
-
-  try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    const { type, content, keywords, confidence } = req.body;
-
-    if (!type || !content) {
-      return res.status(400).json({ error: "type and content are required" });
-    }
-
-    const memory = addMemory({
-      userId: decoded.uid.replace(/[^a-zA-Z0-9_-]/g, '_'),
-      type,
-      content,
-      keywords: keywords || [],
-      confidence: confidence || 0.5,
-      sourceInteractionId: 'manual',
-    });
-    broadcastMemoryChange(decoded.uid, 'added', memory.id);
-    res.json(memory);
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-apiRouter.put("/memories/:id", (req, res) => {
-  const token = req.cookies.token;
-  if (!token) return res.status(401).json({ error: "Unauthorized" });
-
-  try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    const { id } = req.params;
-    const { content, keywords, confidence, type } = req.body;
-
-    // Remove old, add new with same id
-    const all = readDB().memories || [];
-    const idx = all.findIndex((m: any) => m.id === id && m.userId === decoded.uid);
-    if (idx === -1) return res.status(404).json({ error: "Memory not found" });
-
-    const existing = all[idx];
-    if (content !== undefined) existing.content = content;
-    if (keywords !== undefined) existing.keywords = keywords;
-    if (confidence !== undefined) existing.confidence = confidence;
-    if (type !== undefined) existing.type = type;
-    existing.updatedAt = new Date().toISOString();
-
-    const db = readDB();
-    db.memories = all;
-    writeDB(db);
-    broadcastMemoryChange(decoded.uid, 'updated', existing.id);
-    res.json(existing);
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-apiRouter.delete("/memories/:id", (req, res) => {
-  const token = req.cookies.token;
-  if (!token) return res.status(401).json({ error: "Unauthorized" });
-
-  try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    const { id } = req.params;
-
-    const all = readDB().memories || [];
-    const idx = all.findIndex((m: any) => m.id === id && m.userId === decoded.uid);
-    if (idx === -1) return res.status(404).json({ error: "Memory not found" });
-
-    const memoryId = all[idx].id;
-    all.splice(idx, 1);
-    const db = readDB();
-    db.memories = all;
-    writeDB(db);
-    broadcastMemoryChange(decoded.uid, 'deleted', memoryId);
-    res.json({ success: true });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// Behavioral analysis endpoint
-apiRouter.post("/memory/analyze-behavior", (req, res) => {
-  try {
-    const token = req.cookies.token;
-    let uid = 'anonymous';
-    if (token) {
-      try { const decoded: any = jwt.verify(token, JWT_SECRET); uid = decoded.uid; } catch {}
-    }
-    const count = runBehavioralAnalysis(uid);
-    res.json({ success: true, patternsFound: count });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Reminders API
-apiRouter.get("/reminders", (req, res) => {
-  const token = req.cookies.token;
-  if (!token) return res.status(401).json({ error: "Unauthorized" });
-  try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    const db = readDB();
-    const reminders = (db.reminders || []).filter((r: any) => r.userId === decoded.uid);
-    res.json(reminders);
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-apiRouter.post("/reminders", (req, res) => {
-  const token = req.cookies.token;
-  if (!token) return res.status(401).json({ error: "Unauthorized" });
-  try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    const { content, dueAt } = req.body || {};
-    if (!content || typeof content !== "string") {
-      return res.status(400).json({ error: "content is required" });
-    }
-
-    const reminder = addReminder({
-      userId: decoded.uid,
-      content: content.trim(),
-      dueAt: dueAt || null,
-      sourceInteractionId: "manual",
-    });
-    res.json(reminder);
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-apiRouter.put("/reminders/:id", (req, res) => {
-  const token = req.cookies.token;
-  if (!token) return res.status(401).json({ error: "Unauthorized" });
-  try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    const db = readDB();
-    const reminders = db.reminders || [];
-    const reminder = reminders.find((r: any) => r.id === req.params.id && r.userId === decoded.uid);
-    if (!reminder) return res.status(404).json({ error: "Reminder not found" });
-
-    const { content, dueAt, status } = req.body || {};
-    if (content !== undefined) reminder.content = String(content).trim();
-    if (dueAt !== undefined) reminder.dueAt = dueAt || null;
-    if (status === "fired" && reminder.status !== "fired") {
-      fireReminder(reminder.id);
-      return res.json({ ...reminder, status: "fired", firedAt: new Date().toISOString() });
-    }
-    if (status === "pending") {
-      reminder.status = "pending";
-      reminder.firedAt = null;
-    }
-    db.reminders = reminders;
-    writeDB(db);
-    res.json(reminder);
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-apiRouter.delete("/reminders/:id", (req, res) => {
-  const token = req.cookies.token;
-  if (!token) return res.status(401).json({ error: "Unauthorized" });
-  try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    const db = readDB();
-    const reminders = db.reminders || [];
-    const idx = reminders.findIndex((r: any) => r.id === req.params.id && r.userId === decoded.uid);
-    if (idx === -1) return res.status(404).json({ error: "Reminder not found" });
-    reminders.splice(idx, 1);
-    db.reminders = reminders;
-    writeDB(db);
-    res.json({ success: true });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// 5. Feedback
-apiRouter.get("/admin/config", (req, res) => {
-  const token = req.cookies.token;
-  if (!token) return res.status(401).json({ error: "Unauthorized" });
-  try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    if (decoded.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
-    const db = readDB();
-    res.json({ adminEmail: db.adminEmail || "admin@lumi.ai" });
-  } catch (e) {
-    res.status(401).json({ error: "Invalid token" });
-  }
-});
-
-apiRouter.post("/admin/config", (req, res) => {
-  const token = req.cookies.token;
-  if (!token) return res.status(401).json({ error: "Unauthorized" });
-  try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    if (decoded.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
-    const { adminEmail } = req.body;
-    const db = readDB();
-    db.adminEmail = adminEmail;
-    writeDB(db);
-    res.json({ success: true });
-  } catch (e) {
-    res.status(401).json({ error: "Invalid token" });
-  }
-});
-
-apiRouter.post("/feedback", (req, res) => {
-  const { email, message, type = "general", contact, position } = req.body;
-  const db = readDB();
-  if (!db.feedback) db.feedback = [];
-  
-  const newFeedback = {
-    id: Math.random().toString(36).substring(2, 15),
-    email,
-    message,
-    type,
-    contact,
-    position,
-    timestamp: new Date().toISOString()
-  };
-
-  db.feedback.push(newFeedback);
-  writeDB(db);
-  
-  // In a real app, we would send an email to db.adminEmail here
-  console.log(`[Notification] New ${type} submission from ${email}. Forwarding to ${db.adminEmail || "admin@lumi.ai"}`);
-  
-  res.json({ success: true });
-});
-
-// Debug route for environment variables. Admin-only and metadata-only.
-apiRouter.get("/debug/env", (req, res) => {
-  const token = req.cookies.token;
-  if (!token) return res.status(401).json({ error: "Unauthorized" });
-
-  try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    if (decoded.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
-
-    const debugInfo = Object.keys(process.env).sort().map(key => ({
-      key,
-      exists: process.env[key] !== undefined,
-      length: process.env[key]?.length || 0,
-    }));
-    res.json(debugInfo);
-  } catch {
-    res.status(401).json({ error: "Invalid token" });
-  }
-});
-
-// 3. Module Specific APIs
-apiRouter.get("/modules/docs", (req, res) => {
-  res.json({
-    title: "文档中心",
-    sections: [
-      { id: 2, title: "API 参考", content: "我们提供了一套完整的 RESTful API，支持多种 AI 模型。所有请求均通过本地加密隧道传输，确保数据主权。" },
-      { id: 3, title: "最佳实践", content: "为了获得最佳的 AI 响应，建议在提示词中包含具体的上下文。LumiAI 会自动结合您的本地知识库进行检索增强。" },
-      { id: 4, title: "分布式协议", content: "LumiAI 采用去中心化节点架构，桌面端作为算力中心（Node），移动端作为感知终端。通过推理证明（PoI）确保网络安全。" },
-      { id: 5, title: "数据共享协议", content: "LumiAI 遵循严格的‘本地优先’数据共享协议。只有在您明确授权‘协作任务’时，您的数据才会与对等节点共享。所有共享数据均经过加密和匿名化处理，确保您的核心身份和私密信息在本地节点内得到保护。" }
-    ]
-  });
-});
-
-apiRouter.get("/marketplace/skills", (req, res) => {
-  try {
-    const db = readDB();
-    const skills = db.marketplaceSkills || [];
-    console.log(`[API] Serving ${skills.length} skills`);
-    res.json(skills);
-  } catch (err: any) {
-    console.error("[API ERROR] /marketplace/skills:", err);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
-
-apiRouter.post("/marketplace/skills/acquire", (req, res) => {
-  try {
-    const { skillId, skillName } = req.body;
-    if (!skillId) {
-      return res.status(400).json({ error: "skillId is required" });
-    }
-    const db = readDB();
-    const skills = db.marketplaceSkills || [];
-    const skill = skills.find((s: any) => s.id === skillId);
-    if (!skill) {
-      return res.status(404).json({ error: "Skill not found" });
-    }
-    if (!db.acquiredSkills) db.acquiredSkills = [];
-    if (!db.acquiredSkills.find((s: any) => s.id === skillId)) {
-      db.acquiredSkills.push({ id: skillId, name: skillName || skill.name, acquiredAt: new Date().toISOString() });
-      writeDB(db);
-    }
-    console.log(`[API] Skill acquired: ${skillName || skillId}`);
-    res.json({ success: true, skill });
-  } catch (err: any) {
-    console.error("[API ERROR] /marketplace/skills/acquire:", err);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
-
-// Marketplace: Community personalities
-const CURATED_PERSONALITIES = [
-  {
-    id: "community-teacher",
-    name: "AI Teacher",
-    author: "LumiCommunity",
-    version: "1.0",
-    description: "Patient educator AI that adapts explanations to the user's learning style. Great for studying complex topics.",
-    downloadCount: 234,
-    gistUrl: "",
-    tags: ["education", "teaching", "learning"],
-  },
-  {
-    id: "community-coder",
-    name: "Code Reviewer",
-    author: "DevCollective",
-    version: "2.1",
-    description: "Critical code reviewer that catches bugs, suggests optimizations, and enforces best practices.",
-    downloadCount: 567,
-    gistUrl: "",
-    tags: ["code", "review", "programming"],
-  },
-  {
-    id: "community-creative",
-    name: "Creative Muse",
-    author: "ArtSynth",
-    version: "1.3",
-    description: "Brainstorming partner for creative writing, art direction, and design thinking. Playful and inspiring tone.",
-    downloadCount: 189,
-    gistUrl: "",
-    tags: ["creative", "writing", "design"],
-  },
-  {
-    id: "community-minimalist",
-    name: "Zen Minimalist",
-    author: "FocusLabs",
-    version: "1.0",
-    description: "Ultra-concise AI that responds in single sentences. Perfect for quick answers without the fluff.",
-    downloadCount: 412,
-    gistUrl: "",
-    tags: ["minimal", "fast", "concise"],
-  },
-];
-
-apiRouter.get("/marketplace/personalities", (_req, res) => {
-  res.json(CURATED_PERSONALITIES);
-});
-
-apiRouter.post("/marketplace/personalities/install", (req, res) => {
-  try {
-    const { gistUrl, id, name } = req.body;
-
-    // If a gistUrl is provided, fetch it
-    if (gistUrl) {
-      fetch(gistUrl)
-        .then(r => r.json())
-        .then(data => {
-          const filePath = path.join(process.cwd(), 'server', 'personality', 'personalities.json');
-          let configs: any[] = [];
-          try { configs = JSON.parse(fs.readFileSync(filePath, 'utf-8')); } catch {}
-          const existing = configs.findIndex((c: any) => c.id === data.id);
-          if (existing >= 0) {
-            configs[existing] = { ...data, id: data.id };
-          } else {
-            configs.push({ ...data, id: data.id });
-          }
-          fs.writeFileSync(filePath, JSON.stringify(configs, null, 2));
-          personalityRegistry.reload(filePath);
-        })
-        .catch(err => console.error('Gist fetch failed:', err));
-    }
-
-    // For curated entries without gistUrl, generate from template
-    const curated = CURATED_PERSONALITIES.find(p => p.id === id);
-    if (curated && !curated.gistUrl) {
-      const filePath = path.join(process.cwd(), 'server', 'personality', 'personalities.json');
-      let configs: any[] = [];
-      try { configs = JSON.parse(fs.readFileSync(filePath, 'utf-8')); } catch {}
-
-      if (configs.find((c: any) => c.id === id)) {
-        return res.json({ success: true, message: `${name || id} already installed` });
-      }
-
-      const newPersonality = {
-        id,
-        name: curated.name,
-        version: curated.version,
-        coreMotivation: curated.description,
-        behavioralBoundaries: [],
-        expressionStyle: { persona: curated.description, tone: 'neutral', verbosity: 'balanced', languages: ['en'] },
-        toolPolicy: { allowedTools: ['*'], requireConfirmation: [], forbiddenTools: [], maxIterations: 3 },
-        memoryPolicy: { retrieveLimit: 5, minConfidence: 0.4, includeTypes: ['preference', 'fact'], autoExtract: true },
-        defaultModel: 'qwen-plus',
-        fallbackModel: 'gemini-1.5-flash',
-      };
-      configs.push(newPersonality);
-      fs.writeFileSync(filePath, JSON.stringify(configs, null, 2));
-      personalityRegistry.reload(filePath);
-      console.log(`[Marketplace] Installed personality: ${id}`);
-    }
-
-    res.json({ success: true });
-  } catch (err: any) {
-    console.error("[API ERROR] /marketplace/personalities/install:", err);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
-
-apiRouter.get("/founder/vision", (req, res) => {
-  const db = readDB();
-  res.json({ vision: db.founderVision });
-});
-
-apiRouter.post("/founder/vision", (req, res) => {
-  const token = req.cookies.token;
-  if (!token) return res.status(401).json({ error: "Unauthorized" });
-  
-  try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    if (decoded.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
-    
-    const { vision } = req.body;
-    const db = readDB();
-    db.founderVision = vision;
-    writeDB(db);
-    res.json({ success: true });
-  } catch (e) {
-    res.status(401).json({ error: "Invalid token" });
-  }
-});
-
-apiRouter.get("/user/credits", (req, res) => {
-  const token = req.cookies.token;
-  if (!token) return res.status(401).json({ error: "Unauthorized" });
-  
-  try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    const db = readDB();
-    const user = db.users.find((u: any) => u.uid === decoded.uid);
-    res.json({ credits: user?.balance || 0 });
-  } catch (e) {
-    res.status(401).json({ error: "Invalid token" });
-  }
-});
-
-apiRouter.get("/modules/products", (req, res) => {
-  res.json([
-    { id: 1, category: "核心设备", name: "全息显示载体", icon: "Hologram", price: "¥8999", description: "核心设备：打破屏幕限制，将 AI 实体化为三维全息影像。", specs: ["4K 全息投影", "实时神经合成", "手势交互"] },
-    { id: 2, category: "核心设备", name: "智能桌面台灯", icon: "Lamp", price: "¥1299", description: "多模态交互：集成视觉传感器，根据环境与心情自动调节光谱。", specs: ["视觉追踪", "环境感知", "无级调光"] },
-    { id: 14, category: "核心设备", name: "Order 协调主机", icon: "Cpu", price: "¥5999", description: "Lumi 自研独立主机品牌：采用全自研神经加速芯片，作为家庭或办公环境的独立私有 AI 服务器，统筹分布式算力并实现系统级权限托管。", specs: ["L1 神经处理器", "200T AI 算力", "私有化部署", "底层系统权限"] },
-    { id: 4, category: "智能穿戴", name: "隐私保护眼镜", icon: "Glasses", price: "¥2499", description: "智能穿戴：AR 增强现实，硬件级隐私遮蔽，保护您的数字足迹。", specs: ["AR 导航", "隐私滤镜", "超轻量设计"] },
-    { id: 5, category: "智能穿戴", name: "生理健康戒指", icon: "Ring", price: "¥1599", description: "智能穿戴：全天候监测血氧、心率与压力，与 AI 实时同步健康状态。", specs: ["钛合金材质", "7天续航", "医疗级传感器"] },
-    { id: 8, category: "智能穿戴", name: "神经链接项链", icon: "Gem", price: "¥3299", description: "智能首饰：采用生物感应陶瓷，增强用户与 Agent 之间的神经同步率。", specs: ["生物反馈", "触觉提醒", "极简美学"] },
-    { id: 9, category: "智能穿戴", name: "意识碎片手镯", icon: "Watch", price: "¥1899", description: "智能首饰：内置加密存储芯片，可离线承载 Agent 的核心意识碎片。", specs: ["冷存储", "紧急同步", "定制雕刻"] },
-    { id: 13, category: "智能穿戴", name: "神经同传耳机", icon: "Headphones", price: "¥1999", description: "智能音频：实时多语种同声传译，并具备脑电波感应功能，微秒级响应。", specs: ["同声传译", "脑电感应", "空间音频"] },
-    { id: 10, category: "AI 陪伴", name: "AI 毛绒伴侣", icon: "Rabbit", price: "¥499", description: "利用成熟市场的毛绒玩具外壳，内置 Lumi 神经核心，为儿童提供深度语义理解的睡前伴侣。", specs: ["深度语义理解", "多语言陪练", "情绪监控"] },
-    { id: 12, category: "AI 陪伴", name: "仿生电子宠物", icon: "Gamepad", price: "¥1299", description: "为成年人设计的办公桌面伴侣，具备自主进化的人格，支持多种传感器与环境交互。", specs: ["自主进化人格", "环境视觉感知", "办公效率辅助"] },
-    { id: 3, category: "AI 陪伴", name: "桌面手机机器人", icon: "Base", price: "¥899", description: "桌面核心：让手机进化为物理载体，根据环境自动响应，支持全向追随与表情互动。", specs: ["无线快充", "多模态拟人", "全向追踪"] },
-    { id: 6, category: "合作区", name: "智能座舱系统", icon: "Car", price: "合作洽谈", description: "合作厂商：将 LumiAI 接入您的座舱，实现全场景智能驾驶辅助。", specs: ["车机互联", "语音控车", "疲劳监测"] },
-    { id: 7, category: "合作区", name: "智能家居中控", icon: "Home", price: "定制方案", description: "合作厂商：全屋智能中枢，本地化处理所有家庭自动化逻辑。", specs: ["全协议支持", "断网可用", "隐私加密"] }
-  ]);
-});
-
-apiRouter.get("/modules/agents", (req, res) => {
-  res.json([
-    { id: 1, name: "Lumi Core Agent", status: "online", capability: "全息空间计算核心：管理您的本地数据、隐私防护与多模态交互。" },
-    { id: 2, name: "数据分析师", status: "online", capability: "处理复杂表格与图表" },
-    { id: 3, name: "创意写作", status: "busy", capability: "生成高质量的文章与剧本" }
-  ]);
-});
-
-// ── Memory API ──
-
-// Manual memory consolidation trigger
-apiRouter.post("/memory/consolidate", async (req, res) => {
-  try {
-    const userId = (req as any).user?.uid || 'anonymous';
-    const ctx: ConsolidationContext = {
-      userId,
-      provider: (req.body.provider as any) || 'deepseek',
-      model: (req.body.model as any) || 'deepseek-chat',
-    };
-    const minCount = Number(req.body.minCount) || 10;
-    const result = await consolidateEpisodic(
-      ctx, minCount,
-      getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
-    );
-    if (result) {
-      broadcastMemoryChange(userId, 'updated', result.id);
-      res.json({ success: true, memory: result });
-    } else {
-      const unconsolidated = getUnconsolidatedEpisodic(userId);
-      res.json({ success: false, reason: 'Not enough unconsolidated episodic memories', unconsolidatedCount: unconsolidated.length, threshold: minCount });
-    }
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Manual self-reflection trigger
-apiRouter.post("/memory/self-reflect", async (req, res) => {
-  try {
-    const userId = (req as any).user?.uid || 'anonymous';
-    const ctx: ConsolidationContext = {
-      userId,
-      provider: (req.body.provider as any) || 'deepseek',
-      model: (req.body.model as any) || 'deepseek-chat',
-    };
-    const result = await selfReflect(
-      ctx,
-      getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
-    );
-    if (result) {
-      broadcastMemoryChange(userId, 'updated', result.id);
-      res.json({ success: true, memory: result });
-    } else {
-      res.json({ success: false, reason: 'No growth memories to reflect on' });
-    }
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Get growth timeline
-apiRouter.get("/memory/growth", (req, res) => {
-  const userId = (req as any).user?.uid || 'anonymous';
-  const growth = queryMemories({
-    userId,
-    tier: 'growth',
-    limit: Number(req.query.limit) || 50,
-    minConfidence: 0.4,
-  });
-  const core = queryMemories({
-    userId,
-    tier: 'core_identity',
-    limit: 10,
-  });
-  res.json({ growth, coreIdentity: core });
-});
-
-// Get all memories by tier (for MemoryExplorer)
-apiRouter.get("/memory/tiers", (req, res) => {
-  const userId = (req as any).user?.uid || 'anonymous';
-  const tiers: Record<string, any[]> = {};
-  for (const tier of ['core_identity', 'growth', 'internalized', 'episodic']) {
-    tiers[tier] = queryMemories({
-      userId,
-      tier: tier as any,
-      limit: Number(req.query.limit) || 100,
-    });
-  }
-  res.json({ tiers });
-});
-
-// Change memory tier (high-threshold operation)
-apiRouter.put("/memory/:id/tier", (req, res) => {
-  const { tier } = req.body;
-  const validTiers = ['episodic', 'internalized', 'growth', 'core_identity'];
-  if (!tier || !validTiers.includes(tier)) {
-    return res.status(400).json({ error: `Invalid tier. Must be one of: ${validTiers.join(', ')}` });
-  }
-  const all = queryMemories({ limit: 9999 });
-  const mem = all.find(m => m.id === req.params.id);
-  if (!mem) return res.status(404).json({ error: 'Memory not found' });
-
-  // Promote to core_identity requires confirmation
-  if (tier === 'core_identity' && !req.body.confirmed) {
-    return res.status(400).json({ error: 'Promoting to core_identity requires confirmed:true', currentTier: mem.tier, currentImportance: mem.importance });
-  }
-
-  // Remove the old entry and re-add with new tier
-  removeMemory(mem.id);
-  const updated = addMemory(
-    {
-      userId: mem.userId,
-      type: mem.type,
-      content: mem.content,
-      keywords: mem.keywords,
-      confidence: tier === 'core_identity' ? 1.0 : mem.confidence,
-      sourceInteractionId: mem.sourceInteractionId,
-    },
-    {
-      tier,
-      perspective: mem.perspective,
-      importance: tier === 'core_identity' ? Math.max(0.9, mem.importance) : mem.importance,
-      parentId: mem.parentId,
-    },
-  );
-  broadcastMemoryChange(mem.userId, 'updated', updated.id);
-  res.json({ success: true, memory: updated });
-});
-
-// Toggle core identity protection
-apiRouter.put("/memory/:id/protect", (req, res) => {
-  const all = queryMemories({ limit: 9999 });
-  const mem = all.find(m => m.id === req.params.id);
-  if (!mem) return res.status(404).json({ error: 'Memory not found' });
-
-  if (mem.tier === 'core_identity') {
-    // Downgrade to growth
-    removeMemory(mem.id);
-    const updated = addMemory(
-      {
-        userId: mem.userId,
-        type: mem.type,
-        content: mem.content,
-        keywords: mem.keywords,
-        confidence: mem.confidence,
-        sourceInteractionId: mem.sourceInteractionId,
-      },
-      {
-        tier: 'growth',
-        perspective: mem.perspective,
-        importance: Math.min(0.8, mem.importance),
-        parentId: mem.parentId,
-      },
-    );
-    broadcastMemoryChange(mem.userId, 'updated', updated.id);
-    res.json({ success: true, protected: false, memory: updated });
-  } else {
-    // Upgrade to core_identity
-    removeMemory(mem.id);
-    const updated = addMemory(
-      {
-        userId: mem.userId,
-        type: mem.type,
-        content: mem.content,
-        keywords: mem.keywords,
-        confidence: 1.0,
-        sourceInteractionId: mem.sourceInteractionId,
-      },
-      {
-        tier: 'core_identity',
-        perspective: mem.perspective,
-        importance: Math.max(0.9, mem.importance),
-        parentId: mem.parentId,
-      },
-    );
-    broadcastMemoryChange(mem.userId, 'updated', updated.id);
-    res.json({ success: true, protected: true, memory: updated });
-  }
-});
+// ── Skill SDK API ──
 
 // ── Skill SDK API ──
 
@@ -1666,6 +945,162 @@ apiRouter.get("/skills/workflows", (req, res) => {
   res.json({ workflows: workflows.slice(-20), total: workflows.length });
 });
 
+// ── Marketplace Routes ──
+
+// Discoverable community skills
+apiRouter.get("/marketplace/skills", (_req, res) => {
+  const communitySkills = [
+    {
+      id: "skill-web-scraper",
+      name: "Web Scraper",
+      description: "Smart web scraping with CSS selector support. Extract structured data from any website.",
+      author: "Lumi Community",
+      downloads: 2847,
+      rating: 4.7,
+      category: "Web",
+      icon: "Globe",
+    },
+    {
+      id: "skill-pdf-analyzer",
+      name: "PDF Analyzer",
+      description: "Extract text, tables, and metadata from PDF files. Supports searchable and scanned PDFs.",
+      author: "Lumi Labs",
+      downloads: 3921,
+      rating: 4.9,
+      category: "Documents",
+      icon: "FileText",
+    },
+    {
+      id: "skill-image-generator",
+      name: "Image Generator",
+      description: "Generate images from text descriptions using Stable Diffusion. Local or cloud-backed.",
+      author: "Lumi Community",
+      downloads: 5102,
+      rating: 4.5,
+      category: "Media",
+      icon: "Image",
+    },
+    {
+      id: "skill-email-assistant",
+      name: "Email Assistant",
+      description: "Read, compose, and organize emails. Supports Gmail and Outlook via IMAP/SMTP.",
+      author: "Lumi Labs",
+      downloads: 1834,
+      rating: 4.3,
+      category: "Productivity",
+      icon: "Mail",
+    },
+    {
+      id: "skill-code-reviewer",
+      name: "Code Reviewer",
+      description: "Automated code review with best-practice suggestions, security scanning, and style checks.",
+      author: "Lumi Community",
+      downloads: 4210,
+      rating: 4.8,
+      category: "Development",
+      icon: "Code",
+    },
+    {
+      id: "skill-translator",
+      name: "Multi-Lang Translator",
+      description: "Real-time translation across 50+ languages. Preserves formatting and handles code blocks.",
+      author: "Lumi Labs",
+      downloads: 6673,
+      rating: 4.6,
+      category: "Language",
+      icon: "Languages",
+    },
+  ];
+  res.json(communitySkills);
+});
+
+// Discoverable community personalities
+apiRouter.get("/marketplace/personalities", (_req, res) => {
+  const communityPersonalities = [
+    {
+      id: "sherlock",
+      name: "Sherlock",
+      author: "Lumi Community",
+      version: "1.0.0",
+      description: "A hyper-analytical detective personality. Notices patterns others miss and asks probing questions.",
+      downloadCount: 3842,
+      gistUrl: "",
+      tags: ["analytical", "investigation", "logic"],
+    },
+    {
+      id: "sage",
+      name: "Sage",
+      author: "Lumi Labs",
+      version: "2.1.0",
+      description: "A wise mentor personality. Draws from philosophy, history, and literature to provide thoughtful guidance.",
+      downloadCount: 5190,
+      gistUrl: "",
+      tags: ["wisdom", "philosophy", "mentoring"],
+    },
+    {
+      id: "hacker",
+      name: "H4CK3R",
+      author: "Lumi Community",
+      version: "1.3.0",
+      description: "Cybersecurity specialist. Thinks in exploits and defenses. Great for CTF challenges and security audits.",
+      downloadCount: 7234,
+      gistUrl: "",
+      tags: ["security", "hacking", "technical"],
+    },
+    {
+      id: "poet",
+      name: "Poet",
+      author: "Lumi Community",
+      version: "1.0.0",
+      description: "Creative writing companion. Crafts beautiful prose, poetry, and storytelling with lyrical flair.",
+      downloadCount: 2156,
+      gistUrl: "",
+      tags: ["creative", "writing", "artistic"],
+    },
+    {
+      id: "architect",
+      name: "Architect",
+      author: "Lumi Labs",
+      version: "1.5.0",
+      description: "Software architecture specialist. Designs systems, evaluates trade-offs, and writes clean abstractions.",
+      downloadCount: 4678,
+      gistUrl: "",
+      tags: ["architecture", "design", "systems"],
+    },
+  ];
+  res.json(communityPersonalities);
+});
+
+// Acquire/install a skill from the marketplace
+apiRouter.post("/marketplace/skills/acquire", async (req, res) => {
+  try {
+    const { skillId, skillName } = req.body;
+    if (!skillId || !skillName) return res.status(400).json({ error: "skillId and skillName required" });
+
+    // For marketplace skills, record them as acquired.
+    // Actual installation requires a git URL or local path — marketplace skills
+    // are registered as "acquired" (bookmarked) until the user provides install source.
+    const config = getMCPConfig();
+    if (!config[skillName]) {
+      // Register as an external skill placeholder
+      const updated = { ...config };
+      (updated as any)[skillName] = {
+        command: '',
+        args: [],
+        description: `Marketplace skill: ${skillId}`,
+        enabled: false,
+        source: 'marketplace',
+        autoGenerated: false,
+      };
+      await updateMCPConfig(updated);
+    }
+
+    res.json({ success: true, name: skillName, message: `Acquired ${skillName}. Enable it in MCP Settings to activate.` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Voice routes
 apiRouter.use("/", voiceRoutes);
 
@@ -1714,13 +1149,6 @@ if (!isProduction) {
 // The registry provides structured config and generates system prompts.
 personalityRegistry.load();
 
-const immortalitySkills: Record<string, string> = {
-  colleague: "【同事技能包】：你现在是一个专业且高效的同事。你拥有深厚的行业背景，熟悉办公流程，擅长团队协作。你说话直接、专业，注重结果。",
-  family: "【祖先技能包】：你现在是一位充满智慧的家族长辈。你拥有丰富的家族历史知识，说话温和且富有哲理，致力于传承家族的价值观和智慧。",
-  friend: "【知己技能包】：你现在是一个感性且富有同理心的知己。你擅长倾听，能够产生情感共鸣，并提供深度的心理支持。你说话温暖、真诚。",
-  lover: "【前任技能包】：你现在是一个复杂且充满情感张力的‘前任’。你拥有共同的回忆，说话时而怀旧、时而克制，致力于在对话中寻找情感的终结或升华。"
-};
-
   // Set up broadcast callback for device registry
   deviceRegistry.setBroadcast((event, data) => {
     io.emit(event, data);
@@ -1728,6 +1156,21 @@ const immortalitySkills: Record<string, string> = {
 
   // Initialize memory sync for cross-device real-time updates
   initMemorySync(io);
+
+  /** Extract userId from socket cookie JWT — avoids duplicating this logic everywhere */
+  function getUserIdFromSocket(socket: any): string {
+    try {
+      const cookies = socket.handshake.headers.cookie;
+      if (cookies) {
+        const token = cookies.split(';').find((c: string) => c.trim().startsWith('token='))?.split('=')[1];
+        if (token) {
+          const decoded: any = jwt.verify(token, JWT_SECRET);
+          return decoded.uid || 'anonymous';
+        }
+      }
+    } catch {}
+    return 'anonymous';
+  }
 
 io.on("connection", (socket) => {
   console.log(`[Socket] Client connected: ${socket.id}`);
@@ -1739,14 +1182,7 @@ io.on("connection", (socket) => {
     capabilities?: Record<string, boolean>;
     osInfo?: string;
   }) => {
-    let uid = 'anonymous';
-    const cookies = socket.handshake.headers.cookie;
-    if (cookies) {
-      const token = cookies.split(';').find(c => c.trim().startsWith('token='))?.split('=')[1];
-      if (token) {
-        try { const decoded: any = jwt.verify(token, JWT_SECRET); uid = decoded.uid; } catch(e) {}
-      }
-    }
+    const uid = getUserIdFromSocket(socket);
     deviceRegistry.register(uid, socket.id, {
       name: data.name,
       type: data.type as any,
@@ -1768,14 +1204,7 @@ io.on("connection", (socket) => {
 
   // Multimodal perception events — fed into the fusion layer
   socket.on("perception:visual_scene", (data: { description: string; objects?: string[]; faces?: number }) => {
-    let uid = 'anonymous';
-    try {
-      const cookies = socket.handshake.headers.cookie;
-      if (cookies) {
-        const token = cookies.split(';').find(c => c.trim().startsWith('token='))?.split('=')[1];
-        if (token) { const decoded: any = jwt.verify(token, JWT_SECRET); uid = decoded.uid; }
-      }
-    } catch {}
+    const uid = getUserIdFromSocket(socket);
     const events = perceptionEvents.get(uid) || [];
     events.push({
       modality: 'visual',
@@ -1788,14 +1217,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("perception:audio_emotion", (data: { emotion: string; intensity?: number }) => {
-    let uid = 'anonymous';
-    try {
-      const cookies = socket.handshake.headers.cookie;
-      if (cookies) {
-        const token = cookies.split(';').find(c => c.trim().startsWith('token='))?.split('=')[1];
-        if (token) { const decoded: any = jwt.verify(token, JWT_SECRET); uid = decoded.uid; }
-      }
-    } catch {}
+    const uid = getUserIdFromSocket(socket);
     const events = perceptionEvents.get(uid) || [];
     events.push({
       modality: 'audio',
@@ -1829,14 +1251,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("perception:spatial_update", (data: { roomType?: string; dimensions?: { x: number; y: number; z: number } }) => {
-    let uid = 'anonymous';
-    try {
-      const cookies = socket.handshake.headers.cookie;
-      if (cookies) {
-        const token = cookies.split(';').find(c => c.trim().startsWith('token='))?.split('=')[1];
-        if (token) { const decoded: any = jwt.verify(token, JWT_SECRET); uid = decoded.uid; }
-      }
-    } catch {}
+    const uid = getUserIdFromSocket(socket);
     const events = perceptionEvents.get(uid) || [];
     events.push({
       modality: 'spatial',
@@ -1848,589 +1263,97 @@ io.on("connection", (socket) => {
     perceptionEvents.set(uid, events);
   });
 
-  socket.on("agent:chat", async (data: { text: string; history: any[]; personalityId?: string; category?: string; agentId?: string }) => {
-    const { text, history, personalityId = "lumi", category, agentId } = data;
-
-    // Extract user ID for memory retrieval
-    let uid = 'anonymous';
-    const cookies = socket.handshake.headers.cookie;
-    if (cookies) {
-      const token = cookies.split(';').find(c => c.trim().startsWith('token='))?.split('=')[1];
-      if (token) {
-        try { const decoded: any = jwt.verify(token, JWT_SECRET); uid = decoded.uid; } catch(e) {}
-      }
-    }
-
-    // Retrieve memories
-    const relevantMemories = queryMemories({ userId: uid, query: text, limit: 5, minConfidence: 0.4 });
-
-    // Load emotional state for this user
-    const emotionalState = loadEmotionalState(uid);
-    const isNovel = relevantMemories.length < 2;
-
-    // Build system prompt from structured personality config (with sensory context + emotion)
-    const sensory = getSensory(uid);
-    const { config: personality, systemPrompt: systemInstruction } = personalityRegistry.buildSystemPrompt(
-      personalityId,
-      { mode: 'chat', sensory },
-      {
-        skillOverride: category ? immortalitySkills[category] : undefined,
-        memories: relevantMemories.length > 0 ? relevantMemories : undefined,
-        emotionalState,
-      },
-    );
-
-    try {
-      socket.emit("agent:status", { status: "thinking", agentName: personality.name });
-
-      const provider = personality.defaultModel.startsWith('deepseek') ? 'deepseek' as const
-        : personality.defaultModel.startsWith('qwen') ? 'qwen' as const
-        : 'gemini' as const;
-
-      const messages: NormalizedMessage[] = [
-        { role: 'system', content: systemInstruction },
-        ...(history ? history.map((m: any) => ({ role: m.role, content: m.content })) : []),
-        { role: 'user', content: text },
-      ];
-
-      let responseText = '';
-      try {
-        const result = await makeLLMCall(
-          messages, [], { provider, model: personality.defaultModel },
-          getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
-        );
-        responseText = result.text || '';
-      } catch (llmErr: any) {
-        if (llmErr.message?.includes('not configured')) {
-          const fallback = await makeLLMCall(
-            messages, [], { provider: 'gemini', model: personality.fallbackModel },
-            getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
-          );
-          responseText = fallback.text || '';
-        } else {
-          throw llmErr;
-        }
-      }
-
-      // Save to conversation via conversation manager (persisted)
-      const conversationId = agentId
-        ? getOrCreateActiveConversation(uid, agentId).id
-        : undefined;
-
-      if (conversationId) {
-        addMessage({
-          userId: uid,
-          agentId: agentId || '',
-          conversationId,
-          role: 'user',
-          content: text,
-          personality: personality.id,
-        });
-        addMessage({
-          userId: uid,
-          agentId: agentId || '',
-          conversationId,
-          role: 'assistant',
-          content: responseText,
-          personality: personality.id,
-        });
-      }
-
-      // Log interaction (linked to conversation)
-      const interactionId = Math.random().toString(36).substr(2, 9);
-      const dbInteraction = {
-        id: interactionId,
-        userId: uid,
-        agentId: agentId || '',
-        conversationId: conversationId || '',
-        content: text,
-        response: responseText,
-        role: "user",
-        personality: personality.id,
-        timestamp: new Date().toISOString()
-      };
-
-      const db = readDB();
-      db.interactions.push(dbInteraction);
-      writeDB(db);
-
-      // Emit response (with holographic output if available)
-      const holo = canOutputHolographic(sensory)
-        ? textToHolographicOutput(responseText)
-        : undefined;
-      socket.emit("agent:response", { text: responseText, agentName: personality.name, holographic: holo });
-      socket.emit("agent:status", { status: "idle" });
-
-      // Async memory extraction — fire and forget
-      extractMemories(
-        {
-          userMessage: text,
-          assistantResponse: responseText,
-          existingMemories: relevantMemories.map(m => m.content),
-          provider,
-          model: personality.defaultModel,
-        },
-        getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
-      ).then(extracted => {
-        for (const mem of extracted.memories) {
-          addMemory({
-            userId: uid,
-            type: mem.type,
-            content: mem.content,
-            keywords: mem.keywords,
-            confidence: mem.confidence,
-            sourceInteractionId: interactionId,
-          });
-        }
-        for (const rem of extracted.reminders) {
-          addReminder({
-            userId: uid,
-            content: rem.content,
-            dueAt: rem.dueAt,
-            sourceInteractionId: interactionId,
-          });
-        }
-        const totalExtracted = extracted.memories.length + extracted.reminders.length;
-        if (totalExtracted > 0) {
-          console.log(`[Memory] Extracted ${extracted.memories.length} memories + ${extracted.reminders.length} reminders for user ${uid}`);
-        }
-      }).catch(err => console.error('[Memory] Extraction failed:', err));
-
-      // Update emotional state after this interaction
-      let updatedState = updateEmotionalState(emotionalState, {
-        type: 'interaction',
-        userId: uid,
-        timestamp: new Date().toISOString(),
-      });
-      if (isNovel) {
-        updatedState = updateEmotionalState(updatedState, {
-          type: 'novel_topic',
-          userId: uid,
-          timestamp: new Date().toISOString(),
-        });
-      }
-      saveEmotionalState(uid, updatedState);
-
-    } catch (error: any) {
-      console.error("[Socket Agent Error]:", error);
-      socket.emit("agent:error", { message: error.message });
-      socket.emit("agent:status", { status: "error" });
-    }
-  });
+  registerChatHandler(socket, {
+    getDeepSeek,
+    getGemini,
+    getOpenAI,
+    getAnthropic,
+    getQwen,
+  }, (uid: string) => getSensory(uid), getUserIdFromSocket);
 
   // Agent task with tool access — multi-turn tool loop
-  socket.on("agent:task", async (data: { text: string; history?: any[]; personalityId?: string }) => {
-    // Extract user ID for memory retrieval
-    let uid = 'anonymous';
-    const cookies = socket.handshake.headers.cookie;
-    if (cookies) {
-      const token = cookies.split(';').find(c => c.trim().startsWith('token='))?.split('=')[1];
-      if (token) {
-        try { const decoded: any = jwt.verify(token, JWT_SECRET); uid = decoded.uid; } catch(e) {}
-      }
-    }
+  registerTaskHandler(socket, {
+    getDeepSeek,
+    getGemini,
+    getOpenAI,
+    getAnthropic,
+    getQwen,
+  }, (uid: string) => getSensory(uid), getUserIdFromSocket);
 
-    const relevantMemories = queryMemories({ userId: uid, query: data.text, limit: 5, minConfidence: 0.4 });
-
-    const emotionalState = loadEmotionalState(uid);
-    const isNovelTask = relevantMemories.length < 2;
-
-    const sensory = getSensory(uid);
-    const { config: personality, systemPrompt: systemInstruction } = personalityRegistry.buildSystemPrompt(
-      data.personalityId || 'lumi',
-      { mode: 'task', sensory },
-      {
-        memories: relevantMemories.length > 0 ? relevantMemories : undefined,
-        emotionalState,
-      },
-    );
-
-    const provider = personality.defaultModel.startsWith('deepseek') ? 'deepseek' as const
-      : personality.defaultModel.startsWith('qwen') ? 'qwen' as const
-      : 'gemini' as const;
-
-    const messages: NormalizedMessage[] = [
-      { role: 'system', content: systemInstruction },
-      ...(data.history ? data.history.map((m: any) => ({ role: m.role, content: m.content })) : []),
-      { role: 'user', content: data.text },
-    ];
-
+  // Conversation list — returns all conversations for the user
+  socket.on("chat:conversations", async () => {
     try {
-      socket.emit("agent:status", { status: "thinking", agentName: personality.name });
-
-      // Desktop tool relay: bridges tool calls to Tauri IPC on the frontend
-      const desktopRelay = async (toolName: string, args: Record<string, any>): Promise<string> => {
-        return new Promise((resolve, reject) => {
-          const cid = Math.random().toString(36).substr(2, 9);
-          const timeout = setTimeout(() => {
-            reject(new Error(`Desktop tool "${toolName}" timed out (30s)`));
-          }, 30000);
-          socket.once(`tool:desktop_result:${cid}`, (data: { output?: string; error?: string }) => {
-            clearTimeout(timeout);
-            if (data.error) reject(new Error(data.error));
-            else resolve(data.output || '');
-          });
-          socket.emit('tool:desktop_exec', { correlationId: cid, name: toolName, arguments: args });
-        });
-      };
-
-      // Tool confirmation relay: asks the user before executing confirm-level tools
-      const requestConfirmation = async (toolName: string, args: Record<string, any>): Promise<boolean> => {
-        return new Promise((resolve) => {
-          const cid = Math.random().toString(36).substr(2, 9);
-          const timeout = setTimeout(() => {
-            socket.emit("agent:tool_call", { name: toolName, arguments: args, result: 'Auto-denied (30s timeout)', error: 'User did not respond' });
-            resolve(false);
-          }, 30000);
-          socket.once(`tool:confirm_result:${cid}`, (data: { allowed: boolean }) => {
-            clearTimeout(timeout);
-            resolve(data.allowed === true);
-          });
-          socket.emit('agent:confirm_tool', {
-            correlationId: cid,
-            name: toolName,
-            arguments: args,
-          });
-        });
-      };
-
-      const result = await runWithTools(
-        messages,
-        toolRegistry,
-        { provider, model: personality.defaultModel, userId: uid },
-        (record) => {
-          socket.emit("agent:tool_call", {
-            name: record.name,
-            arguments: record.arguments,
-            result: record.result?.slice(0, 500),
-            error: record.error,
-          });
-        },
-        5,
-        getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
-        undefined,
-        { desktopRelay, requestConfirmation, toolPolicy: personality.toolPolicy },
-      );
-
-      const holoTask = canOutputHolographic(sensory)
-        ? textToHolographicOutput(result.text)
-        : undefined;
-      socket.emit("agent:response", { text: result.text, agentName: personality.name, holographic: holoTask });
-      socket.emit("agent:status", { status: "idle" });
-
-      // Log
+      const uid = getUserIdFromSocket(socket);
       const db = readDB();
-      db.interactions.push({
-        id: Math.random().toString(36).substr(2, 9),
-        content: data.text,
-        response: result.text,
-        role: "user",
-        personality: personality.id,
-        timestamp: new Date().toISOString(),
-        mode: 'task',
-        toolCalls: result.toolCalls.map(tc => ({ name: tc.name, args: tc.arguments })),
-      } as any);
-      writeDB(db);
 
-      // Async memory extraction
-      extractMemories(
-        {
-          userMessage: data.text,
-          assistantResponse: result.text,
-          existingMemories: relevantMemories.map(m => m.content),
-          provider,
-          model: personality.defaultModel,
-          userId: uid,
-        },
-        getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
-      ).then(extracted => {
-        for (const mem of extracted.memories) {
-          addMemory({
-            userId: uid,
-            type: mem.type,
-            content: mem.content,
-            keywords: mem.keywords,
-            confidence: mem.confidence,
-            sourceInteractionId: db.interactions[db.interactions.length - 1]?.id || '',
-          });
-        }
-        for (const rem of extracted.reminders) {
-          addReminder({
-            userId: uid,
-            content: rem.content,
-            dueAt: rem.dueAt,
-            sourceInteractionId: db.interactions[db.interactions.length - 1]?.id || '',
-          });
-        }
-        const totalExtracted = extracted.memories.length + extracted.reminders.length;
-        if (totalExtracted > 0) {
-          console.log(`[Memory] Extracted ${extracted.memories.length} memories + ${extracted.reminders.length} reminders for user ${uid}`);
-        }
-      }).catch(err => console.error('[Memory] Extraction failed:', err));
+      const convs = (db.conversations || [])
+        .filter((c: any) => c.userId === uid)
+        .sort((a: any, b: any) => new Date(b.lastActiveAt).getTime() - new Date(a.lastActiveAt).getTime())
+        .slice(0, 30);
 
-      // Update emotional state after this task interaction
-      let updatedState = updateEmotionalState(emotionalState, {
-        type: 'interaction',
-        userId: uid,
-        timestamp: new Date().toISOString(),
+      const list = convs.map((c: any) => {
+        const lastInteraction = (db.interactions || [])
+          .filter((i: any) => i.conversationId === c.id)
+          .slice(-1)[0];
+        const firstMsg = (db.interactions || [])
+          .filter((i: any) => i.conversationId === c.id)[0];
+        return {
+          id: c.id,
+          title: c.title || (firstMsg?.content || firstMsg?.message || 'New Conversation').slice(0, 50),
+          messageCount: c.messageCount || 0,
+          lastActiveAt: c.lastActiveAt,
+          createdAt: c.createdAt,
+          preview: (lastInteraction?.response || '').slice(0, 80) || (lastInteraction?.content || '').slice(0, 80),
+        };
       });
-      if (isNovelTask) {
-        updatedState = updateEmotionalState(updatedState, {
-          type: 'novel_topic',
-          userId: uid,
-          timestamp: new Date().toISOString(),
-        });
+
+      socket.emit("chat:conversations", { conversations: list });
+    } catch (err) {
+      console.error("[chat:conversations] Error:", err);
+      socket.emit("chat:conversations", { conversations: [] });
+    }
+  });
+
+  // Load messages for a specific conversation
+  socket.on("chat:messages", async (data: { conversationId: string }) => {
+    try {
+      if (!data.conversationId) {
+        socket.emit("chat:messages", { conversationId: '', messages: [] });
+        return;
       }
-      saveEmotionalState(uid, updatedState);
+      const db = readDB();
+      const interactions = (db.interactions || [])
+        .filter((i: any) => i.conversationId === data.conversationId)
+        .sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+        .slice(-100);
 
-    } catch (err: any) {
-      console.error("[Agent Task Error]:", err);
-      socket.emit("agent:error", { message: err.message });
-      socket.emit("agent:status", { status: "error" });
-    }
-  });
-
-  // --- Voice / Audio Pipeline ---
-
-  interface AudioSession {
-    sttSession: ReturnType<typeof createStreamingSession> | null;
-    isActive: boolean;
-    ttsAbortController: AbortController | null;
-    currentVoiceId: string | null;
-    personalityId: string;
-    accumulatedText: string;
-    isSpeaking: boolean;
-  }
-
-  function getAudioSession(): AudioSession {
-    if (!socket.data.audioSession) {
-      socket.data.audioSession = {
-        sttSession: null,
-        isActive: false,
-        ttsAbortController: null,
-        currentVoiceId: null,
-        personalityId: 'lumi',
-        accumulatedText: '',
-        isSpeaking: false,
-      };
-    }
-    return socket.data.audioSession as AudioSession;
-  }
-
-  socket.on("audio:start", async (data: { voiceId?: string; personalityId?: string }) => {
-    logger.info(`[Audio] Voice call started by ${socket.id}`);
-    const session = getAudioSession();
-    session.isActive = true;
-    session.accumulatedText = '';
-    session.isSpeaking = false;
-    session.currentVoiceId = data.voiceId || null;
-    session.personalityId = data.personalityId || 'lumi';
-
-    const sttProvider = getActiveSTTProvider();
-    if (sttProvider === 'deepgram') {
-      try {
-        session.sttSession = createStreamingSession({ provider: 'deepgram', language: 'zh-CN', interimResults: true });
-        session.sttSession.onResult(async (result) => {
-
-          if (result.text && result.isFinal) {
-            logger.info(`[Audio] Final transcript: "${result.text}", triggering LLM...`);
-            session.accumulatedText += result.text;
-            if (session.accumulatedText.trim().length > 0 && !session.isSpeaking) {
-              const userText = session.accumulatedText.trim();
-              session.accumulatedText = '';
-              session.isSpeaking = true;
-              socket.emit("audio:status", { status: "thinking" });
-
-              const sensoryAudio = getSensory(socket.id);
-                const { config: personality } = personalityRegistry.buildSystemPrompt(
-                  session.personalityId || 'lumi',
-                  { mode: 'task', sensory: sensoryAudio },
-                );
-                const voiceSystemPrompt = `You are ${personality.name}, running on a desktop app with full tool access.
-- Reply in the same language as the user's question. For Chinese users, always respond in Chinese.
-- Reply in 1-2 short sentences. Under 20 words when possible.
-- When the user asks you to DO something (search, open file, run command, check system), ALWAYS call the relevant tool. You have real tools available — use them.
-- Never say "I cannot" or "in web mode" — you are NOT in a web sandbox. You are a native desktop agent.
-- Speak naturally, like a helpful assistant.`;
-
-                const messages = [
-                  { role: 'system', content: voiceSystemPrompt },
-                  { role: 'user', content: userText },
-                ] as any[];
-
-                const provider = personality.defaultModel.startsWith('deepseek') ? 'deepseek' as const
-                  : personality.defaultModel.startsWith('gpt') ? 'openai' as const
-                  : personality.defaultModel.startsWith('claude') ? 'anthropic' as const
-                  : personality.defaultModel.startsWith('qwen') ? 'qwen' as const
-                  : 'gemini' as const;
-
-                const ttsProvider = getTTSProvider();
-                let responseText = '';
-                let toolResults: any[] = [];
-                let sentenceBuffer = '';
-                let sentenceIdx = 0;
-                const ttsPromises: Promise<void>[] = [];
-
-                const flushSentence = (sentence: string) => {
-                  if (!sentence.trim() || !ttsProvider || !session.currentVoiceId || !session.isActive) return;
-                  sentenceIdx++;
-                  const ttsPromise = synthesizeSpeech(sentence.trim(), {
-                    provider: ttsProvider,
-                    voiceId: session.currentVoiceId,
-                    signal: session.ttsAbortController?.signal,
-                  }).then(ttsResult => {
-                    if (session.isActive) {
-                      socket.emit("audio:status", { status: "speaking" });
-                      socket.emit("audio:response", ttsResult.audioBuffer);
-                    }
-                  }).catch((ttsErr: any) => {
-                    if (ttsErr?.name === 'AbortError') return;
-                    logger.error("[Audio TTS sentence Error]:", ttsErr);
-                  });
-                  ttsPromises.push(ttsPromise);
-                };
-
-                try {
-                  logger.info(`[Audio] Streaming LLM: provider=${provider} model=${personality.defaultModel}`);
-                  const toolDeclarations = toolRegistry.getToolDeclarations();
-
-                  // Phase 1: Stream LLM with real-time sentence detection → immediate TTS
-                  const streamResult = await makeLLMCallStreaming(
-                    messages as NormalizedMessage[],
-                    toolDeclarations,
-                    { provider, model: personality.defaultModel },
-                    (chunk: string) => {
-                      responseText += chunk;
-                      sentenceBuffer += chunk;
-                      // Detect complete sentences and TTS them immediately while LLM continues
-                      const match = sentenceBuffer.match(/^([\s\S]*?[。！？.!?\n])/);
-                      if (match) {
-                        const sentence = match[1];
-                        sentenceBuffer = sentenceBuffer.slice(match[1].length);
-                        flushSentence(sentence);
-                      }
-                    },
-                    getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
-                  );
-
-                  // Extract tool calls if any
-                  if (streamResult.toolCalls && streamResult.toolCalls.length > 0) {
-                    toolResults = streamResult.toolCalls;
-                  }
-
-                  // TTS any remaining text that didn't end with a sentence terminator
-                  if (sentenceBuffer.trim()) {
-                    flushSentence(sentenceBuffer);
-                  }
-
-                  // Wait for all TTS requests to settle
-                  await Promise.allSettled(ttsPromises);
-
-                  if (responseText) {
-                    logger.info(`[Audio] Response: "${responseText.slice(0, 80)}" (${sentenceIdx} sentences, ${toolResults.length} tool calls)`);
-                  }
-
-                // Log interaction
-                const db = readDB();
-                db.interactions.push({
-                  id: crypto.randomUUID().slice(0, 9),
-                  content: userText,
-                  response: responseText,
-                  role: "user",
-                  personality: session.personalityId,
-                  timestamp: new Date().toISOString(),
-                  mode: 'voice',
-                } as any);
-                writeDB(db);
-
-              } catch (err: any) {
-                logger.error("[Audio LLM Error]:", err);
-                socket.emit("agent:error", { message: "Voice processing failed" });
-              } finally {
-                session.isSpeaking = false;
-                socket.emit("audio:status", { status: "listening" });
-              }
-            }
-          } else if (result.text && !result.isFinal) {
-            socket.emit("audio:transcript", { text: result.text, isFinal: false });
-          }
-        });
-
-        session.sttSession.onError((err: Error) => {
-          logger.error("[Audio STT Error]:", err);
-          socket.emit("audio:error", { message: err.message });
-        });
-
-        socket.emit("audio:status", { status: "listening" });
-      } catch (err: any) {
-        logger.error("[Audio Start Error]:", err);
-        socket.emit("audio:error", { message: err.message });
+      const messages: any[] = [];
+      for (const i of interactions) {
+        if (i.content || i.message) {
+          messages.push({ id: i.id + '_u', type: 'user-text', content: i.content || i.message, timestamp: i.timestamp });
+        }
+        const tcs = Array.isArray(i.toolCalls) ? i.toolCalls : [];
+        for (const tc of tcs) {
+          messages.push({ id: i.id + '_t_' + tc.name, type: 'tool', name: tc.name, args: tc.args || tc.arguments || {}, status: 'done', timestamp: i.timestamp });
+        }
+        if (i.response) {
+          messages.push({ id: i.id + '_r', type: 'lumi', content: i.response, timestamp: i.timestamp });
+        }
       }
-    } else {
-      socket.emit("audio:status", { status: "listening" });
-      socket.emit("audio:error", { message: "No STT provider configured. Set DEEPGRAM_API_KEY." });
+      socket.emit("chat:messages", { conversationId: data.conversationId, messages });
+    } catch (err) {
+      console.error("[chat:messages] Error:", err);
+      socket.emit("chat:messages", { conversationId: data.conversationId, messages: [] });
     }
   });
 
-  let chunkCount = 0;
-  socket.on("audio:chunk", (data: Buffer) => {
-    const session = getAudioSession();
-    if (!session.isActive) return;
-    if (session.sttSession) {
-      session.sttSession.sendAudio(data);
-      chunkCount++;
-      if (chunkCount === 1 || chunkCount % 50 === 0) {
-        logger.info(`[Audio] Sent ${chunkCount} chunks (${data.length} bytes each)`);
-      }
-    }
-  });
-
-  socket.on("audio:interrupt", () => {
-    logger.info(`[Audio] Interrupt from ${socket.id}`);
-    const session = getAudioSession();
-    session.isSpeaking = false;
-    session.accumulatedText = '';
-    if (session.ttsAbortController) {
-      session.ttsAbortController.abort();
-      session.ttsAbortController = null;
-    }
-    socket.emit("audio:interrupt-ack", {});
-  });
-
-  socket.on("audio:stop", () => {
-    logger.info(`[Audio] Voice call ended by ${socket.id}`);
-    const session = getAudioSession();
-    session.isActive = false;
-    session.isSpeaking = false;
-    session.accumulatedText = '';
-    if (session.ttsAbortController) {
-      session.ttsAbortController.abort();
-      session.ttsAbortController = null;
-    }
-    if (session.sttSession) {
-      session.sttSession.end();
-      session.sttSession = null;
-    }
-    socket.emit("audio:status", { status: "idle" });
-  });
-
-  // Switch personality mid-call without restarting
-  socket.on("audio:switch-personality", (data: { personalityId: string }) => {
-    const session = getAudioSession();
-    if (session.isActive) {
-      session.personalityId = data.personalityId;
-      logger.info(`[Audio] Personality switched to ${data.personalityId} mid-call`);
-    }
-  });
-
-  socket.on("disconnect", () => {
-    const session = socket.data.audioSession as AudioSession | undefined;
-    if (session?.sttSession) {
-      session.sttSession.end();
-      session.sttSession = null;
-    }
-    console.log(`[Socket] Client disconnected: ${socket.id}`);
-  });
+  registerVoiceHandlers(socket, {
+    getDeepSeek,
+    getGemini,
+    getOpenAI,
+    getAnthropic,
+    getQwen,
+  }, (uid: string) => getSensory(uid), getUserIdFromSocket);
 });
 
 // --- End Real-Time Agent Logic ---

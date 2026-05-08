@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, ChevronDown } from 'lucide-react';
+import { toast } from 'sonner';
 import { useApp } from '@/contexts/AppContext';
 
 export function PersonalityQuickSwitch({ t, callActive }: { t: any; callActive: boolean }) {
@@ -12,7 +13,7 @@ export function PersonalityQuickSwitch({ t, callActive }: { t: any; callActive: 
     fetch('/api/personalities')
       .then(res => res.json())
       .then(data => setPersonalities(Array.isArray(data) ? data : data.personalities || []))
-      .catch(() => {});
+      .catch(err => toast.error('Failed to load personalities'));
   }, []);
 
   const current = personalities.find((p: any) => p.id === personalityId);

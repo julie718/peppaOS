@@ -87,8 +87,7 @@ function migrateSchema(): Promise<void> {
       createdAt TEXT NOT NULL,
       firedAt TEXT
     )`, () => {});
-    // Give SQLite time for ALTER TABLEs to complete
-    setTimeout(resolve, 200);
+    resolve();
   });
 }
 
@@ -172,6 +171,15 @@ function createTables(): Promise<void> {
         lastActiveAt TEXT NOT NULL,
         createdAt TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS voice_profiles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userId TEXT NOT NULL,
+        voiceId TEXT NOT NULL,
+        name TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        createdAt TEXT NOT NULL
+      );
     `;
 
     db!.exec(sql, (err) => {
@@ -252,6 +260,23 @@ async function loadMemoryDB(): Promise<void> {
   // Load conversations
   const conversationsRaw = await query<any>('SELECT * FROM conversations');
 
+  // Load settings
+  const settingsRaw = await query<any>('SELECT * FROM settings');
+  const settings = settingsRaw.map((s: any) => ({ key: s.key, value: s.value }));
+
+  // Load voice profiles and reconstruct userId-keyed map
+  const voiceProfilesRaw = await query<any>('SELECT * FROM voice_profiles');
+  const voiceProfiles: Record<string, any[]> = {};
+  for (const vp of voiceProfilesRaw) {
+    if (!voiceProfiles[vp.userId]) voiceProfiles[vp.userId] = [];
+    voiceProfiles[vp.userId].push({
+      voiceId: vp.voiceId,
+      name: vp.name,
+      provider: vp.provider,
+      createdAt: vp.createdAt,
+    });
+  }
+
   // Map old column names to the field names that server.ts expects
   const agents = agentsRaw.map((a: any) => ({
     ...a,
@@ -284,6 +309,8 @@ async function loadMemoryDB(): Promise<void> {
     memories: memories || [],
     reminders: remindersRaw || [],
     conversations: conversationsRaw || [],
+    settings: settings || [],
+    voiceProfiles: voiceProfiles || {},
   };
 }
 
@@ -332,140 +359,130 @@ export function writeDB(data: any): void {
     });
 }
 
+/**
+ * Persist all in-memory data to SQLite using an atomic write-via-temp-table pattern.
+ * Data is written to temp tables first, then the original tables are atomically
+ * replaced. If the process crashes mid-write, the original data is preserved.
+ */
 async function persistMemoryDB(): Promise<void> {
-  const tables = ['interactions', 'agents', 'users', 'marketplace_skills', 'skills', 'founder_vision', 'memories', 'reminders', 'conversations'];
+  // Table definitions: [tableName, createSQL (must match the schema), insertSQL, rowMapper]
+  interface TableSpec {
+    name: string;
+    createSQL: string;
+    insertSQL: string;
+    rows: () => any[][];
+  }
+
+  const specs: TableSpec[] = [
+    {
+      name: 'users',
+      createSQL: `CREATE TABLE _temp_users (uid TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL, role TEXT DEFAULT 'user', balance REAL DEFAULT 0, phone TEXT DEFAULT '', createdAt TEXT NOT NULL)`,
+      insertSQL: `INSERT INTO _temp_users (uid, username, password, role, balance, phone, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      rows: () => memoryDB.users.map((u: any) => [u.uid, u.username, u.password, u.role, u.balance, u.phone || '', u.createdAt]),
+    },
+    {
+      name: 'agents',
+      createSQL: `CREATE TABLE _temp_agents (id TEXT PRIMARY KEY, name TEXT NOT NULL, category TEXT NOT NULL, config TEXT NOT NULL, createdAt TEXT NOT NULL, userId TEXT, status TEXT DEFAULT 'active', personalityId TEXT DEFAULT 'lumi', modelPreference TEXT DEFAULT '', memoryScope TEXT DEFAULT 'shared', autonomyLevel TEXT DEFAULT 'reactive', runtimeConfig TEXT DEFAULT '{}')`,
+      insertSQL: `INSERT INTO _temp_agents (id, name, category, config, createdAt, userId, status, personalityId, modelPreference, memoryScope, autonomyLevel, runtimeConfig) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      rows: () => memoryDB.agents.map((a: any) => [a.id, a.name, a.category, a.data || a.config || '{}', a.createdAt, a.ownerUid || a.userId || null, a.status || 'active', a.personalityId || 'lumi', a.modelPreference || '', a.memoryScope || 'shared', a.autonomyLevel || 'reactive', a.runtimeConfig || '{}']),
+    },
+    {
+      name: 'interactions',
+      createSQL: `CREATE TABLE _temp_interactions (id TEXT PRIMARY KEY, userId TEXT NOT NULL, agentId TEXT, module TEXT, message TEXT NOT NULL, response TEXT, role TEXT DEFAULT '', personality TEXT DEFAULT '', mode TEXT DEFAULT '', toolCalls TEXT DEFAULT '', conversationId TEXT DEFAULT '', timestamp TEXT NOT NULL)`,
+      insertSQL: `INSERT INTO _temp_interactions (id, userId, agentId, module, message, response, role, personality, mode, toolCalls, conversationId, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      rows: () => memoryDB.interactions.map((i: any) => [i.id, i.userId || 'unknown', i.agentId || null, i.personality || i.module || null, i.content || i.message || '', i.response || '', i.role || '', i.personality || '', i.mode || '', i.toolCalls ? JSON.stringify(i.toolCalls) : '', i.conversationId || '', i.timestamp]),
+    },
+    {
+      name: 'memories',
+      createSQL: `CREATE TABLE _temp_memories (id TEXT PRIMARY KEY, userId TEXT NOT NULL, type TEXT NOT NULL, content TEXT NOT NULL, keywords TEXT NOT NULL DEFAULT '[]', confidence REAL NOT NULL DEFAULT 0.5, sourceInteractionId TEXT NOT NULL DEFAULT '', createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL, lastRetrievedAt TEXT, retrieveCount INTEGER NOT NULL DEFAULT 0, tier TEXT NOT NULL DEFAULT 'episodic', perspective TEXT NOT NULL DEFAULT 'owner_trait', importance REAL NOT NULL DEFAULT 0.3, parentId TEXT, agentId TEXT DEFAULT '')`,
+      insertSQL: `INSERT INTO _temp_memories (id, userId, type, content, keywords, confidence, sourceInteractionId, createdAt, updatedAt, lastRetrievedAt, retrieveCount, tier, perspective, importance, parentId, agentId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      rows: () => (memoryDB.memories || []).map((m: any) => [m.id, m.userId, m.type, m.content, JSON.stringify(m.keywords || []), m.confidence || 0.5, m.sourceInteractionId || '', m.createdAt, m.updatedAt, m.lastRetrievedAt, m.retrieveCount || 0, m.tier || 'episodic', m.perspective || 'owner_trait', m.importance ?? 0.3, m.parentId || null, m.agentId || '']),
+    },
+    {
+      name: 'reminders',
+      createSQL: `CREATE TABLE _temp_reminders (id TEXT PRIMARY KEY, userId TEXT NOT NULL, content TEXT NOT NULL, dueAt TEXT, status TEXT NOT NULL DEFAULT 'pending', sourceInteractionId TEXT NOT NULL DEFAULT '', createdAt TEXT NOT NULL, firedAt TEXT)`,
+      insertSQL: `INSERT INTO _temp_reminders (id, userId, content, dueAt, status, sourceInteractionId, createdAt, firedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      rows: () => (memoryDB.reminders || []).map((r: any) => [r.id, r.userId, r.content, r.dueAt || null, r.status || 'pending', r.sourceInteractionId || '', r.createdAt, r.firedAt || null]),
+    },
+    {
+      name: 'conversations',
+      createSQL: `CREATE TABLE _temp_conversations (id TEXT PRIMARY KEY, userId TEXT NOT NULL, agentId TEXT, title TEXT DEFAULT '', status TEXT DEFAULT 'active', summary TEXT DEFAULT '', messageCount INTEGER DEFAULT 0, lastActiveAt TEXT NOT NULL, createdAt TEXT NOT NULL)`,
+      insertSQL: `INSERT INTO _temp_conversations (id, userId, agentId, title, status, summary, messageCount, lastActiveAt, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      rows: () => (memoryDB.conversations || []).map((c: any) => [c.id, c.userId, c.agentId || '', c.title || '', c.status || 'active', c.summary || '', c.messageCount || 0, c.lastActiveAt, c.createdAt]),
+    },
+    {
+      name: 'marketplace_skills',
+      createSQL: `CREATE TABLE _temp_marketplace_skills (id TEXT PRIMARY KEY, name TEXT NOT NULL, author TEXT NOT NULL, price REAL NOT NULL, description TEXT NOT NULL, category TEXT NOT NULL)`,
+      insertSQL: `INSERT INTO _temp_marketplace_skills (id, name, author, price, description, category) VALUES (?, ?, ?, ?, ?, ?)`,
+      rows: () => memoryDB.marketplaceSkills.map((s: any) => [s.id, s.name, s.author, s.price, s.description, s.category]),
+    },
+    {
+      name: 'skills',
+      createSQL: `CREATE TABLE _temp_skills (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL)`,
+      insertSQL: `INSERT INTO _temp_skills (id, name, description) VALUES (?, ?, ?)`,
+      rows: () => memoryDB.skills.map((s: any) => [s.id, s.name, s.description]),
+    },
+    {
+      name: 'settings',
+      createSQL: `CREATE TABLE _temp_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
+      insertSQL: `INSERT INTO _temp_settings (key, value) VALUES (?, ?)`,
+      rows: () => (memoryDB.settings || []).map((s: any) => [s.key, s.value]),
+    },
+    {
+      name: 'voice_profiles',
+      createSQL: `CREATE TABLE _temp_voice_profiles (id INTEGER PRIMARY KEY AUTOINCREMENT, userId TEXT NOT NULL, voiceId TEXT NOT NULL, name TEXT NOT NULL, provider TEXT NOT NULL, createdAt TEXT NOT NULL)`,
+      insertSQL: `INSERT INTO _temp_voice_profiles (userId, voiceId, name, provider, createdAt) VALUES (?, ?, ?, ?, ?)`,
+      rows: () => {
+        const rows: any[][] = [];
+        for (const [userId, profiles] of Object.entries(memoryDB.voiceProfiles || {})) {
+          for (const vp of profiles as any[]) {
+            rows.push([userId, vp.voiceId, vp.name, vp.provider, vp.createdAt]);
+          }
+        }
+        return rows;
+      },
+    },
+  ];
+
+  // Special handling: founder_vision is a single row
+  const founderSpec: TableSpec = {
+    name: 'founder_vision',
+    createSQL: `CREATE TABLE _temp_founder_vision (id INTEGER PRIMARY KEY CHECK (id = 1), content TEXT NOT NULL, updatedAt TEXT NOT NULL)`,
+    insertSQL: `INSERT INTO _temp_founder_vision (id, content, updatedAt) VALUES (?, ?, ?)`,
+    rows: () => memoryDB.founderVision ? [[1, memoryDB.founderVision, new Date().toISOString()]] : [],
+  };
+
+  const allSpecs = [...specs, founderSpec];
 
   await run('BEGIN TRANSACTION');
   try {
-    for (const table of tables) {
-      await run(`DELETE FROM ${table}`);
+    // Phase 1: Create temp tables and populate them
+    for (const spec of allSpecs) {
+      await run(`DROP TABLE IF EXISTS _temp_${spec.name}`);
+      await run(spec.createSQL);
+      for (const row of spec.rows()) {
+        await run(spec.insertSQL, row);
+      }
     }
 
-    for (const user of memoryDB.users) {
-      await run(
-        `INSERT INTO users (uid, username, password, role, balance, phone, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [user.uid, user.username, user.password, user.role, user.balance, user.phone || '', user.createdAt]
-      );
+    // Phase 2: Drop original tables
+    for (const spec of allSpecs) {
+      await run(`DROP TABLE IF EXISTS ${spec.name}`);
     }
 
-    for (const agent of memoryDB.agents) {
-      await run(
-        `INSERT INTO agents (id, name, category, config, createdAt, userId, status, personalityId, modelPreference, memoryScope, autonomyLevel, runtimeConfig) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          agent.id, agent.name, agent.category,
-          agent.data || agent.config || '{}',
-          agent.createdAt,
-          agent.ownerUid || agent.userId || null,
-          agent.status || 'active',
-          agent.personalityId || 'lumi',
-          agent.modelPreference || '',
-          agent.memoryScope || 'shared',
-          agent.autonomyLevel || 'reactive',
-          agent.runtimeConfig || '{}',
-        ]
-      );
-    }
-
-    for (const interaction of memoryDB.interactions) {
-      await run(
-        `INSERT INTO interactions (id, userId, agentId, module, message, response, role, personality, mode, toolCalls, conversationId, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          interaction.id,
-          interaction.userId || 'unknown',
-          interaction.agentId || null,
-          interaction.personality || interaction.module || null,
-          interaction.content || interaction.message || '',
-          interaction.response || '',
-          interaction.role || '',
-          interaction.personality || '',
-          interaction.mode || '',
-          interaction.toolCalls ? JSON.stringify(interaction.toolCalls) : '',
-          interaction.conversationId || '',
-          interaction.timestamp
-        ]
-      );
-    }
-
-    for (const memory of memoryDB.memories || []) {
-      await run(
-        `INSERT INTO memories (id, userId, type, content, keywords, confidence, sourceInteractionId, createdAt, updatedAt, lastRetrievedAt, retrieveCount, tier, perspective, importance, parentId, agentId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          memory.id,
-          memory.userId,
-          memory.type,
-          memory.content,
-          JSON.stringify(memory.keywords || []),
-          memory.confidence || 0.5,
-          memory.sourceInteractionId || '',
-          memory.createdAt,
-          memory.updatedAt,
-          memory.lastRetrievedAt,
-          memory.retrieveCount || 0,
-          memory.tier || 'episodic',
-          memory.perspective || 'owner_trait',
-          memory.importance ?? 0.3,
-          memory.parentId || null,
-          memory.agentId || '',
-        ]
-      );
-    }
-
-    for (const reminder of memoryDB.reminders || []) {
-      await run(
-        `INSERT INTO reminders (id, userId, content, dueAt, status, sourceInteractionId, createdAt, firedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          reminder.id,
-          reminder.userId,
-          reminder.content,
-          reminder.dueAt || null,
-          reminder.status || 'pending',
-          reminder.sourceInteractionId || '',
-          reminder.createdAt,
-          reminder.firedAt || null,
-        ]
-      );
-    }
-
-    for (const conv of memoryDB.conversations || []) {
-      await run(
-        `INSERT INTO conversations (id, userId, agentId, title, status, summary, messageCount, lastActiveAt, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          conv.id,
-          conv.userId,
-          conv.agentId || '',
-          conv.title || '',
-          conv.status || 'active',
-          conv.summary || '',
-          conv.messageCount || 0,
-          conv.lastActiveAt,
-          conv.createdAt,
-        ]
-      );
-    }
-
-    for (const skill of memoryDB.marketplaceSkills) {
-      await run(
-        `INSERT INTO marketplace_skills (id, name, author, price, description, category) VALUES (?, ?, ?, ?, ?, ?)`,
-        [skill.id, skill.name, skill.author, skill.price, skill.description, skill.category]
-      );
-    }
-
-    for (const skill of memoryDB.skills) {
-      await run(
-        `INSERT INTO skills (id, name, description) VALUES (?, ?, ?)`,
-        [skill.id, skill.name, skill.description]
-      );
-    }
-
-    if (memoryDB.founderVision) {
-      await run(
-        `INSERT OR REPLACE INTO founder_vision (id, content, updatedAt) VALUES (?, ?, ?)`,
-        [1, memoryDB.founderVision, new Date().toISOString()]
-      );
+    // Phase 3: Rename temp tables to original names (atomic in SQLite within a transaction)
+    for (const spec of allSpecs) {
+      await run(`ALTER TABLE _temp_${spec.name} RENAME TO ${spec.name}`);
     }
 
     await run('COMMIT');
   } catch (err) {
+    // On failure, clean up temp tables and rollback
+    try {
+      for (const spec of allSpecs) {
+        await run(`DROP TABLE IF EXISTS _temp_${spec.name}`);
+      }
+    } catch {}
     await run('ROLLBACK');
     throw err;
   }

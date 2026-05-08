@@ -3,6 +3,7 @@ import * as elevenlabs from './providers/elevenlabs';
 import * as fishaudio from './providers/fishaudio';
 import * as gptsovits from './providers/gptsovits';
 import * as cosyvoice from './providers/cosyvoice';
+import { getKey } from '../config/keys';
 
 export async function synthesizeSpeech(text: string, config: TTSConfig): Promise<TTSResult> {
   switch (config.provider) {
@@ -46,7 +47,7 @@ export async function listVoices(provider: TTSProvider): Promise<VoiceListItem[]
     case 'cosyvoice':
       return cosyvoice.listVoices();
     case 'gptsovits':
-      return [{ voiceId: 'lumi', name: 'Lumi Voice', category: 'cloned', language: 'zh' }];
+      return gptsovits.listVoices();
     default:
       throw new Error(`Unknown TTS provider: ${provider}`);
   }
@@ -54,9 +55,10 @@ export async function listVoices(provider: TTSProvider): Promise<VoiceListItem[]
 
 export function getActiveProvider(): TTSProvider | null {
   // Prefer CosyVoice (fast, DashScope), then GPT-SoVITS (local cloned voice), then cloud providers
-  if (process.env.DASHSCOPE_API_KEY || process.env.QWEN_API_KEY) return 'cosyvoice';
+  const dashscopeKey = process.env.DASHSCOPE_API_KEY || process.env.QWEN_API_KEY || getKey('DASHSCOPE_API_KEY') || getKey('QWEN_API_KEY');
+  if (dashscopeKey) return 'cosyvoice';
   if (process.env.GPTSOVITS_API_URL || process.env.GPTSOVITS_ENABLED === 'true') return 'gptsovits';
-  if (process.env.FISHAUDIO_API_KEY) return 'fishaudio';
-  if (process.env.ELEVENLABS_API_KEY) return 'elevenlabs';
+  if (process.env.FISHAUDIO_API_KEY || getKey('FISHAUDIO_API_KEY')) return 'fishaudio';
+  if (process.env.ELEVENLABS_API_KEY || getKey('ELEVENLABS_API_KEY')) return 'elevenlabs';
   return 'cosyvoice';
 }

@@ -1,10 +1,11 @@
 import { TTSResult, VoiceListItem } from '../types';
+import { getKey } from '../../config/keys';
 
 const BASE_URL = 'https://dashscope.aliyuncs.com/api/v1/services/audio/tts/SpeechSynthesizer';
 
 function getApiKey(): string {
-  const key = process.env.DASHSCOPE_API_KEY || process.env.QWEN_API_KEY;
-  if (!key) throw new Error('DASHSCOPE_API_KEY or QWEN_API_KEY is not configured');
+  const key = process.env.DASHSCOPE_API_KEY || process.env.QWEN_API_KEY || getKey('DASHSCOPE_API_KEY') || getKey('QWEN_API_KEY');
+  if (!key) throw new Error('DASHSCOPE_API_KEY is not configured. Add it in Settings → Voice Services.');
   return key;
 }
 

@@ -1,22 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Folder, 
-  File, 
-  Share2, 
-  Shield, 
-  Lock, 
-  HardDrive, 
-  Search, 
-  ArrowLeft, 
-  Upload, 
-  Trash2, 
-  Edit3, 
+import {
+  Folder,
+  File,
+  Share2,
+  Shield,
+  Lock,
+  HardDrive,
+  Search,
+  ArrowLeft,
+  Upload,
+  Trash2,
+  Edit3,
   MoreVertical,
   Download,
   Info,
   Loader2,
-  Plus
+  Plus,
+  Brain,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -38,10 +39,23 @@ export function NeuralFileManager({ t }: { t: any }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, itemId: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [agents, setAgents] = useState<{ id: string; name: string }[]>([]);
+  const [selectedAgentId, setSelectedAgentId] = useState<string>('');
+  const [ingestingFile, setIngestingFile] = useState<string | null>(null);
 
   useEffect(() => {
     fetchFiles();
   }, [currentPath]);
+
+  useEffect(() => {
+    fetch('/api/agents')
+      .then(r => r.json())
+      .then(d => {
+        if (Array.isArray(d)) setAgents(d);
+        else if (d.agents) setAgents(d.agents);
+      })
+      .catch(() => {});
+  }, []);
 
   const fetchFiles = async () => {
     setIsLoading(true);
@@ -187,6 +201,33 @@ export function NeuralFileManager({ t }: { t: any }) {
     setContextMenu(null);
   };
 
+  const ingestToAgent = async (fileId: string) => {
+    if (!selectedAgentId) {
+      toast.error('Select an agent first in the toolbar');
+      return;
+    }
+    setIngestingFile(fileId);
+    setContextMenu(null);
+    try {
+      const res = await fetch('/api/files/ingest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileId, agentId: selectedAgentId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(`Ingested into agent memory (${data.chunkCount} chunks)`);
+      } else {
+        const err = await res.json();
+        toast.error(err.error || 'Ingest failed');
+      }
+    } catch {
+      toast.error('Connection error during ingest');
+    } finally {
+      setIngestingFile(null);
+    }
+  };
+
   const previewItem = async (item: FSItem) => {
     if (item.type === 'folder') return;
     // For text files, try to fetch and display content
@@ -262,14 +303,34 @@ export function NeuralFileManager({ t }: { t: any }) {
 
         <div className="relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20" />
-          <input 
-            type="text" 
+          <input
+            type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={t.searchShards || "Search Matrix Shards..."}
             className="bg-black/40 border border-white/10 rounded-full py-2 pl-10 pr-4 text-[10px] font-bold w-64 focus:border-celestial-saturn/50 outline-none transition-all shadow-inner"
           />
         </div>
+
+        {agents.length > 0 && (
+          <select
+            value={selectedAgentId}
+            onChange={(e) => setSelectedAgentId(e.target.value)}
+            className="bg-black/40 border border-white/10 rounded-full py-2 px-4 text-[10px] font-bold text-white/60 outline-none focus:border-amber-500/50 transition-all"
+          >
+            <option value="">Ingest target agent...</option>
+            {agents.map(a => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </select>
+        )}
+
+        {ingestingFile && (
+          <span className="text-[10px] font-bold text-amber-400 flex items-center gap-1">
+            <Loader2 size={12} className="animate-spin" />
+            Ingesting...
+          </span>
+        )}
       </div>
 
       {/* Grid Layout */}
@@ -345,6 +406,7 @@ export function NeuralFileManager({ t }: { t: any }) {
             {[
               { label: 'Download', icon: <Download size={14} />, action: () => downloadItem(contextMenu.itemId) },
               { label: 'Rename', icon: <Edit3 size={14} />, action: () => renameItem(contextMenu.itemId) },
+              { label: 'Ingest to Agent', icon: <Brain size={14} />, action: () => ingestToAgent(contextMenu.itemId), color: 'text-amber-400 hover:bg-amber-500/20' },
               { label: 'File Info', icon: <Info size={14} />, action: () => showFileInfo(contextMenu.itemId) },
               { label: 'Delete', icon: <Trash2 size={14} />, color: 'text-red-400 hover:bg-red-500/20', action: () => deleteItem(contextMenu.itemId) },
             ].map((action, i) => (

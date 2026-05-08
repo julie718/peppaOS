@@ -3,6 +3,36 @@ import { ToolPolicy } from '../personality/types';
 
 export type EffectiveSecurity = { level: SecurityLevel; reason: string };
 
+function normalizeJsonSchema(params: Record<string, any>): Record<string, any> {
+  if (!params || Object.keys(params).length === 0) {
+    return { type: 'object', properties: {} };
+  }
+
+  // Already standard JSON Schema format
+  if (params.type === 'object' && params.properties) {
+    return params;
+  }
+
+  // Flat format (used by MCP tools): { key: { type, description, required } }
+  // Convert to standard JSON Schema: { type: 'object', properties: {...}, required: [...] }
+  const properties: Record<string, any> = {};
+  const required: string[] = [];
+
+  for (const [key, def] of Object.entries(params)) {
+    const val = def as Record<string, any>;
+    const propDef: Record<string, any> = {};
+    if (val.type) propDef.type = val.type;
+    if (val.description) propDef.description = val.description;
+    if (val.enum) propDef.enum = val.enum;
+    properties[key] = propDef;
+    if (val.required) required.push(key);
+  }
+
+  const schema: Record<string, any> = { type: 'object', properties };
+  if (required.length > 0) schema.required = required;
+  return schema;
+}
+
 export class ToolRegistry {
   private tools: Map<string, ToolDefinition> = new Map();
 
@@ -32,7 +62,7 @@ export class ToolRegistry {
       function: {
         name: t.name,
         description: t.description,
-        parameters: t.parameters,
+        parameters: normalizeJsonSchema(t.parameters),
       },
     }));
   }

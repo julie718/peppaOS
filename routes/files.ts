@@ -1,8 +1,10 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
+import jwt from 'jsonwebtoken';
 import path from 'path';
 import fs from 'fs';
 import { readDB, writeDB } from '../db_layer';
+import { ingestDocument } from '../server/agents/rag';
 
 const router = Router();
 const filesDir = path.join(process.cwd(), 'data', 'files');
@@ -213,6 +215,44 @@ router.get('/files/info/:id', (req: Request, res: Response) => {
       createdAt: stat.birthtime.toISOString(),
       updatedAt: stat.mtime.toISOString(),
     });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/files/ingest — chunk a file into agent's private memory (RAG)
+router.post('/files/ingest', async (req: Request, res: Response) => {
+  try {
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
+
+    const JWT_SECRET = process.env.JWT_SECRET || 'lumi_secret_key_2026';
+    let userId: string;
+    try {
+      const decoded: any = jwt.verify(token, JWT_SECRET);
+      userId = decoded.uid;
+    } catch {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    const { fileId, agentId } = req.body;
+    if (!fileId || !agentId) {
+      return res.status(400).json({ error: 'fileId and agentId are required' });
+    }
+
+    const filePath = path.join(filesDir, fileId);
+    const resolved = path.resolve(filePath);
+    if (!resolved.startsWith(path.resolve(filesDir))) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    if (!fs.existsSync(resolved)) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    const content = fs.readFileSync(resolved, 'utf-8');
+    const result = await ingestDocument(userId, agentId, fileId, content);
+    res.json({ success: true, chunkCount: result.chunkCount, memoryIds: result.memoryIds });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

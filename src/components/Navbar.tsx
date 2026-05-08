@@ -33,7 +33,6 @@ export function Navbar({ user, onLogin, onLogout, activeTab, setActiveTab, lang,
   ];
 
   const ecoCategories = [
-    { id: 'incubation', label: t.incubationModule, desc: t.incubationModuleDesc, icon: <Zap size={16} /> },
     { id: 'mesh', label: t.neuralMesh, desc: t.neuralMeshDesc, icon: <Network size={16} /> },
     { id: 'cloud', label: t.memoryCloud, desc: t.memoryCloudNavDesc, icon: <Cloud size={16} /> },
     { id: 'market', label: t.marketplace, desc: t.marketplaceNavDesc, icon: <ShoppingBag size={16} /> }

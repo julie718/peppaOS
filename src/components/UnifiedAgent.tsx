@@ -11,6 +11,7 @@ import { GlassCard } from './SharedUI';
 import { useApp } from '../contexts/AppContext';
 import { useVoiceCall } from '@/hooks/useVoiceCall';
 import { useSocket } from '@/hooks/useSocket';
+import { toast } from 'sonner';
 
 export function UnifiedAgent({ t, user, onEnterSanctuary }: { t: any; user: any; onEnterSanctuary?: () => void }) {
   const [messages, setMessages] = useState<any[]>([]);
@@ -50,7 +51,7 @@ export function UnifiedAgent({ t, user, onEnterSanctuary }: { t: any; user: any;
   });
 
   const { speak, stop, isSpeaking } = useTTS();
-  const { data: agents } = useModuleData<any[]>('/api/modules/agents');
+  const { data: agents, error: agentsError } = useModuleData<any[]>('/api/modules/agents');
   const agentConfig = agents?.[0];
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isVoiceMode, setIsVoiceMode] = useState(false);
@@ -122,6 +123,10 @@ export function UnifiedAgent({ t, user, onEnterSanctuary }: { t: any; user: any;
       setMessages([]);
     }
   }, [user]);
+
+  useEffect(() => {
+    if (agentsError) toast.error('Failed to load agent configuration');
+  }, [agentsError]);
 
   const fetchFounderVision = async () => {
     try {

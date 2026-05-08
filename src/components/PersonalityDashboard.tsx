@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { UserIcon, BrainCircuit, TrendingUp, Activity, Calendar, Loader2, Sparkles, Clock, GitBranch } from 'lucide-react';
+import { toast } from 'sonner';
 import { useApp } from '@/contexts/AppContext';
 
 interface PersonalityStats {
@@ -35,7 +36,7 @@ export function PersonalityDashboard() {
     fetch(`/api/personality/stats?personalityId=${personalityId}`)
       .then(r => r.json())
       .then(data => setStats(data))
-      .catch(() => {})
+      .catch(err => toast.error('Failed to load persona stats'))
       .finally(() => setLoading(false));
   }, [personalityId]);
 

@@ -93,6 +93,13 @@ export function useVoiceCloning() {
     }));
   }, []);
 
+  const addFiles = useCallback((files: File[]) => {
+    setState(prev => ({
+      ...prev,
+      recordings: [...prev.recordings, ...files],
+    }));
+  }, []);
+
   const uploadAndClone = useCallback(async (name: string) => {
     if (state.recordings.length === 0) {
       setState(prev => ({ ...prev, error: 'No recordings to clone from' }));
@@ -150,6 +157,7 @@ export function useVoiceCloning() {
     startRecording,
     stopRecording,
     removeRecording,
+    addFiles,
     uploadAndClone,
     refreshVoices,
     clearError,

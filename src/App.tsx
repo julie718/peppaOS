@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import * as authService from './services/authService';
 import { Navbar } from './components/Navbar';
 import { UnifiedAgent } from './components/UnifiedAgent';
-import { AgentGenerator } from './components/AgentGenerator';
 import { LumiEcosystem } from './components/LumiEcosystem';
 import { JoinUs } from './components/JoinUs';
 import { usePlatform } from './hooks/usePlatform';
@@ -21,7 +20,6 @@ import { FoundersSanctuary } from './components/FoundersSanctuary';
 import { LocalAgentSphere } from './components/LocalAgentSphere';
 import { FloatingAgent } from './components/FloatingAgent';
 import { ProactiveNotifications } from './components/ProactiveNotifications';
-import { ToolConfirmDialog } from './components/ToolConfirmDialog';
 import { Toaster } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import { Rocket, Sparkles, Layout } from 'lucide-react';
@@ -108,14 +106,10 @@ export default function App() {
     switch (tab) {
       case 'home':
         return null; // Home is the desktop itself
-      case 'agent-gen':
-      case 'generate':
-        return !user ? <LoginRequired t={t} onLogin={handleLogin} /> : <AgentGenerator t={t} onChatAgent={(agent) => { setSelectedAgent(agent); setActiveTab('agent-chat'); }} />;
       case 'protocols':
         return <ProtocolsWorld t={t} />;
       case 'marketplace':
       case 'ecosystem':
-      case 'network':
         return (
           <div className="space-y-24">
             <LumiEcosystem t={t} onChatAgent={(agent) => { setSelectedAgent(agent); setActiveTab('agent-chat'); }} />
@@ -173,7 +167,6 @@ export default function App() {
           : 'bg-celestial-deep'
     }`}>
       <ProactiveNotifications />
-      <ToolConfirmDialog />
       <Toaster position="top-right" theme="dark" />
       <AnimatePresence mode="wait">
         {uiMode === 'mobile' ? (

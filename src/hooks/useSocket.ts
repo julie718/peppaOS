@@ -53,6 +53,16 @@ async function handleDesktopExec(socket: Socket, data: {
         }
         break;
       }
+      case 'desktop_open': {
+        const target: string = args.target || '';
+        if (!target.trim()) {
+          socket.emit(`tool:desktop_result:${correlationId}`, { error: 'No target provided to open' });
+          return;
+        }
+        const openResult: { success: boolean; output: string } = await invoke('open_item', { target: target.trim() });
+        output = openResult.output || `Opened: ${target}`;
+        break;
+      }
       case 'desktop_run_command': {
         const cmd: string = args.command || '';
         if (!cmd.trim()) {

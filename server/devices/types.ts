@@ -23,4 +23,5 @@ export interface DeviceInfo {
   osInfo: string | null;
   firstSeen: string;
   lastSeen: string;
+  lastPerceptionEvent?: string; // timestamp of last perception data pushed
 }

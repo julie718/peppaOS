@@ -9,8 +9,10 @@ coverage/
 .env*
 !.env.example
 *.db
+db.json
 *.tar.gz
 data/
 gpt-sovits-src/
 src-tauri/target/
 .claude/
+CLAUDE.md

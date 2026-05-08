@@ -181,6 +181,30 @@ fn normalize_unc(path: &Path) -> &Path {
 }
 
 #[tauri::command]
+fn open_item(target: String) -> CommandResult {
+    // Open file, folder, app, or URL with the OS default handler
+    let result = if cfg!(target_os = "windows") {
+        Command::new("cmd")
+            .args(["/C", "start", "", &target])
+            .output()
+    } else if cfg!(target_os = "macos") {
+        Command::new("open").arg(&target).output()
+    } else {
+        Command::new("xdg-open").arg(&target).output()
+    };
+    match result {
+        Ok(out) => CommandResult {
+            success: out.status.success(),
+            output: format!("Opened: {}", target),
+        },
+        Err(e) => CommandResult {
+            success: false,
+            output: e.to_string(),
+        },
+    }
+}
+
+#[tauri::command]
 fn set_wallpaper_mode(
     enabled: bool,
     state: tauri::State<'_, Mutex<WallpaperState>>,
@@ -213,6 +237,7 @@ pub fn run() {
             get_system_info,
             list_home_files,
             run_command,
+            open_item,
             set_wallpaper_mode,
         ])
         .setup(|app| {

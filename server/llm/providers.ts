@@ -6,6 +6,7 @@ export interface NormalizedMessage {
   toolCalls?: ParsedToolCall[];
   toolCallId?: string;
   name?: string;
+  reasoningContent?: string | null;
 }
 
 interface ToolDeclaration {
@@ -34,8 +35,10 @@ export function formatDeepSeekRequest(params: {
   user?: string;
 } {
   const openaiMessages = params.messages.map(m => {
-    const entry: any = { role: m.role === 'assistant' ? 'assistant' : m.role === 'tool' ? 'tool' : m.role === 'system' ? 'system' : 'user' };
+    const roleMap: Record<string, string> = { assistant: 'assistant', tool: 'tool', system: 'system' };
+    const entry: any = { role: roleMap[m.role] || 'user' };
     if (m.content !== null) entry.content = m.content;
+    if (m.reasoningContent) entry.reasoning_content = m.reasoningContent;
     if (m.toolCalls) {
       entry.tool_calls = m.toolCalls.map(tc => ({
         id: tc.id,
@@ -64,6 +67,7 @@ export function parseDeepSeekResponse(rawResponse: any): NormalizedLLMResponse {
   if (!message) return { text: null, toolCalls: null };
 
   const text = message.content || null;
+  const reasoningContent = message.reasoning_content || null;
 
   if (message.tool_calls && message.tool_calls.length > 0) {
     const toolCalls: ParsedToolCall[] = message.tool_calls.map((tc: any) => {
@@ -73,10 +77,10 @@ export function parseDeepSeekResponse(rawResponse: any): NormalizedLLMResponse {
       } catch { /* ignore parse errors */ }
       return { id: tc.id, name: tc.function?.name || '', arguments: args };
     });
-    return { text, toolCalls };
+    return { text, toolCalls, reasoningContent };
   }
 
-  return { text, toolCalls: null };
+  return { text, toolCalls: null, reasoningContent };
 }
 
 // ── Gemini ──
@@ -223,8 +227,10 @@ export function formatQwenRequest(params: {
   max_tokens?: number;
 } {
   const openaiMessages = params.messages.map(m => {
-    const entry: any = { role: m.role === 'assistant' ? 'assistant' : m.role === 'tool' ? 'tool' : m.role === 'system' ? 'system' : 'user' };
+    const roleMap: Record<string, string> = { assistant: 'assistant', tool: 'tool', system: 'system' };
+    const entry: any = { role: roleMap[m.role] || 'user' };
     if (m.content !== null) entry.content = m.content;
+    if (m.reasoningContent) entry.reasoning_content = m.reasoningContent;
     if (m.toolCalls) {
       entry.tool_calls = m.toolCalls.map(tc => ({
         id: tc.id,
@@ -443,6 +449,7 @@ export async function makeLLMCallStreaming(
 
     const stream = await client.chat.completions.create(params);
     const accumulatedText: string[] = [];
+    const accumulatedReasoning: string[] = [];
     const toolCallAccumulators: Map<number, { id: string; name: string; args: string }> = new Map();
 
     for await (const chunk of stream) {
@@ -452,6 +459,10 @@ export async function makeLLMCallStreaming(
       if (delta.content) {
         accumulatedText.push(delta.content);
         onChunk(delta.content);
+      }
+
+      if (delta.reasoning_content) {
+        accumulatedReasoning.push(delta.reasoning_content);
       }
 
       if (delta.tool_calls) {
@@ -469,15 +480,16 @@ export async function makeLLMCallStreaming(
     }
 
     const text = accumulatedText.length > 0 ? accumulatedText.join('') : null;
+    const reasoningContent = accumulatedReasoning.length > 0 ? accumulatedReasoning.join('') : null;
     if (toolCallAccumulators.size > 0) {
       const toolCalls: ParsedToolCall[] = [...toolCallAccumulators.values()].map(acc => {
         let args: Record<string, any> = {};
         try { args = JSON.parse(acc.args || '{}'); } catch { /* ignore parse errors */ }
         return { id: acc.id, name: acc.name, arguments: args };
       });
-      return { text, toolCalls };
+      return { text, toolCalls, reasoningContent };
     }
-    return { text, toolCalls: null };
+    return { text, toolCalls: null, reasoningContent };
   }
 
   // ── Gemini streaming ──

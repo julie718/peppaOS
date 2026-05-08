@@ -19,7 +19,7 @@ interface InstalledSkill {
 }
 
 export function SkillMarketplace({ t }: { t: any }) {
-  const { data: marketSkills, loading: marketLoading } = useModuleData<any[]>('/api/marketplace/skills');
+  const { data: marketSkills, loading: marketLoading, error: marketError } = useModuleData<any[]>('/api/marketplace/skills');
   const [acquired, setAcquired] = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(localStorage.getItem('lumi_acquired_skills') || '[]')); } catch { return new Set(); }
   });
@@ -345,7 +345,12 @@ export function SkillMarketplace({ t }: { t: any }) {
       </div>
 
       {/* Marketplace skills */}
-      {marketSkills && marketSkills.length > 0 && (
+      {marketError && (
+        <div className="p-6 bg-red-500/5 rounded-3xl border border-red-500/20 text-center">
+          <p className="text-red-400 text-sm font-bold">Failed to load marketplace skills</p>
+        </div>
+      )}
+      {!marketError && marketSkills && marketSkills.length > 0 && (
         <div className="space-y-4">
           <h3 className="text-lg font-bold text-white/80 flex items-center gap-2">
             <ShoppingBag size={18} className="text-celestial-saturn" />

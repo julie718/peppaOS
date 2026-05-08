@@ -33,6 +33,13 @@ export async function runWithTools(
   const conversationHistory: NormalizedMessage[] = [...messages];
 
   for (let iteration = 0; iteration < maxIterations; iteration++) {
+    // Check for cancellation between iterations
+    if (context?.isCancelled?.()) {
+      return {
+        text: 'Task was cancelled by the user.',
+        toolCalls: executionLog,
+      };
+    }
     const toolDeclarations = toolRegistry.getToolDeclarations();
 
     const response = onStreamChunk
@@ -89,6 +96,7 @@ export async function runWithTools(
       role: 'assistant',
       content: response.text,
       toolCalls: response.toolCalls,
+      reasoningContent: response.reasoningContent,
     });
 
     for (const tc of response.toolCalls) {
