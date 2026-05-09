@@ -4,6 +4,7 @@
 import { Socket } from "socket.io";
 import { readDB, writeDB } from "../../db_layer";
 import { NormalizedMessage, makeLLMCall } from "../llm/providers";
+import { LLMUsage } from "../tools/types";
 import { queryMemories, addMemory, addReminder, extractMemories } from "../memory";
 import { loadEmotionalState, saveEmotionalState, updateEmotionalState } from "../personality/state";
 import { personalityRegistry } from "../personality";
@@ -128,6 +129,7 @@ export function registerChatHandler(
           );
           responseText = result.text || '';
           llmWasCalled = true;
+          recordTokenUsage(uid, provider, personality.defaultModel, result.usage);
         } catch (llmErr: any) {
           console.error(`[Cognition] LLM '${provider}/${personality.defaultModel}' failed: ${llmErr.message}`);
           // Try fallback provider
@@ -139,6 +141,7 @@ export function registerChatHandler(
               );
               responseText = fallback.text || '';
               llmWasCalled = true;
+              recordTokenUsage(uid, 'gemini', personality.fallbackModel || 'gemini-pro', fallback.usage);
             } catch (fallbackErr: any) {
               // Both primary and fallback LLMs failed — use cognitive fallback
               const cf = handleLLMFailure(cognition.intent, fallbackErr);
@@ -207,4 +210,28 @@ export function registerChatHandler(
       socket.emit("agent:status", { status: "error" });
     }
   });
+}
+
+function recordTokenUsage(
+  userId: string,
+  provider: string,
+  model: string,
+  usage: LLMUsage | undefined,
+) {
+  if (!usage || (usage.promptTokens === 0 && usage.completionTokens === 0)) return;
+  const db = readDB();
+  if (!db.tokenUsage) db.tokenUsage = [];
+  db.tokenUsage.push({
+    id: Math.random().toString(36).substr(2, 12),
+    userId,
+    provider,
+    model,
+    promptTokens: usage.promptTokens,
+    completionTokens: usage.completionTokens,
+    totalTokens: usage.totalTokens,
+    mode: 'chat',
+    interactionId: '',
+    timestamp: new Date().toISOString(),
+  });
+  writeDB(db);
 }

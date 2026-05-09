@@ -4,7 +4,7 @@
 import { Socket } from "socket.io";
 import { readDB, writeDB } from "../../db_layer";
 import { NormalizedMessage } from "../llm/providers";
-import { runWithTools } from "../llm/adapter";
+import { runWithTools, LLMUsageRecord } from "../llm/adapter";
 import { toolRegistry } from "../tools/registry";
 import { queryMemories, addMemory, addReminder, extractMemories } from "../memory";
 import { loadEmotionalState, saveEmotionalState, updateEmotionalState } from "../personality/state";
@@ -152,6 +152,11 @@ export function registerTaskHandler(
         { desktopRelay, requestConfirmation, toolPolicy: personality.toolPolicy, isCancelled: () => cancelled },
       );
 
+      // Persist token usage
+      for (const u of result.usageRecords) {
+        recordTaskTokenUsage(uid, u);
+      }
+
       // Cleanup cancel listener
       socket.off('agent:task_cancel', onCancel);
 
@@ -248,4 +253,23 @@ export function registerTaskHandler(
       socket.emit("agent:status", { status: "error" });
     }
   });
+}
+
+function recordTaskTokenUsage(userId: string, record: LLMUsageRecord) {
+  if (record.promptTokens === 0 && record.completionTokens === 0) return;
+  const db = readDB();
+  if (!db.tokenUsage) db.tokenUsage = [];
+  db.tokenUsage.push({
+    id: Math.random().toString(36).substr(2, 12),
+    userId,
+    provider: record.provider,
+    model: record.model,
+    promptTokens: record.promptTokens,
+    completionTokens: record.completionTokens,
+    totalTokens: record.totalTokens,
+    mode: 'task',
+    interactionId: '',
+    timestamp: new Date().toISOString(),
+  });
+  writeDB(db);
 }

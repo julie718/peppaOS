@@ -1,5 +1,5 @@
 import { ToolRegistry } from '../tools/registry';
-import { ToolExecutionRecord, ToolContext } from '../tools/types';
+import { ToolExecutionRecord, ToolContext, LLMUsage } from '../tools/types';
 import { NormalizedMessage, makeLLMCall, makeLLMCallStreaming, StreamCallback } from './providers';
 import { recordWorkflow, WorkflowStep } from '../skills/worklog';
 
@@ -13,6 +13,15 @@ export interface LLMConfig {
 export interface LLMResult {
   text: string;
   toolCalls: ToolExecutionRecord[];
+  usageRecords: LLMUsageRecord[];
+}
+
+export interface LLMUsageRecord {
+  provider: string;
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
 }
 
 export async function runWithTools(
@@ -30,6 +39,7 @@ export async function runWithTools(
   context?: ToolContext,
 ): Promise<LLMResult> {
   const executionLog: ToolExecutionRecord[] = [];
+  const usageRecords: LLMUsageRecord[] = [];
   const conversationHistory: NormalizedMessage[] = [...messages];
 
   for (let iteration = 0; iteration < maxIterations; iteration++) {
@@ -38,6 +48,7 @@ export async function runWithTools(
       return {
         text: 'Task was cancelled by the user.',
         toolCalls: executionLog,
+        usageRecords,
       };
     }
     const toolDeclarations = toolRegistry.getToolDeclarations();
@@ -65,11 +76,23 @@ export async function runWithTools(
           getQwen || (() => null),
         );
 
+    // Collect usage from this LLM call
+    if (response.usage) {
+      usageRecords.push({
+        provider: config.provider,
+        model: config.model,
+        promptTokens: response.usage.promptTokens,
+        completionTokens: response.usage.completionTokens,
+        totalTokens: response.usage.totalTokens,
+      });
+    }
+
     if (!response.toolCalls || response.toolCalls.length === 0) {
       recordWorkflowIfToolsUsed(executionLog, messages, config.userId);
       return {
         text: response.text || 'No response.',
         toolCalls: executionLog,
+        usageRecords,
       };
     }
 
@@ -88,6 +111,7 @@ export async function runWithTools(
         return {
           text: response.text || 'The same tools were called repeatedly. Breaking the loop to prevent infinite execution.',
           toolCalls: executionLog,
+          usageRecords,
         };
       }
     }
@@ -132,6 +156,7 @@ export async function runWithTools(
   return {
     text: 'Maximum tool call iterations reached.',
     toolCalls: executionLog,
+    usageRecords,
   };
 }
 

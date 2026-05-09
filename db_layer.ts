@@ -76,6 +76,19 @@ function migrateSchema(): Promise<void> {
     db!.run("ALTER TABLE memories ADD COLUMN perspective TEXT NOT NULL DEFAULT 'owner_trait'", () => {});
     db!.run("ALTER TABLE memories ADD COLUMN importance REAL NOT NULL DEFAULT 0.3", () => {});
     db!.run("ALTER TABLE memories ADD COLUMN parentId TEXT", () => {});
+    // Add token_usage table if it doesn't exist
+    db!.run(`CREATE TABLE IF NOT EXISTS token_usage (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      model TEXT NOT NULL,
+      promptTokens INTEGER NOT NULL,
+      completionTokens INTEGER NOT NULL,
+      totalTokens INTEGER NOT NULL,
+      mode TEXT DEFAULT 'chat',
+      interactionId TEXT DEFAULT '',
+      timestamp TEXT NOT NULL
+    )`, () => {});
     // Add reminders table if it doesn't exist
     db!.run(`CREATE TABLE IF NOT EXISTS reminders (
       id TEXT PRIMARY KEY,
@@ -180,6 +193,19 @@ function createTables(): Promise<void> {
         provider TEXT NOT NULL,
         createdAt TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS token_usage (
+        id TEXT PRIMARY KEY,
+        userId TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        model TEXT NOT NULL,
+        promptTokens INTEGER NOT NULL,
+        completionTokens INTEGER NOT NULL,
+        totalTokens INTEGER NOT NULL,
+        mode TEXT DEFAULT 'chat',
+        interactionId TEXT DEFAULT '',
+        timestamp TEXT NOT NULL
+      );
     `;
 
     db!.exec(sql, (err) => {
@@ -260,6 +286,9 @@ async function loadMemoryDB(): Promise<void> {
   // Load conversations
   const conversationsRaw = await query<any>('SELECT * FROM conversations');
 
+  // Load token usage
+  const tokenUsageRaw = await query<any>('SELECT * FROM token_usage');
+
   // Load settings
   const settingsRaw = await query<any>('SELECT * FROM settings');
   const settings = settingsRaw.map((s: any) => ({ key: s.key, value: s.value }));
@@ -311,6 +340,7 @@ async function loadMemoryDB(): Promise<void> {
     conversations: conversationsRaw || [],
     settings: settings || [],
     voiceProfiles: voiceProfiles || {},
+    tokenUsage: tokenUsageRaw || [],
   };
 }
 
@@ -441,6 +471,12 @@ async function persistMemoryDB(): Promise<void> {
         }
         return rows;
       },
+    },
+    {
+      name: 'token_usage',
+      createSQL: `CREATE TABLE _temp_token_usage (id TEXT PRIMARY KEY, userId TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL, promptTokens INTEGER NOT NULL, completionTokens INTEGER NOT NULL, totalTokens INTEGER NOT NULL, mode TEXT DEFAULT 'chat', interactionId TEXT DEFAULT '', timestamp TEXT NOT NULL)`,
+      insertSQL: `INSERT INTO _temp_token_usage (id, userId, provider, model, promptTokens, completionTokens, totalTokens, mode, interactionId, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      rows: () => (memoryDB.tokenUsage || []).map((u: any) => [u.id, u.userId, u.provider, u.model, u.promptTokens, u.completionTokens, u.totalTokens, u.mode || 'chat', u.interactionId || '', u.timestamp]),
     },
   ];
 

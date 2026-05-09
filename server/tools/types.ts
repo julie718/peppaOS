@@ -33,10 +33,17 @@ export interface ParsedToolCall {
   arguments: Record<string, any>;
 }
 
+export interface LLMUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+}
+
 export interface NormalizedLLMResponse {
   text: string | null;
   toolCalls: ParsedToolCall[] | null;
   reasoningContent?: string | null;
+  usage?: LLMUsage;
 }
 
 export interface ToolExecutionRecord {

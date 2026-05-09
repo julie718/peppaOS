@@ -62,12 +62,23 @@ export function formatDeepSeekRequest(params: {
   };
 }
 
+function extractUsage(rawResponse: any) {
+  const usage = rawResponse.usage || rawResponse.usageMetadata;
+  if (!usage) return undefined;
+  return {
+    promptTokens: usage.prompt_tokens || usage.promptTokenCount || usage.input_tokens || usage.inputTokens || 0,
+    completionTokens: usage.completion_tokens || usage.candidatesTokenCount || usage.output_tokens || usage.outputTokens || 0,
+    totalTokens: usage.total_tokens || usage.totalTokenCount || 0,
+  };
+}
+
 export function parseDeepSeekResponse(rawResponse: any): NormalizedLLMResponse {
   const message = rawResponse.choices?.[0]?.message;
   if (!message) return { text: null, toolCalls: null };
 
   const text = message.content || null;
   const reasoningContent = message.reasoning_content || null;
+  const usage = extractUsage(rawResponse);
 
   if (message.tool_calls && message.tool_calls.length > 0) {
     const toolCalls: ParsedToolCall[] = message.tool_calls.map((tc: any) => {
@@ -77,10 +88,10 @@ export function parseDeepSeekResponse(rawResponse: any): NormalizedLLMResponse {
       } catch { /* ignore parse errors */ }
       return { id: tc.id, name: tc.function?.name || '', arguments: args };
     });
-    return { text, toolCalls, reasoningContent };
+    return { text, toolCalls, reasoningContent, usage };
   }
 
-  return { text, toolCalls: null, reasoningContent };
+  return { text, toolCalls: null, reasoningContent, usage };
 }
 
 // ── Gemini ──
@@ -203,6 +214,7 @@ export function parseGeminiResponse(rawResponse: any): NormalizedLLMResponse {
   return {
     text: textParts.length > 0 ? textParts.join('\n') : null,
     toolCalls: toolCalls.length > 0 ? toolCalls : null,
+    usage: extractUsage(rawResponse),
   };
 }
 
@@ -333,6 +345,7 @@ export function parseAnthropicResponse(rawResponse: any): NormalizedLLMResponse 
   return {
     text: textParts.length > 0 ? textParts.join('\n') : null,
     toolCalls: toolCalls.length > 0 ? toolCalls : null,
+    usage: extractUsage(rawResponse),
   };
 }
 
@@ -451,33 +464,37 @@ export async function makeLLMCallStreaming(
     const accumulatedText: string[] = [];
     const accumulatedReasoning: string[] = [];
     const toolCallAccumulators: Map<number, { id: string; name: string; args: string }> = new Map();
+    let streamUsage: any = undefined;
 
     for await (const chunk of stream) {
       const delta = chunk.choices?.[0]?.delta;
-      if (!delta) continue;
+      if (delta) {
+        if (delta.content) {
+          accumulatedText.push(delta.content);
+          onChunk(delta.content);
+        }
 
-      if (delta.content) {
-        accumulatedText.push(delta.content);
-        onChunk(delta.content);
-      }
+        if (delta.reasoning_content) {
+          accumulatedReasoning.push(delta.reasoning_content);
+        }
 
-      if (delta.reasoning_content) {
-        accumulatedReasoning.push(delta.reasoning_content);
-      }
-
-      if (delta.tool_calls) {
-        for (const tc of delta.tool_calls) {
-          const idx = tc.index ?? 0;
-          if (!toolCallAccumulators.has(idx)) {
-            toolCallAccumulators.set(idx, { id: tc.id || '', name: tc.function?.name || '', args: '' });
+        if (delta.tool_calls) {
+          for (const tc of delta.tool_calls) {
+            const idx = tc.index ?? 0;
+            if (!toolCallAccumulators.has(idx)) {
+              toolCallAccumulators.set(idx, { id: tc.id || '', name: tc.function?.name || '', args: '' });
+            }
+            const acc = toolCallAccumulators.get(idx)!;
+            if (tc.id) acc.id = tc.id;
+            if (tc.function?.name) acc.name = tc.function.name;
+            if (tc.function?.arguments) acc.args += tc.function.arguments;
           }
-          const acc = toolCallAccumulators.get(idx)!;
-          if (tc.id) acc.id = tc.id;
-          if (tc.function?.name) acc.name = tc.function.name;
-          if (tc.function?.arguments) acc.args += tc.function.arguments;
         }
       }
+      if (chunk.usage) streamUsage = chunk.usage;
     }
+
+    const usage = extractUsage({ usage: streamUsage });
 
     const text = accumulatedText.length > 0 ? accumulatedText.join('') : null;
     const reasoningContent = accumulatedReasoning.length > 0 ? accumulatedReasoning.join('') : null;
@@ -487,9 +504,9 @@ export async function makeLLMCallStreaming(
         try { args = JSON.parse(acc.args || '{}'); } catch { /* ignore parse errors */ }
         return { id: acc.id, name: acc.name, arguments: args };
       });
-      return { text, toolCalls, reasoningContent };
+      return { text, toolCalls, reasoningContent, usage };
     }
-    return { text, toolCalls: null, reasoningContent };
+    return { text, toolCalls: null, reasoningContent, usage };
   }
 
   // ── Gemini streaming ──
@@ -528,13 +545,14 @@ export async function makeLLMCallStreaming(
       }
     }
 
-    // Also check the aggregated response for function calls
+    // Also check the aggregated response for function calls + usage
     const aggregated = await result.response;
     const parsed = parseGeminiResponse(aggregated);
 
     return {
       text: accumulatedText.length > 0 ? accumulatedText.join('') : parsed.text,
       toolCalls: parsed.toolCalls && parsed.toolCalls.length > 0 ? parsed.toolCalls : (toolCalls.length > 0 ? toolCalls : null),
+      usage: parsed.usage,
     };
   }
 
@@ -560,12 +578,9 @@ export async function makeLLMCallStreaming(
         textParts.push(event.text);
         onChunk(event.text);
       }
-      if (event.type === 'content_block_start' || event.type === 'content_block_delta') {
-        // Tool use blocks accumulate via message_stop
-      }
     }
 
-    // Get final message for tool use blocks
+    // Get final message for tool use blocks + usage
     const finalMessage = await stream.finalMessage();
     for (const block of finalMessage.content) {
       if (block.type === 'tool_use') {
@@ -580,6 +595,7 @@ export async function makeLLMCallStreaming(
     return {
       text: textParts.length > 0 ? textParts.join('') : null,
       toolCalls: toolCalls.length > 0 ? toolCalls : null,
+      usage: extractUsage(finalMessage),
     };
   }
 

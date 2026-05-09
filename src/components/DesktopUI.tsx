@@ -47,6 +47,9 @@ import { ToolPanel } from './ToolPanel';
 import { GitHubMCPBrowser } from './GitHubMCPBrowser';
 import { PersonalityDashboard } from './PersonalityDashboard';
 import { NotificationCenter } from './NotificationCenter';
+import { TokenDashboard } from './TokenDashboard';
+import { useContextMenu } from '@/hooks/useContextMenu';
+import { ContextMenu } from './ContextMenu';
 import { DesktopOnboarding } from './DesktopOnboarding';
 import { DeviceSyncCenter } from './DeviceSyncCenter';
 import { AgentChatPage } from './AgentChatPage';
@@ -123,83 +126,95 @@ function OSWindow({
   const [isMaximized, setIsMaximized] = useState(false);
   const [snapZone, setSnapZone] = useState<'none' | 'left' | 'right'>('none');
   const [isDragging, setIsDragging] = useState(false);
+  const constrainRef = React.useRef<HTMLDivElement>(null);
+
+  const isSnapped = isMaximized || snapZone !== 'none';
 
   return (
-    <motion.div
-      drag={!isMaximized && !isMinimized}
-      dragMomentum={false}
-      dragConstraints={{ top: 40, left: 0, right: 0, bottom: 0 }}
-      onDragStart={() => setIsDragging(true)}
-      onDragEnd={(_e, info) => {
-        setIsDragging(false);
-        if (info.point.x < 100) setSnapZone('left');
-        else if (info.point.x > window.innerWidth - 100) setSnapZone('right');
-        else setSnapZone('none');
-      }}
-      initial={{ opacity: 0, scale: 0.9, y: 20 }}
-      animate={isMinimized
-        ? { opacity: 0, scale: 0.3, y: window.innerHeight * 0.4, transition: { duration: 0.3, ease: 'easeIn' } }
-        : {
-            opacity: 1,
-            scale: 1,
-            width: isMaximized ? '100vw' : snapZone !== 'none' ? '50vw' : width,
-            height: isMaximized ? 'calc(100vh - 40px)' : snapZone !== 'none' ? 'calc(100vh - 40px)' : height,
-            top: isMaximized || snapZone !== 'none' ? '40px' : '50%',
-            left: isMaximized ? '0' : snapZone === 'left' ? '0' : snapZone === 'right' ? '50%' : '50%',
-            x: isMaximized || snapZone !== 'none' ? 0 : '-50%',
-            y: isMaximized || snapZone !== 'none' ? 0 : '-50%',
-            transition: { duration: 0.35, ease: 'easeOut' },
-          }
-      }
-      onAnimationComplete={() => {
-        if (isMinimized) onMinimizeComplete(id);
-      }}
-      exit={{ opacity: 0, scale: 0.3, y: window.innerHeight * 0.4, transition: { duration: 0.2 } }}
-      style={{
-        zIndex: isMinimized ? zIndex - 100 : zIndex,
-        position: isMaximized || snapZone !== 'none' ? 'fixed' : 'absolute'
-      }}
-      onClick={() => !isMinimized && onFocus(id)}
-      className={`os-window pointer-events-auto overflow-hidden ${isMaximized ? 'rounded-none' : 'rounded-[2.5rem]'} ${isMinimized ? 'pointer-events-none' : ''} ${isDragging ? 'is-dragging' : ''}`}
-    >
-      <div
-        className="os-window-header cursor-default px-6"
-        onDoubleClick={() => !isMinimized && setIsMaximized(!isMaximized)}
+    <>
+      {/* Invisible drag boundary fills the viewport so windows can be dragged freely */}
+      <div ref={constrainRef} className="fixed inset-0 pointer-events-none z-0" />
+      <motion.div
+        drag={!isMaximized && !isMinimized}
+        dragMomentum
+        dragElastic={0.05}
+        dragConstraints={constrainRef}
+        onDragStart={() => setIsDragging(true)}
+        onDragEnd={(_e, info) => {
+          setIsDragging(false);
+          if (info.point.x < 80) setSnapZone('left');
+          else if (info.point.x > window.innerWidth - 80) setSnapZone('right');
+          else setSnapZone('none');
+        }}
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={isMinimized
+          ? { opacity: 0, scale: 0.3, transition: { duration: 0.3, ease: 'easeIn' } }
+          : {
+              opacity: 1,
+              scale: 1,
+              width: isMaximized ? '100vw' : snapZone !== 'none' ? '50vw' : width,
+              height: isMaximized ? 'calc(100vh - 40px)' : snapZone !== 'none' ? 'calc(100vh - 40px)' : height,
+              top: isSnapped ? '40px' : undefined,
+              left: isMaximized ? '0' : snapZone === 'left' ? '0' : snapZone === 'right' ? '50%' : undefined,
+              x: 0,
+              y: 0,
+              transition: { duration: 0.35, ease: 'easeOut' },
+            }
+        }
+        onAnimationComplete={() => {
+          if (isMinimized) onMinimizeComplete(id);
+        }}
+        exit={{ opacity: 0, scale: 0.3, transition: { duration: 0.2 } }}
+        style={{
+          zIndex: isMinimized ? zIndex - 100 : zIndex,
+          position: isSnapped ? 'fixed' : 'absolute',
+          ...(!isSnapped ? { top: '30%', left: '30%' } : {}),
+        }}
+        onClick={() => !isMinimized && onFocus(id)}
+        className={`os-window pointer-events-auto overflow-hidden ${isMaximized ? 'rounded-none' : 'rounded-[2.5rem]'} ${isMinimized ? 'pointer-events-none' : ''} ${isDragging ? 'is-dragging' : ''}`}
       >
-        <div className="flex items-center gap-4 select-none">
-          <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${colorClass} flex items-center justify-center p-1.5 shadow-lg border border-white/10 group-hover:rotate-6 transition-transform`}>
-            {React.isValidElement(icon)
-              ? React.cloneElement(icon as React.ReactElement<any>, { size: 16, className: 'text-white' })
-              : icon}
+        <div
+          className="os-window-header cursor-grab active:cursor-grabbing px-6"
+          onDoubleClick={() => !isMinimized && setIsMaximized(!isMaximized)}
+        >
+          <div className="flex items-center gap-4 select-none">
+            <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${colorClass} flex items-center justify-center p-1.5 shadow-lg border border-white/10 group-hover:rotate-6 transition-transform`}>
+              {React.isValidElement(icon)
+                ? React.cloneElement(icon as React.ReactElement<any>, { size: 16, className: 'text-white' })
+                : icon}
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[10px] font-black tracking-[0.2em] uppercase text-white/80 leading-none mb-0.5">{title}</span>
+              <span className="text-[7px] font-bold text-white/20 uppercase tracking-widest leading-none">{t.statusOperational || 'Status: Operational / Shared Root'}</span>
+            </div>
           </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] font-black tracking-[0.2em] uppercase text-white/80 leading-none mb-0.5">{title}</span>
-            <span className="text-[7px] font-bold text-white/20 uppercase tracking-widest leading-none">{t.statusOperational || 'Status: Operational / Shared Root'}</span>
+          <div className="flex gap-3">
+            <div className="h-6 w-px bg-white/5 mr-2" />
+            <button
+              onClick={() => onMinimize(id)}
+              className="w-3 h-3 rounded-full bg-blue-500/20 border border-blue-500/40 hover:bg-blue-500/60 transition-colors"
+            />
+            <button
+              onClick={() => setIsMaximized(!isMaximized)}
+              className="w-3 h-3 rounded-full bg-yellow-500/20 border border-yellow-500/40 hover:bg-yellow-500/60 transition-colors"
+            />
+            <button className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500/40 hover:bg-green-500/60 transition-colors" />
+            <button
+              onClick={(e) => { e.stopPropagation(); onClose(id); }}
+              className="w-3 h-3 rounded-full bg-red-500/40 border border-red-500/60 hover:bg-red-500/80 flex items-center justify-center transition-colors group/close"
+            >
+              <X size={6} className="text-white opacity-0 group-hover/close:opacity-100 transition-opacity" />
+            </button>
           </div>
         </div>
-        <div className="flex gap-3">
-          <div className="h-6 w-px bg-white/5 mr-2" />
-          <button
-            onClick={() => onMinimize(id)}
-            className="w-3 h-3 rounded-full bg-blue-500/20 border border-blue-500/40 hover:bg-blue-500/60 transition-colors"
-          />
-          <button
-            onClick={() => setIsMaximized(!isMaximized)}
-            className="w-3 h-3 rounded-full bg-yellow-500/20 border border-yellow-500/40 hover:bg-yellow-500/60 transition-colors"
-          />
-          <button className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500/40 hover:bg-green-500/60 transition-colors" />
-          <button
-            onClick={(e) => { e.stopPropagation(); onClose(id); }}
-            className="w-3 h-3 rounded-full bg-red-500/40 border border-red-500/60 hover:bg-red-500/80 flex items-center justify-center transition-colors group/close"
-          >
-            <X size={6} className="text-white opacity-0 group-hover/close:opacity-100 transition-opacity" />
-          </button>
+        <div
+          className="os-window-content bg-[#05050a]/98 backdrop-blur-3xl custom-scrollbar h-full"
+          style={isDragging ? { backdropFilter: 'none' } : undefined}
+        >
+          {children}
         </div>
-      </div>
-      <div className="os-window-content bg-[#05050a]/98 backdrop-blur-3xl custom-scrollbar h-full">
-        {children}
-      </div>
-    </motion.div>
+      </motion.div>
+    </>
   );
 }
 
@@ -830,6 +845,8 @@ export function DesktopUI({
     }
   };
 
+  const { menu, items: contextItems, execute: executeContextAction } = useContextMenu();
+
   const appIcons = [
     { id: 'home', label: t.neuralCore || 'Neural Core', icon: <Sparkles size={24} />, color: 'from-celestial-saturn to-yellow-600' },
     { id: 'fs', label: t.fileExplorer || 'Neural FS', icon: <Folder size={24} />, color: 'from-blue-400 to-indigo-500' },
@@ -888,6 +905,7 @@ export function DesktopUI({
     if (windowId === 'llm') return { w: '700px', h: '550px' };
     if (windowId === 'notifications') return { w: '700px', h: '550px' };
     if (windowId === 'devices') return { w: '900px', h: '700px' };
+    if (windowId === 'tokens') return { w: '800px', h: '620px' };
     return { w: '900px', h: '700px' };
   };
 
@@ -899,6 +917,7 @@ export function DesktopUI({
       theme === 'cyber' ? 'bg-[#000808]' :
       'bg-black'
     }`}>
+      <ContextMenu menu={menu} items={contextItems} onAction={executeContextAction} />
       <ControlCenter
         isOpen={isControlCenterOpen}
         onClose={() => setIsControlCenterOpen(false)}
@@ -1506,6 +1525,8 @@ export function DesktopUI({
                  </GlassCard>
               </div>
 
+              <TokenUsageWidget t={t} onOpen={() => toggleWindow('tokens')} />
+
               <GlassCard className="p-6 rounded-[2.5rem] space-y-4 border-white/5 bg-black/30 backdrop-blur-3xl">
                 <div className="flex items-center justify-between">
                   <h4 className="text-[10px] font-black uppercase tracking-widest text-white/30 flex items-center gap-2">
@@ -1687,6 +1708,8 @@ export function DesktopUI({
                     <NotificationCenter />
                   ) : windowId === 'devices' ? (
                     <DeviceSyncCenter t={t} />
+                  ) : windowId === 'tokens' ? (
+                    <TokenDashboard />
                   ) : windowId === 'chat' ? (
                     <AgentChatPage t={t} user={user} onBack={() => closeWindow('chat')} />
                   ) : renderTabContent(windowId)}
@@ -1727,5 +1750,75 @@ function BatteryWidget({ t }: { t?: any }) {
       <div className="text-xl font-black text-white/80">{level}%</div>
       <span className="text-[8px] font-bold text-white/30 uppercase tracking-widest">{charging ? (t?.charging || 'Charging') : (t?.battery || 'Battery')}</span>
     </>
+  );
+}
+
+function TokenUsageWidget({ t, onOpen }: { t?: any; onOpen: () => void }) {
+  const [data, setData] = useState<{
+    grandTotal: number;
+    recordCount: number;
+    byProvider: Record<string, { totalTokens: number; calls: number }>;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/llm/usage?days=30', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => d && setData(d))
+      .catch(() => {});
+  }, []);
+
+  const formatTokens = (n: number) => {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+    return String(n);
+  };
+
+  const topProvider = data?.byProvider
+    ? Object.entries(data.byProvider).sort((a, b) => b[1].totalTokens - a[1].totalTokens)[0]
+    : null;
+
+  return (
+    <div
+      className="p-4 rounded-[2rem] border border-white/5 bg-black/20 backdrop-blur-2xl cursor-pointer hover:bg-white/[0.06] transition-all"
+      onClick={onOpen}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="text-[10px] font-black uppercase tracking-widest text-white/30 flex items-center gap-2">
+          <Zap size={12} className="text-cyan-400" />
+          {t?.tokenUsage || 'Token Usage'}
+        </h4>
+        <ChevronRight size={12} className="text-white/20" />
+      </div>
+
+      {data ? (
+        <>
+          <div className="text-2xl font-black text-white/80 tracking-tight">
+            {formatTokens(data.grandTotal)}
+          </div>
+          <div className="flex items-center justify-between mt-1">
+            <span className="text-[9px] text-white/30 font-medium">
+              {data.recordCount} calls across {Object.keys(data.byProvider).length} providers
+            </span>
+          </div>
+          {topProvider && (
+            <div className="mt-3">
+              <div className="flex justify-between text-[8px] font-bold text-white/20 mb-1">
+                <span>Top: {topProvider[0]}</span>
+                <span>{formatTokens(topProvider[1].totalTokens)}</span>
+              </div>
+              <div className="h-1 rounded-full bg-white/5 overflow-hidden">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(100, (topProvider[1].totalTokens / (data.grandTotal || 1)) * 100)}%` }}
+                  className="h-full rounded-full bg-cyan-400/60"
+                />
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="text-xs text-white/15">Loading...</div>
+      )}
+    </div>
   );
 }

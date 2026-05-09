@@ -322,10 +322,10 @@
     transform: translateZ(0);
   }
   .os-window.is-dragging {
-    backdrop-filter: none;
+    backdrop-filter: none !important;
   }
   .os-window.is-dragging .os-window-content {
-    backdrop-filter: none;
+    backdrop-filter: none !important;
   }
 
   .os-window-header {

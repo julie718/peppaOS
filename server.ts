@@ -476,6 +476,58 @@ apiRouter.get("/scheduler/tasks", (_req, res) => {
   res.json({ tasks: scheduler.listTasks() });
 });
 
+// 0.45 Token usage aggregation
+apiRouter.get("/llm/usage", (req, res) => {
+  const token = req.cookies.token;
+  if (!token) return res.status(401).json({ error: "Unauthorized" });
+  try {
+    const decoded: any = jwt.verify(token, JWT_SECRET);
+    const days = parseInt(req.query.days as string) || 30;
+    const providerFilter = req.query.provider as string | undefined;
+    const db = readDB();
+    const allUsage: any[] = db.tokenUsage || [];
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+    const filtered = allUsage.filter((u: any) =>
+      u.userId === decoded.uid &&
+      u.timestamp >= cutoff &&
+      (!providerFilter || u.provider === providerFilter)
+    );
+
+    // Per-provider totals
+    const byProvider: Record<string, { promptTokens: number; completionTokens: number; totalTokens: number; calls: number }> = {};
+    const dailyMap: Record<string, { promptTokens: number; completionTokens: number; totalTokens: number }> = {};
+
+    for (const u of filtered) {
+      if (!byProvider[u.provider]) {
+        byProvider[u.provider] = { promptTokens: 0, completionTokens: 0, totalTokens: 0, calls: 0 };
+      }
+      byProvider[u.provider].promptTokens += u.promptTokens || 0;
+      byProvider[u.provider].completionTokens += u.completionTokens || 0;
+      byProvider[u.provider].totalTokens += u.totalTokens || 0;
+      byProvider[u.provider].calls += 1;
+
+      const day = u.timestamp.slice(0, 10);
+      if (!dailyMap[day]) {
+        dailyMap[day] = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+      }
+      dailyMap[day].promptTokens += u.promptTokens || 0;
+      dailyMap[day].completionTokens += u.completionTokens || 0;
+      dailyMap[day].totalTokens += u.totalTokens || 0;
+    }
+
+    const daily = Object.entries(dailyMap)
+      .map(([date, v]) => ({ date, ...v }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    const grandTotal = filtered.reduce((sum: number, u: any) => sum + (u.totalTokens || 0), 0);
+
+    res.json({ byProvider, daily, grandTotal, days, recordCount: filtered.length });
+  } catch {
+    res.status(401).json({ error: "Invalid token" });
+  }
+});
+
 // 0.5 Provider status
 apiRouter.get("/llm/providers", (_req, res) => {
   const stored = loadKeys();
