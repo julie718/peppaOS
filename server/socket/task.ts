@@ -27,6 +27,7 @@ export function registerTaskHandler(
 ) {
   socket.on("agent:task", async (data: { text: string; history?: any[]; personalityId?: string; conversationId?: string }) => {
     const uid = userIdFn(socket);
+    const interactionId = crypto.randomUUID();
 
     const relevantMemories = queryMemories({ userId: uid, query: data.text, limit: 5, minConfidence: 0.4 });
 
@@ -86,7 +87,7 @@ export function registerTaskHandler(
         // Still log the interaction
         const db = readDB();
         db.interactions.push({
-          id: Math.random().toString(36).substr(2, 9),
+          id: interactionId,
           content: data.text,
           response: cognition.responseText,
           role: "user",
@@ -97,12 +98,13 @@ export function registerTaskHandler(
           llmWasCalled: false,
         } as any);
         writeDB(db);
+        socket.off('agent:task_cancel', onCancel);
         return;
       }
 
       const desktopRelay = async (toolName: string, args: Record<string, any>): Promise<string> => {
         return new Promise((resolve, reject) => {
-          const cid = Math.random().toString(36).substr(2, 9);
+          const cid = crypto.randomUUID();
           const timeout = setTimeout(() => {
             reject(new Error(`Desktop tool "${toolName}" timed out (30s)`));
           }, 30000);
@@ -117,7 +119,7 @@ export function registerTaskHandler(
 
       const requestConfirmation = async (toolName: string, args: Record<string, any>): Promise<boolean> => {
         return new Promise((resolve) => {
-          const cid = Math.random().toString(36).substr(2, 9);
+          const cid = crypto.randomUUID();
           const timeout = setTimeout(() => {
             socket.emit("agent:tool_call", { name: toolName, arguments: args, result: 'Auto-denied (30s timeout)', error: 'User did not respond' });
             resolve(false);
@@ -154,11 +156,8 @@ export function registerTaskHandler(
 
       // Persist token usage
       for (const u of result.usageRecords) {
-        recordTaskTokenUsage(uid, u);
+        recordTaskTokenUsage(uid, u, interactionId);
       }
-
-      // Cleanup cancel listener
-      socket.off('agent:task_cancel', onCancel);
 
       if (cancelled) {
         socket.emit("agent:response", { text: result.text || '任务已取消。', agentName: personality.name });
@@ -182,7 +181,7 @@ export function registerTaskHandler(
         writeDB(db);
       }
       db.interactions.push({
-        id: Math.random().toString(36).substr(2, 9),
+        id: interactionId,
         content: data.text,
         response: result.text,
         role: "user",
@@ -246,21 +245,22 @@ export function registerTaskHandler(
       saveEmotionalState(uid, updatedState);
 
     } catch (err: any) {
-      socket.off('agent:task_cancel', onCancel);
       console.error("[Agent Task Error]:", err);
       const cf = handleLLMFailure(cognition?.intent || { category: 'unknown', confidence: 0, entities: {}, needsLLM: true }, err);
       socket.emit("agent:response", { text: cf.responseText, agentName: personality.name });
       socket.emit("agent:status", { status: "error" });
+    } finally {
+      socket.off('agent:task_cancel', onCancel);
     }
   });
 }
 
-function recordTaskTokenUsage(userId: string, record: LLMUsageRecord) {
+function recordTaskTokenUsage(userId: string, record: LLMUsageRecord, interactionId: string) {
   if (record.promptTokens === 0 && record.completionTokens === 0) return;
   const db = readDB();
   if (!db.tokenUsage) db.tokenUsage = [];
   db.tokenUsage.push({
-    id: Math.random().toString(36).substr(2, 12),
+    id: crypto.randomUUID(),
     userId,
     provider: record.provider,
     model: record.model,
@@ -268,7 +268,7 @@ function recordTaskTokenUsage(userId: string, record: LLMUsageRecord) {
     completionTokens: record.completionTokens,
     totalTokens: record.totalTokens,
     mode: 'task',
-    interactionId: '',
+    interactionId,
     timestamp: new Date().toISOString(),
   });
   writeDB(db);

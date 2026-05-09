@@ -1,6 +1,8 @@
 import { readDB, writeDB } from '../../db_layer';
 import { addMemory } from '../memory/store';
 
+const emotionWriteQueues = new Map<string, Promise<void>>();
+
 export interface EmotionalState {
   valence: number;        // -1 (unpleasant) ~ +1 (pleasant)
   arousal: number;        // 0 (calm) ~ 1 (excited)
@@ -60,17 +62,28 @@ export function loadEmotionalState(userId: string): EmotionalState {
 }
 
 export function saveEmotionalState(userId: string, state: EmotionalState): void {
-  const db = readDB();
-  if (!db.settings) db.settings = [];
+  const prev = emotionWriteQueues.get(userId) || Promise.resolve();
+  let release: () => void;
+  const next = new Promise<void>(r => { release = r; });
+  emotionWriteQueues.set(userId, next);
 
-  state.lastUpdated = new Date().toISOString();
-  const existing = db.settings.findIndex((s: any) => s.key === `emotion_${userId}`);
-  if (existing >= 0) {
-    db.settings[existing].value = JSON.stringify(state);
-  } else {
-    db.settings.push({ key: `emotion_${userId}`, value: JSON.stringify(state) });
-  }
-  writeDB(db);
+  prev.then(() => {
+    try {
+      const db = readDB();
+      if (!db.settings) db.settings = [];
+
+      state.lastUpdated = new Date().toISOString();
+      const existing = db.settings.findIndex((s: any) => s.key === `emotion_${userId}`);
+      if (existing >= 0) {
+        db.settings[existing].value = JSON.stringify(state);
+      } else {
+        db.settings.push({ key: `emotion_${userId}`, value: JSON.stringify(state) });
+      }
+      writeDB(db);
+    } finally {
+      release!();
+    }
+  }).catch(() => release!());
 }
 
 /** Rules engine — updates emotional state based on events, no LLM required */

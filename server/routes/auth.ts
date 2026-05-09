@@ -1,10 +1,19 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import rateLimit from "express-rate-limit";
 import { readDB, writeDB } from "../../db_layer";
 
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { error: "Too many attempts. Please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 export function mountAuthRoutes(router: Router, jwtSecret: string, getCookieOptions: () => any) {
-  router.post("/auth/register", async (req, res) => {
+  router.post("/auth/register", authLimiter, async (req, res) => {
     const { username, password, phone } = req.body;
     if (!username || !password || !phone) {
       return res.status(400).json({ error: "Username, password and phone are required" });
@@ -36,15 +45,13 @@ export function mountAuthRoutes(router: Router, jwtSecret: string, getCookieOpti
     return res.json({ success: true, user: userWithoutPassword });
   });
 
-  router.post("/auth/login", async (req, res) => {
+  router.post("/auth/login", authLimiter, async (req, res) => {
     const { username, password } = req.body;
     const db = readDB();
     const user = db.users.find((u: any) => u.username === username);
     if (!user) return res.status(401).json({ error: "Invalid credentials" });
 
-    const passwordMatch = user.password.startsWith('$2')
-      ? await bcrypt.compare(password, user.password)
-      : user.password === password;
+    const passwordMatch = await bcrypt.compare(password, user.password);
 
     if (passwordMatch) {
       const token = jwt.sign({ uid: user.uid, username, role: user.role }, jwtSecret, { expiresIn: "24h" });
@@ -95,9 +102,7 @@ export function mountAuthRoutes(router: Router, jwtSecret: string, getCookieOpti
       }
 
       const storedPassword = db.users[userIndex].password || "";
-      const passwordMatches = storedPassword.startsWith('$2')
-        ? await bcrypt.compare(currentPassword, storedPassword)
-        : storedPassword === currentPassword;
+      const passwordMatches = await bcrypt.compare(currentPassword, storedPassword);
 
       if (!passwordMatches) {
         return res.status(400).json({ error: "Incorrect current password" });

@@ -120,7 +120,7 @@ SAFETY:
 
   const desktopRelay = async (toolName: string, args: Record<string, any>): Promise<string> => {
     return new Promise((resolve, reject) => {
-      const cid = Math.random().toString(36).substr(2, 9);
+      const cid = Math.random().toString(36).substring(2, 11);
       const timeout = setTimeout(() => {
         reject(new Error(`Desktop tool "${toolName}" timed out (30s)`));
       }, 30000);
@@ -135,7 +135,7 @@ SAFETY:
 
   const requestConfirmation = async (toolName: string, args: Record<string, any>): Promise<boolean> => {
     return new Promise((resolve) => {
-      const cid = Math.random().toString(36).substr(2, 9);
+      const cid = Math.random().toString(36).substring(2, 11);
       const timeout = setTimeout(() => {
         socket.emit("agent:tool_call", { name: toolName, arguments: args, result: 'Auto-denied (30s timeout)', error: 'User did not respond' });
         resolve(false);
@@ -227,7 +227,7 @@ SAFETY:
       toolResults.push(...streamResult.toolCalls);
 
       for (const tc of streamResult.toolCalls) {
-        const cid = `${tc.name}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+        const cid = `${tc.name}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
         socket.emit("agent:tool_call", { correlationId: cid, name: tc.name, arguments: tc.arguments });
 
         let execResult: string;

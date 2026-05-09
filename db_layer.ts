@@ -69,7 +69,8 @@ function migrateSchema(): Promise<void> {
       tier TEXT NOT NULL DEFAULT 'episodic',
       perspective TEXT NOT NULL DEFAULT 'owner_trait',
       importance REAL NOT NULL DEFAULT 0.3,
-      parentId TEXT
+      parentId TEXT,
+      agentId TEXT DEFAULT ''
     )`, () => {});
     // Migrate: add new columns to existing memories table
     db!.run("ALTER TABLE memories ADD COLUMN tier TEXT NOT NULL DEFAULT 'episodic'", () => {});
@@ -89,6 +90,9 @@ function migrateSchema(): Promise<void> {
       interactionId TEXT DEFAULT '',
       timestamp TEXT NOT NULL
     )`, () => {});
+    // Add cognitiveIntent and llmWasCalled columns to interactions
+    db!.run("ALTER TABLE interactions ADD COLUMN cognitiveIntent TEXT DEFAULT ''", () => {});
+    db!.run("ALTER TABLE interactions ADD COLUMN llmWasCalled INTEGER DEFAULT 0", () => {});
     // Add reminders table if it doesn't exist
     db!.run(`CREATE TABLE IF NOT EXISTS reminders (
       id TEXT PRIMARY KEY,
@@ -326,6 +330,8 @@ async function loadMemoryDB(): Promise<void> {
     mode: i.mode || '',
     toolCalls: i.toolCalls ? JSON.parse(i.toolCalls) : undefined,
     conversationId: i.conversationId || '',
+    cognitiveIntent: i.cognitiveIntent || '',
+    llmWasCalled: i.llmWasCalled ? true : false,
   }));
 
   memoryDB = {
@@ -376,9 +382,8 @@ export function writeDB(data: any): void {
   if (!db) {
     throw new Error('Database not initialized.');
   }
+  const previous = JSON.parse(JSON.stringify(memoryDB));
   memoryDB = data;
-  // Chain writes so only one transaction runs at a time. Keep the chain alive,
-  // but never hide persistence failures.
   const ready = writeLock.catch((err) => {
     console.error('[DB] Previous write failed:', err);
   });
@@ -386,7 +391,15 @@ export function writeDB(data: any): void {
     .then(() => persistMemoryDB())
     .catch((err) => {
       console.error('[DB] Failed to persist database:', err);
+      memoryDB = previous;
+      dbDirty = true;
     });
+}
+
+let dbDirty = false;
+
+export function isDbDirty(): boolean {
+  return dbDirty;
 }
 
 /**
@@ -418,9 +431,9 @@ async function persistMemoryDB(): Promise<void> {
     },
     {
       name: 'interactions',
-      createSQL: `CREATE TABLE _temp_interactions (id TEXT PRIMARY KEY, userId TEXT NOT NULL, agentId TEXT, module TEXT, message TEXT NOT NULL, response TEXT, role TEXT DEFAULT '', personality TEXT DEFAULT '', mode TEXT DEFAULT '', toolCalls TEXT DEFAULT '', conversationId TEXT DEFAULT '', timestamp TEXT NOT NULL)`,
-      insertSQL: `INSERT INTO _temp_interactions (id, userId, agentId, module, message, response, role, personality, mode, toolCalls, conversationId, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      rows: () => memoryDB.interactions.map((i: any) => [i.id, i.userId || 'unknown', i.agentId || null, i.personality || i.module || null, i.content || i.message || '', i.response || '', i.role || '', i.personality || '', i.mode || '', i.toolCalls ? JSON.stringify(i.toolCalls) : '', i.conversationId || '', i.timestamp]),
+      createSQL: `CREATE TABLE _temp_interactions (id TEXT PRIMARY KEY, userId TEXT NOT NULL, agentId TEXT, module TEXT, message TEXT NOT NULL, response TEXT, role TEXT DEFAULT '', personality TEXT DEFAULT '', mode TEXT DEFAULT '', toolCalls TEXT DEFAULT '', conversationId TEXT DEFAULT '', cognitiveIntent TEXT DEFAULT '', llmWasCalled INTEGER DEFAULT 0, timestamp TEXT NOT NULL)`,
+      insertSQL: `INSERT INTO _temp_interactions (id, userId, agentId, module, message, response, role, personality, mode, toolCalls, conversationId, cognitiveIntent, llmWasCalled, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      rows: () => memoryDB.interactions.map((i: any) => [i.id, i.userId || 'unknown', i.agentId || null, i.personality || i.module || null, i.content || i.message || '', i.response || '', i.role || '', i.personality || '', i.mode || '', i.toolCalls ? JSON.stringify(i.toolCalls) : '', i.conversationId || '', i.cognitiveIntent || '', i.llmWasCalled ? 1 : 0, i.timestamp]),
     },
     {
       name: 'memories',
@@ -524,13 +537,12 @@ async function persistMemoryDB(): Promise<void> {
   }
 }
 
-let initStarted = false;
+let initPromise: Promise<void> | null = null;
 export function ensureDatabaseInitialized(): Promise<void> {
-  if (!initStarted) {
-    initStarted = true;
-    return initDatabase();
+  if (!initPromise) {
+    initPromise = initDatabase();
   }
-  return Promise.resolve();
+  return initPromise;
 }
 
 export async function querySQL<T = any>(sql: string, params: any[] = []): Promise<T[]> {

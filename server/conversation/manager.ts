@@ -36,7 +36,7 @@ export function getOrCreateActiveConversation(userId: string, agentId?: string):
   );
   if (active) return active;
 
-  const id = 'conv_' + Math.random().toString(36).substring(2, 15);
+  const id = 'conv_' + crypto.randomUUID();
   const now = new Date().toISOString();
   const conv: Conversation = {
     id,
@@ -74,13 +74,13 @@ export function getActiveConversation(userId: string, agentId?: string): Convers
   ) || null;
 }
 
-export function getUserConversations(userId: string, limit = 20): Conversation[] {
+export function getUserConversations(userId: string, limit = 20, offset = 0): Conversation[] {
   const db = readDB();
   if (!db.conversations) return [];
   return db.conversations
     .filter((c: Conversation) => c.userId === userId)
     .sort((a, b) => new Date(b.lastActiveAt).getTime() - new Date(a.lastActiveAt).getTime())
-    .slice(0, limit);
+    .slice(offset, offset + limit);
 }
 
 export function addMessage(msg: {
@@ -95,7 +95,7 @@ export function addMessage(msg: {
   toolCalls?: any;
 }): string {
   const db = readDB();
-  const id = 'msg_' + Math.random().toString(36).substring(2, 15);
+  const id = 'msg_' + crypto.randomUUID();
   const now = new Date().toISOString();
 
   const interaction: any = {

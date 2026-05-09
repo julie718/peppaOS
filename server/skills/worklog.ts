@@ -23,7 +23,7 @@ const recentWorkflows: WorkflowRecord[] = [];
 const MAX_WORKFLOWS = 50;
 
 function generateId(): string {
-  return `wf_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+  return `wf_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 }
 
 /** Record a completed tool execution workflow */
@@ -50,6 +50,16 @@ export function getRecentWorkflows(userId?: string): WorkflowRecord[] {
 /** Clear all workflows */
 export function clearWorkflows(): void {
   recentWorkflows.length = 0;
+}
+
+/** Remove specific workflows by ID */
+export function removeWorkflows(ids: string[]): void {
+  const idSet = new Set(ids);
+  for (let i = recentWorkflows.length - 1; i >= 0; i--) {
+    if (idSet.has(recentWorkflows[i].id)) {
+      recentWorkflows.splice(i, 1);
+    }
+  }
 }
 
 /** Count how many workflows match a given intent (simple keyword overlap for now)

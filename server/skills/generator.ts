@@ -351,7 +351,7 @@ export async function autoGenerateSkill(
   getAnthropic?: () => any,
   getQwen?: () => any,
 ): Promise<SkillGenerateResult | null> {
-  const { findWorkflowClusters, getRecentWorkflows } = await import('./worklog');
+  const { findWorkflowClusters, getRecentWorkflows, removeWorkflows } = await import('./worklog');
 
   const all = getRecentWorkflows();
   if (all.length < 3) return null;
@@ -375,10 +375,7 @@ export async function autoGenerateSkill(
         mcpManager.installSkill(result.skillName, result.directory!);
         console.log(`[SkillGen] Auto-installed skill "${result.skillName}"`);
         // Clear processed workflows so they don't re-trigger
-        for (const w of cluster.workflows) {
-          const idx = all.indexOf(w);
-          if (idx >= 0) all.splice(idx, 1);
-        }
+        removeWorkflows(cluster.workflows.map(w => w.id));
       } catch (err: any) {
         console.warn(`[SkillGen] Auto-install failed: ${err.message}`);
       }

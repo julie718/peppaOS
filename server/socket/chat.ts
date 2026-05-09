@@ -68,6 +68,8 @@ export function registerChatHandler(
       },
     );
 
+    const interactionId = crypto.randomUUID();
+
     try {
       socket.emit("agent:status", { status: "thinking", agentName: personality.name });
 
@@ -129,7 +131,7 @@ export function registerChatHandler(
           );
           responseText = result.text || '';
           llmWasCalled = true;
-          recordTokenUsage(uid, provider, personality.defaultModel, result.usage);
+          recordTokenUsage(uid, provider, personality.defaultModel, result.usage, interactionId);
         } catch (llmErr: any) {
           console.error(`[Cognition] LLM '${provider}/${personality.defaultModel}' failed: ${llmErr.message}`);
           // Try fallback provider
@@ -141,7 +143,7 @@ export function registerChatHandler(
               );
               responseText = fallback.text || '';
               llmWasCalled = true;
-              recordTokenUsage(uid, 'gemini', personality.fallbackModel || 'gemini-pro', fallback.usage);
+              recordTokenUsage(uid, 'gemini', personality.fallbackModel || 'gemini-pro', fallback.usage, interactionId);
             } catch (fallbackErr: any) {
               // Both primary and fallback LLMs failed — use cognitive fallback
               const cf = handleLLMFailure(cognition.intent, fallbackErr);
@@ -166,7 +168,6 @@ export function registerChatHandler(
       }
 
       // Log interaction
-      const interactionId = Math.random().toString(36).substr(2, 9);
       const db = readDB();
       db.interactions.push({
         id: interactionId, userId: uid, agentId: agentId || '',
@@ -217,12 +218,13 @@ function recordTokenUsage(
   provider: string,
   model: string,
   usage: LLMUsage | undefined,
+  interactionId: string,
 ) {
   if (!usage || (usage.promptTokens === 0 && usage.completionTokens === 0)) return;
   const db = readDB();
   if (!db.tokenUsage) db.tokenUsage = [];
   db.tokenUsage.push({
-    id: Math.random().toString(36).substr(2, 12),
+    id: crypto.randomUUID(),
     userId,
     provider,
     model,
@@ -230,7 +232,7 @@ function recordTokenUsage(
     completionTokens: usage.completionTokens,
     totalTokens: usage.totalTokens,
     mode: 'chat',
-    interactionId: '',
+    interactionId,
     timestamp: new Date().toISOString(),
   });
   writeDB(db);

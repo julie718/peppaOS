@@ -14,7 +14,7 @@ function saveMemoryStore(memories: Memory[]): void {
 }
 
 function generateId(): string {
-  return `mem_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+  return `mem_${crypto.randomUUID()}`;
 }
 
 // Match CJK characters for language-aware tokenization
@@ -173,7 +173,7 @@ export function addReminder(reminder: Omit<Reminder, 'id' | 'createdAt' | 'statu
   const all = getReminderStore();
   const now = new Date().toISOString();
   const newReminder: Reminder = {
-    id: `rem_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+    id: `rem_${crypto.randomUUID()}`,
     ...reminder,
     status: 'pending',
     createdAt: now,

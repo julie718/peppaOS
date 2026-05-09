@@ -3,7 +3,7 @@
     {
       "uid": "admin-uid",
       "username": "admin",
-      "password": "admin123",
+      "password": "<bcrypt hash of admin123>",
       "role": "admin",
       "balance": 1000,
       "createdAt": "2026-01-01T00:00:00.000Z"

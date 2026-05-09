@@ -11,8 +11,8 @@ coverage/
 *.db
 db.json
 *.tar.gz
+# Runtime data (auto-created by the application)
 data/
 gpt-sovits-src/
 src-tauri/target/
 .claude/
-CLAUDE.md

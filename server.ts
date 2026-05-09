@@ -14,7 +14,7 @@ import os from "os";
 import { spawn, ChildProcess } from "child_process";
 import { Server } from "socket.io";
 import http from "http";
-import { readDB, writeDB, ensureDatabaseInitialized } from "./db_layer";
+import { readDB, writeDB, ensureDatabaseInitialized, isDbDirty } from "./db_layer";
 import { getOrCreateActiveConversation, closeConversation, getActiveConversation, getUserConversations, addMessage, getMessages, getUnclosedConversation } from "./server/conversation/manager";
 import { logger } from "./logger";
 import { createStreamingSession, getActiveSTTProvider } from "./server/stt/adapter";
@@ -58,11 +58,15 @@ const isSourceServer =
   __filename.endsWith("server.ts") ||
   process.argv.some(arg => arg.replace(/\\/g, "/").endsWith("/server.ts") || arg === "server.ts");
 
+const asyncHandler = (fn: (req: express.Request, res: express.Response, next?: express.NextFunction) => Promise<any>) =>
+  (req: express.Request, res: express.Response, next: express.NextFunction) =>
+    Promise.resolve(fn(req, res, next)).catch(next);
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: true,
+    origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'https://lumiai.asia', 'tauri://localhost'],
     methods: ["GET", "POST"],
     credentials: true
   }
@@ -129,8 +133,8 @@ function getQwen() {
 
 // Allow credentials from any origin (Tauri webview, localhost, etc.)
 // origin: true reflects the request origin, which is compatible with credentials: true
-app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
+app.use(cors({ origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'https://lumiai.asia', 'tauri://localhost'], credentials: true }));
+app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 
 // --- API Routes ---
@@ -151,13 +155,22 @@ apiRouter.use((req, res, next) => {
 // Mount API router early to ensure it catches requests before static/Vite middleware
 app.use("/api", apiRouter);
 
-const JWT_SECRET = process.env.JWT_SECRET || "lumi_secret_key_2026";
+// Global error handler for async route rejections
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('[Express] Unhandled error:', err?.message || err);
+  res.status(500).json({ error: err?.message || 'Internal server error' });
+});
+
+const JWT_SECRET = process.env.JWT_SECRET;
+
+// Serialize personality file writes to prevent concurrent overwrites
+let personalityFileLock: Promise<void> = Promise.resolve();
 
 // Cookies: sameSite "none" permits cross-origin (Tauri webview → localhost).
 // secure: true requires HTTPS in general, but Chromium allows it on localhost/127.0.0.1.
 const getCookieOptions = (): { httpOnly: true; secure: boolean; sameSite: "none"; maxAge: number } => ({
   httpOnly: true,
-  secure: true,
+  secure: process.env.NODE_ENV === 'production',
   sameSite: "none",
   maxAge: 24 * 60 * 60 * 1000,
 });
@@ -186,44 +199,61 @@ apiRouter.post("/personalities", (req, res) => {
   const { id, name, version, coreMotivation, behavioralBoundaries, expressionStyle, toolPolicy, memoryPolicy, defaultModel, fallbackModel } = req.body;
   if (!id || !name) return res.status(400).json({ error: "id and name are required" });
 
-  const filePath = path.join(process.cwd(), 'server', 'personality', 'personalities.json');
-  let configs: any[] = [];
-  try {
-    const raw = fs.readFileSync(filePath, 'utf-8');
-    configs = JSON.parse(raw);
-  } catch {}
+  const prev = personalityFileLock.catch(() => {});
+  personalityFileLock = prev.then(() => new Promise<void>((resolve) => {
+    try {
+      const filePath = path.join(process.cwd(), 'server', 'personality', 'personalities.json');
+      let configs: any[] = [];
+      try {
+        const raw = fs.readFileSync(filePath, 'utf-8');
+        configs = JSON.parse(raw);
+      } catch {}
 
-  const existing = configs.findIndex((c: any) => c.id === id);
-  const newConfig = { id, name, version: version || '1.0', coreMotivation: coreMotivation || '', behavioralBoundaries: behavioralBoundaries || [], expressionStyle: expressionStyle || { persona: '', tone: 'neutral', verbosity: 'balanced', languages: ['en'] }, toolPolicy: toolPolicy || { allowedTools: ['*'], requireConfirmation: [], maxIterations: 3 }, memoryPolicy: memoryPolicy || { retrieveLimit: 5, minConfidence: 0.4, includeTypes: ['preference', 'fact'], autoExtract: true }, defaultModel: defaultModel || 'qwen-plus', fallbackModel: fallbackModel || 'gemini-1.5-flash' };
+      const existing = configs.findIndex((c: any) => c.id === id);
+      const newConfig = { id, name, version: version || '1.0', coreMotivation: coreMotivation || '', behavioralBoundaries: behavioralBoundaries || [], expressionStyle: expressionStyle || { persona: '', tone: 'neutral', verbosity: 'balanced', languages: ['en'] }, toolPolicy: toolPolicy || { allowedTools: ['*'], requireConfirmation: [], maxIterations: 3 }, memoryPolicy: memoryPolicy || { retrieveLimit: 5, minConfidence: 0.4, includeTypes: ['preference', 'fact'], autoExtract: true }, defaultModel: defaultModel || 'qwen-plus', fallbackModel: fallbackModel || 'gemini-2.0-flash' };
 
-  if (existing >= 0) {
-    configs[existing] = newConfig;
-  } else {
-    configs.push(newConfig);
-  }
+      if (existing >= 0) {
+        configs[existing] = newConfig;
+      } else {
+        configs.push(newConfig);
+      }
 
-  fs.writeFileSync(filePath, JSON.stringify(configs, null, 2));
-  personalityRegistry.reload(filePath);
-  res.json(newConfig);
+      fs.writeFileSync(filePath, JSON.stringify(configs, null, 2));
+      personalityRegistry.reload(filePath);
+      res.json(newConfig);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+    resolve();
+  })).catch(() => {});
 });
 
 // Delete a personality
 apiRouter.delete("/personalities/:id", (req, res) => {
-  const filePath = path.join(process.cwd(), 'server', 'personality', 'personalities.json');
-  let configs: any[] = [];
-  try {
-    const raw = fs.readFileSync(filePath, 'utf-8');
-    configs = JSON.parse(raw);
-  } catch {}
+  const prev = personalityFileLock.catch(() => {});
+  personalityFileLock = prev.then(() => new Promise<void>((resolve) => {
+    try {
+      const filePath = path.join(process.cwd(), 'server', 'personality', 'personalities.json');
+      let configs: any[] = [];
+      try {
+        const raw = fs.readFileSync(filePath, 'utf-8');
+        configs = JSON.parse(raw);
+      } catch {}
 
-  const idx = configs.findIndex((c: any) => c.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: "Personality not found" });
-  if (req.params.id === 'lumi') return res.status(400).json({ error: "Cannot delete the default 'lumi' personality" });
+      const idx = configs.findIndex((c: any) => c.id === req.params.id);
+      if (idx === -1) { res.status(404).json({ error: "Personality not found" }); return resolve(); }
+      if (req.params.id === 'lumi') { res.status(400).json({ error: "Cannot delete the default 'lumi' personality" }); return resolve(); }
 
-  configs.splice(idx, 1);
-  fs.writeFileSync(filePath, JSON.stringify(configs, null, 2));
-  personalityRegistry.reload(filePath);
-  res.json({ success: true });
+      configs.splice(idx, 1);
+      fs.writeFileSync(filePath, JSON.stringify(configs, null, 2));
+      personalityRegistry.reload(filePath);
+      res.json({ success: true });
+      resolve();
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+      resolve();
+    }
+  })).catch(() => {});
 });
 
 // Personality stats — aggregated memory & behavior analytics
@@ -288,7 +318,7 @@ apiRouter.get("/personality/:id/evolution", (req, res) => {
 });
 
 // Personality evolution — manually trigger evolution for a personality
-apiRouter.post("/personality/:id/evolve", async (req, res) => {
+apiRouter.post("/personality/:id/evolve", asyncHandler(async (req, res) => {
   try {
     const config = personalityRegistry.get(req.params.id);
     if (!config) return res.status(404).json({ error: "Personality not found" });
@@ -321,7 +351,7 @@ apiRouter.post("/personality/:id/evolve", async (req, res) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
-});
+}));
 
 // 0.2. MCP management
 apiRouter.get("/mcp", (_req, res) => {
@@ -447,17 +477,18 @@ apiRouter.get("/health", (req, res) => {
   try {
     const db = readDB();
     res.json({
-      status: "ok",
+      status: isDbDirty() ? "degraded" : "ok",
       timestamp: new Date().toISOString(),
       database: {
         users: db.users.length,
         agents: db.agents.length,
-        interactions: db.interactions.length
+        interactions: db.interactions.length,
+        dirty: isDbDirty(),
       }
     });
   } catch (error: any) {
     logger.error("Health check failed", error);
-    res.status(500).json({ status: "error", message: error.message });
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -558,11 +589,11 @@ apiRouter.post("/llm/test", async (req, res) => {
     };
     const key = keyMap[provider];
     if (!key) {
-      return res.status(400).json({ ok: false, error: `No API key configured for ${provider}. Add it in Settings → API Matrix or Voice Services.` });
+      return res.status(400).json({ error: `No API key configured for ${provider}. Add it in Settings → API Matrix or Voice Services.` });
     }
     res.json({ ok: true, provider, message: 'API key configured' });
   } catch (err: any) {
-    res.status(500).json({ ok: false, error: err.message?.slice(0, 200) || 'Connection check failed' });
+    res.status(500).json({ error: err.message?.slice(0, 200) || 'Connection check failed' });
   }
 });
 
@@ -598,8 +629,10 @@ apiRouter.get("/conversations", (req, res) => {
   if (!token) return res.status(401).json({ error: "Unauthorized" });
   try {
     const decoded: any = jwt.verify(token, JWT_SECRET);
-    const convs = getUserConversations(decoded.uid);
-    res.json({ conversations: convs });
+    const limit = parseInt(req.query.limit as string) || 20;
+    const offset = parseInt(req.query.offset as string) || 0;
+    const convs = getUserConversations(decoded.uid, limit, offset);
+    res.json({ conversations: convs, limit, offset });
   } catch {
     res.status(401).json({ error: "Invalid token" });
   }
@@ -645,7 +678,7 @@ apiRouter.post("/conversations/:id/close", (req, res) => {
 });
 
 // 1. AI Proxy Route
-apiRouter.post("/ai/chat", async (req, res) => {
+apiRouter.post("/ai/chat", asyncHandler(async (req, res) => {
   const { provider = "gemini", model, messages, prompt } = req.body;
   const userKey = req.headers["x-api-key"] as string;
 
@@ -656,7 +689,7 @@ apiRouter.post("/ai/chat", async (req, res) => {
       const client = (userKey && userKey.length > 5) ? new GoogleGenerativeAI(userKey) : getGemini();
       if (!client) throw new Error("Gemini API key not configured on server and no user key provided");
       const modelInstance = client.getGenerativeModel({ 
-        model: model || "gemini-1.5-flash",
+        model: model || "gemini-2.0-flash",
         systemInstruction
       });
       
@@ -692,7 +725,7 @@ apiRouter.post("/ai/chat", async (req, res) => {
       const client = (userKey && userKey.length > 5) ? new Anthropic({ apiKey: userKey }) : getAnthropic();
       if (!client) throw new Error("Anthropic API key not configured");
       const response = await client.messages.create({
-        model: model || "claude-3-5-sonnet-20240620",
+        model: model || "claude-sonnet-4-6",
         max_tokens: 1024,
         messages: messages || [{ role: "user", content: prompt }]
       });
@@ -716,7 +749,7 @@ apiRouter.post("/ai/chat", async (req, res) => {
     console.error("AI Proxy Error:", error);
     res.status(500).json({ error: error.message });
   }
-});
+}));
 
 // 2. Custom Auth with Persistence
 // Auth routes
@@ -897,8 +930,6 @@ mountMemoryRoutes(apiRouter, JWT_SECRET, { getDeepSeek, getGemini, getOpenAI, ge
 
 // ── Skill SDK API ──
 
-// ── Skill SDK API ──
-
 // List all installed skills (local + external MCP servers)
 apiRouter.get("/skills", (req, res) => {
   try {
@@ -925,7 +956,7 @@ apiRouter.get("/skills", (req, res) => {
 });
 
 // Generate a skill from description or workflows
-apiRouter.post("/skills/generate", async (req, res) => {
+apiRouter.post("/skills/generate", asyncHandler(async (req, res) => {
   try {
     const { description, provider, model } = req.body;
 
@@ -956,7 +987,7 @@ apiRouter.post("/skills/generate", async (req, res) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
-});
+}));
 
 // Install a skill from git/npm/local
 apiRouter.post("/skills/install", async (req, res) => {
@@ -1350,6 +1381,8 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
+    const uid = getUserIdFromSocket(socket);
+    perceptionEvents.delete(uid);
     deviceRegistry.disconnect(socket.id);
     unregisterUserSocket(socket.id);
   });
@@ -1511,6 +1544,11 @@ io.on("connection", (socket) => {
 // --- End Real-Time Agent Logic ---
 
 async function startServer() {
+  if (!process.env.JWT_SECRET) {
+    console.error('FATAL: JWT_SECRET environment variable is not set.');
+    process.exit(1);
+  }
+
   try {
     await ensureDatabaseInitialized();
     console.log('Database initialized successfully');
