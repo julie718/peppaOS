@@ -145,6 +145,9 @@ export function generateSystemPrompt(
         blocks.push('- **run_command** — Execute allowlisted shell commands (git, npm, node, python, etc.) on the server.');
         blocks.push('- **code_execution** — Run JavaScript in a sandboxed environment.');
         blocks.push('- **database_query** — Run read-only SQL queries against the local database.');
+        blocks.push('- **generate_skill** — Create a new reusable MCP tool from a natural language description. Use when you notice a repeating pattern or the user asks for automation. The generated skill compiles and becomes immediately available.');
+        blocks.push('- **list_skills** — List all locally installed MCP skills in ~/lumi_skills/. Check before generating duplicates.');
+        blocks.push('- **install_skill** — Install an MCP skill package from a local directory into the skill registry.');
       } else {
         blocks.push(`\n## Available Capabilities\nYou have access to: ${toolPolicy.allowedTools.join(', ')}. Use them to help the user accomplish their goals.`);
       }
@@ -175,6 +178,20 @@ export function generateSystemPrompt(
       blocks.push('- **Stage specific files only** — use git_stage with explicit file paths, not wildcards.');
       blocks.push('- If verification fails, analyze the error output, fix the issue, and verify again.');
       blocks.push('- Commit messages should follow the project convention (git log shows Chinese messages).');
+      blocks.push('\n## Skill Creation Mode');
+      blocks.push('When the user describes a workflow they want automated, or when you notice you repeatedly perform the same multi-step task pattern:');
+      blocks.push('1. **Describe** — Formulate a clear, detailed description of the tool: its purpose, inputs, outputs, and processing logic.');
+      blocks.push('2. **Check existing** — Use `list_skills` to see if a similar skill already exists.');
+      blocks.push('3. **Generate** — Use `generate_skill` with the description. The handler is compiled and validated automatically.');
+      blocks.push('4. **Install** — If generation succeeds, use `install_skill` with the returned directory path to register it.');
+      blocks.push('5. **Use** — The skill appears as `mcp_{skillName}_{toolName}` in future tool calls. Reference it by name.');
+      blocks.push('');
+      blocks.push('Skill creation best practices:');
+      blocks.push('- One skill = one clear purpose. Don\'t bundle unrelated functionality.');
+      blocks.push('- Include error handling in the description (e.g. "if the API fails, return an error message").');
+      blocks.push('- Specify parameter types and validation rules clearly.');
+      blocks.push('- Check `list_skills` before generating — avoid duplicates.');
+      blocks.push('- Generated skills run as standalone Node.js processes with access to fetch() and fs/promises.');
 
       // Safety rules
       if (toolPolicy.requireConfirmation.length > 0) {

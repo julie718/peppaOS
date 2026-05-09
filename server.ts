@@ -1467,8 +1467,8 @@ async function startServer() {
     process.exit(1);
   }
 
-  // Register all agent tools
-  registerAllTools(toolRegistry);
+  // Register all agent tools (with LLM getters for skill generation)
+  registerAllTools(toolRegistry, { getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen });
   console.log(`[Tools] Registered ${toolRegistry.list().length} built-in tools`);
 
   // Register MCP tools (non-blocking, won't block startup if MCP servers are offline)

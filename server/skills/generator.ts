@@ -7,6 +7,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { exec } from 'child_process';
 import { makeLLMCall, NormalizedMessage } from '../llm/providers';
 import { WorkflowRecord, WorkflowStep } from './worklog';
 import { mcpManager, SKILLS_DIR } from '../mcp/client';
@@ -34,10 +35,10 @@ export interface SkillGenerateResult {
   generatedCode?: string;
 }
 
-const GENERATE_PROMPT = `You are a Skill SDK generator for LumiOS. Your job is to create an MCP (Model Context Protocol) server tool.
+const GENERATE_PROMPT = `You are a Skill SDK generator for LumiOS. Your job is to create an MCP (Model Context Protocol) server tool with a fully implemented, executable handler function.
 
 ## Context
-Lumi has learned a repeatable workflow by observing tool execution patterns. You need to encode this knowledge as a standalone MCP tool.
+Lumi has learned a repeatable workflow by observing tool execution patterns. You need to encode this knowledge as a standalone MCP tool with REAL, EXECUTABLE code.
 
 ## Input
 {inputDescription}
@@ -56,16 +57,19 @@ Output ONLY a JSON object with these fields:
     },
     "required": ["paramName"]
   },
-  "handlerLogic": "Step-by-step description of what the handler function should do. Be specific about API calls, data transformations, error handling. The handler receives args and returns a string result.",
+  "handlerCode": "The COMPLETE TypeScript body of the handler function. Write the code that goes INSIDE the async function body (NOT the function signature - just the body lines). You MUST set a variable named 'result' with the output string. Always wrap logic in try/catch, setting result to the error message on failure. The function has access to 'args' (Record<string, any>) with the destructured parameters. Use fetch() for HTTP calls, fs (imported as 'fs/promises') for file ops. Example:\\n  const {{ url }} = args;\\n  try {\\n    const response = await fetch(url);\\n    const data = await response.text();\\n    result = data.slice(0, 2000);\\n  } catch (e) {\\n    result = 'Error: ' + e.message;\\n  }",
   "readme": "Markdown documentation: what the skill does, usage example, parameters, output format"
 }
 
 ## Guidelines
 - The skillName should be short and descriptive (max 3 words, kebab-case)
-- If the workflow involves web APIs, describe the exact endpoints and parameters
-- If using file operations, specify file paths and formats
-- handlerLogic should be implementable as a single async TypeScript function
+- If the workflow involves web APIs, describe the exact endpoints and parameters in the handlerCode
+- If using file operations, use 'fs/promises' (already imported) and specify file paths
+- handlerCode MUST be real executable TypeScript, not a description. It runs in a Node.js child process.
 - Keep inputSchema focused: only parameters that change between invocations
+- Always set 'result' to a string before the function returns
+- For async operations, use 'await' — the handler is an async function
+- Do NOT include 'import' statements or 'export' — those are added automatically
 
 JSON output:`;
 
@@ -77,6 +81,7 @@ const SKILL_TEMPLATE = `/**
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import fs from 'fs/promises';
 
 // ── Generated Handler ──
 {handlerCode}
@@ -205,6 +210,16 @@ ${topTools(allTools).map(t => `- ${t.name} (${t.count}x)`).join('\n')}
       return { success: false, error: 'Missing skillName or toolName in generated output', generatedCode: text };
     }
 
+    if (!parsed.handlerCode || typeof parsed.handlerCode !== 'string' || parsed.handlerCode.trim().length === 0) {
+      // Fallback: try old handlerLogic field, or return error
+      if (parsed.handlerLogic && typeof parsed.handlerLogic === 'string') {
+        console.warn('[SkillGen] LLM returned handlerLogic (deprecated) — wrapping as stub. Upgrade prompt.');
+        parsed.handlerCode = `// TODO: Convert this logic to code:\n// ${parsed.handlerLogic.split('\n').join('\n// ')}\nresult = 'Skill executed (logic pending).';`;
+      } else {
+        return { success: false, error: 'LLM did not return handlerCode', generatedCode: text };
+      }
+    }
+
     // Build the skill package
     const skillName = parsed.skillName.toLowerCase().replace(/[^a-z0-9-]/g, '-');
     const skillDir = path.join(SKILLS_DIR_PATH, skillName);
@@ -214,14 +229,14 @@ ${topTools(allTools).map(t => `- ${t.name} (${t.count}x)`).join('\n')}
 
     const now = new Date().toISOString();
 
-    // Convert handlerLogic into a comment-annotated handler function
-    const handlerCode = generateHandlerCode(parsed.handlerLogic, parsed.inputSchema);
+    // Build the executable handler function from LLM-generated code
+    const handlerCode = buildHandlerFunction(parsed.handlerCode, parsed.inputSchema);
 
     // Build the input schema as a Zod-compatible object literal for the template
     const schemaLiteral = buildSchemaLiteral(parsed.inputSchema);
 
     // Fill templates
-    const indexTs = SKILL_TEMPLATE
+    let indexTs = SKILL_TEMPLATE
       .replace(/{skillName}/g, skillName)
       .replace(/{toolName}/g, parsed.toolName)
       .replace(/{toolDescription}/g, (parsed.toolDescription || parsed.toolName).replace(/"/g, '\\"'))
@@ -245,12 +260,79 @@ ${topTools(allTools).map(t => `- ${t.name} (${t.count}x)`).join('\n')}
 
     console.log(`[SkillGen] Generated skill "${skillName}" at ${skillDir}`);
 
+    // Validate TypeScript compilation
+    let validation = await validateSkillTypeScript(skillDir);
+    let warnings: string[] = [];
+
+    if (!validation.valid) {
+      console.warn(`[SkillGen] Type-check failed for "${skillName}", retrying with error feedback...`);
+      warnings.push(`First attempt type errors: ${validation.errors.slice(0, 500)}`);
+
+      // Retry: feed errors back to LLM
+      const retryPrompt = `Fix the TypeScript errors in this handler code.
+
+## Original description
+${inputDescription}
+
+## Errored handler code
+${parsed.handlerCode}
+
+## TypeScript errors
+${validation.errors}
+
+Return ONLY a JSON object with "handlerCode" (the fixed code body).`;
+
+      try {
+        const retryMessages: NormalizedMessage[] = [
+          { role: 'user', content: retryPrompt },
+        ];
+        const retryResponse = await makeLLMCall(
+          retryMessages, [],
+          { provider, model, maxTokens: 2048, userId: request.userId || 'skill_gen' },
+          getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
+        );
+
+        const retryText = retryResponse.text || '';
+        const retryJson = retryText.match(/\{[\s\S]*\}/);
+        if (retryJson) {
+          const retryParsed = JSON.parse(retryJson[0]);
+          const fixedCode = retryParsed.handlerCode;
+          if (fixedCode && typeof fixedCode === 'string') {
+            const fixedHandler = buildHandlerFunction(fixedCode, parsed.inputSchema);
+            const fixedIndexTs = SKILL_TEMPLATE
+              .replace(/{skillName}/g, skillName)
+              .replace(/{toolName}/g, parsed.toolName)
+              .replace(/{toolDescription}/g, (parsed.toolDescription || parsed.toolName).replace(/"/g, '\\"'))
+              .replace(/{timestamp}/g, now)
+              .replace('{handlerCode}', fixedHandler)
+              .replace('{inputSchema}', schemaLiteral);
+
+            fs.writeFileSync(path.join(skillDir, 'index.ts'), fixedIndexTs);
+
+            validation = await validateSkillTypeScript(skillDir);
+            if (validation.valid) {
+              console.log(`[SkillGen] Type-check passed after retry for "${skillName}"`);
+              warnings = [];
+              // Use the fixed code in the return
+              indexTs = fixedIndexTs;
+            } else {
+              warnings.push(`Retry still failing: ${validation.errors.slice(0, 300)}`);
+              console.warn(`[SkillGen] Type-check still failing after retry for "${skillName}":`, validation.errors.slice(0, 200));
+            }
+          }
+        }
+      } catch (retryErr: any) {
+        warnings.push(`Retry failed: ${retryErr.message}`);
+      }
+    }
+
     return {
       success: true,
       skillName,
       toolName: parsed.toolName,
       directory: skillDir,
       generatedCode: indexTs,
+      ...(warnings.length > 0 ? { error: warnings.join(' | ') } : {}),
     };
   } catch (err: any) {
     console.error('[SkillGen] Generation failed:', err);
@@ -269,29 +351,21 @@ export async function autoGenerateSkill(
   getAnthropic?: () => any,
   getQwen?: () => any,
 ): Promise<SkillGenerateResult | null> {
-  const { countSimilarWorkflows, getRecentWorkflows, clearWorkflows } = await import('./worklog');
+  const { findWorkflowClusters, getRecentWorkflows } = await import('./worklog');
 
   const all = getRecentWorkflows();
   if (all.length < 3) return null;
 
-  // Group workflows by similar intent (simple keyword overlap)
-  const groups: Map<string, WorkflowRecord[]> = new Map();
-  const processed = new Set<string>();
+  const clusters = findWorkflowClusters(3);
+  if (clusters.length === 0) return null;
 
-  for (const w of all) {
-    if (processed.has(w.id)) continue;
-    const similar = countSimilarWorkflows(w.userIntent, 3);
-    if (similar.length >= 3) {
-      const key = w.userIntent.slice(0, 40);
-      groups.set(key, similar);
-      for (const s of similar) processed.add(s.id);
-    }
-  }
-
-  for (const [intent, workflows] of groups) {
-    console.log(`[SkillGen] Auto-detected pattern: "${intent}" (${workflows.length}x)`);
+  for (const cluster of clusters) {
+    console.log(
+      `[SkillGen] Auto-detected cluster: "${cluster.representativeIntent.slice(0, 40)}" ` +
+      `(${cluster.workflows.length}x, avg similarity: ${cluster.avgSimilarity.toFixed(2)})`,
+    );
     const result = await generateSkill(
-      { workflows, provider: 'deepseek', model: 'deepseek-chat' },
+      { workflows: cluster.workflows, provider: 'deepseek', model: 'deepseek-chat' },
       getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
     );
 
@@ -301,7 +375,7 @@ export async function autoGenerateSkill(
         mcpManager.installSkill(result.skillName, result.directory!);
         console.log(`[SkillGen] Auto-installed skill "${result.skillName}"`);
         // Clear processed workflows so they don't re-trigger
-        for (const w of workflows) {
+        for (const w of cluster.workflows) {
           const idx = all.indexOf(w);
           if (idx >= 0) all.splice(idx, 1);
         }
@@ -314,6 +388,25 @@ export async function autoGenerateSkill(
   }
 
   return null;
+}
+
+// ── Validation ──
+
+async function validateSkillTypeScript(skillDir: string): Promise<{ valid: boolean; errors: string }> {
+  return new Promise((resolve) => {
+    exec('npx tsc --noEmit', {
+      timeout: 60000,
+      maxBuffer: 512 * 1024,
+      cwd: skillDir,
+    }, (error, stdout, stderr) => {
+      const output = (stdout + '\n' + stderr).trim();
+      if (!error && !output) {
+        resolve({ valid: true, errors: '' });
+      } else {
+        resolve({ valid: false, errors: output || error?.message || 'Unknown error' });
+      }
+    });
+  });
 }
 
 // ── Helpers ──
@@ -329,24 +422,25 @@ function topTools(steps: WorkflowStep[]): { name: string; count: number }[] {
     .map(([name, count]) => ({ name, count }));
 }
 
-function generateHandlerCode(handlerLogic: string, inputSchema: any): string {
+function buildHandlerFunction(handlerCode: string, inputSchema: any): string {
   const props = inputSchema?.properties || {};
   const paramNames = Object.keys(props);
 
   const destructure = paramNames.length > 0
-    ? `const { ${paramNames.join(', ')} } = args;`
-    : '';
+    ? `  const { ${paramNames.join(', ')} } = args;`
+    : '  // No parameters defined';
 
-  return `/**
- * ${handlerLogic.split('\n').join('\n * ')}
- */
-async function handler(args: Record<string, any>): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
-  ${destructure}
+  // Indent the LLM-generated body code to match the function body
+  const indentedBody = handlerCode
+    .split('\n')
+    .map(line => line.trim() ? `  ${line}` : '')
+    .join('\n');
 
-  // TODO: Implement based on the handler logic above.
-  // The logic describes: ${handlerLogic.slice(0, 200)}
+  return `async function handler(args: Record<string, any>): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
+${destructure}
 
-  const result = 'Skill executed successfully.';
+  // ── Generated implementation ──
+${indentedBody}
 
   return {
     content: [{ type: 'text', text: result }],

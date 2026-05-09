@@ -7,8 +7,18 @@ import { registerDataOpsTools } from './data_tools';
 import { registerDesktopTools } from './desktop_tools';
 import { registerGitTools } from './git_tools';
 import { registerVerifyTools } from './verify_tools';
+import { registerSkillTools, setSkillLLMGetters } from './skill_tools';
 
-export function registerAllTools(registry: ToolRegistry): void {
+export function registerAllTools(
+  registry: ToolRegistry,
+  llmGetters?: {
+    getDeepSeek: () => any;
+    getGemini: () => any;
+    getOpenAI?: () => any;
+    getAnthropic?: () => any;
+    getQwen?: () => any;
+  },
+): void {
   registerFileOpsTools(registry);
   registerSystemOpsTools(registry);
   registerWebOpsTools(registry);
@@ -17,4 +27,8 @@ export function registerAllTools(registry: ToolRegistry): void {
   registerDesktopTools(registry);
   registerGitTools(registry);
   registerVerifyTools(registry);
+  registerSkillTools(registry);
+  if (llmGetters) {
+    setSkillLLMGetters(llmGetters);
+  }
 }
