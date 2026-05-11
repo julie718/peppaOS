@@ -7,7 +7,9 @@ import {
   runBehavioralAnalysis, broadcastMemoryChange,
   getDueReminders, getUnconsolidatedEpisodic,
 } from "../memory";
+import { buildTree, moveNode, flattenTree, ensureBranch } from "../memory/tree";
 import { consolidateEpisodic, selfReflect, ConsolidationContext } from "../memory/consolidator";
+import { makeLLMCall } from "../llm/providers";
 
 export function mountMemoryRoutes(
   router: Router,
@@ -78,7 +80,7 @@ export function mountMemoryRoutes(
     try {
       const decoded: any = jwt.verify(token, jwtSecret);
       const { id } = req.params;
-      const { content, keywords, confidence, type } = req.body;
+      const { content, keywords, confidence, type, parentId, nodeType } = req.body;
 
       const all = readDB().memories || [];
       const idx = all.findIndex((m: any) => m.id === id && m.userId === decoded.uid);
@@ -89,6 +91,8 @@ export function mountMemoryRoutes(
       if (keywords !== undefined) existing.keywords = keywords;
       if (confidence !== undefined) existing.confidence = confidence;
       if (type !== undefined) existing.type = type;
+      if (parentId !== undefined) existing.parentId = parentId;
+      if (nodeType !== undefined) existing.nodeType = nodeType;
       existing.updatedAt = new Date().toISOString();
 
       const db = readDB();
@@ -319,6 +323,121 @@ export function mountMemoryRoutes(
     );
     broadcastMemoryChange(mem.userId, 'updated', updated.id);
     res.json({ success: true, memory: updated });
+  });
+
+  // Memory tree — returns full nested tree structure
+  router.get("/memory/tree", (req, res) => {
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ error: "Unauthorized" });
+    try {
+      const decoded: any = jwt.verify(token, jwtSecret);
+      const agentId = (req.query.agentId as string) || '';
+      const all = queryMemories({ userId: decoded.uid, agentId, limit: 9999, minConfidence: 0 });
+      const tree = buildTree(all);
+      res.json({ tree });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Move a memory node to a new parent
+  router.put("/memory/:id/move", (req, res) => {
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ error: "Unauthorized" });
+    try {
+      const decoded: any = jwt.verify(token, jwtSecret);
+      const { parentId } = req.body;
+      const db = readDB();
+      const mem = (db.memories || []).find((m: any) => m.id === req.params.id && m.userId === decoded.uid);
+      if (!mem) return res.status(404).json({ error: "Memory not found" });
+      const ok = moveNode(req.params.id, parentId ?? null);
+      if (!ok) return res.status(400).json({ error: "Cannot move: circular reference or parent not found" });
+      broadcastMemoryChange(decoded.uid, 'updated', mem.id);
+      res.json({ success: true, memory: mem });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // LLM auto-organize — group unorganized leaf memories into topic branches
+  router.post("/memory/auto-organize", async (req, res) => {
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ error: "Unauthorized" });
+    try {
+      const decoded: any = jwt.verify(token, jwtSecret);
+      const userId = decoded.uid;
+      const db = readDB();
+      const allMemories: any[] = db.memories || [];
+
+      // Find unorganized leaf memories (no parent, not branches)
+      const orphans = allMemories.filter(
+        (m: any) => m.userId === userId && m.nodeType !== 'branch' && !m.parentId,
+      );
+
+      if (orphans.length < 3) {
+        return res.json({ success: false, reason: 'Need at least 3 unorganized memories', count: orphans.length });
+      }
+
+      const tree = buildTree(allMemories.filter((m: any) => m.userId === userId));
+      const treeSummary = tree.map(t => `- ${t.node.content} [${t.node.nodeType}] (${t.children.length} children)`).join('\n');
+
+      const prompt = `You are organizing a memory tree. Below is the current tree structure and a list of unorganized memories.
+
+CURRENT TREE:
+${treeSummary || '(empty)'}
+
+UNORGANIZED MEMORIES:
+${orphans.map((m: any) => `- [${m.id}] ${m.content}`).join('\n')}
+
+Group these unorganized memories into 3-8 topic branches. For each memory, decide which topic it belongs to.
+Return JSON:
+{
+  "branches": [
+    {
+      "title": "Topic name (short, 2-4 words)",
+      "memoryIds": ["mem_xxx", "mem_yyy"]
+    }
+  ]
+}
+
+Rules:
+- Every unorganized memory MUST be assigned to exactly one branch
+- Branch titles should be meaningful topic names
+- Create as few branches as necessary (merge similar topics)
+- Return ONLY valid JSON, no markdown`;
+
+      const llmResult = await makeLLMCall(
+        [{ role: 'user', content: prompt }],
+        [],
+        { provider: 'qwen', model: 'qwen-plus' },
+        llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
+      );
+
+      let plan: { branches: { title: string; memoryIds: string[] }[] };
+      try {
+        const json = (llmResult.text || '').replace(/```json|```/g, '').trim();
+        plan = JSON.parse(json);
+      } catch {
+        return res.json({ success: false, reason: 'LLM returned invalid JSON' });
+      }
+
+      let branchCount = 0;
+      let assignedCount = 0;
+      for (const branch of plan.branches) {
+        if (!branch.title || !Array.isArray(branch.memoryIds)) continue;
+        const branchNode = ensureBranch(userId, branch.title, '', null);
+        branchCount++;
+        for (const memId of branch.memoryIds) {
+          const ok = moveNode(memId, branchNode.id);
+          if (ok) assignedCount++;
+        }
+      }
+
+      broadcastMemoryChange(userId, 'updated', 'auto-organize');
+      res.json({ success: true, branchesCreated: branchCount, memoriesAssigned: assignedCount });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
   });
 
   // Toggle core identity protection

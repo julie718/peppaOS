@@ -91,6 +91,12 @@ export function queryMemories(q: MemoryQuery): Memory[] {
   if (q.unconsolidatedOnly) {
     memories = memories.filter(m => !m.parentId);
   }
+  if (q.parentId !== undefined) {
+    memories = memories.filter(m => m.parentId === q.parentId);
+  }
+  if (q.nodeType) {
+    memories = memories.filter(m => m.nodeType === q.nodeType);
+  }
 
   // Tier-based priority: core_identity always first, then growth, then internalized, then episodic
   const tierPriority: Record<string, number> = {
@@ -205,8 +211,8 @@ export function fireReminder(id: string): void {
 // ── Memories ──
 
 export function addMemory(
-  memory: Omit<Memory, 'id' | 'createdAt' | 'updatedAt' | 'lastRetrievedAt' | 'retrieveCount' | 'tier' | 'perspective' | 'importance' | 'parentId' | 'agentId'>,
-  overrides?: { tier?: Memory['tier']; perspective?: Memory['perspective']; importance?: number; parentId?: string | null; agentId?: string },
+  memory: Omit<Memory, 'id' | 'createdAt' | 'updatedAt' | 'lastRetrievedAt' | 'retrieveCount' | 'tier' | 'perspective' | 'importance' | 'parentId' | 'agentId' | 'nodeType'>,
+  overrides?: { tier?: Memory['tier']; perspective?: Memory['perspective']; importance?: number; parentId?: string | null; agentId?: string; nodeType?: Memory['nodeType'] },
 ): Memory {
   const all = getMemoryStore();
 
@@ -242,6 +248,7 @@ export function addMemory(
     importance: overrides?.importance ?? 0.3,
     parentId: overrides?.parentId ?? null,
     agentId: overrides?.agentId ?? '',
+    nodeType: overrides?.nodeType ?? 'leaf',
   };
 
   all.push(newMemory);
@@ -308,33 +315,40 @@ export function markConsolidated(ids: string[], parentId: string): void {
 export function formatMemoriesForContext(memories: Memory[]): string {
   if (memories.length === 0) return '';
 
+  // Separate branches and leaves
+  const branches = memories.filter(m => m.nodeType === 'branch');
+  const leaves = memories.filter(m => m.nodeType !== 'branch');
+
   const lines: string[] = [];
-  const byPerspective: Record<string, Memory[]> = {};
-  for (const m of memories) {
-    (byPerspective[m.perspective] ||= []).push(m);
+
+  // Group leaves by parent
+  const byParent = new Map<string | null, Memory[]>();
+  for (const leaf of leaves) {
+    const key = leaf.parentId || null;
+    if (!byParent.has(key)) byParent.set(key, []);
+    byParent.get(key)!.push(leaf);
   }
 
-  const perspectiveLabels: Record<string, string> = {
-    shared_memory: '## Our shared experiences',
-    lumi_growth: '## My growth & evolution',
-    lumi_self: '## Who I am',
-    owner_trait: '## What I know',
-  };
+  // Sort branches by importance
+  branches.sort((a, b) => b.importance - a.importance || b.confidence - a.confidence);
 
-  // Order: self-identity first (most important for Lumi), then growth, then shared, then owner traits
-  const order: MemoryPerspective[] = ['lumi_self', 'lumi_growth', 'shared_memory', 'owner_trait'];
+  // Output branch sections
+  for (const branch of branches) {
+    const children = byParent.get(branch.id) || [];
+    if (children.length === 0) continue;
+    lines.push(`### ${branch.content}`);
+    children.sort((a, b) => b.importance - a.importance || b.confidence - a.confidence);
+    for (const m of children) {
+      lines.push(`- ${m.content}`);
+    }
+  }
 
-  for (const perspective of order) {
-    const mems = byPerspective[perspective];
-    if (!mems || mems.length === 0) continue;
-    lines.push(perspectiveLabels[perspective] || `## ${perspective}`);
-    // Sort by importance then confidence within each group
-    mems.sort((a, b) => b.importance - a.importance || b.confidence - a.confidence);
-    for (const m of mems) {
-      // Self/growth memories use first-person framing
-      if (perspective === 'lumi_self' || perspective === 'lumi_growth') {
-        lines.push(`- ${m.content}`);
-      } else {
+  // Output ungrouped leaves (no parent branch)
+  const orphans = byParent.get(null) || [];
+  if (orphans.length > 0) {
+    for (const m of orphans) {
+      // Filter out branches from the root display
+      if (m.nodeType !== 'branch') {
         lines.push(`- ${m.content}`);
       }
     }

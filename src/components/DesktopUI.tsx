@@ -997,7 +997,6 @@ export function DesktopUI({
   const { menu, items: contextItems, execute: executeContextAction } = useContextMenu();
 
   const appIcons = [
-    { id: 'home', label: t.neuralCore || 'Neural Core', icon: <Sparkles size={24} />, color: 'from-celestial-saturn to-yellow-600' },
     { id: 'fs', label: t.fileExplorer || 'Knowledge Base', icon: <Folder size={24} />, color: 'from-blue-400 to-indigo-500' },
     { id: 'memory', label: t.memory || 'Memory Core', icon: <FileText size={24} />, color: 'from-emerald-400 to-teal-600' },
     { id: 'chat', label: t.chat || 'Chat', icon: <MessageSquare size={24} />, color: 'from-green-500 to-emerald-600' },

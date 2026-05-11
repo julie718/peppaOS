@@ -12,6 +12,9 @@ export type MemoryPerspective = 'owner_trait'   // About the owner's traits
                               | 'shared_memory' // "Our" shared experiences
                               | 'lumi_growth';  // Lumi's growth milestones
 
+/** Tree node type — branch nodes are topic containers, leaves are actual memories */
+export type MemoryNodeType = 'branch' | 'leaf';
+
 export interface Memory {
   id: string;
   userId: string;
@@ -34,10 +37,17 @@ export interface Memory {
   perspective: MemoryPerspective;
   /** 0–1 importance — separate from confidence. Core identity has 0.9+ */
   importance: number;
-  /** Points to consolidated/derived memory, null if original */
+  /** Points to parent node in the memory tree, null if root */
   parentId: string | null;
   /** Agent ID for agent-private memories. Empty string = shared */
   agentId: string;
+  /** Tree node type: 'branch' = topic container, 'leaf' = content memory. Default 'leaf' */
+  nodeType: MemoryNodeType;
+}
+
+export interface MemoryTree {
+  node: Memory;
+  children: MemoryTree[];
 }
 
 export interface MemoryQuery {
@@ -54,6 +64,10 @@ export interface MemoryQuery {
   unconsolidatedOnly?: boolean;
   /** Filter by agent ID (empty string matches shared memories) */
   agentId?: string;
+  /** Filter by parent node — null = root only, string = children of that node */
+  parentId?: string | null;
+  /** Filter by node type */
+  nodeType?: MemoryNodeType;
 }
 
 export interface ExtractedMemory {

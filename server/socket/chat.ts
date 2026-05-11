@@ -11,6 +11,7 @@ import { queryMemories, addMemory, addReminder, extractMemories } from "../memor
 import { loadEmotionalState, saveEmotionalState, updateEmotionalState } from "../personality/state";
 import { personalityRegistry } from "../personality";
 import { getOrCreateActiveConversation, addMessage, getMessages } from "../conversation/manager";
+import { ensureBranch } from "../memory/tree";
 import { retrieveChunks } from "../agents/rag";
 import { getSensory } from "./shared";
 import { processInput, handleLLMFailure, CognitiveContext } from "../cognition";
@@ -219,16 +220,23 @@ export function registerChatHandler(
       socket.emit("agent:status", { status: "idle" });
 
       // Async memory extraction
+      const branchNodes = queryMemories({ userId: uid, nodeType: 'branch', limit: 50 });
+      const treeBranches = branchNodes.map(b => b.content);
       extractMemories(
-        { userMessage: text, assistantResponse: responseText, existingMemories: relevantMemories.map(m => m.content), provider, model: personality.defaultModel },
+        { userMessage: text, assistantResponse: responseText, existingMemories: relevantMemories.map(m => m.content), provider, model: personality.defaultModel, treeBranches },
         llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
       ).then(extracted => {
         for (const mem of extracted.memories) {
+          let parentId: string | null = null;
+          if ((mem as any).branchHint) {
+            const branch = ensureBranch(uid, (mem as any).branchHint, agentId || '');
+            parentId = branch.id;
+          }
           addMemory({
             userId: uid, type: mem.type, content: mem.content,
             keywords: mem.keywords, confidence: mem.confidence, sourceInteractionId: interactionId,
             agentId: agentId || '',
-          } as any);
+          } as any, { parentId });
         }
         for (const rem of extracted.reminders) {
           addReminder({ userId: uid, content: rem.content, dueAt: rem.dueAt, sourceInteractionId: interactionId });
