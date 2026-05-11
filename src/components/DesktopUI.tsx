@@ -63,8 +63,7 @@ import { useWakeWord } from '../hooks/useWakeWord';
 import { VoiceSubtitle } from './VoiceSubtitle';
 import { ErrorBoundary } from './ErrorBoundary';
 
-import { NeuralFileManager } from './NeuralFileManager';
-import { MemoryExplorer } from './MemoryExplorer';
+import { KnowledgeBase } from './KnowledgeBase';
 import { PersonalityEditor } from './PersonalityEditor';
 import { Settings } from './Settings';
 import { systemService } from '@/services/systemService';
@@ -997,8 +996,7 @@ export function DesktopUI({
   const { menu, items: contextItems, execute: executeContextAction } = useContextMenu();
 
   const appIcons = [
-    { id: 'fs', label: t.fileExplorer || 'Knowledge Base', icon: <Folder size={24} />, color: 'from-blue-400 to-indigo-500' },
-    { id: 'memory', label: t.memory || 'Memory Core', icon: <FileText size={24} />, color: 'from-emerald-400 to-teal-600' },
+    { id: 'knowledge', label: t.knowledgeBase || '智库', icon: <BrainCircuit size={24} />, color: 'from-cyan-400 to-blue-600' },
     { id: 'chat', label: t.chat || 'Chat', icon: <MessageSquare size={24} />, color: 'from-green-500 to-emerald-600' },
     { id: 'personality', label: t.personality || 'Personality Lab', icon: <UserIcon size={24} />, color: 'from-violet-500 to-fuchsia-600' },
     { id: 'kernel', label: t.kernelMonitor || 'Kernel Monitor', icon: <Activity size={24} />, color: 'from-orange-500 to-red-600' },
@@ -1012,9 +1010,8 @@ export function DesktopUI({
 
   const getWindowSize = (windowId: string) => {
     if (windowId === 'settings') return { w: '1050px', h: '720px' };
-    if (windowId === 'fs') return { w: '1050px', h: '720px' };
+    if (windowId === 'knowledge') return { w: '1100px', h: '750px' };
     if (windowId === 'kernel') return { w: '1050px', h: '720px' };
-    if (windowId === 'memory') return { w: '1050px', h: '720px' };
     if (windowId === 'personality') return { w: '1050px', h: '720px' };
     if (windowId === 'persona-stats') return { w: '1050px', h: '720px' };
     if (windowId === 'generate') return { w: '1050px', h: '720px' };
@@ -1476,10 +1473,10 @@ export function DesktopUI({
         <div className="flex flex-col xl:flex-row justify-between items-start gap-12">
             <div className="desktop-grid !h-auto !p-0 !grid-cols-[repeat(auto-fill,minmax(110px,1fr))] max-w-2xl flex-1 w-full">
               <DesktopIcon
-                label={t.neuralVault || "Neural Vault"}
-                icon={<Shield size={24} />}
-                colorClass="from-indigo-600 to-blue-500"
-                onClick={() => toggleWindow('fs')}
+                label={t.knowledgeBase || "智库"}
+                icon={<BrainCircuit size={24} />}
+                colorClass="from-cyan-400 to-blue-600"
+                onClick={() => toggleWindow('knowledge')}
               />
               <DesktopIcon
                 label={t.osKernel || "OS Kernel"}
@@ -1739,8 +1736,8 @@ export function DesktopUI({
                 t={t}
               >
                 <div className="p-8 h-full">
-                  {windowId === 'fs' ? (
-                    <NeuralFileManager t={t} />
+                  {windowId === 'knowledge' ? (
+                    <KnowledgeBase t={t} />
                   ) : windowId === 'kernel' ? (
                     <KernelMonitorApp t={t} />
                   ) : windowId === 'settings' ? (
@@ -1764,8 +1761,6 @@ export function DesktopUI({
                           </button>
                        </div>
                     </div>
-                  ) : windowId === 'memory' ? (
-                    <MemoryExplorer t={t} />
                   ) : windowId === 'personality' ? (
                     <PersonalityEditor t={t} />
                   ) : windowId === 'llm' ? (

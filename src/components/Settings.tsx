@@ -32,7 +32,7 @@ import { VoiceForge } from './VoiceForge';
 import { MCPSettings } from './MCPSettings';
 import { RemoteMCPSettings } from './RemoteMCPSettings';
 import { FeishuSettings } from './FeishuSettings';
-import { MemoryExplorer } from './MemoryExplorer';
+import { KnowledgeBase } from './KnowledgeBase';
 import { PersonalityEditor } from './PersonalityEditor';
 import { PersonalityMarketplace } from './PersonalityMarketplace';
 
@@ -398,7 +398,7 @@ export function Settings({
       case 'market':
         return <PersonalityMarketplace t={t} />;
       case 'memory':
-        return <MemoryExplorer t={t} />;
+        return <KnowledgeBase t={t} />;
       case 'mcp':
         return <MCPSettings t={t} />;
       case 'remote-mcp':
