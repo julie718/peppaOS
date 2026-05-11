@@ -720,10 +720,11 @@ export function DesktopUI({
   const { isTauri } = usePlatform();
   const { personalityId, selectedVoiceId, unreadCount, notifications } = useApp();
 
-  const [openWindows, setOpenWindows] = useState<string[]>(activeTab !== 'home' ? [activeTab] : []);
+  const [openWindows, setOpenWindows] = useState<string[]>(activeTab !== 'home' && activeTab !== 'knowledge' ? [activeTab] : []);
   const [minimizedWindows, setMinimizedWindows] = useState<string[]>([]);
-  const [focusedWindow, setFocusedWindow] = useState<string | null>(activeTab !== 'home' ? activeTab : null);
-  const [windowOrder, setWindowOrder] = useState<string[]>(activeTab !== 'home' ? [activeTab] : []);
+  const [focusedWindow, setFocusedWindow] = useState<string | null>(activeTab !== 'home' && activeTab !== 'knowledge' ? activeTab : null);
+  const [windowOrder, setWindowOrder] = useState<string[]>(activeTab !== 'home' && activeTab !== 'knowledge' ? [activeTab] : []);
+  const [knowledgeOpen, setKnowledgeOpen] = useState(activeTab === 'knowledge');
   const [theme, setTheme] = useState<string>('celestial');
   const [nativeFiles, setNativeFiles] = useState<NativeFile[]>([]);
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
@@ -967,12 +968,17 @@ export function DesktopUI({
       return;
     }
 
+    // Knowledge base opens fullscreen, not as a window
+    if (tab === 'knowledge') {
+      setKnowledgeOpen(prev => !prev);
+      return;
+    }
+
     if (openWindows.includes(tab)) {
       if (minimizedWindows.includes(tab)) {
         setMinimizedWindows(prev => prev.filter(w => w !== tab));
       }
       setFocusedWindow(tab);
-      // Move to front of z-order
       setWindowOrder(prev => [...prev.filter(w => w !== tab), tab]);
     } else {
       setOpenWindows([...openWindows, tab]);
@@ -1735,10 +1741,8 @@ export function DesktopUI({
                 height={size.h}
                 t={t}
               >
-                <div className={windowId === 'knowledge' ? 'relative h-full' : 'p-8 h-full'}>
-                  {windowId === 'knowledge' ? (
-                    <KnowledgeBase t={t} />
-                  ) : windowId === 'kernel' ? (
+                <div className="p-8 h-full">
+                  {windowId === 'kernel' ? (
                     <KernelMonitorApp t={t} />
                   ) : windowId === 'settings' ? (
                     <Settings t={t} lang={lang} setLang={setLang} theme={theme} setTheme={setTheme} activeSection={settingsSection} onSectionChange={setSettingsSection} />
@@ -1793,6 +1797,12 @@ export function DesktopUI({
 
         </div>
       </motion.div>
+
+      {/* Knowledge Base fullscreen overlay */}
+      <KnowledgeBase
+        isOpen={knowledgeOpen}
+        onClose={() => setKnowledgeOpen(false)}
+      />
 
     </div>
   );

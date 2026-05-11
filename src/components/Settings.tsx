@@ -398,7 +398,7 @@ export function Settings({
       case 'market':
         return <PersonalityMarketplace t={t} />;
       case 'memory':
-        return <KnowledgeBase t={t} />;
+        return <KnowledgeBase isOpen={true} onClose={() => onSectionChange?.('general')} />;
       case 'mcp':
         return <MCPSettings t={t} />;
       case 'remote-mcp':
