@@ -298,6 +298,9 @@ export function useVoiceCall({ socket, onTranscript, onResponse }: UseVoiceCallO
     }
   }, [socket, updateAudioLevel]);
 
+  const startCallRef = useRef(startCall);
+  startCallRef.current = startCall;
+
   const interrupt = useCallback(() => {
     if (callState === 'speaking' || callState === 'thinking') {
       socket?.emit('audio:interrupt');
@@ -386,6 +389,7 @@ export function useVoiceCall({ socket, onTranscript, onResponse }: UseVoiceCallO
     elapsedSeconds,
     connectionQuality,
     startCall,
+    startCallRef,
     endCall,
     interrupt,
     toggleMute,

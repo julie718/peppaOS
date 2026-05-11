@@ -59,6 +59,7 @@ import { useVoiceCall } from '@/hooks/useVoiceCall';
 import { useApp } from '@/contexts/AppContext';
 import { NexusGlobe } from './NexusGlobe/NexusGlobe';
 import WorkflowPanel, { type WorkflowStep } from './WorkflowPanel';
+import { useWakeWord } from '../hooks/useWakeWord';
 
 import { NeuralFileManager } from './NeuralFileManager';
 import { MemoryExplorer } from './MemoryExplorer';
@@ -754,8 +755,17 @@ export function DesktopUI({
   }, [personalityId]);
 
   const socket = useSocket();
-  const { callState, audioLevel, startCall, endCall, error: callError, transcript, interrupt, toggleMute } = useVoiceCall({
+  const { callState, audioLevel, startCall, startCallRef, endCall, error: callError, transcript, interrupt, toggleMute } = useVoiceCall({
     socket,
+  });
+
+  // Wake word detection (requires Picovoice access key, costs nothing without one)
+  const wakeWord = useWakeWord({
+    startCallRef,
+    enabled: true,
+    personalityId,
+    agentId: personalityId,
+    keyword: 'Computer',
   });
 
   useEffect(() => {
