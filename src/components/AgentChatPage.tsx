@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, MessageSquare, Loader2, ArrowLeft, Ghost, Zap, Cpu, Sparkles, Upload, FileText, Mic, Video, CheckCircle2, Pause, Play, Square, ChevronDown, History, Clock, Plus, Info } from 'lucide-react';
+import { Send, MessageSquare, Loader2, ArrowLeft, Ghost, Zap, Cpu, Sparkles, Upload, FileText, Mic, Video, CheckCircle2, Pause, Play, Square, ChevronDown, History, Clock, Plus, Info, Copy, Check, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { socketService } from '@/services/socketService';
@@ -17,7 +17,7 @@ import { useVoiceCall } from '@/hooks/useVoiceCall';
 import { useVoiceCloning } from '@/hooks/useVoiceCloning';
 import { listVoices } from '@/services/voiceService';
 
-export function AgentChatPage({ t, user, agent, onBack }: { t: any; user: any; agent?: any; onBack: () => void }) {
+export function AgentChatPage({ t, user, agent, isOpen, onClose }: { t: any; user: any; agent?: any; isOpen: boolean; onClose: () => void }) {
   const [messages, setMessages] = useState<any[]>([]);
   const [agentMetadata, setAgentMetadata] = useState<Partial<AgentResponse>>({});
   const { platform, isElectron } = usePlatform();
@@ -26,6 +26,8 @@ export function AgentChatPage({ t, user, agent, onBack }: { t: any; user: any; a
   const [selectedVoiceId, setSelectedVoiceId] = useState<string | undefined>();
   const [voices, setVoices] = useState<any[]>([]);
   const [showVoicePicker, setShowVoicePicker] = useState(false);
+  const voicePickerRef = useRef<HTMLDivElement>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const { callState, audioLevel, startCall, endCall, error: callError } = useVoiceCall({
     socket,
@@ -57,6 +59,18 @@ export function AgentChatPage({ t, user, agent, onBack }: { t: any; user: any; a
     if (callError) toast.error(callError);
   }, [callError]);
 
+  // Click outside to close voice picker
+  useEffect(() => {
+    if (!showVoicePicker) return;
+    const onClick = (e: MouseEvent) => {
+      if (voicePickerRef.current && !voicePickerRef.current.contains(e.target as Node)) {
+        setShowVoicePicker(false);
+      }
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [showVoicePicker]);
+
   const [newMessage, setNewMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
@@ -72,6 +86,18 @@ export function AgentChatPage({ t, user, agent, onBack }: { t: any; user: any; a
   const { speak, stop, pause, resume, isSpeaking, isPaused } = useTTS();
   const recognition = useRef<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Escape to close panels
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (showVoicePicker) setShowVoicePicker(false);
+        else if (showInfoPanel) setShowInfoPanel(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showVoicePicker, showInfoPanel]);
 
   const agentName = agent?.name || 'Lumi Essence';
   const agentCategory = agent?.category || 'friend';
@@ -181,6 +207,14 @@ export function AgentChatPage({ t, user, agent, onBack }: { t: any; user: any; a
     fetchConversations();
   }, [activeConversationId, fetchConversations]);
 
+  const handleCopyMessage = useCallback(async (text: string, id: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 1500);
+    } catch {}
+  }, []);
+
   useEffect(() => {
     if (agentId && !isFounder) {
       fetchConversations();
@@ -264,10 +298,7 @@ export function AgentChatPage({ t, user, agent, onBack }: { t: any; user: any; a
           type: 'agent'
         }]);
       }
-      // Don't auto-speak voice responses (already playing via TTS)
-      if (data.source !== 'voice') {
-        speak(data.text);
-      }
+      // Auto-speak disabled
     });
 
     socket.on("agent:status", (data: { status: string }) => {
@@ -344,7 +375,6 @@ export function AgentChatPage({ t, user, agent, onBack }: { t: any; user: any; a
           timestamp: new Date().toISOString(),
           type: 'agent'
         }]);
-        speak(response.text);
       } catch (err) {
         toast.error(t.failedToRouteNeuralMesh || "Failed to route through Neural Mesh.");
       } finally {
@@ -424,11 +454,22 @@ export function AgentChatPage({ t, user, agent, onBack }: { t: any; user: any; a
   };
 
   if (isFounder) {
-    return <FoundersSanctuary t={t} user={user} onBack={onBack} />;
+    return <FoundersSanctuary t={t} user={user} onBack={onClose} />;
   }
 
   return (
-    <>
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ clipPath: 'circle(0% at 50% 95%)', opacity: 0 }}
+          animate={{ clipPath: 'circle(150% at 50% 95%)', opacity: 1 }}
+          exit={{ clipPath: 'circle(0% at 50% 95%)', opacity: 0 }}
+          transition={{ duration: 0.65, ease: [0.25, 0.1, 0.25, 1] }}
+          className="fixed inset-0 z-[210] flex flex-col"
+          style={{
+            background: 'radial-gradient(ellipse at 50% 30%, #0a0f1e 0%, #060810 40%, #020205 100%)',
+          }}
+        >
       <input
         type="file"
         ref={fileInputRef}
@@ -437,16 +478,14 @@ export function AgentChatPage({ t, user, agent, onBack }: { t: any; user: any; a
         accept={acceptMap[importType]}
         onChange={(e) => { doUpload(e.target.files); e.target.value = ''; }}
       />
-    <div className="max-w-[90rem] mx-auto space-y-4 md:space-y-8 pb-32 md:pb-0">
-      <div className="flex items-center justify-between px-4 md:px-0">
-        <Button 
-          onClick={onBack}
-          variant="ghost"
-          className="text-white/40 hover:text-white flex items-center gap-2 p-0 h-auto"
+    <div className="flex-1 max-w-[90rem] mx-auto w-full space-y-4 md:space-y-8 pb-32 md:pb-0 overflow-hidden flex flex-col">
+      <div className="flex items-center justify-between px-4 md:px-0 pt-6 flex-shrink-0">
+        <button
+          onClick={onClose}
+          className="w-10 h-10 flex items-center justify-center bg-black/40 backdrop-blur-xl border border-white/[0.08] rounded-2xl text-white/40 hover:text-white hover:border-white/20 transition-all"
         >
           <ArrowLeft size={18} />
-          <span className="text-xs font-bold uppercase tracking-widest">{t.back || 'Back'}</span>
-        </Button>
+        </button>
         <div className="flex items-center gap-3">
           <div className="relative">
             <Button
@@ -462,6 +501,7 @@ export function AgentChatPage({ t, user, agent, onBack }: { t: any; user: any; a
             <AnimatePresence>
               {showVoicePicker && (
                 <motion.div
+                  ref={voicePickerRef}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 10 }}
@@ -503,7 +543,7 @@ export function AgentChatPage({ t, user, agent, onBack }: { t: any; user: any; a
         </div>
       </div>
 
-      <div className="flex gap-3 lg:h-[700px]">
+      <div className="flex gap-3 flex-1 min-h-0">
         {/* ── Conversation Sidebar ── */}
         <div className="w-56 flex-shrink-0 flex flex-col glass rounded-[2.5rem] border-white/10 overflow-hidden">
           <div className="p-4 border-b border-white/5">
@@ -529,38 +569,57 @@ export function AgentChatPage({ t, user, agent, onBack }: { t: any; user: any; a
               </div>
             ) : (
               conversations.map(conv => (
-                <button
-                  key={conv.id}
-                  onClick={() => handleSelectConversation(conv.id)}
-                  className={`w-full text-left p-3 rounded-xl transition-all ${
-                    activeConversationId === conv.id
-                      ? 'bg-white/10'
-                      : 'hover:bg-white/5'
-                  }`}
-                >
-                  <div className="text-xs font-bold text-white/70 truncate">
-                    {conv.title || t.untitled || 'Untitled'}
-                  </div>
-                  <div className="text-[10px] text-white/30 mt-0.5 truncate">
-                    {conv.summary || ''}
-                  </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[9px] text-white/20">
-                      {(() => {
-                        if (!conv.lastActiveAt) return '';
-                        const d = new Date(conv.lastActiveAt);
-                        const now = new Date();
-                        const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000);
-                        if (diffDays === 0) return t.today || 'Today';
-                        if (diffDays === 1) return t.yesterday || 'Yesterday';
-                        return d.toLocaleDateString();
-                      })()}
-                    </span>
-                    {conv.messageCount > 0 && (
-                      <span className="text-[9px] text-white/20">{conv.messageCount} msgs</span>
-                    )}
-                  </div>
-                </button>
+                <div key={conv.id} className="group relative">
+                  <button
+                    onClick={() => handleSelectConversation(conv.id)}
+                    className={`w-full text-left p-3 rounded-xl transition-all ${
+                      activeConversationId === conv.id
+                        ? 'bg-white/10'
+                        : 'hover:bg-white/5'
+                    }`}
+                  >
+                    <div className="text-xs font-bold text-white/70 truncate pr-6">
+                      {conv.title || t.untitled || 'Untitled'}
+                    </div>
+                    <div className="text-[10px] text-white/30 mt-0.5 truncate">
+                      {conv.summary || ''}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[9px] text-white/20">
+                        {(() => {
+                          if (!conv.lastActiveAt) return '';
+                          const d = new Date(conv.lastActiveAt);
+                          const now = new Date();
+                          const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000);
+                          if (diffDays === 0) return t.today || 'Today';
+                          if (diffDays === 1) return t.yesterday || 'Yesterday';
+                          return d.toLocaleDateString();
+                        })()}
+                      </span>
+                      {conv.messageCount > 0 && (
+                        <span className="text-[9px] text-white/20">{conv.messageCount} msgs</span>
+                      )}
+                    </div>
+                  </button>
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      try {
+                        await fetch(`/api/conversations/${conv.id}/close`, { method: 'POST' });
+                        if (activeConversationId === conv.id) {
+                          setActiveConversationId(null);
+                          setMessages([]);
+                          setActiveConversation(null);
+                        }
+                        fetchConversations();
+                      } catch {}
+                    }}
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-red-500/20 text-white/20 hover:text-red-400"
+                    title="Close conversation"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
               ))
             )}
           </div>
@@ -571,7 +630,9 @@ export function AgentChatPage({ t, user, agent, onBack }: { t: any; user: any; a
           <div className="p-4 md:p-6 border-b border-white/5 flex items-center justify-between bg-white/5">
             <div className="flex items-center gap-3">
               <div className={`w-2 h-2 rounded-full ${isSpeaking ? 'bg-celestial-nebula animate-ping' : 'bg-celestial-saturn animate-pulse'}`} />
-              <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-white/60">{t.neuralLink || 'Neural Link'}</span>
+              <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-white/60">
+                {activeConversation?.title || activeConversation?.summary?.slice(0, 30) || t.neuralLink || 'Neural Link'}
+              </span>
               {isSpeaking && (
                 <div className="flex items-center gap-3 ml-2 md:ml-4 scale-75 md:scale-100 origin-left">
                   <div className="flex items-end gap-1 h-4">
@@ -691,12 +752,26 @@ export function AgentChatPage({ t, user, agent, onBack }: { t: any; user: any; a
                   animate={{ opacity: 1, y: 0 }}
                   className={`flex flex-col ${msg.type === 'agent' ? 'items-start' : 'items-end'}`}
                 >
-                  <div className={`max-w-[85%] p-5 rounded-3xl text-sm leading-relaxed ${
-                    msg.type === 'agent' 
-                      ? 'bg-celestial-saturn/10 text-celestial-saturn border border-celestial-saturn/20 rounded-tl-none' 
+                  <div className={`relative group max-w-[85%] p-5 rounded-3xl text-sm leading-relaxed ${
+                    msg.type === 'agent'
+                      ? 'bg-celestial-saturn/10 text-celestial-saturn border border-celestial-saturn/20 rounded-tl-none'
                       : 'bg-white/5 text-white/80 border border-white/10 rounded-tr-none'
                   }`}>
-                    {msg.text}
+                    <span className="whitespace-pre-wrap">{msg.text}</span>
+                    {msg.text && (
+                      <button
+                        onClick={() => handleCopyMessage(msg.text, msg.id)}
+                        className={`absolute top-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-lg hover:bg-white/10 ${
+                          msg.type === 'agent' ? 'right-2' : 'left-2'
+                        }`}
+                      >
+                        {copiedId === msg.id ? (
+                          <Check size={12} className="text-green-400" />
+                        ) : (
+                          <Copy size={12} className="text-white/30 hover:text-white/70" />
+                        )}
+                      </button>
+                    )}
                   </div>
                   <span className="text-[9px] uppercase tracking-widest opacity-30 mt-2 px-3">
                     {msg.userName} • {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -889,6 +964,15 @@ export function AgentChatPage({ t, user, agent, onBack }: { t: any; user: any; a
         </AnimatePresence>
       </div>
     </div>
-    </>
+
+          {/* Bottom hint */}
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+            <span className="text-[9px] font-bold text-white/15 uppercase tracking-[0.15em] bg-black/30 px-4 py-1.5 rounded-full border border-white/[0.04]">
+              ESC to close · {agentName} · {agentCategory}
+            </span>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

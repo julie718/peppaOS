@@ -332,7 +332,8 @@ export function mountMemoryRoutes(
     try {
       const decoded: any = jwt.verify(token, jwtSecret);
       const agentId = (req.query.agentId as string) || '';
-      const all = queryMemories({ userId: decoded.uid, agentId, limit: 9999, minConfidence: 0 });
+      const before = (req.query.before as string) || undefined;
+      const all = queryMemories({ userId: decoded.uid, agentId, limit: 9999, minConfidence: 0, before });
       const tree = buildTree(all);
       res.json({ tree });
     } catch (e: any) {

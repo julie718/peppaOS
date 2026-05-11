@@ -97,6 +97,10 @@ export function queryMemories(q: MemoryQuery): Memory[] {
   if (q.nodeType) {
     memories = memories.filter(m => m.nodeType === q.nodeType);
   }
+  if (q.before) {
+    const cutoff = new Date(q.before).getTime();
+    memories = memories.filter(m => new Date(m.createdAt).getTime() <= cutoff);
+  }
 
   // Tier-based priority: core_identity always first, then growth, then internalized, then episodic
   const tierPriority: Record<string, number> = {

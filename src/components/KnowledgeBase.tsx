@@ -1,32 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Loader2, Search, Sparkles, TrendingUp, Network, GitMerge } from 'lucide-react';
+import { X, Loader2, Search, Sparkles, TrendingUp, Network, GitMerge, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSocket } from '@/hooks/useSocket';
-import { PixelTree, layoutTree } from './PixelTree';
 import { NodeDetailPanel } from './NodeDetailPanel';
-import type { TreeNode } from './PixelTree';
-import type { FileEntry } from './PixelTree';
+import { MemoryTreeScene, TimelineTransitionController, layoutTree3D, useMemoryFilter } from './MemoryTree';
+import type { TreeNode3D, BranchCurve3D, TimelineState, MemoryNode as MemNode, FileEntry } from './MemoryTree';
 
-interface MemoryNode {
-  id: string;
-  userId: string;
-  type: 'preference' | 'fact' | 'habit' | 'knowledge';
-  content: string;
-  keywords: string[];
-  confidence: number;
-  tier: 'episodic' | 'internalized' | 'growth' | 'core_identity';
-  perspective: string;
-  importance: number;
-  nodeType: 'branch' | 'leaf';
-  createdAt: string;
-  updatedAt: string;
-  lastRetrievedAt: string | null;
-  retrieveCount: number;
-  parentId: string | null;
-}
-
-interface MemoryTree { node: MemoryNode; children: MemoryTree[]; }
+interface MemoryTree { node: MemNode; children: MemoryTree[]; }
 
 interface KnowledgeBaseProps {
   t?: any;
@@ -38,8 +19,9 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
   const socket = useSocket();
 
   const [files, setFiles] = useState<FileEntry[]>([]);
-  const [memories, setMemories] = useState<MemoryNode[]>([]);
-  const [treeNodes, setTreeNodes] = useState<TreeNode[]>([]);
+  const [memories, setMemories] = useState<MemNode[]>([]);
+  const [treeNodes, setTreeNodes] = useState<TreeNode3D[]>([]);
+  const [branchCurves, setBranchCurves] = useState<BranchCurve3D[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -48,9 +30,19 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
   const [consolidating, setConsolidating] = useState(false);
   const [reflecting, setReflecting] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const [timeline, setTimeline] = useState<TimelineState>({
+    before: null,
+    playing: false,
+    speed: 1,
+    earliest: null,
+    latest: null,
+  });
 
   // Fetch data
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (before?: string) => {
     setLoading(true);
     try {
       const res = await fetch('/api/files/list');
@@ -61,10 +53,13 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
     } catch (err) { console.warn('[KnowledgeBase] files fetch failed:', err); }
 
     try {
-      const res = await fetch('/api/memory/tree');
+      const params = new URLSearchParams();
+      if (before) params.set('before', before);
+      const qs = params.toString();
+      const res = await fetch(`/api/memory/tree${qs ? `?${qs}` : ''}`);
       if (res.ok) {
         const d = await res.json();
-        const flat: MemoryNode[] = [];
+        const flat: MemNode[] = [];
         const walk = (nodes: MemoryTree[]) => {
           for (const n of nodes) { flat.push(n.node); walk(n.children); }
         };
@@ -76,27 +71,47 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
     setLoading(false);
   }, []);
 
-  useEffect(() => { if (isOpen) fetchAll(); }, [isOpen, fetchAll]);
+  useEffect(() => { if (isOpen) fetchAll(timeline.before ?? undefined); }, [isOpen, fetchAll, timeline.before]);
 
   // Socket
   useEffect(() => {
     if (!socket || !isOpen) return;
-    const handler = () => fetchAll();
+    const handler = () => fetchAll(timeline.before ?? undefined);
     socket.on('memories:changed', handler);
     return () => { socket.off('memories:changed', handler); };
-  }, [socket, isOpen, fetchAll]);
+  }, [socket, isOpen, fetchAll, timeline.before]);
 
   // Build tree
   useEffect(() => {
     if (!isOpen) return;
-    const nodes = layoutTree(memories, files);
+    const { nodes, curves } = layoutTree3D(memories, files);
     setTreeNodes(nodes);
+    setBranchCurves(curves);
+
+    // Compute earliest/latest dates from memories
+    const memsWithDates = memories.filter(m => m.nodeType !== 'branch' && m.createdAt);
+    if (memsWithDates.length > 0) {
+      const earliest = memsWithDates.reduce((a, b) =>
+        new Date(a.createdAt!).getTime() < new Date(b.createdAt!).getTime() ? a : b
+      );
+      const latest = memsWithDates.reduce((a, b) =>
+        new Date(a.createdAt!).getTime() > new Date(b.createdAt!).getTime() ? a : b
+      );
+      setTimeline(prev => ({
+        ...prev,
+        earliest: earliest.createdAt!,
+        latest: latest.createdAt!,
+      }));
+    }
   }, [memories, files, isOpen]);
 
   // Find selected node data
   const selectedNode = selectedId ? treeNodes.find(n => n.id === selectedId) : null;
   const selectedFileData = selectedId ? files.find(f => f.id === selectedId) : undefined;
   const selectedMemoryData = selectedId ? memories.find(m => m.id === selectedId) : undefined;
+
+  // Filtered data for rendering (timeline only; search dimming in scene)
+  const filtered = useMemoryFilter(treeNodes, branchCurves, timeline);
 
   // Actions
   const handleDelete = async (id: string) => {
@@ -174,6 +189,26 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
     } catch { toast.error('Update failed'); }
   };
 
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      for (let i = 0; i < files.length; i++) formData.append('files', files[i]);
+      const res = await fetch('/api/files/upload', { method: 'POST', body: formData, credentials: 'include' });
+      if (res.ok) {
+        const d = await res.json();
+        toast.success(`Uploaded ${d.files?.length || files.length} file(s)`);
+        fetchAll();
+      } else toast.error('Upload failed');
+    } catch { toast.error('Upload failed'); }
+    finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const handleAutoOrganize = async () => {
     setOrganizing(true);
     try {
@@ -238,18 +273,22 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
           exit={{ clipPath: 'circle(0% at 50% 95%)', opacity: 0 }}
           transition={{ duration: 0.75, ease: [0.25, 0.1, 0.25, 1] }}
           className="fixed inset-0 z-[200]"
+          style={{
+            background: 'radial-gradient(ellipse at 50% 30%, #0f0f23 0%, #080812 40%, #020205 100%)',
+          }}
         >
-          {/* Pixel Tree canvas background */}
-          <PixelTree
-            treeNodes={treeNodes}
+          {/* 3D Memory Tree Scene */}
+          <MemoryTreeScene
+            nodes={filtered.nodes}
+            curves={filtered.curves}
             searchQuery={search}
+            highlightedNodeId={selectedId}
             onNodeClick={(id, sx, sy) => {
               if (!id) { setSelectedId(null); setCardPos(null); return; }
               setSelectedId(prev => prev === id ? null : id);
               setCardPos(prev => prev ? null : { x: sx, y: sy });
             }}
             onNodeDoubleClick={(id) => setSelectedId(id)}
-            highlightedNodeId={selectedId}
           />
 
           {/* Loading overlay */}
@@ -289,6 +328,22 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
 
               {/* Center: actions */}
               <div className="flex items-center gap-2">
+                {/* Hidden file input */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  onChange={handleUpload}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="flex items-center gap-1.5 bg-black/40 backdrop-blur-xl border border-green-500/20 rounded-xl px-3 py-2 text-[10px] font-bold text-green-400/70 hover:text-green-300 hover:border-green-400/40 transition-all"
+                >
+                  {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                  Import
+                </button>
                 <button
                   onClick={handleAutoOrganize}
                   disabled={organizing}
@@ -364,6 +419,14 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
             onEdit={handleEdit}
           />
 
+          {/* Timeline controller */}
+          <TimelineTransitionController
+            timeline={timeline}
+            onChangeTimeline={setTimeline}
+            earliestDate={timeline.earliest}
+            latestDate={timeline.latest}
+          />
+
           {/* Bottom hint */}
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
             <span className="text-[9px] font-bold text-white/15 uppercase tracking-[0.15em] bg-black/30 px-4 py-1.5 rounded-full border border-white/[0.04]">
@@ -376,4 +439,4 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
   );
 }
 
-export { layoutTree };
+export { layoutTree3D };

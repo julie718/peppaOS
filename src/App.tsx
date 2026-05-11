@@ -118,7 +118,7 @@ export default function App() {
           </div>
         );
       case 'agent-chat':
-        return !user ? <LoginRequired t={t} onLogin={handleLogin} /> : <AgentChatPage t={t} user={user} agent={selectedAgent} onBack={() => setActiveTab('ecosystem')} />;
+        return !user ? <LoginRequired t={t} onLogin={handleLogin} /> : <AgentChatPage t={t} user={user} agent={selectedAgent} isOpen={true} onClose={() => setActiveTab('ecosystem')} />;
       case 'multimodal':
         return <MultimodalProducts t={t} onSelectProduct={(product) => {
           setSelectedProduct(product);

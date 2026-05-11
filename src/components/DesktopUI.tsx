@@ -725,6 +725,7 @@ export function DesktopUI({
   const [focusedWindow, setFocusedWindow] = useState<string | null>(activeTab !== 'home' && activeTab !== 'knowledge' ? activeTab : null);
   const [windowOrder, setWindowOrder] = useState<string[]>(activeTab !== 'home' && activeTab !== 'knowledge' ? [activeTab] : []);
   const [knowledgeOpen, setKnowledgeOpen] = useState(activeTab === 'knowledge');
+  const [chatOpen, setChatOpen] = useState(false);
   const [theme, setTheme] = useState<string>('celestial');
   const [nativeFiles, setNativeFiles] = useState<NativeFile[]>([]);
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
@@ -968,9 +969,14 @@ export function DesktopUI({
       return;
     }
 
-    // Knowledge base opens fullscreen, not as a window
+    // Knowledge base and Chat open fullscreen, not as windows
     if (tab === 'knowledge') {
       setKnowledgeOpen(prev => !prev);
+      return;
+    }
+    if (tab === 'chat') {
+      setChatOpen(prev => !prev);
+      setActiveTab(tab);
       return;
     }
 
@@ -1002,7 +1008,6 @@ export function DesktopUI({
   const { menu, items: contextItems, execute: executeContextAction } = useContextMenu();
 
   const appIcons = [
-    { id: 'knowledge', label: t.knowledgeBase || '智库', icon: <BrainCircuit size={24} />, color: 'from-cyan-400 to-blue-600' },
     { id: 'chat', label: t.chat || 'Chat', icon: <MessageSquare size={24} />, color: 'from-green-500 to-emerald-600' },
     { id: 'personality', label: t.personality || 'Personality Lab', icon: <UserIcon size={24} />, color: 'from-violet-500 to-fuchsia-600' },
     { id: 'kernel', label: t.kernelMonitor || 'Kernel Monitor', icon: <Activity size={24} />, color: 'from-orange-500 to-red-600' },
@@ -1012,7 +1017,7 @@ export function DesktopUI({
 
   const sphereSentiment =
     openWindows.includes('kernel') ? 'excited' :
-    openWindows.includes('chat') ? 'focused' : 'default';
+    chatOpen ? 'focused' : 'default';
 
   const getWindowSize = (windowId: string) => {
     if (windowId === 'settings') return { w: '1050px', h: '720px' };
@@ -1210,7 +1215,7 @@ export function DesktopUI({
                 <span className="text-[8px] font-black text-white/20 uppercase tracking-[0.4em]">{t.meshSyncRate || 'Mesh Sync Rate'}</span>
               </div>
 
-              <motion.button 
+              <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setViewMode('personal')}
@@ -1307,28 +1312,43 @@ export function DesktopUI({
               {viewMode === 'world' ? (t.personalView || 'Personal View') : (t.nexusView || 'Nexus View')}
             </div>
           </button>
+          <button
+            onClick={() => setKnowledgeOpen(prev => !prev)}
+            className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all group relative ${
+              knowledgeOpen
+                ? 'bg-gradient-to-br from-cyan-400 to-blue-600 text-white shadow-lg'
+                : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            <BrainCircuit size={24} />
+            <div className="absolute -top-12 left-1/2 -translate-x-1/2 px-3 py-1 bg-black/80 rounded-lg text-[8px] font-black uppercase text-white opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+              {t.knowledgeBase || 'Knowledge Base'}
+            </div>
+          </button>
           <div className="h-8 w-px bg-white/10 mx-2" />
           <AnimatePresence>
-            {appIcons.map(app => (
+            {appIcons.map(app => {
+              const isActive = openWindows.includes(app.id) || (app.id === 'chat' && chatOpen);
+              return (
               <motion.button
                 key={app.id}
                 layoutId={`dock-${app.id}`}
                 onClick={() => toggleWindow(app.id)}
                 className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all group relative ${
-                  openWindows.includes(app.id) 
-                    ? `bg-gradient-to-br ${app.id === focusedWindow ? app.color : 'from-white/10 to-white/5'} text-white shadow-lg ${minimizedWindows.includes(app.id) ? 'opacity-40 translate-y-2' : ''}` 
+                  isActive
+                    ? `bg-gradient-to-br ${app.id === focusedWindow || app.id === 'chat' ? app.color : 'from-white/10 to-white/5'} text-white shadow-lg ${minimizedWindows.includes(app.id) ? 'opacity-40 translate-y-2' : ''}`
                     : 'bg-white/5 text-white/40 hover:bg-white/10'
                 }`}
               >
                 {app.icon}
-                {openWindows.includes(app.id) && (
-                  <motion.div 
+                {isActive && (
+                  <motion.div
                     layoutId={`indicator-${app.id}`}
-                    className={`absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full ${minimizedWindows.includes(app.id) ? 'w-3 h-0.5 bg-white/40' : 'w-1 h-1 bg-white'}`} 
+                    className={`absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full ${minimizedWindows.includes(app.id) ? 'w-3 h-0.5 bg-white/40' : 'w-1 h-1 bg-white'}`}
                   />
                 )}
                 {/* Taskbar Preview Tooltip */}
-                {openWindows.includes(app.id) && !minimizedWindows.includes(app.id) && (
+                {isActive && !minimizedWindows.includes(app.id) && (
                    <div className="absolute -top-28 left-1/2 -translate-x-1/2 w-36 bg-black/90 border border-white/10 rounded-xl overflow-hidden opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none shadow-2xl">
                       <div className="p-3 flex items-center gap-2 border-b border-white/5">
                         <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center">
@@ -1347,7 +1367,8 @@ export function DesktopUI({
                   {app.label}
                 </div>
               </motion.button>
-            ))}
+              );
+            })}
           </AnimatePresence>
           <div className="h-8 w-px bg-white/10 mx-2" />
           {user ? (
@@ -1786,7 +1807,8 @@ export function DesktopUI({
                   ) : windowId === 'subscription' ? (
                     <SubscriptionPanel t={t} />
                   ) : windowId === 'chat' ? (
-                    <AgentChatPage t={t} user={user} onBack={() => closeWindow('chat')} />
+                    // Chat is now fullscreen overlay — this case should not be reached
+                    null
                   ) : renderTabContent(windowId)}
                 </div>
               </OSWindow>
@@ -1802,6 +1824,14 @@ export function DesktopUI({
       <KnowledgeBase
         isOpen={knowledgeOpen}
         onClose={() => setKnowledgeOpen(false)}
+      />
+
+      {/* Chat fullscreen overlay */}
+      <AgentChatPage
+        t={t}
+        user={user}
+        isOpen={chatOpen}
+        onClose={() => setChatOpen(false)}
       />
 
     </div>

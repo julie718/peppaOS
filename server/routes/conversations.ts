@@ -1,6 +1,6 @@
 import { Router } from "express";
 import jwt from "jsonwebtoken";
-import { readDB } from "../../db_layer";
+import { readDB, writeDB } from "../../db_layer";
 import {
   getUserConversations,
   getMessages,
@@ -59,6 +59,28 @@ export function mountConversationRoutes(router: Router, jwtSecret: string) {
       res.json({ success: true, conversation: conv });
     } catch (err: any) {
       res.status(401).json({ error: "Invalid token" });
+    }
+  });
+
+  // Delete a conversation
+  router.delete("/conversations/:id", (req, res) => {
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ error: "Unauthorized" });
+    try {
+      jwt.verify(token, jwtSecret);
+      const db = readDB();
+      if (!db.conversations) return res.status(404).json({ error: "Not found" });
+      const idx = db.conversations.findIndex((c: any) => c.id === req.params.id);
+      if (idx === -1) return res.status(404).json({ error: "Not found" });
+      db.conversations.splice(idx, 1);
+      // Also clean up related interactions
+      if (db.interactions) {
+        db.interactions = db.interactions.filter((i: any) => i.conversationId !== req.params.id);
+      }
+      writeDB(db);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
   });
 

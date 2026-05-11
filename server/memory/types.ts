@@ -68,6 +68,8 @@ export interface MemoryQuery {
   parentId?: string | null;
   /** Filter by node type */
   nodeType?: MemoryNodeType;
+  /** ISO 8601 cutoff — only return memories created on or before this date */
+  before?: string;
 }
 
 export interface ExtractedMemory {

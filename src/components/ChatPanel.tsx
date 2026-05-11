@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Mic, MicOff, CheckCircle, XCircle, Loader2, MessageSquare, Plus, Square } from 'lucide-react';
+import { Send, Mic, MicOff, CheckCircle, XCircle, Loader2, MessageSquare, Plus, Square, Copy, Trash2, Wifi, WifiOff, Check } from 'lucide-react';
 
 export interface ChatMessage {
   id: string;
@@ -38,8 +38,12 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [connected, setConnected] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const activeConvIdRef = useRef<string | null>(null);
+  activeConvIdRef.current = activeConvId;
 
   const scrollToBottom = useCallback(() => {
     if (scrollRef.current) {
@@ -49,7 +53,21 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
 
   useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
 
-  // ── Load conversation list on mount ──
+  // Track connection status
+  useEffect(() => {
+    if (!socket) return;
+    setConnected(socket.connected);
+    const onConnect = () => setConnected(true);
+    const onDisconnect = () => setConnected(false);
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+    return () => {
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
+    };
+  }, [socket]);
+
+  // Load conversation list — only re-run when socket changes
   useEffect(() => {
     if (!socket) return;
 
@@ -59,7 +77,8 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
     };
 
     const onMessages = (data: { conversationId: string; messages: ChatMessage[] }) => {
-      if (data.conversationId === activeConvId) {
+      // Use ref to avoid stale closure on activeConvId
+      if (data.conversationId === activeConvIdRef.current) {
         setMessages(data.messages || []);
       }
     };
@@ -72,14 +91,14 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
       socket.off('chat:conversations', onConversations);
       socket.off('chat:messages', onMessages);
     };
-  }, [socket, activeConvId]);
+  }, [socket]);
 
-  // Reload conversation list when activeConvId changes (after new messages)
+  // Refresh conversation list
   const refreshConversations = useCallback(() => {
     if (socket) socket.emit('chat:conversations', {});
   }, [socket]);
 
-  // ── Socket listeners (live updates) ──
+  // Live message listeners
   useEffect(() => {
     if (!socket) return;
 
@@ -158,20 +177,17 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
     };
   }, [socket, refreshConversations]);
 
-  // ── Select a conversation ──
   const selectConversation = useCallback((convId: string) => {
     setActiveConvId(convId);
     setMessages([]);
     socket.emit('chat:messages', { conversationId: convId });
   }, [socket]);
 
-  // ── New conversation ──
   const newConversation = useCallback(() => {
     setActiveConvId(null);
     setMessages([]);
   }, []);
 
-  // ── Send text message ──
   const handleSend = useCallback(() => {
     if (!input.trim() || !socket) return;
     const text = input.trim();
@@ -184,9 +200,9 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
       timestamp: new Date().toISOString(),
     }]);
 
-    socket.emit('agent:task', { text, conversationId: activeConvId });
+    socket.emit('agent:task', { text, conversationId: activeConvIdRef.current });
     refreshConversations();
-  }, [input, socket, activeConvId, refreshConversations]);
+  }, [input, socket, refreshConversations]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -195,17 +211,34 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
     }
   }, [handleSend]);
 
-  // ── Cancel running task ──
   const handleCancelTask = useCallback(() => {
     socket?.emit('agent:task_cancel');
   }, [socket]);
 
-  // ── Voice toggle ──
   const handleVoiceToggle = useCallback(() => {
     onVoiceToggle?.(!isVoiceActive);
   }, [isVoiceActive, onVoiceToggle]);
 
-  // ── Format helpers ──
+  const handleCopyMessage = useCallback(async (content: string, id: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 1500);
+    } catch {}
+  }, []);
+
+  const handleCloseConversation = useCallback(async (convId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await fetch(`/api/conversations/${encodeURIComponent(convId)}/close`, { method: 'POST' });
+      if (activeConvIdRef.current === convId) {
+        setActiveConvId(null);
+        setMessages([]);
+      }
+      refreshConversations();
+    } catch { /* ignore */ }
+  }, [refreshConversations]);
+
   const formatTime = (ts: string) => {
     try {
       const d = new Date(ts);
@@ -242,23 +275,39 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
 
   const activeConv = conversations.find(c => c.id === activeConvId);
 
+  // Group messages by time proximity for cleaner display
+  const groupedMessages = messages.reduce<{ msg: ChatMessage; showTime: boolean }[]>((acc, msg, i) => {
+    const showTime = i === 0 ||
+      (new Date(msg.timestamp).getTime() - new Date(messages[i - 1].timestamp).getTime()) > 300000 ||
+      messages[i - 1].type !== msg.type;
+    acc.push({ msg, showTime });
+    return acc;
+  }, []);
+
   return (
     <div className="flex h-full bg-[#0a0a14]/95 rounded-xl overflow-hidden">
       {/* ── Left: Conversation Sidebar ── */}
       <div className="w-56 flex-shrink-0 border-r border-white/10 flex flex-col">
-        {/* New conversation button */}
-        <div className="p-3 border-b border-white/10">
+        {/* Header with connection status */}
+        <div className="p-3 border-b border-white/10 flex items-center justify-between">
           <button
             onClick={newConversation}
-            className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+            className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
               activeConvId === null
                 ? 'bg-celestial-glow/20 text-celestial-glow border border-celestial-glow/30'
                 : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/80 border border-transparent'
             }`}
           >
             <Plus size={14} />
-            {t?.newConversation || 'New Conversation'}
+            {t?.newConversation || 'New'}
           </button>
+          <div className="ml-2 flex-shrink-0" title={connected ? 'Connected' : 'Disconnected'}>
+            {connected ? (
+              <Wifi size={12} className="text-green-400/60" />
+            ) : (
+              <WifiOff size={12} className="text-red-400/60 animate-pulse" />
+            )}
+          </div>
         </div>
 
         {/* Conversation list */}
@@ -277,14 +326,14 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
             <button
               key={conv.id}
               onClick={() => selectConversation(conv.id)}
-              className={`w-full text-left px-3 py-2.5 border-b border-white/5 transition-colors ${
+              className={`w-full text-left px-3 py-2.5 border-b border-white/5 transition-colors group relative ${
                 activeConvId === conv.id
                   ? 'bg-white/10'
                   : 'hover:bg-white/5'
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-medium text-white/80 truncate max-w-[140px]">
+                <span className="text-[11px] font-medium text-white/80 truncate max-w-[120px]">
                   {conv.title || (t?.untitled || 'Untitled')}
                 </span>
                 <span className="text-[9px] text-white/30 flex-shrink-0 ml-1">
@@ -292,12 +341,21 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
                 </span>
               </div>
               <div className="flex items-center justify-between mt-0.5">
-                <span className="text-[10px] text-white/30 truncate max-w-[150px]">
+                <span className="text-[10px] text-white/30 truncate max-w-[120px]">
                   {conv.preview || ''}
                 </span>
-                {conv.messageCount > 0 && (
-                  <span className="text-[9px] text-white/20 ml-1">{conv.messageCount}</span>
-                )}
+                <div className="flex items-center gap-1">
+                  {conv.messageCount > 0 && (
+                    <span className="text-[9px] text-white/20">{conv.messageCount}</span>
+                  )}
+                  <span
+                    onClick={(e) => handleCloseConversation(conv.id, e)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-red-500/20 text-white/20 hover:text-red-400"
+                    title="Close conversation"
+                  >
+                    <Trash2 size={10} />
+                  </span>
+                </div>
               </div>
             </button>
           ))}
@@ -320,7 +378,7 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
         {/* Message list */}
         <div
           ref={scrollRef}
-          className="flex-1 overflow-y-auto px-3 py-2 space-y-2 text-xs scrollbar-thin"
+          className="flex-1 overflow-y-auto px-3 py-2 space-y-1 text-xs scrollbar-thin"
         >
           {messages.length === 0 && !isTyping && (
             <div className="text-center text-white/30 py-12">
@@ -330,7 +388,7 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
           )}
 
           <AnimatePresence>
-            {messages.map((msg) => (
+            {groupedMessages.map(({ msg, showTime }) => (
               <motion.div
                 key={msg.id}
                 initial={{ opacity: 0, y: 8 }}
@@ -338,31 +396,47 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
                 transition={{ duration: 0.2 }}
               >
                 {msg.type === 'user-text' && (
-                  <div className="flex justify-end">
-                    <div className="max-w-[80%] bg-celestial-glow/20 border border-celestial-glow/30 rounded-lg px-3 py-1.5">
-                      <p className="text-white/90">{msg.content}</p>
-                      <span className="text-white/30 text-[10px]">{formatTime(msg.timestamp)}</span>
+                  <div className="flex justify-end group">
+                    <div className="max-w-[80%] bg-celestial-glow/20 border border-celestial-glow/30 rounded-lg px-3 py-1.5 relative">
+                      <p className="text-white/90 whitespace-pre-wrap">{msg.content}</p>
+                      {showTime && <span className="text-white/30 text-[10px]">{formatTime(msg.timestamp)}</span>}
+                      {msg.content && (
+                        <button
+                          onClick={() => handleCopyMessage(msg.content!, msg.id)}
+                          className="absolute -left-6 top-1 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-white/20 hover:text-white/60"
+                        >
+                          {copiedId === msg.id ? <Check size={10} className="text-green-400" /> : <Copy size={10} />}
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
 
                 {msg.type === 'user-voice' && (
-                  <div className="flex justify-end">
-                    <div className="max-w-[80%] bg-purple-500/20 border border-purple-500/30 rounded-lg px-3 py-1.5">
+                  <div className="flex justify-end group">
+                    <div className="max-w-[80%] bg-purple-500/20 border border-purple-500/30 rounded-lg px-3 py-1.5 relative">
                       <div className="flex items-center gap-1 text-purple-300/60 text-[10px] mb-0.5">
                         <Mic size={10} /> voice
                       </div>
-                      <p className="text-white/90">{msg.content}</p>
-                      <span className="text-white/30 text-[10px]">{formatTime(msg.timestamp)}</span>
+                      <p className="text-white/90 whitespace-pre-wrap">{msg.content}</p>
+                      {showTime && <span className="text-white/30 text-[10px]">{formatTime(msg.timestamp)}</span>}
                     </div>
                   </div>
                 )}
 
                 {msg.type === 'lumi' && (
-                  <div className="flex justify-start">
-                    <div className="max-w-[85%] bg-white/5 border border-white/10 rounded-lg px-3 py-1.5">
+                  <div className="flex justify-start group">
+                    <div className="max-w-[85%] bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 relative">
                       <p className="text-white/80 whitespace-pre-wrap">{msg.content}</p>
-                      <span className="text-white/30 text-[10px]">{formatTime(msg.timestamp)}</span>
+                      {showTime && <span className="text-white/30 text-[10px]">{formatTime(msg.timestamp)}</span>}
+                      {msg.content && (
+                        <button
+                          onClick={() => handleCopyMessage(msg.content!, msg.id)}
+                          className="absolute -right-6 top-1 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-white/20 hover:text-white/60"
+                        >
+                          {copiedId === msg.id ? <Check size={10} className="text-green-400" /> : <Copy size={10} />}
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
