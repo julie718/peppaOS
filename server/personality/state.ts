@@ -1,5 +1,6 @@
 import { readDB, writeDB } from '../../db_layer';
 import { addMemory } from '../memory/store';
+import { PersonalityVector } from './types';
 
 const emotionWriteQueues = new Map<string, Promise<void>>();
 
@@ -284,6 +285,65 @@ export function generateContextualGreeting(state: EmotionalState): string | null
   }
 
   return null; // Default: no special greeting
+}
+
+/**
+ * CROSS-SYSTEM FUSION: intimacy modulates the personality vector on a per-interaction basis.
+ * Higher intimacy → warmer, less formal, more playful. Called during prompt generation
+ * so each user experiences a unique intimacy-tuned Lumi without modifying the base config.
+ */
+export function applyIntimacyToVector(
+  v: PersonalityVector,
+  intimacy: number,
+): PersonalityVector {
+  if (intimacy <= 0.1) return v; // No modulation for strangers
+
+  const scale = Math.min(1, intimacy * 0.4); // Max 40% modulation
+  return {
+    cognitiveStyle: {
+      ...v.cognitiveStyle,
+      // Intimacy slightly boosts intuitive over analytical (familiarity = less need to verify)
+      intuitive: +Math.min(1, v.cognitiveStyle.intuitive + scale * 0.15).toFixed(2),
+      creative: +Math.min(1, v.cognitiveStyle.creative + scale * 0.1).toFixed(2),
+    },
+    socialStyle: {
+      ...v.socialStyle,
+      warmth: +Math.min(1, v.socialStyle.warmth + scale * 0.25).toFixed(2),
+      formality: +Math.max(0, v.socialStyle.formality - scale * 0.2).toFixed(2),
+      playfulness: +Math.min(1, v.socialStyle.playfulness + scale * 0.2).toFixed(2),
+    },
+  };
+}
+
+/**
+ * CROSS-SYSTEM FUSION: personality vector influences memory retrieval bias.
+ * Different cognitive styles prefer different memory types and perspectives.
+ */
+export function vectorMemoryBias(v: PersonalityVector): {
+  typeWeights: Record<string, number>;
+  perspectiveWeights: Record<string, number>;
+} {
+  const { cognitiveStyle: c, socialStyle: s } = v;
+
+  return {
+    typeWeights: {
+      // Analytical: prefers facts and knowledge
+      fact: 1 + c.analytical * 0.3,
+      knowledge: 1 + c.analytical * 0.2,
+      // Warm: prefers preferences and habits (personal connection)
+      preference: 1 + s.warmth * 0.4,
+      habit: 1 + s.warmth * 0.25 + c.systematic * 0.15,
+    },
+    perspectiveWeights: {
+      // Warm: boosts shared_memory (our experiences)
+      shared_memory: 1 + s.warmth * 0.5,
+      // High connection: boosts lumi_self and lumi_growth
+      lumi_self: 1 + s.warmth * 0.3,
+      lumi_growth: 1 + s.warmth * 0.2,
+      // Analytical: slightly prefers owner_trait (observable facts about user)
+      owner_trait: 1 + c.analytical * 0.1,
+    },
+  };
 }
 
 function clamp(value: number, min: number, max: number): number {

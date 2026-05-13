@@ -7,7 +7,7 @@ import { NormalizedMessage } from "../llm/providers";
 import { runWithTools, LLMUsageRecord } from "../llm/adapter";
 import { toolRegistry } from "../tools/registry";
 import { queryMemories, addMemory, addReminder, extractMemories } from "../memory";
-import { loadEmotionalState, saveEmotionalState, updateEmotionalState } from "../personality/state";
+import { loadEmotionalState, saveEmotionalState, updateEmotionalState, vectorMemoryBias } from "../personality/state";
 import { personalityRegistry } from "../personality";
 import { canOutputHolographic, textToHolographicOutput } from "../output/holographic";
 import { getOrCreateActiveConversation } from "../conversation/manager";
@@ -29,7 +29,17 @@ export function registerTaskHandler(
     const uid = userIdFn(socket);
     const interactionId = crypto.randomUUID();
 
-    const relevantMemories = queryMemories({ userId: uid, query: data.text, limit: 5, minConfidence: 0.4 });
+    // Retrieve personality vector early to bias memory retrieval (cross-system fusion: vector→memory)
+    const personalityPreConfig = personalityRegistry.get(data.personalityId || 'lumi');
+    const retrievalBiases = personalityPreConfig?.personalityVector
+      ? vectorMemoryBias(personalityPreConfig.personalityVector)
+      : { typeWeights: {}, perspectiveWeights: {} };
+
+    const relevantMemories = queryMemories({
+      userId: uid, query: data.text, limit: 5, minConfidence: 0.4,
+      retrievalTypeWeights: retrievalBiases.typeWeights,
+      retrievalPerspectiveWeights: retrievalBiases.perspectiveWeights,
+    });
 
     const emotionalState = loadEmotionalState(uid);
     const isNovelTask = relevantMemories.length < 2;

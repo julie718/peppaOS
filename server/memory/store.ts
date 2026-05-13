@@ -241,9 +241,23 @@ export function queryMemories(q: MemoryQuery): Memory[] {
     episodic: 3,
   };
 
+  // Retrieve personality-driven retrieval biases (cross-system fusion: vector→memory)
+  const typeBias = q.retrievalTypeWeights || {};
+  const perspectiveBias = q.retrievalPerspectiveWeights || {};
+  const hasBias = Object.keys(typeBias).length > 0 || Object.keys(perspectiveBias).length > 0;
+
   if (q.query) {
     const scored = memories
-      .map(m => ({ m, score: relevanceScore(q.query!, m) }))
+      .map(m => {
+        let score = relevanceScore(q.query!, m);
+        // Apply personality-driven retrieval biases
+        if (hasBias && score > 0) {
+          const typeMult = typeBias[m.type] || 1;
+          const perspMult = perspectiveBias[m.perspective] || 1;
+          score = +(score * typeMult * perspMult).toFixed(4);
+        }
+        return { m, score };
+      })
       .filter(({ score }) => score > 0)
       .sort((a, b) => {
         // Tier priority overrides score within same magnitude
@@ -254,14 +268,21 @@ export function queryMemories(q: MemoryQuery): Memory[] {
     memories = scored.map(({ m }) => m);
   } else {
     // Sort by tier priority, then importance, then confidence, then recency
+    // Apply personality-driven perspective bias to priority sorting
     memories.sort((a, b) => {
       const tierDiff = (tierPriority[a.tier] || 3) - (tierPriority[b.tier] || 3);
       if (tierDiff !== 0) return tierDiff;
       if (b.importance !== a.importance) return b.importance - a.importance;
-      // self-perspective memories take priority over owner traits
-      const perspA = a.perspective === 'lumi_self' || a.perspective === 'lumi_growth' ? 0 : 1;
-      const perspB = b.perspective === 'lumi_self' || b.perspective === 'lumi_growth' ? 0 : 1;
+      // self-perspective memories take priority over owner traits (boosted by personality bias)
+      const perspWeightA = perspectiveBias[a.perspective] || 1;
+      const perspWeightB = perspectiveBias[b.perspective] || 1;
+      const perspA = (a.perspective === 'lumi_self' || a.perspective === 'lumi_growth' ? 0 : 1) / perspWeightA;
+      const perspB = (b.perspective === 'lumi_self' || b.perspective === 'lumi_growth' ? 0 : 1) / perspWeightB;
       if (perspA !== perspB) return perspA - perspB;
+      // Type bias affects tie-breaking
+      const typeWeightA = typeBias[a.type] || 1;
+      const typeWeightB = typeBias[b.type] || 1;
+      if (typeWeightA !== typeWeightB) return typeWeightB - typeWeightA;
       if (b.confidence !== a.confidence) return b.confidence - a.confidence;
       return b.updatedAt.localeCompare(a.updatedAt);
     });
@@ -540,10 +561,11 @@ export function formatMemoriesForContext(memories: Memory[]): string {
  * - Recency (how recently was it used)
  * - Confidence (how sure are we)
  * - Connectedness (is it part of a branch tree)
+ * - Hebbian association strength (cross-system fusion: Hebbian→crystallization)
  *
  * High-value episodic memories are candidates for auto-promotion.
  */
-export function computeMemoryValue(memory: Memory, childrenCount: number = 0): number {
+export function computeMemoryValue(memory: Memory, childrenCount: number = 0, hebbianBonus: number = 0): number {
   const now = Date.now();
 
   // Recency bonus: memories retrieved within the last 24h get a bonus
@@ -563,45 +585,71 @@ export function computeMemoryValue(memory: Memory, childrenCount: number = 0): n
     ? Math.min(0.2, childrenCount * 0.05) // Up to 0.2 bonus
     : memory.parentId ? 0.1 : 0;
 
-  // Weighted composite
+  // Hebbian fusion: memories that "fire together" with many others are more valuable
+  const hebbianScore = Math.min(0.15, hebbianBonus * 0.15); // Up to 0.15 bonus
+
+  // Weighted composite — Hebbian bonus partially replaces connectedness
   const value = (
-    recencyScore * 0.25 +
+    recencyScore * 0.20 +
     retrieveScore * 0.25 +
-    confidenceScore * 0.35 +
-    connectedBonus * 0.15
+    confidenceScore * 0.30 +
+    connectedBonus * 0.10 +
+    hebbianScore * 0.15
   );
 
   return Math.min(1, +(value).toFixed(3));
+}
+
+/** Compute the average Hebbian association strength for a memory */
+function getHebbianBonus(userId: string, memoryId: string): number {
+  const userMap = coRetrievalMap.get(userId);
+  if (!userMap) return 0;
+  const assocMap = userMap.get(memoryId);
+  if (!assocMap || assocMap.size === 0) return 0;
+  let total = 0;
+  for (const strength of assocMap.values()) {
+    total += strength;
+  }
+  return +(total / assocMap.size).toFixed(3);
 }
 
 /**
  * Auto-promote high-value memories to higher tiers.
  * - Episodic → Internalized: value >= 0.65 for 3+ retrievals
  * - Internalized → Growth: value >= 0.8 for 5+ retrievals
+ *
+ * Cross-system fusion: intimacy lowers promotion thresholds.
+ * Higher intimacy = memories crystallize more easily (the bond makes them meaningful).
  * Returns count of promoted memories.
  */
-export function promoteMemories(userId: string): number {
+export function promoteMemories(userId: string, intimacy: number = 0): number {
   const all = getMemoryStore();
   let promoted = 0;
+
+  // Intimacy modulation: higher intimacy → lower thresholds (up to 25% reduction)
+  const intimacyMod = 1 - Math.min(0.25, intimacy * 0.25);
+  const episodicThreshold = +(0.65 * intimacyMod).toFixed(2);
+  const growthThreshold = +(0.80 * intimacyMod).toFixed(2);
 
   for (const m of all) {
     if (m.userId !== userId) continue;
 
     // Count children for connectedness bonus
     const childrenCount = all.filter(c => c.parentId === m.id).length;
-    const value = computeMemoryValue(m, childrenCount);
+    const hebbianBonus = getHebbianBonus(userId, m.id);
+    const value = computeMemoryValue(m, childrenCount, hebbianBonus);
 
-    if (m.tier === 'episodic' && value >= 0.65 && m.retrieveCount >= 3) {
+    if (m.tier === 'episodic' && value >= episodicThreshold && m.retrieveCount >= 3) {
       m.tier = 'internalized';
       m.importance = Math.min(1, m.importance + 0.15);
       m.updatedAt = new Date().toISOString();
-      console.log(`[Memory] Promoted episodic→internalized: "${m.content.slice(0, 50)}..." (value: ${value.toFixed(2)})`);
+      console.log(`[Memory] Promoted episodic→internalized: "${m.content.slice(0, 50)}..." (value: ${value.toFixed(2)}, intimacy: ${intimacy.toFixed(2)})`);
       promoted++;
-    } else if (m.tier === 'internalized' && value >= 0.8 && m.retrieveCount >= 5) {
+    } else if (m.tier === 'internalized' && value >= growthThreshold && m.retrieveCount >= 5) {
       m.tier = 'growth';
       m.importance = Math.min(1, m.importance + 0.2);
       m.updatedAt = new Date().toISOString();
-      console.log(`[Memory] Promoted internalized→growth: "${m.content.slice(0, 50)}..." (value: ${value.toFixed(2)})`);
+      console.log(`[Memory] Promoted internalized→growth: "${m.content.slice(0, 50)}..." (value: ${value.toFixed(2)}, intimacy: ${intimacy.toFixed(2)})`);
       promoted++;
     }
   }
@@ -633,7 +681,8 @@ export function dynamicDecayMemories(userId: string): void {
 
     // Value modulates decay: high-value memories resist decay
     const childrenCount = all.filter(c => c.parentId === m.id).length;
-    const value = computeMemoryValue(m, childrenCount);
+    const hebbianBonus = getHebbianBonus(userId, m.id);
+    const value = computeMemoryValue(m, childrenCount, hebbianBonus);
     const modulation = 1 - (value * 0.6); // value=1 → 0.4x decay, value=0 → 1x decay
     const effectiveDecay = +(rate.amount * modulation).toFixed(3);
 

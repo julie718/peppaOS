@@ -70,6 +70,12 @@ export interface MemoryQuery {
   nodeType?: MemoryNodeType;
   /** ISO 8601 cutoff — only return memories created on or before this date */
   before?: string;
+  /** Personality vector for retrieval biasing — higher warmth prefers shared/personal memories */
+  personalityVector?: { cognitiveStyle: Record<string,number>; socialStyle: Record<string,number> };
+  /** Pre-computed type weights from vectorMemoryBias() */
+  retrievalTypeWeights?: Record<string, number>;
+  /** Pre-computed perspective weights from vectorMemoryBias() */
+  retrievalPerspectiveWeights?: Record<string, number>;
 }
 
 export interface ExtractedMemory {

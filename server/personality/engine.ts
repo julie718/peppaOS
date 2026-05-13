@@ -1,7 +1,7 @@
 import { PersonalityConfig, PersonalityContext, ExpressionStyle, PersonalityVector } from './types';
 import { Memory } from '../memory/types';
 import { formatMemoriesForContext } from '../memory/store';
-import { EmotionalState, formatEmotionalStateForPrompt, resolveVerbosityFromState } from './state';
+import { EmotionalState, formatEmotionalStateForPrompt, resolveVerbosityFromState, applyIntimacyToVector } from './state';
 
 const TONE_GUIDE: Record<ExpressionStyle['tone'], string> = {
   neutral: 'Communicate in a balanced, matter-of-fact manner.',
@@ -262,15 +262,19 @@ export function generateSystemPrompt(
     ? resolveVerbosityFromState(style.verbosity, options.emotionalState)
     : style.verbosity;
 
-  const vector = effective.personalityVector;
+  // Apply intimacy modulation to the personality vector (per-user, this interaction only)
+  let effectiveVector = effective.personalityVector;
+  if (effectiveVector && options?.emotionalState && (options.emotionalState.intimacy ?? 0) > 0.1) {
+    effectiveVector = applyIntimacyToVector(effectiveVector, options.emotionalState.intimacy);
+  }
 
   blocks.push('\n## Communication Style');
-  if (vector) {
-    // Use granular vector-based tone description
-    blocks.push(vectorToneDescription(vector));
+  if (effectiveVector) {
+    // Use granular vector-based tone description (intimacy-modulated if applicable)
+    blocks.push(vectorToneDescription(effectiveVector));
     blocks.push(VERBOSITY_GUIDE[verbosity]);
     // Add vector-driven operating directives — HOW to think, not just how to talk
-    const directives = vectorOperatingDirectives(vector);
+    const directives = vectorOperatingDirectives(effectiveVector);
     if (directives) {
       blocks.push('\n## Operating Style');
       blocks.push(directives);

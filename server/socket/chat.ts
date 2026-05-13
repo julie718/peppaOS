@@ -8,7 +8,7 @@ import { LLMUsage } from "../tools/types";
 import { toolRegistry } from "../tools/registry";
 import { runWithTools } from "../llm/adapter";
 import { queryMemories, addMemory, addReminder, extractMemories } from "../memory";
-import { loadEmotionalState, saveEmotionalState, updateEmotionalState, generateContextualGreeting } from "../personality/state";
+import { loadEmotionalState, saveEmotionalState, updateEmotionalState, generateContextualGreeting, vectorMemoryBias } from "../personality/state";
 import { personalityRegistry } from "../personality";
 import { getOrCreateActiveConversation, addMessage, getMessages } from "../conversation/manager";
 import { ensureBranch } from "../memory/tree";
@@ -47,7 +47,17 @@ export function registerChatHandler(
     const memoryScope = agentRecord?.memoryScope || 'shared';
     const agentMemoryFilter = memoryScope === 'private' ? agentId : undefined;
 
-    const relevantMemories = queryMemories({ userId: uid, query: text, limit: 5, minConfidence: 0.4, agentId: agentMemoryFilter });
+    // Retrieve personality vector early to bias memory retrieval (cross-system fusion: vector→memory)
+    const personalityConfig = personalityRegistry.get(personalityId);
+    const retrievalBiases = personalityConfig?.personalityVector
+      ? vectorMemoryBias(personalityConfig.personalityVector)
+      : { typeWeights: {}, perspectiveWeights: {} };
+
+    const relevantMemories = queryMemories({
+      userId: uid, query: text, limit: 5, minConfidence: 0.4, agentId: agentMemoryFilter,
+      retrievalTypeWeights: retrievalBiases.typeWeights,
+      retrievalPerspectiveWeights: retrievalBiases.perspectiveWeights,
+    });
 
     // RAG: retrieve relevant knowledge chunks from agent's ingested documents
     let ragChunks: string[] = [];

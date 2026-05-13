@@ -166,6 +166,7 @@ export function registerScheduledTasks(
   });
 
   // Memory crystallization — auto-promote high-value memories (every 1h)
+  // Cross-system fusion: higher intimacy lowers promotion thresholds
   scheduler.register({
     id: 'memory_crystallization',
     cron: 'every_1h',
@@ -174,7 +175,8 @@ export function registerScheduledTasks(
       const userIds = getAllUserIds();
       let totalPromoted = 0;
       for (const userId of userIds) {
-        totalPromoted += promoteMemories(userId);
+        const emotionalState = loadEmotionalState(userId);
+        totalPromoted += promoteMemories(userId, emotionalState.intimacy);
       }
       if (totalPromoted > 0) {
         return `${totalPromoted} memories have crystallized into deeper knowledge.`;
