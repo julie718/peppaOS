@@ -17,6 +17,7 @@ import { queryMemories, addMemory } from "../memory/store";
 import { Memory } from "../memory/types";
 import { AgentRecord } from "./runtime";
 import { recordWorkflow } from "../skills/worklog";
+import { personalityRegistry } from "../personality";
 
 type LLMProvider = 'deepseek' | 'gemini' | 'openai' | 'anthropic' | 'qwen';
 
@@ -187,6 +188,24 @@ const SKILL_TO_CATEGORY: Record<string, string> = {
   general: 'general',
 };
 
+// ── Smart routing cache: remembers which agent succeeded at which skill ──
+// skillTag → { agentId → successCount }
+const routingCache = new Map<string, Map<string, number>>();
+const ROUTING_CACHE_MAX_AGE_MS = 7 * 86400000; // 7 days
+
+function recordRoutingSuccess(skillTag: string, agentId: string): void {
+  if (!routingCache.has(skillTag)) {
+    routingCache.set(skillTag, new Map());
+  }
+  const agentScores = routingCache.get(skillTag)!;
+  agentScores.set(agentId, (agentScores.get(agentId) || 0) + 1);
+}
+
+function getRoutingScore(skillTag: string, agentId: string): number {
+  const agentScores = routingCache.get(skillTag);
+  return agentScores?.get(agentId) || 0;
+}
+
 /**
  * Match sub-tasks to available worker agents by skill compatibility.
  * If no suitable agent exists, returns the best generalist agent.
@@ -199,20 +218,44 @@ export function matchWorkers(
 
   for (const subTask of subTasks) {
     const targetCategory = SKILL_TO_CATEGORY[subTask.requiredSkill] || 'general';
+    const taskTokens = subTask.description.toLowerCase().split(/\s+/);
 
-    // Try to find an agent whose category matches the required skill
-    let bestAgent = availableAgents.find(
-      a => a.category === targetCategory && a.status === 'idle',
-    );
+    // Score every available agent, pick the best
+    let bestAgent: AgentRecord | null = null;
+    let bestScore = -1;
 
-    // Fall back to any idle agent
-    if (!bestAgent) {
-      bestAgent = availableAgents.find(a => a.status === 'idle');
+    for (const agent of availableAgents) {
+      let score = 0;
+
+      // Category match (primary, weight 10)
+      if (agent.category === targetCategory) score += 10;
+      // Idle bonus
+      if (agent.status === 'idle') score += 3;
+
+      // Skill tag overlap (secondary, weight 5 per match)
+      if (agent.skillTags && agent.skillTags.length > 0) {
+        for (const tag of agent.skillTags) {
+          for (const token of taskTokens) {
+            if (tag.toLowerCase().includes(token) || token.includes(tag.toLowerCase())) {
+              score += 5;
+            }
+          }
+        }
+      }
+
+      // Routing cache bonus: prefer agents that succeeded at this skill before
+      const routingBonus = getRoutingScore(subTask.requiredSkill, agent.id);
+      if (routingBonus > 0) score += Math.min(routingBonus * 2, 8);
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestAgent = agent;
+      }
     }
 
-    // Fall back to any agent at all (will reuse)
-    if (!bestAgent && availableAgents.length > 0) {
-      bestAgent = availableAgents[0];
+    if (!bestAgent) {
+      // Auto-create ephemeral worker agent when none matches
+      bestAgent = createEphemeralAgent(targetCategory, subTask.requiredSkill);
     }
 
     if (bestAgent) {
@@ -221,6 +264,37 @@ export function matchWorkers(
   }
 
   return assignments;
+}
+
+/** Auto-create a minimal ephemeral agent for a one-shot task */
+function createEphemeralAgent(category: string, skillTag: string): AgentRecord {
+  const id = `ephemeral_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const agent: AgentRecord = {
+    id,
+    name: `${category}-worker`,
+    category,
+    config: '{}',
+    data: '{}',
+    createdAt: new Date().toISOString(),
+    status: 'idle',
+    modelPreference: 'qwen-plus',
+    memoryScope: 'private',
+    autonomyLevel: 'reactive',
+    runtimeConfig: '{}',
+    skillTags: [skillTag],
+    executionMode: 'lumi',
+    allowCrossPollination: false,
+  };
+  // Persist to DB so it's visible
+  try {
+    const db = readDB();
+    if (!db.agents) db.agents = [];
+    db.agents.push(agent as any);
+    // Note: ephemeral agents are cleaned up by the scheduler or on restart
+  } catch (err) {
+    // Non-critical — agent works in-memory even without DB persistence
+  }
+  return agent;
 }
 
 // ── Workflow execution ──
@@ -287,13 +361,23 @@ async function executeWorkerTask(
     ? workerMemories.map(m => `- ${m.content.slice(0, 200)}`).join('\n')
     : '';
 
+  // Load Lumi's executionMode preset for scholar/founder prompt extensions
+  let modeDirective = '';
+  if (subTask.executionMode !== 'lumi') {
+    const lumiConfig = personalityRegistry.get('lumi');
+    const mode = lumiConfig?.executionModes?.[subTask.executionMode];
+    if (mode?.promptExtension) {
+      modeDirective = mode.promptExtension;
+    }
+  }
+
   const workerPrompt = [
     `You are worker agent "${agent.name}" (${agent.category}).`,
     `Task: ${subTask.description}`,
-    `Execution mode: ${subTask.executionMode}`,
-    memoryContext ? `\nRelevant memories:\n${memoryContext}` : '',
-    '\nComplete this sub-task. Output your result directly — no preamble.',
-  ].join('\n');
+    modeDirective,
+    memoryContext ? `Relevant memories:\n${memoryContext}` : '',
+    'Complete this sub-task. Output your result directly — no preamble.',
+  ].filter(Boolean).join('\n\n');
 
   try {
     const messages: NormalizedMessage[] = [{ role: 'user', content: workerPrompt }];
@@ -344,11 +428,37 @@ export async function executeWorkflow(
         return executeWorkerTask(a, context, llmConfig, llmGetters);
       }),
     );
+    // Record routing successes for future matching
+    for (const a of group) {
+      recordRoutingSuccess(a.subTask.requiredSkill, a.agent.id);
+    }
     allResults.push(...groupResults);
   }
 
   // Aggregate results
   const aggregatedOutput = aggregateResults(allResults, assignments);
+
+  // Crystallize workflow result as a growth memory for future reuse
+  try {
+    const usedAgentIdsArr = Array.from(usedAgentIds);
+    const mem = addMemory({
+      userId: context.userId,
+      type: 'knowledge',
+      content: `[Orchestrated Workflow] ${aggregatedOutput.slice(0, 400)}`,
+      keywords: ['orchestrated', 'workflow', ...assignments.map(a => a.subTask.requiredSkill)],
+      confidence: 0.75,
+      sourceInteractionId: `orch_${Date.now()}`,
+    }, {
+      tier: 'growth',
+      perspective: 'lumi_growth',
+      importance: 0.7,
+    });
+    // Mark for cross-agent sharing so other agents can learn from this workflow
+    mem.crossAgentShare = true;
+    mem.sharedToAgentIds = usedAgentIdsArr;
+  } catch (err) {
+    // Non-critical — workflow succeeded even if crystallization fails
+  }
 
   return {
     subTaskResults: allResults,

@@ -12,6 +12,7 @@ import { personalityRegistry } from "../personality";
 import { canOutputHolographic, textToHolographicOutput } from "../output/holographic";
 import { getOrCreateActiveConversation } from "../conversation/manager";
 import { processInput, handleLLMFailure, CognitiveContext, CognitiveResult } from "../cognition";
+import { classifyComplexity, decomposeTask, matchWorkers, executeWorkflow, aggregateWithLLM, recordWorkflowPattern, shouldDistillSkill, buildSkillDescription } from "../agents/orchestrator";
 
 export function registerTaskHandler(
   socket: Socket,
@@ -109,6 +110,72 @@ export function registerTaskHandler(
         } as any);
         writeDB(db);
         socket.off('agent:task_cancel', onCancel);
+        return;
+      }
+
+      // ── Orchestrator: decompose complex tasks into sub-tasks for worker agents ──
+      let orchestratedText = '';
+      if (cognition.intent.category === 'command' || cognition.intent.category === 'code' || cognition.intent.category === 'question') {
+        const complexity = classifyComplexity(data.text, { userId: uid, personalityId: data.personalityId || 'lumi' });
+        if (complexity === 'complex') {
+          const db = readDB();
+          const availableAgents = (db.agents || []).filter((a: any) => a.status !== 'offline');
+          if (availableAgents.length >= 1) {
+            try {
+              socket.emit("agent:status", { status: "thinking", agentName: "Lumi Orchestrator" });
+              const subTasks = await decomposeTask(data.text, { provider, model: personality.defaultModel }, { userId: uid, personalityId: data.personalityId || 'lumi' }, llmGetters);
+              socket.emit("task:chunk", { text: `[Orchestrator] Decomposed into ${subTasks.length} sub-tasks\n`, agentName: "Lumi" });
+
+              const assignments = matchWorkers(subTasks, availableAgents);
+              socket.emit("task:chunk", { text: `[Orchestrator] Assigned to ${assignments.length} worker(s)\n`, agentName: "Lumi" });
+
+              const workflowResult = await executeWorkflow(assignments, { userId: uid, personalityId: data.personalityId || 'lumi' }, { provider, model: personality.defaultModel }, llmGetters);
+              const aggregated = await aggregateWithLLM(workflowResult, data.text, { provider, model: personality.defaultModel }, llmGetters);
+              orchestratedText = aggregated;
+
+              const skillTags = subTasks.map(s => s.requiredSkill);
+              recordWorkflowPattern(data.text, subTasks.length, skillTags, uid);
+
+              if (shouldDistillSkill(data.text)) {
+                const skillDesc = buildSkillDescription(data.text, workflowResult);
+                socket.emit("agent:proactive", {
+                  type: 'distill_hint',
+                  message: 'I notice this type of task is recurring. I can create an automated skill for this — would you like me to?',
+                  skillDescription: skillDesc,
+                  timestamp: new Date().toISOString(),
+                });
+              }
+              socket.emit("task:chunk", { text: `\n[Orchestrator] Workflow complete — ${workflowResult.totalAgentsUsed} agent(s) used\n`, agentName: "Lumi" });
+            } catch (orchErr: any) {
+              console.error('[Orchestrator] Task workflow failed, falling back to normal execution:', orchErr.message);
+            }
+          }
+        }
+      }
+
+      if (orchestratedText) {
+        // Orchestrator handled the task — emit result and skip normal LLM path
+        socket.emit("agent:response", { text: orchestratedText, agentName: personality.name });
+        socket.emit("agent:status", { status: "idle" });
+        socket.off('agent:task_cancel', onCancel);
+
+        const db = readDB();
+        const conv = data.conversationId
+          ? (db.conversations || []).find((c: any) => c.id === data.conversationId) || getOrCreateActiveConversation(uid)
+          : getOrCreateActiveConversation(uid);
+        db.interactions.push({
+          id: interactionId, content: data.text, response: orchestratedText,
+          role: "user", personality: personality.id, timestamp: new Date().toISOString(),
+          mode: 'task', cognitiveIntent: cognition.intent.category, llmWasCalled: true,
+        } as any);
+        writeDB(db);
+
+        // Update emotional state
+        let updatedState = updateEmotionalState(emotionalState, { type: 'interaction', userId: uid, timestamp: new Date().toISOString() });
+        if (isNovelTask) {
+          updatedState = updateEmotionalState(updatedState, { type: 'novel_topic', userId: uid, timestamp: new Date().toISOString() });
+        }
+        saveEmotionalState(uid, updatedState);
         return;
       }
 
