@@ -920,7 +920,7 @@ apiRouter.post("/agents/distill", asyncHandler(async (req, res) => {
   let uid: string;
   try { uid = (jwt.verify(token, JWT_SECRET) as any).uid; } catch { return res.status(401).json({ error: "Invalid token" }); }
 
-  const { chatLog, format, relationshipType, name: targetName } = req.body || {};
+  const { chatLog, format, relationshipType, name: targetName, audioTranscript } = req.body || {};
   if (!chatLog || !format) {
     return res.status(400).json({ error: "chatLog and format are required" });
   }
@@ -1124,6 +1124,165 @@ apiRouter.delete("/agents/:id", (req, res) => {
     res.status(401).json({ error: "Invalid token" });
   }
 });
+
+// ── Audio Transcription — transcribe uploaded audio files for distillation ──
+apiRouter.post("/audio/transcribe", asyncHandler(async (req, res) => {
+  const { audio, fileName } = req.body || {};
+  if (!audio) return res.status(400).json({ error: "Audio data is required" });
+
+  try {
+    // Try Deepgram pre-recorded API first
+    const dgKey = process.env.DEEPGRAM_API_KEY || getKey('DEEPGRAM_API_KEY');
+    if (dgKey) {
+      const buffer = Buffer.from(audio, 'base64');
+      const dgRes = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&language=zh&punctuate=true', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Token ${dgKey}`,
+          'Content-Type': fileName?.endsWith('.wav') ? 'audio/wav' :
+                          fileName?.endsWith('.ogg') ? 'audio/ogg' :
+                          fileName?.endsWith('.m4a') ? 'audio/mp4' :
+                          'audio/mp3',
+        },
+        body: buffer,
+      });
+      if (dgRes.ok) {
+        const data = await dgRes.json() as any;
+        const text = data?.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
+        return res.json({ text });
+      }
+    }
+
+    // Fallback: try Qwen SenseVoice via DashScope
+    const qwenKey = process.env.DASHSCOPE_API_KEY || getKey('DASHSCOPE_API_KEY');
+    if (qwenKey) {
+      const buffer = Buffer.from(audio, 'base64');
+      const form = new FormData();
+      form.append('model', 'sensevoice-v1');
+      form.append('file', new Blob([buffer]), fileName || 'audio.mp3');
+      const qwRes = await fetch('https://dashscope.aliyuncs.com/api/v1/services/audio/asr/transcription', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${qwenKey}` },
+        body: form,
+      });
+      if (qwRes.ok) {
+        const data = await qwRes.json() as any;
+        const text = data?.output?.sentence?.text || '';
+        return res.json({ text });
+      }
+    }
+
+    res.json({ text: '', note: 'No STT provider configured (set DEEPGRAM_API_KEY or DASHSCOPE_API_KEY)' });
+  } catch (err: any) {
+    console.error('[Audio Transcribe] Error:', err.message);
+    res.json({ text: '', error: err.message });
+  }
+}));
+
+// ── Pet Generation — generate a custom desktop pet spritesheet from description ──
+apiRouter.post("/pets/generate", asyncHandler(async (req, res) => {
+  const { prompt, mode } = req.body || {};
+  if (!prompt?.trim()) return res.status(400).json({ error: "Prompt is required" });
+
+  const lower = prompt.toLowerCase();
+  const colorMap: Record<string, { body: string; bodyDark: string; accent: string; belly: string }> = {
+    white:  { body: '#f0f0f0', bodyDark: '#d0d0d0', accent: '#e8e8e8', belly: '#ffffff' },
+    black:  { body: '#3a3a3a', bodyDark: '#222222', accent: '#4a4a4a', belly: '#555555' },
+    red:    { body: '#e85545', bodyDark: '#b83020', accent: '#f07060', belly: '#ffd4cc' },
+    blue:   { body: '#5599dd', bodyDark: '#3366aa', accent: '#77bbff', belly: '#cce5ff' },
+    green:  { body: '#5ddb5d', bodyDark: '#2ea82e', accent: '#7fee7f', belly: '#c8f7c8' },
+    purple: { body: '#9966cc', bodyDark: '#6633aa', accent: '#bb88ee', belly: '#ddccff' },
+    pink:   { body: '#f0a0b0', bodyDark: '#d07080', accent: '#f5c0cc', belly: '#ffe8ec' },
+    orange: { body: '#f4a460', bodyDark: '#d2843e', accent: '#f8c080', belly: '#ffe4c4' },
+    yellow: { body: '#f5d442', bodyDark: '#c8a010', accent: '#fde868', belly: '#fff9cc' },
+    grey:   { body: '#888888', bodyDark: '#666666', accent: '#aaaaaa', belly: '#cccccc' },
+    gray:   { body: '#888888', bodyDark: '#666666', accent: '#aaaaaa', belly: '#cccccc' },
+  };
+
+  // AI-enhanced mode: use LLM to generate creative design parameters
+  if (mode === 'ai_enhanced') {
+    try {
+      const llmPrompt = `You are a pixel art character designer. Given a user's description, output a JSON design spec for a cute desktop pet creature.
+
+User description: "${prompt}"
+
+Analyze the description and output ONLY valid JSON (no markdown, no explanation):
+{
+  "petName": "creative name in Chinese + English (max 20 chars)",
+  "color": "white|black|red|blue|green|purple|pink|orange|yellow|grey",
+  "hasWings": true/false,
+  "hasHorns": true/false,
+  "isSmall": true/false,
+  "isRound": true/false,
+  "designNotes": "2-3 sentence description of the character design for procedural generation"
+}
+
+Choose features that best match the user's description. Be creative but coherent.`;
+
+      const messages: NormalizedMessage[] = [{ role: 'user', content: llmPrompt }];
+      const result = await makeLLMCall(
+        messages, [],
+        { provider: 'qwen', model: 'qwen-plus', maxTokens: 500 },
+        getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
+      );
+
+      const raw = result.text || '';
+      let aiDesign: any = {};
+      try {
+        aiDesign = JSON.parse(raw.replace(/```json|```/g, '').trim());
+      } catch {
+        aiDesign = {};
+      }
+
+      const color = (aiDesign.color && colorMap[aiDesign.color]) ? aiDesign.color : 'orange';
+      const tags = {
+        color,
+        hasWings: !!aiDesign.hasWings,
+        hasHorns: !!aiDesign.hasHorns,
+        isSmall: !!aiDesign.isSmall,
+        isRound: !!aiDesign.isRound,
+      };
+
+      return res.json({
+        generated: true,
+        prompt,
+        petId: `ai-${Date.now()}`,
+        petName: aiDesign.petName || prompt.slice(0, 30).replace(/[^a-zA-Z0-9一-鿿\\s]/g, '').trim() || 'AI Pet',
+        tags,
+        aiEnhanced: true,
+        designNotes: aiDesign.designNotes || '',
+      });
+    } catch (err: any) {
+      console.error('[Pet Gen] AI-enhanced mode failed, falling back to procedural:', err.message);
+      // Fall through to procedural mode
+    }
+  }
+
+  let palette = colorMap.orange; // default warm orange
+  for (const [color, p] of Object.entries(colorMap)) {
+    if (lower.includes(color)) { palette = p; break; }
+  }
+
+  const hasWings = lower.includes('wing') || lower.includes('fly') || lower.includes('bird') || lower.includes('dragon');
+  const hasHorns = lower.includes('horn') || lower.includes('dragon');
+  const isSmall = lower.includes('small') || lower.includes('tiny') || lower.includes('mini');
+  const isRound = lower.includes('round') || lower.includes('blob') || lower.includes('ball') || lower.includes('slime');
+
+  // Return config — frontend handles spritesheet generation procedurally
+  res.json({
+    generated: true,
+    prompt,
+    petId: `custom-${Date.now()}`,
+    petName: prompt.slice(0, 30).replace(/[^a-zA-Z0-9一-鿿\\s]/g, '').trim() || 'Custom Pet',
+    tags: {
+      color: Object.keys(colorMap).find(c => lower.includes(c)) || 'orange',
+      hasWings,
+      hasHorns,
+      isSmall,
+      isRound,
+    },
+  });
+}));
 
 // 4. Interactions
 apiRouter.get("/interactions", (req, res) => {

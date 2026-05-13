@@ -37,6 +37,7 @@ import {
   Crown,
   GitBranch,
   Castle,
+  Brush,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { GlassCard } from './SharedUI';
@@ -60,6 +61,10 @@ import { DeviceSyncCenter } from './DeviceSyncCenter';
 import { AgentChatPage } from './AgentChatPage';
 import { Sanctuary } from './Sanctuary';
 import { MemoryAvatarLab } from './MemoryAvatarLab';
+import { AvatarStudio } from './AvatarStudio';
+import { PetAvatar } from './SpriteAnimator';
+import { getDefaultPets } from '../pets/defaults';
+import type { PetConfig } from '../pets/types';
 import { NeuralSynthesisMonitor } from './NeuralSynthesisMonitor';
 import { ContributorNodePanel } from './ContributorNodePanel';
 import { MeshSyncSelector } from './MeshSyncSelector';
@@ -735,6 +740,19 @@ export function DesktopUI({
   const [sanctuaryOpen, setSanctuaryOpen] = useState(false);
   const [sanctuaryAgent, setSanctuaryAgent] = useState<any>(null);
   const [memoryLabOpen, setMemoryLabOpen] = useState(false);
+  const [selectedPet, setSelectedPet] = useState<PetConfig | null>(() => {
+    try {
+      const saved = localStorage.getItem('lumi_selected_pet');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Rehydrate spritesheet from defaults if possible
+        const defaults = getDefaultPets();
+        const found = defaults.find(d => d.id === parsed.id);
+        return found || parsed;
+      }
+    } catch {}
+    return null;
+  });
   const [theme, setTheme] = useState<string>('celestial');
   const [nativeFiles, setNativeFiles] = useState<NativeFile[]>([]);
   const [isControlCenterOpen, setIsControlCenterOpen] = useState(false);
@@ -761,6 +779,7 @@ export function DesktopUI({
     { id: 'skills', labelKey: 'skills', icon: <Sparkles size={24} />, colorClass: 'from-emerald-500 to-teal-600', windowId: 'skills' },
     { id: 'subscription', labelKey: 'subscription', icon: <Crown size={24} />, colorClass: 'from-amber-400 to-yellow-600', windowId: 'subscription' },
     { id: 'memory-avatar', labelKey: 'memoryAvatars', icon: <Castle size={24} />, colorClass: 'from-fuchsia-500 to-purple-600', windowId: 'memory-avatar' },
+    { id: 'avatar-studio', labelKey: 'avatarStudio', icon: <Brush size={24} />, colorClass: 'from-cyan-400 to-blue-600', windowId: 'avatar-studio' },
   ];
 
   const handleWallpaperUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -995,6 +1014,12 @@ export function DesktopUI({
     return () => clearInterval(timer);
   }, []);
 
+  const handleSelectPet = (pet: PetConfig) => {
+    setSelectedPet(pet);
+    localStorage.setItem('lumi_selected_pet', JSON.stringify({ id: pet.id, name: pet.name, author: pet.author }));
+    toast.info(`${pet.name} ${t.avatarSetAsDesktop || 'set as desktop avatar'}`);
+  };
+
   const openMemoryAvatar = async () => {
     try { sounds.playClick(); } catch {}
     try {
@@ -1033,6 +1058,9 @@ export function DesktopUI({
     if (tab === 'memory-avatar') {
       openMemoryAvatar();
       return;
+    }
+    if (tab === 'avatar-studio') {
+      // Opens as a normal window below
     }
 
     if (openWindows.includes(tab)) {
@@ -1121,6 +1149,7 @@ export function DesktopUI({
     if (windowId === 'tokens') return { w: '800px', h: '620px' };
     if (windowId === 'skills') return { w: '900px', h: '700px' };
     if (windowId === 'subscription') return { w: '850px', h: '640px' };
+    if (windowId === 'avatar-studio') return { w: '1050px', h: '720px' };
     return { w: '900px', h: '700px' };
   };
 
@@ -1493,19 +1522,62 @@ export function DesktopUI({
           className="relative pointer-events-auto scale-75 opacity-90 transition-all"
         >
           <div className="relative flex flex-col items-center">
-            <LocalAgentSphere 
-              t={t} 
-              sentiment={sphereSentiment}
-              callState={callState}
-              audioLevel={audioLevel}
-              highPerformance={isTauri}
-              isWallpaperMode={isWallpaperMode}
-              onStartCall={() => startCall(selectedVoiceId, personalityId, personalityId)}
-              onEndCall={endCall}
-              onInterrupt={interrupt}
-              onToggleMute={toggleMute}
-              onMessage={() => {}}
-            />
+            {selectedPet ? (
+              <div className="relative group">
+                <button
+                  onClick={() => toggleWindow('avatar-studio')}
+                  className={`cursor-pointer transition-all ${callState !== 'idle' ? 'animate-pulse' : ''}`}
+                  title={`${selectedPet.name} — 点击打开形象设计室`}
+                >
+                  <PetAvatar
+                    pet={selectedPet}
+                    animation={
+                      callState === 'speaking' ? 'wave' :
+                      callState === 'listening' ? 'idle' :
+                      callState !== 'idle' ? 'jump' : 'idle'
+                    }
+                    scale={1.2}
+                    audioLevel={audioLevel}
+                    callState={callState}
+                    behavior={
+                      personalityId === 'lover' ? 'cuddly' :
+                      personalityId === 'lumi' ? 'playful' :
+                      personalityId === 'mentor' ? 'curious' :
+                      personalityId === 'zen' ? 'calm' :
+                      personalityId === 'colleague' ? 'curious' :
+                      'default'
+                    }
+                  />
+                </button>
+                {/* Reset to sphere button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedPet(null);
+                    localStorage.removeItem('lumi_selected_pet');
+                    toast.info('已切换回原始圆球');
+                  }}
+                  className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-white/10 border border-white/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/30 hover:border-red-500/40"
+                  title="切换回圆球"
+                >
+                  <X size={10} className="text-white/60" />
+                </button>
+              </div>
+            ) : (
+              <LocalAgentSphere
+                t={t}
+                sentiment={sphereSentiment}
+                callState={callState}
+                audioLevel={audioLevel}
+                highPerformance={isTauri}
+                isWallpaperMode={isWallpaperMode}
+                onStartCall={() => startCall(selectedVoiceId, personalityId, personalityId)}
+                onEndCall={endCall}
+                onInterrupt={interrupt}
+                onToggleMute={toggleMute}
+                onMessage={() => {}}
+              />
+            )}
 
             <div className={`flex flex-col items-center gap-4 mt-8 transition-all duration-1000 ${isWallpaperMode ? 'opacity-0 blur-sm pointer-events-none' : 'opacity-100'}`}>
               <div className="flex items-center gap-3">
@@ -1833,6 +1905,17 @@ export function DesktopUI({
                     <SkillCenter t={t} />
                   ) : windowId === 'subscription' ? (
                     <SubscriptionPanel t={t} />
+                  ) : windowId === 'avatar-studio' ? (
+                    <AvatarStudio
+                      t={t}
+                      selectedPetId={selectedPet?.id}
+                      onSelectPet={handleSelectPet}
+                      onResetToSphere={() => {
+                        setSelectedPet(null);
+                        localStorage.removeItem('lumi_selected_pet');
+                        toast.info('已切换回原始圆球');
+                      }}
+                    />
                   ) : windowId === 'chat' ? (
                     // Chat is now fullscreen overlay — this case should not be reached
                     null

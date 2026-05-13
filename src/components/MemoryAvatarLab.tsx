@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Upload, FileText, Sparkles, Heart, Users, Briefcase, GraduationCap, User, X, ArrowRight, ArrowLeft, Eye, Castle, Loader2, CheckCircle, AlertTriangle, Zap } from 'lucide-react';
+import { Upload, FileText, Sparkles, Heart, Users, Briefcase, GraduationCap, User, X, ArrowRight, ArrowLeft, Eye, Castle, Loader2, CheckCircle, AlertTriangle, Zap, Mic, Headphones } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '../contexts/AppContext';
 
@@ -95,7 +95,11 @@ export function MemoryAvatarLab({ t, onEnterSanctuary }: { t: any; onEnterSanctu
   const [relationshipType, setRelationshipType] = useState('close_friend');
   const [distillResult, setDistillResult] = useState<DistillResult | null>(null);
   const [sanctuaryName, setSanctuaryName] = useState('');
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [audioTranscribing, setAudioTranscribing] = useState(false);
+  const [audioTranscript, setAudioTranscript] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileLoad = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -116,6 +120,42 @@ export function MemoryAvatarLab({ t, onEnterSanctuary }: { t: any; onEnterSanctu
     reader.readAsText(file);
   }, []);
 
+  const handleAudioUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAudioFile(file);
+    // Transcribe audio via server
+    setAudioTranscribing(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const base64 = (reader.result as string).split(',')[1];
+        const res = await fetch('/api/audio/transcribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ audio: base64, fileName: file.name }),
+          credentials: 'include',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setAudioTranscript(data.text || '');
+          // Append transcript to chat log for richer distillation
+          if (data.text) {
+            setChatLog(prev => prev + '\n\n[语音记录]\n' + data.text.split('\n').map((l: string) => `Target: ${l}`).join('\n'));
+            toast.success(`已转录 ${Math.round((data.text?.length || 0) / 20)} 秒语音`);
+          }
+        } else {
+          toast.error('语音转录失败');
+        }
+      } catch {
+        toast.error('语音转录失败');
+      } finally {
+        setAudioTranscribing(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
   const handleDistill = async () => {
     if (!user) { login(); return; }
     if (!chatLog.trim()) { toast.error('Please upload a chat log first'); return; }
@@ -124,7 +164,12 @@ export function MemoryAvatarLab({ t, onEnterSanctuary }: { t: any; onEnterSanctu
       const res = await fetch('/api/agents/distill', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatLog, format, relationshipType }),
+        body: JSON.stringify({
+          chatLog,
+          format,
+          relationshipType,
+          ...(audioTranscript ? { audioTranscript } : {}),
+        }),
         credentials: 'include',
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Distillation failed');
@@ -250,6 +295,41 @@ export function MemoryAvatarLab({ t, onEnterSanctuary }: { t: any; onEnterSanctu
                       {f === 'wechat' ? '微信' : f === 'qq' ? 'QQ' : 'Plain'}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* Audio upload for voice recording */}
+              <div className="space-y-3">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-white/30">语音记录（可选）</label>
+                <input ref={audioInputRef} type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac" onChange={handleAudioUpload} className="hidden" />
+                <div
+                  onClick={() => audioInputRef.current?.click()}
+                  className="border-2 border-dashed border-white/10 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 hover:border-fuchsia-500/30 hover:bg-white/[0.02] transition-all cursor-pointer"
+                >
+                  {audioFile ? (
+                    <>
+                      {audioTranscribing ? (
+                        <>
+                          <Loader2 size={28} className="text-fuchsia-400 animate-spin" />
+                          <span className="text-xs text-white/40">转录中...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Headphones size={28} className="text-fuchsia-400" />
+                          <span className="text-xs text-white/50">{audioFile.name}</span>
+                          <span className="text-[10px] text-white/20">已转录 — 语音特征将纳入人格分析</span>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <Mic size={28} className="text-white/15" />
+                      <div className="text-center space-y-1">
+                        <p className="text-xs text-white/30">上传语音录音</p>
+                        <p className="text-[9px] text-white/12">MP3 / WAV / OGG — 用于分析语气和口头禅</p>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 

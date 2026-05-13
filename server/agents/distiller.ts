@@ -68,6 +68,7 @@ export interface DistillOptions {
   targetName?: string;         // name of the person being distilled
   relationshipType?: string;   // user-specified relationship
   userId: string;
+  audioTranscript?: string;    // optional: transcription from voice recordings
 }
 
 export interface DistillResult {
@@ -557,10 +558,16 @@ Output ONLY the narrative text, no labels.`;
 // ── Main Entry Point ──
 
 export async function distillPersona(options: DistillOptions, llmGetters: LLMGetters): Promise<DistillResult> {
-  const { chatLog, format, targetName: providedName, relationshipType: providedRel, userId } = options;
+  const { chatLog, format, targetName: providedName, relationshipType: providedRel, userId, audioTranscript } = options;
+
+  // Merge audio transcript into chat log for richer distillation
+  let enrichedLog = chatLog;
+  if (audioTranscript) {
+    enrichedLog = chatLog + '\n\n[语音转录]\n' + audioTranscript.split('\n').map((l: string) => `Target: ${l}`).join('\n');
+  }
 
   // 1. Parse
-  const pairs = parseChatLog(chatLog, format);
+  const pairs = parseChatLog(enrichedLog, format);
   if (pairs.length < 10) {
     throw new Error(`Not enough messages to distill: found ${pairs.length}, need at least 10`);
   }
