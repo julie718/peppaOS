@@ -273,6 +273,7 @@ export function registerTaskHandler(
       writeDB(db);
 
       // Async memory extraction
+      const locationTag = sensory.locationTag || undefined;
       extractMemories(
         {
           userMessage: data.text,
@@ -281,6 +282,7 @@ export function registerTaskHandler(
           provider,
           model: personality.defaultModel,
           userId: uid,
+          locationTag,
         },
         llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
       ).then(extracted => {
@@ -292,7 +294,7 @@ export function registerTaskHandler(
             keywords: mem.keywords,
             confidence: mem.confidence,
             sourceInteractionId: db.interactions[db.interactions.length - 1]?.id || '',
-          });
+          } as any, { location: locationTag });
         }
         for (const rem of extracted.reminders) {
           addReminder({

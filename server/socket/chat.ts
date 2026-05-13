@@ -327,8 +327,9 @@ export function registerChatHandler(
       // Async memory extraction
       const branchNodes = queryMemories({ userId: uid, nodeType: 'branch', limit: 50 });
       const treeBranches = branchNodes.map(b => b.content);
+      const locationTag = sensory.locationTag || undefined;
       extractMemories(
-        { userMessage: text, assistantResponse: responseText, existingMemories: relevantMemories.map(m => m.content), provider, model: activeModel, treeBranches },
+        { userMessage: text, assistantResponse: responseText, existingMemories: relevantMemories.map(m => m.content), provider, model: activeModel, treeBranches, locationTag },
         llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
       ).then(extracted => {
         for (const mem of extracted.memories) {
@@ -341,7 +342,7 @@ export function registerChatHandler(
             userId: uid, type: mem.type, content: mem.content,
             keywords: mem.keywords, confidence: mem.confidence, sourceInteractionId: interactionId,
             agentId: agentId || '',
-          } as any, { parentId });
+          } as any, { parentId, location: locationTag });
         }
         for (const rem of extracted.reminders) {
           addReminder({ userId: uid, content: rem.content, dueAt: rem.dueAt, sourceInteractionId: interactionId });

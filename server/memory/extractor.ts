@@ -88,11 +88,18 @@ export async function extractMemories(
     ? ctx.treeBranches.map(b => `- ${b}`).join('\n')
     : '(none — all memories are at root level)';
 
+  // Inject location context for spatial memory tagging
+  let locationHint = '';
+  if (ctx.locationTag) {
+    locationHint = `\n\nLocation context: The user is currently at "${ctx.locationTag}". If relevant, include location-related keywords.`;
+  }
+
   const prompt = EXTRACTION_PROMPT
     .replace('{treeBranches}', branchesStr)
     .replace('{existingMemories}', existingStr)
     .replace('{userMessage}', ctx.userMessage.slice(0, 2000))
-    .replace('{assistantResponse}', ctx.assistantResponse.slice(0, 2000));
+    .replace('{assistantResponse}', ctx.assistantResponse.slice(0, 2000))
+    + locationHint;
 
   const messages: NormalizedMessage[] = [
     { role: 'user', content: prompt },
