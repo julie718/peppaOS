@@ -206,14 +206,22 @@ export function mountSystemRoutes(router: Router, jwtSecret: string) {
       return res.status(400).json({ error: 'Invalid keys payload' });
     }
     const allowed = new Set<string>(getAllKeyNames());
-    const filtered: Record<string, string> = {};
+    const toSave: Record<string, string> = {};
+    const toDelete: string[] = [];
     for (const [k, v] of Object.entries(keys)) {
-      if (allowed.has(k) && typeof v === 'string' && v.trim().length > 0) {
-        filtered[k] = v.trim();
+      if (!allowed.has(k) || typeof v !== 'string') continue;
+      if (v.trim().length > 0) {
+        toSave[k] = v.trim();
+      } else {
+        toDelete.push(k);
       }
     }
-    saveKeys(filtered);
-    res.json({ success: true, saved: Object.keys(filtered) });
+    // For explicit deletes, pass empty strings to saveKeys so they get removed
+    for (const k of toDelete) {
+      (toSave as any)[k] = '';
+    }
+    saveKeys(toSave);
+    res.json({ success: true, saved: Object.keys(toSave).filter(k => !toDelete.includes(k)), deleted: toDelete });
   });
 
   // System stats — real-time CPU / memory / platform info

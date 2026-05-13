@@ -55,7 +55,6 @@ function buildSidebarGroups(t: any) {
       label: t.sidebarVoiceMedia || 'Voice & Media',
       items: [
         { id: 'voice', label: t.voiceForge || 'Voice Forge', icon: <Mic size={16} /> },
-        { id: 'voice-services', label: t.settingsVoiceServices || 'Voice Services', icon: <Headphones size={16} /> },
         { id: 'music', label: t.sidebarMediaServices || 'Media Services', icon: <Music size={16} /> },
       ],
     },
@@ -208,85 +207,8 @@ export function Settings({
         );
       case 'voice':
         return <VoiceForge t={t} />;
-      case 'voice-services':
-        return (
-          <div className="space-y-8">
-            <SettingsSection title={t.voiceServicesApi || "Voice Services API"} icon={<Headphones size={18} className="text-amber-400" />}>
-              <p className="text-sm text-white/40 max-w-xl mb-6">
-                Both speech recognition (Qwen ASR) and speech synthesis (CosyVoice TTS) run on DashScope. One key covers everything.
-              </p>
-              <div className="grid grid-cols-1 gap-6">
-                <ApiKeyField
-                  icon={<Zap size={18} className="text-violet-400" />}
-                  label="DashScope (STT + TTS)"
-                  placeholder="sk-..."
-                  storageKey="lumi_dashscope_key"
-                  serverKey="DASHSCOPE_API_KEY"
-                  hint="Powers Qwen ASR for speech recognition and CosyVoice for speech synthesis. Get your key at dashscope.aliyun.com"
-                  t={t}
-                />
-              </div>
-            </SettingsSection>
-          </div>
-        );
       case 'api':
-        return (
-          <div className="space-y-8">
-            <SettingsSection title={t.neuralApiMatrix || "Neural API Matrix"} icon={<Key size={18} className="text-celestial-saturn" />}>
-              <p className="text-sm text-white/40 max-w-xl mb-6">
-                Configure API keys and preferred models for each LLM provider. These keys are stored server-side and shared across all devices.
-              </p>
-              <div className="grid grid-cols-1 gap-6">
-                <LLMProviderRow
-                  icon={<BrainCircuit size={18} className="text-blue-400" />}
-                  label="DeepSeek"
-                  providerId="deepseek"
-                  models={['deepseek-chat', 'deepseek-reasoner']}
-                  placeholder="sk-..."
-                  serverKey="DEEPSEEK_API_KEY"
-                  t={t}
-                />
-                <LLMProviderRow
-                  icon={<Zap size={18} className="text-violet-400" />}
-                  label="Qwen / DashScope (Alibaba Cloud)"
-                  providerId="qwen"
-                  models={['qwen-plus', 'qwen-max', 'qwen-turbo']}
-                  placeholder="sk-..."
-                  serverKey="DASHSCOPE_API_KEY"
-                  t={t}
-                />
-                <LLMProviderRow
-                  icon={<BrainCircuit size={18} className="text-blue-400" />}
-                  label={`Google Gemini${providerStatus.gemini?.available ? ` (${providerStatus.gemini.model})` : ''}`}
-                  providerId="gemini"
-                  models={['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash']}
-                  placeholder={providerStatus.gemini?.available ? (t.connectedViaEnv || 'Connected via environment') : (t.noKeyConfigured || 'No key configured')}
-                  disabled={providerStatus.gemini?.available}
-                  serverKey="GEMINI_API_KEY"
-                  t={t}
-                />
-                <LLMProviderRow
-                  icon={<MessagesSquare size={18} className="text-green-400" />}
-                  label="OpenAI"
-                  providerId="openai"
-                  models={['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo']}
-                  placeholder="sk-..."
-                  serverKey="OPENAI_API_KEY"
-                  t={t}
-                />
-                <LLMProviderRow
-                  icon={<Sparkle size={18} className="text-purple-400" />}
-                  label="Anthropic Claude"
-                  providerId="anthropic"
-                  models={['claude-sonnet-4-6', 'claude-opus-4-7', 'claude-haiku-4-5']}
-                  placeholder="sk-ant-..."
-                  serverKey="ANTHROPIC_API_KEY"
-                  t={t}
-                />
-              </div>
-            </SettingsSection>
-          </div>
-        );
+        return <ApiMatrixPage t={t} providerStatus={providerStatus} />;
       case 'music':
         return (
           <div className="space-y-8">
@@ -609,23 +531,29 @@ function LLMProviderRow({ icon, label, providerId, models, placeholder, disabled
       .catch(() => {});
   }, [serverKey]);
 
+  const handleRemoveKey = () => {
+    localStorage.removeItem(`lumi_${providerId}_key`);
+    fetch('/api/settings/keys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keys: { [serverKey]: '' } }),
+    }).then(() => {
+      setServerConfigured(false);
+      setKeyValue('');
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    }).catch(() => toast.error('Failed to remove key'));
+  };
+
   const handleSaveKey = () => {
-    if (!keyValue.trim()) {
-      localStorage.removeItem(`lumi_${providerId}_key`);
-      fetch('/api/settings/keys', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keys: { [serverKey]: '' } }),
-      }).catch(() => {});
-    } else {
-      localStorage.setItem(`lumi_${providerId}_key`, keyValue.trim());
-      fetch('/api/settings/keys', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keys: { [serverKey]: keyValue.trim() } }),
-      }).then(() => setServerConfigured(true))
-        .catch(() => toast.error('Failed to save key'));
-    }
+    if (!keyValue.trim()) return;
+    localStorage.setItem(`lumi_${providerId}_key`, keyValue.trim());
+    fetch('/api/settings/keys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keys: { [serverKey]: keyValue.trim() } }),
+    }).then(() => setServerConfigured(true))
+      .catch(() => toast.error('Failed to save key'));
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -669,19 +597,29 @@ function LLMProviderRow({ icon, label, providerId, models, placeholder, disabled
             onChange={e => setKeyValue(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSaveKey()}
             placeholder={serverConfigured && !keyValue ? 'Key saved on server' : placeholder}
-            className="w-full bg-black/40 border border-white/10 rounded-xl p-4 pr-20 text-white font-mono text-sm outline-none focus:border-celestial-saturn/50 transition-colors disabled:opacity-50"
+            className="w-full bg-black/40 border border-white/10 rounded-xl p-4 pr-16 text-white font-mono text-sm outline-none focus:border-celestial-saturn/50 transition-colors disabled:opacity-50"
           />
           <div className="absolute right-2 top-2 flex gap-1">
             <button type="button" onClick={() => setShowKey(!showKey)}
               className="h-10 px-2 bg-white/5 hover:bg-white/10 text-[8px] font-bold uppercase border border-white/5 rounded-lg">
               {showKey ? 'Hide' : 'Show'}
             </button>
-            <Button onClick={handleSaveKey} disabled={disabled}
-              className="h-10 bg-white/5 hover:bg-white/10 text-[10px] font-black uppercase tracking-widest border border-white/10 rounded-lg">
-              Save
-            </Button>
           </div>
         </div>
+        <Button
+          onClick={handleSaveKey}
+          disabled={disabled || !keyValue.trim()}
+          className="h-[56px] px-4 bg-celestial-saturn text-black rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-30 disabled:cursor-not-allowed hover:bg-celestial-saturn/90 transition-all"
+        >
+          {t?.save || 'Save'}
+        </Button>
+        <Button
+          onClick={handleRemoveKey}
+          disabled={disabled || (!keyValue && !serverConfigured)}
+          className="h-[56px] px-4 bg-red-500/10 border border-red-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest text-red-400 hover:bg-red-500/20 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+        >
+          {t?.remove || 'Remove'}
+        </Button>
       </div>
       <div className="flex items-center gap-3">
         <label className="text-[9px] font-black uppercase text-white/30 tracking-wider whitespace-nowrap">Model</label>
@@ -704,6 +642,108 @@ function LLMProviderRow({ icon, label, providerId, models, placeholder, disabled
   );
 }
 
+function ApiMatrixPage({ t, providerStatus }: { t: any; providerStatus: Record<string, { available: boolean; model: string }> }) {
+  const [tab, setTab] = useState<'llm' | 'voice'>('llm');
+
+  return (
+    <div className="space-y-8">
+      <SettingsSection title={t.neuralApiMatrix || "API Key Matrix"} icon={<Key size={18} className="text-celestial-saturn" />}>
+        {/* Sub-tabs */}
+        <div className="flex gap-1 mb-6 p-1 bg-white/5 rounded-xl border border-white/5">
+          <button
+            onClick={() => setTab('llm')}
+            className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+              tab === 'llm' ? 'bg-celestial-saturn text-black' : 'text-white/30 hover:text-white/60'
+            }`}
+          >
+            {t.llmProviders || 'LLM Providers'}
+          </button>
+          <button
+            onClick={() => setTab('voice')}
+            className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+              tab === 'voice' ? 'bg-celestial-saturn text-black' : 'text-white/30 hover:text-white/60'
+            }`}
+          >
+            {t.voiceServices || 'Voice Services'}
+          </button>
+        </div>
+
+        {tab === 'llm' ? (
+          <>
+            <p className="text-sm text-white/40 max-w-xl mb-6">
+              Configure API keys and preferred models for each LLM provider. These keys are stored server-side and shared across all devices.
+            </p>
+            <div className="grid grid-cols-1 gap-6">
+              <LLMProviderRow
+                icon={<BrainCircuit size={18} className="text-blue-400" />}
+                label="DeepSeek"
+                providerId="deepseek"
+                models={['deepseek-chat', 'deepseek-reasoner']}
+                placeholder="sk-..."
+                serverKey="DEEPSEEK_API_KEY"
+                t={t}
+              />
+              <LLMProviderRow
+                icon={<Zap size={18} className="text-violet-400" />}
+                label="Qwen / DashScope (Alibaba Cloud)"
+                providerId="qwen"
+                models={['qwen-plus', 'qwen-max', 'qwen-turbo']}
+                placeholder="sk-..."
+                serverKey="DASHSCOPE_API_KEY"
+                t={t}
+              />
+              <LLMProviderRow
+                icon={<BrainCircuit size={18} className="text-blue-400" />}
+                label={`Google Gemini${providerStatus.gemini?.available ? ` (${providerStatus.gemini.model})` : ''}`}
+                providerId="gemini"
+                models={['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash']}
+                placeholder={providerStatus.gemini?.available ? (t.connectedViaEnv || 'Connected via environment') : (t.noKeyConfigured || 'No key configured')}
+                serverKey="GEMINI_API_KEY"
+                t={t}
+              />
+              <LLMProviderRow
+                icon={<MessagesSquare size={18} className="text-green-400" />}
+                label="OpenAI"
+                providerId="openai"
+                models={['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo']}
+                placeholder="sk-..."
+                serverKey="OPENAI_API_KEY"
+                t={t}
+              />
+              <LLMProviderRow
+                icon={<Sparkle size={18} className="text-purple-400" />}
+                label="Anthropic Claude"
+                providerId="anthropic"
+                models={['claude-sonnet-4-6', 'claude-opus-4-7', 'claude-haiku-4-5']}
+                placeholder="sk-ant-..."
+                serverKey="ANTHROPIC_API_KEY"
+                t={t}
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-white/40 max-w-xl mb-6">
+              Both speech recognition (Qwen ASR) and speech synthesis (CosyVoice TTS) run on DashScope. One key covers everything.
+            </p>
+            <div className="grid grid-cols-1 gap-6">
+              <ApiKeyField
+                icon={<Zap size={18} className="text-violet-400" />}
+                label="DashScope (STT + TTS)"
+                placeholder="sk-..."
+                storageKey="lumi_dashscope_key"
+                serverKey="DASHSCOPE_API_KEY"
+                hint="Powers Qwen ASR for speech recognition and CosyVoice for speech synthesis. Get your key at dashscope.aliyun.com"
+                t={t}
+              />
+            </div>
+          </>
+        )}
+      </SettingsSection>
+    </div>
+  );
+}
+
 function ApiKeyField({ icon, label, placeholder, disabled = false, storageKey, serverKey, hint, t }: { icon: React.ReactNode, label: string, placeholder: string, disabled?: boolean, storageKey: string, serverKey?: string, hint?: string, t?: any }) {
   const [value, setValue] = useState(() => {
     try { return localStorage.getItem(storageKey) || ''; } catch { return ''; }
@@ -719,30 +759,36 @@ function ApiKeyField({ icon, label, placeholder, disabled = false, storageKey, s
       .catch(() => {});
   }, [serverKey]);
 
-  const handleSave = () => {
-    if (!value.trim()) {
-      localStorage.removeItem(storageKey);
-      if (serverKey) {
-        fetch('/api/settings/keys', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ keys: { [serverKey]: '' } }),
-        }).catch(() => {});
-      }
-      toast.success(t?.apiKeyRemoved || 'API key removed');
-    } else {
-      localStorage.setItem(storageKey, value.trim());
-      if (serverKey) {
-        fetch('/api/settings/keys', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ keys: { [serverKey]: value.trim() } }),
-        }).then(r => r.json())
-          .then(() => setServerConfigured(true))
-          .catch(() => toast.error(t?.failedToSaveKey || 'Failed to save key to server'));
-      }
-      toast.success(t?.apiKeySaved || 'API key saved');
+  const handleRemove = () => {
+    localStorage.removeItem(storageKey);
+    if (serverKey) {
+      fetch('/api/settings/keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keys: { [serverKey]: '' } }),
+      }).then(() => {
+        setServerConfigured(false);
+        setValue('');
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      }).catch(() => {});
     }
+    toast.success(t?.apiKeyRemoved || 'API key removed');
+  };
+
+  const handleSave = () => {
+    if (!value.trim()) return;
+    localStorage.setItem(storageKey, value.trim());
+    if (serverKey) {
+      fetch('/api/settings/keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keys: { [serverKey]: value.trim() } }),
+      }).then(r => r.json())
+        .then(() => setServerConfigured(true))
+        .catch(() => toast.error(t?.failedToSaveKey || 'Failed to save key to server'));
+    }
+    toast.success(t?.apiKeySaved || 'API key saved');
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -755,22 +801,32 @@ function ApiKeyField({ icon, label, placeholder, disabled = false, storageKey, s
         {serverConfigured && <span className="text-[8px] px-2 py-0.5 bg-green-500/10 border border-green-500/20 text-green-400 rounded-full font-bold">{t?.configured || 'CONFIGURED'}</span>}
         {saved && <CheckCircle size={14} className="text-green-400 ml-auto" />}
       </div>
-      <div className="relative">
-        <input
-          disabled={disabled}
-          type="password"
-          value={value}
-          onChange={e => setValue(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleSave()}
-          placeholder={serverConfigured && !value ? (t?.keySavedOnServer || 'Key saved on server (type to replace)') : placeholder}
-          className="w-full bg-black/40 border border-white/10 rounded-xl p-4 pr-24 text-white font-mono text-sm outline-none focus:border-celestial-saturn/50 transition-colors disabled:opacity-50"
-        />
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <input
+            disabled={disabled}
+            type="password"
+            value={value}
+            onChange={e => setValue(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSave()}
+            placeholder={serverConfigured && !value ? (t?.keySavedOnServer || 'Key saved on server (type to replace)') : placeholder}
+            className="w-full bg-black/40 border border-white/10 rounded-xl p-4 pr-16 text-white font-mono text-sm outline-none focus:border-celestial-saturn/50 transition-colors disabled:opacity-50"
+          />
+          <button
+            type="button"
+            onClick={handleRemove}
+            disabled={disabled || (!value && !serverConfigured)}
+            className="absolute right-2 top-2 h-10 px-3 bg-red-500/10 border border-red-500/20 rounded-lg text-[9px] font-bold uppercase tracking-tight text-red-400 hover:bg-red-500/20 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+          >
+            {t?.remove || 'Remove'}
+          </button>
+        </div>
         <Button
           onClick={handleSave}
-          disabled={disabled}
-          className="absolute right-2 top-2 h-10 bg-white/5 hover:bg-white/10 text-[10px] font-black uppercase tracking-widest border border-white/10 rounded-lg"
+          disabled={disabled || !value.trim()}
+          className="h-[56px] px-6 bg-celestial-saturn text-black rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-30 disabled:cursor-not-allowed hover:bg-celestial-saturn/90 transition-all"
         >
-          {value ? (t?.save || 'Save') : (serverConfigured ? (t?.clear || 'Clear') : (t?.save || 'Save'))}
+          {t?.save || 'Save'}
         </Button>
       </div>
       {hint && <p className="text-[9px] text-white/20 leading-relaxed">{hint}</p>}
