@@ -453,7 +453,8 @@ pub fn run() {
                 {
                     Ok(child) => {
                         println!("[LumiOS] Backend PID: {}", child.id());
-                        let mut state = app.state::<Mutex<BackendProcesses>>().lock().unwrap();
+                        let app_state = app.state::<Mutex<BackendProcesses>>();
+                        let mut state = app_state.lock().unwrap();
                         state.node_config = Some(SpawnConfig {
                             exe: normalized_node.to_path_buf(),
                             entry: normalized_entry.to_path_buf(),
@@ -494,7 +495,8 @@ pub fn run() {
                 None
             };
             if let Some(child) = python_child {
-                let mut state = app.state::<Mutex<BackendProcesses>>().lock().unwrap();
+                let app_state = app.state::<Mutex<BackendProcesses>>();
+                let mut state = app_state.lock().unwrap();
                 if python_exe.exists() && api_py.exists() {
                     state.python_config = Some(SpawnConfig {
                         exe: python_exe,
@@ -510,7 +512,6 @@ pub fn run() {
                 }
                 state.python = Some(child);
             }
-            }
             } // end else (release mode spawns backend)
 
             // ── Child process health check (release mode, checks every 30s) ──
@@ -520,7 +521,8 @@ pub fn run() {
                     let max_restarts: u32 = 3;
                     loop {
                         std::thread::sleep(std::time::Duration::from_secs(30));
-                        let mut state = app_handle.state::<Mutex<BackendProcesses>>().lock().unwrap();
+                        let app_state = app_handle.state::<Mutex<BackendProcesses>>();
+                        let mut state = app_state.lock().unwrap();
 
                         // Check Node.js backend
                         let mut restart_node = false;
