@@ -29,8 +29,6 @@ interface PersonalityConfig {
     includeTypes: string[];
     autoExtract: boolean;
   };
-  defaultModel: string;
-  fallbackModel: string;
   ttsVoiceId?: string;
   personalityVector?: {
     cognitiveStyle: { analytical: number; intuitive: number; systematic: number; creative: number };
@@ -56,7 +54,6 @@ export function PersonalityEditor({ t }: { t?: any }) {
     evolution: true,
     tools: false,
     memory: false,
-    models: false,
   });
 
   const toggleSection = (s: string) => setExpandedSections(prev => ({ ...prev, [s]: !prev[s] }));
@@ -204,13 +201,6 @@ export function PersonalityEditor({ t }: { t?: any }) {
           <ReadonlyField label={t?.autoExtractLabel || 'Auto-extract'} value={config.memoryPolicy.autoExtract ? 'Yes' : 'No'} />
         </Section>
 
-        {/* Models */}
-        <Section title={t?.modelsSection || 'Models'} section="models" expanded={expandedSections} onToggle={toggleSection}>
-          <div className="grid grid-cols-2 gap-4">
-            <ReadonlyField label={t?.defaultModelField || 'Default Model'} value={config.defaultModel} />
-            <ReadonlyField label={t?.fallbackModelField || 'Fallback Model'} value={config.fallbackModel} />
-          </div>
-        </Section>
       </div>
 
       {/* Evolution History + Radar */}
