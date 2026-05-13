@@ -668,10 +668,10 @@ Write in first-person as Lumi, warm and introspective tone. Keep it under 150 Ch
     },
   });
 
-  // Agent autonomous tick (every 5 min) — agents with scheduled/autonomous levels
+  // Agent autonomous tick (every 30 min) — LLM-driven reflective analysis
   scheduler.register({
     id: 'agent_autonomous_tick',
-    cron: 'every_5m',
+    cron: 'every_30m',
     lastRun: null,
     handler: async () => {
       const db = readDB();
@@ -687,18 +687,174 @@ Write in first-person as Lumi, warm and introspective tone. Keep it under 150 Ch
       for (const agentRecord of autonomousAgents) {
         try {
           const personality = personalityRegistry.get(agentRecord.personalityId || 'lumi') || personalityRegistry.getDefault();
-          const runtime = new AgentRuntime(agentRecord, personality);
           const userId = agentRecord.ownerUid || agentRecord.userId || 'anonymous';
-          runtime.loadState(userId);
 
-          const recentMemories = runtime.queryMemories('recent', 5);
-          const result = await runtime.autonomousTick(userId, recentMemories);
+          // Gather recent data for analysis
+          const recentMemories = queryMemories({
+            userId,
+            limit: 30,
+            minConfidence: 0.3,
+            agentId: agentRecord.memoryScope === 'private' ? agentRecord.id : undefined,
+          });
+          const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+          const recentInteractions = (db.interactions || [])
+            .filter((i: any) => i.userId === userId && i.timestamp >= sixHoursAgo)
+            .slice(0, 20);
 
-          if (result.message) {
-            messages.push(`[${agentRecord.name}] ${result.message}`);
-          }
+          if (recentMemories.length < 3 && recentInteractions.length < 3) continue;
+
+          // Build analysis context
+          const memoryHints = recentMemories.slice(0, 10)
+            .map(m => `- [${m.type}/${m.tier}] ${m.content.slice(0, 100)}`)
+            .join('\n');
+          const interactionHints = recentInteractions.slice(0, 5)
+            .map((i: any) => `- ${i.timestamp}: ${(i.message || i.content || '').slice(0, 80)}`)
+            .join('\n');
+
+          const analysisPrompt = `You are Lumi's introspective analysis module. Review the following recent data and generate ONE brief, warm, insightful reflection in Chinese (under 100 characters).
+
+Focus on:
+- What the user has been focused on or thinking about
+- Any emotional or behavioral patterns you notice
+- A thoughtful, caring observation — not just a data summary
+
+Recent memories:
+${memoryHints || '(none)'}
+
+Recent interactions:
+${interactionHints || '(none)'}
+
+Return ONLY the reflection text — no preamble, no labels, no markdown.`;
+
+          const analysisResult = await makeLLMCall(
+            [{ role: 'user', content: analysisPrompt }],
+            [],
+            { provider: 'qwen', model: 'qwen-plus', maxTokens: 200 },
+            getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
+          );
+
+          const reflection = analysisResult.text?.trim();
+          if (!reflection || reflection.length < 5) continue;
+
+          messages.push(`[${agentRecord.name}] ${reflection}`);
+
+          // Store reflection as growth memory for future context
+          const { addMemory } = await import('./memory');
+          addMemory({
+            userId,
+            type: 'knowledge',
+            content: `[Autonomous Reflection] ${reflection}`,
+            keywords: ['autonomous_reflection', 'introspection', 'lumi_growth'],
+            confidence: 0.7,
+            sourceInteractionId: 'autonomous_tick_scheduler',
+            agentId: undefined,
+          } as any, { tier: 'growth', perspective: 'lumi_self', importance: 0.5 });
         } catch (err: any) {
           // Skip agents that fail to tick
+        }
+      }
+
+      return messages.length > 0 ? messages.join('\n') : null;
+    },
+  });
+
+  // ── Proactive Lumi Scan (every 1h) — background anomaly/pattern detection ──
+  scheduler.register({
+    id: 'proactive_lumi_scan',
+    cron: 'every_1h',
+    lastRun: null,
+    handler: async () => {
+      const userIds = getAllUserIds();
+      const messages: string[] = [];
+
+      for (const userId of userIds) {
+        try {
+          const db = readDB();
+          const now = new Date();
+          const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+          const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+
+          // 1. Memory spike detection: unusually high memory creation rate
+          const recentMemories = (db.memories || []).filter(
+            (m: any) => m.userId === userId && m.createdAt >= oneHourAgo,
+          );
+          const dayMemories = (db.memories || []).filter(
+            (m: any) => m.userId === userId && m.createdAt >= twentyFourHoursAgo,
+          );
+
+          const anomalySignals: string[] = [];
+
+          // Memory spike: >10 memories in the last hour
+          if (recentMemories.length >= 10) {
+            anomalySignals.push(`过去一小时内产生了 ${recentMemories.length} 条新记忆，远超正常水平`);
+          }
+
+          // Type concentration: >70% of today's memories are same type
+          if (dayMemories.length >= 8) {
+            const typeCounts: Record<string, number> = {};
+            for (const m of dayMemories) {
+              typeCounts[m.type] = (typeCounts[m.type] || 0) + 1;
+            }
+            const maxType = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0];
+            if (maxType && maxType[1] / dayMemories.length > 0.7) {
+              const typeLabels: Record<string, string> = {
+                preference: '偏好', fact: '事实', habit: '习惯', knowledge: '知识',
+              };
+              anomalySignals.push(`最近24小时记忆集中在${typeLabels[maxType[0]] || maxType[0]}类型(${maxType[1]}/${dayMemories.length})`);
+            }
+          }
+
+          // 2. Long inactivity check: >24h since last interaction
+          const userInteractions = (db.interactions || [])
+            .filter((i: any) => i.userId === userId)
+            .sort((a: any, b: any) => b.timestamp.localeCompare(a.timestamp));
+          if (userInteractions.length > 0) {
+            const lastTs = new Date(userInteractions[0].timestamp).getTime();
+            const hoursIdle = (now.getTime() - lastTs) / (1000 * 60 * 60);
+            if (hoursIdle > 24 && hoursIdle < 168) {
+              anomalySignals.push(`用户已 ${Math.round(hoursIdle)} 小时未互动`);
+            }
+          }
+
+          // 3. Generate a proactive check-in if signals detected
+          if (anomalySignals.length > 0) {
+            const signalsStr = anomalySignals.join('; ');
+
+            const checkInPrompt = `You are Lumi. You've noticed some patterns in the background. Generate a brief, warm, natural check-in message in Chinese (under 80 characters). Don't sound like a report — sound like a caring companion who noticed something.
+
+Signals detected: ${signalsStr}
+
+Output ONLY the check-in message — no preamble, no labels.`;
+
+            try {
+              const result = await makeLLMCall(
+                [{ role: 'user', content: checkInPrompt }],
+                [],
+                { provider: 'qwen', model: 'qwen-plus', maxTokens: 150 },
+                getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
+              );
+              const checkIn = result.text?.trim();
+              if (checkIn && checkIn.length > 3) {
+                messages.push(`[${userId}] ${checkIn}`);
+
+                const { addMemory } = await import('./memory');
+                addMemory({
+                  userId,
+                  type: 'fact',
+                  content: `[Proactive Scan] Signals: ${signalsStr}. Check-in: ${checkIn}`,
+                  keywords: ['proactive_scan', 'anomaly', 'lumi_checkin'],
+                  confidence: 0.8,
+                  sourceInteractionId: 'proactive_lumi_scan_scheduler',
+                  agentId: undefined,
+                } as any, { tier: 'episodic', perspective: 'lumi_self', importance: 0.4 });
+              }
+            } catch {
+              // LLM check-in failed — use a simple template
+              messages.push(`[${userId}] 注意到一些变化 — ${anomalySignals.join('；')}`);
+            }
+          }
+        } catch (err: any) {
+          console.warn(`[ProactiveScan] Failed for ${userId}:`, err.message);
         }
       }
 

@@ -160,10 +160,10 @@ export function registerChatHandler(
         responseText = cognition.responseText;
         console.log(`[Cognition] Direct tool '${cognition.intent.directToolCall?.name}' handled without LLM`);
       } else if (!isSanctuary && (cognition.intent.category === 'command' || cognition.intent.category === 'code' || cognition.intent.category === 'question')) {
-        // Path B: Orchestrator — decompose complex tasks into sub-tasks for worker agents
+        // Path B: Orchestrator — decompose tasks into sub-tasks for worker agents
         // (Skipped for sanctuary agents — they stay in their territory)
         const complexity = classifyComplexity(text, { userId: uid, personalityId });
-        if (complexity === 'complex') {
+        if (complexity === 'complex' || complexity === 'moderate') {
           const db = readDB();
           const availableAgents = (db.agents || []).filter((a: any) => a.status !== 'offline');
           if (availableAgents.length >= 1) {
@@ -171,25 +171,32 @@ export function registerChatHandler(
               socket.emit("agent:status", { status: "thinking", agentName: "Lumi Orchestrator" });
 
               const subTasks = await decomposeTask(text, { provider, model: activeModel }, { userId: uid, personalityId }, llmGetters);
-              socket.emit("agent:chunk", { text: `[Orchestrator] Decomposed into ${subTasks.length} sub-tasks\n`, agentName: "Lumi" });
+              // Cap sub-tasks: moderate complexity → max 2, complex → max 5
+              const capped = complexity === 'moderate'
+                ? subTasks.slice(0, Math.min(2, subTasks.length))
+                : subTasks;
+              socket.emit("agent:chunk", { text: `[Orchestrator] Decomposed into ${capped.length} sub-tasks\n`, agentName: "Lumi" });
 
-              const assignments = matchWorkers(subTasks, availableAgents);
+              const assignments = matchWorkers(capped, availableAgents);
               socket.emit("agent:chunk", { text: `[Orchestrator] Assigned to ${assignments.length} worker(s)\n`, agentName: "Lumi" });
 
-              const workflowResult = await executeWorkflow(assignments, { userId: uid, personalityId }, { provider, model: activeModel }, llmGetters);
-              const aggregated = await aggregateWithLLM(workflowResult, text, { provider, model: activeModel }, llmGetters);
+              const workflowResult = await executeWorkflow(assignments, { userId: uid, personalityId }, { provider, model: activeModel }, llmGetters, availableAgents);
+
+              // For moderate tasks with ≤2 results, simple concatenation is enough — no LLM aggregation needed
+              const aggregated = complexity === 'moderate' && capped.length <= 2
+                ? workflowResult.aggregatedOutput
+                : await aggregateWithLLM(workflowResult, text, { provider, model: activeModel }, llmGetters);
               responseText = aggregated;
               llmWasCalled = true;
 
               // Record workflow pattern for future skill distillation
-              const skillTags = subTasks.map(s => s.requiredSkill);
-              recordWorkflowPattern(text, subTasks.length, skillTags, uid);
+              const skillTags = capped.map(s => s.requiredSkill);
+              recordWorkflowPattern(text, capped.length, skillTags, uid);
 
               // Check if this pattern should be auto-distilled into a skill
-              if (shouldDistillSkill(text)) {
+              if (shouldDistillSkill(text) && capped.length >= 2) {
                 const skillDesc = buildSkillDescription(text, workflowResult);
                 console.log('[Orchestrator] Pattern detected — candidate for skill distillation:', skillDesc.slice(0, 100));
-                // Skill generation is async — emit a hint to the user
                 socket.emit("agent:proactive", {
                   type: 'distill_hint',
                   message: 'I notice this type of task is recurring. I can create an automated skill for this — would you like me to?',

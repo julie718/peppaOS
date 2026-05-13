@@ -67,13 +67,19 @@ export interface OrchestrationContext {
 const COMPLEX_SIGNALS = [
   'build', 'create a', 'implement', 'design and', 'refactor the',
   'set up', 'configure', 'deploy', 'migrate', 'analyze and',
+  'add a', 'create an', 'develop a', 'optimize', 'fix the',
   '全部', '所有', '整个', '重构', '部署', '迁移', '实现', '设计并',
-  '帮我写一个', '帮我做一个', '帮我搭建',
+  '帮我写一个', '帮我做一个', '帮我搭建', '帮我设计',
+  '开发一个', '设计一个', '优化一下', '修复一下',
+  '同时', '并且', '另外还', '还需要', '除了', '包括',
 ];
 
 const MODERATE_SIGNALS = [
   'explain', 'compare', 'review', 'summarize', 'find all',
-  '解释', '比较', '总结', '检查', '查找',
+  'how to', 'why does', 'what is', 'how does',
+  '解释', '比较', '总结', '检查', '查找', '搜索',
+  '怎么', '为什么', '如何', '什么原因', '查一下', '找一下',
+  '帮我查', '帮我看', '帮我找',
 ];
 
 /**
@@ -87,19 +93,25 @@ export function classifyComplexity(
   const lower = text.toLowerCase();
 
   // Multi-sentence / multi-clause tasks are at least moderate
-  const sentenceCount = text.split(/[.。!！?？\n]+/).filter(s => s.trim().length > 0).length;
+  const sentenceCount = text.split(/[.。!！?？\n,，;；、]+/).filter(s => s.trim().length > 0).length;
   const wordCount = text.split(/\s+/).length;
+
+  // Chinese character count (more accurate for CJK text than wordCount)
+  const chineseChars = (text.match(/[一-鿿]/g) || []).length;
 
   // Strong complex signals
   const complexMatches = COMPLEX_SIGNALS.filter(s => lower.includes(s.toLowerCase()));
   if (complexMatches.length >= 1 && sentenceCount >= 2) return 'complex';
   if (complexMatches.length >= 2) return 'complex';
-  if (wordCount > 80 && sentenceCount >= 3) return 'complex';
+  if (wordCount > 50 && sentenceCount >= 2) return 'complex';
+  if (chineseChars > 100 && sentenceCount >= 2) return 'complex';
 
-  // Moderate signals
+  // Moderate signals — broader capture
   const moderateMatches = MODERATE_SIGNALS.filter(s => lower.includes(s.toLowerCase()));
-  if (moderateMatches.length >= 1 && sentenceCount >= 2) return 'moderate';
-  if (wordCount > 40 && sentenceCount >= 2) return 'moderate';
+  if (moderateMatches.length >= 1 && sentenceCount >= 1) return 'moderate';
+  if (wordCount > 25 && sentenceCount >= 1) return 'moderate';
+  if (chineseChars > 50 && sentenceCount >= 1) return 'moderate';
+  if (sentenceCount >= 3) return 'moderate'; // Multi-clause is at least moderate
 
   return 'simple';
 }
@@ -357,7 +369,10 @@ function topologicalGroups(assignments: WorkerAssignment[]): WorkerAssignment[][
 }
 
 /**
- * Execute a single worker task.
+ * Execute a single worker task with retry and fallback.
+ * - Attempt 1: primary agent
+ * - Attempt 2: retry same agent (transient errors)
+ * - Attempt 3: try a different fallback agent
  * Each worker loads only its own context (anti-entropy: context isolation).
  */
 async function executeWorkerTask(
@@ -365,77 +380,106 @@ async function executeWorkerTask(
   context: OrchestrationContext,
   llmConfig: { provider: LLMProvider; model: string },
   llmGetters: LlmGetters,
+  fallbackAgents: AgentRecord[],
 ): Promise<{ subTaskId: string; output: string; agentId: string }> {
   const { subTask, agent } = assignment;
+  const agentsToTry = [
+    agent,
+    ...fallbackAgents.filter(a => a.id !== agent.id).slice(0, 2),
+  ];
 
-  // Context isolation: worker only loads its own memories + sub-task description
-  const workerMemories = queryMemories({
-    userId: context.userId,
-    query: subTask.description,
-    limit: 3,
-    minConfidence: 0.3,
-    agentId: agent.id,
-  });
+  for (let attempt = 0; attempt < agentsToTry.length; attempt++) {
+    const currentAgent = agentsToTry[attempt];
+    const isRetry = attempt > 0;
 
-  const memoryContext = workerMemories.length > 0
-    ? workerMemories.map(m => `- ${m.content.slice(0, 200)}`).join('\n')
-    : '';
+    const workerMemories = queryMemories({
+      userId: context.userId,
+      query: subTask.description,
+      limit: 3,
+      minConfidence: 0.3,
+      agentId: currentAgent.id,
+    });
 
-  // Load Lumi's executionMode preset for scholar/founder prompt extensions
-  let modeDirective = '';
-  if (subTask.executionMode !== 'lumi') {
-    const lumiConfig = personalityRegistry.get('lumi');
-    const mode = lumiConfig?.executionModes?.[subTask.executionMode];
-    if (mode?.promptExtension) {
-      modeDirective = mode.promptExtension;
+    const memoryContext = workerMemories.length > 0
+      ? workerMemories.map(m => `- ${m.content.slice(0, 200)}`).join('\n')
+      : '';
+
+    let modeDirective = '';
+    if (subTask.executionMode !== 'lumi') {
+      const lumiConfig = personalityRegistry.get('lumi');
+      const mode = lumiConfig?.executionModes?.[subTask.executionMode];
+      if (mode?.promptExtension) {
+        modeDirective = mode.promptExtension;
+      }
+    }
+
+    const retryHint = isRetry
+      ? `\n(Retry attempt ${attempt + 1}/${agentsToTry.length} — previous attempt failed. Try a different approach or be more concise.)`
+      : '';
+
+    const workerPrompt = [
+      `You are worker agent "${currentAgent.name}" (${currentAgent.category}). You have tool access — use tools to complete the task, don't just describe what to do.`,
+      `Task: ${subTask.description}${retryHint}`,
+      modeDirective,
+      memoryContext ? `Relevant memories:\n${memoryContext}` : '',
+      'Complete this sub-task using available tools. Output the final result.',
+    ].filter(Boolean).join('\n\n');
+
+    try {
+      const messages: NormalizedMessage[] = [{ role: 'user', content: workerPrompt }];
+      const result = await runWithTools(
+        messages,
+        toolRegistry,
+        { provider: llmConfig.provider, model: llmConfig.model, maxTokens: 2000, userId: context.userId },
+        undefined,
+        isRetry ? 3 : 2, // More iterations on retry
+        llmGetters.getDeepSeek,
+        llmGetters.getGemini,
+        llmGetters.getOpenAI,
+        llmGetters.getAnthropic,
+        llmGetters.getQwen,
+      );
+
+      if (isRetry) {
+        console.log(`[Orchestrator] Worker '${agent.name}' failed on attempt ${attempt}, succeeded with '${currentAgent.name}'`);
+      }
+
+      return {
+        subTaskId: subTask.id,
+        output: result.text.trim(),
+        agentId: currentAgent.id,
+      };
+    } catch (err) {
+      if (attempt < agentsToTry.length - 1) {
+        console.warn(`[Orchestrator] Worker '${currentAgent.name}' failed (attempt ${attempt + 1}/${agentsToTry.length}), trying next...`, String(err).slice(0, 80));
+        continue;
+      }
+      return {
+        subTaskId: subTask.id,
+        output: `[Worker failed after ${agentsToTry.length} attempt(s): ${String(err).slice(0, 200)}]`,
+        agentId: agent.id,
+      };
     }
   }
 
-  const workerPrompt = [
-    `You are worker agent "${agent.name}" (${agent.category}). You have tool access — use tools to complete the task, don't just describe what to do.`,
-    `Task: ${subTask.description}`,
-    modeDirective,
-    memoryContext ? `Relevant memories:\n${memoryContext}` : '',
-    'Complete this sub-task using available tools. Output the final result.',
-  ].filter(Boolean).join('\n\n');
-
-  try {
-    const messages: NormalizedMessage[] = [{ role: 'user', content: workerPrompt }];
-    const result = await runWithTools(
-      messages,
-      toolRegistry,
-      { provider: llmConfig.provider, model: llmConfig.model, maxTokens: 2000, userId: context.userId },
-      undefined, // no tool call callback needed for workers
-      2,         // max 2 tool iterations for workers
-      llmGetters.getDeepSeek,
-      llmGetters.getGemini,
-      llmGetters.getOpenAI,
-      llmGetters.getAnthropic,
-      llmGetters.getQwen,
-    );
-
-    return {
-      subTaskId: subTask.id,
-      output: result.text.trim(),
-      agentId: agent.id,
-    };
-  } catch (err) {
-    return {
-      subTaskId: subTask.id,
-      output: `[Worker ${agent.name} failed: ${String(err)}]`,
-      agentId: agent.id,
-    };
-  }
+  // Unreachable but TypeScript needs it
+  return {
+    subTaskId: subTask.id,
+    output: '[Worker failed: all agents exhausted]',
+    agentId: agent.id,
+  };
 }
 
 /**
  * Execute the full workflow: topological sort → parallel groups → aggregate.
+ * Workers that fail are automatically retried with fallback agents.
  */
 export async function executeWorkflow(
   assignments: WorkerAssignment[],
   context: OrchestrationContext,
   llmConfig: { provider: LLMProvider; model: string },
   llmGetters: LlmGetters,
+  fallbackAgents: AgentRecord[] = [],
 ): Promise<WorkflowResult> {
   const groups = topologicalGroups(assignments);
 
@@ -447,7 +491,7 @@ export async function executeWorkflow(
     const groupResults = await Promise.all(
       group.map(a => {
         usedAgentIds.add(a.agent.id);
-        return executeWorkerTask(a, context, llmConfig, llmGetters);
+        return executeWorkerTask(a, context, llmConfig, llmGetters, fallbackAgents);
       }),
     );
     // Record routing successes for future matching
