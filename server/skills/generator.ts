@@ -211,11 +211,34 @@ ${topTools(allTools).map(t => `- ${t.name} (${t.count}x)`).join('\n')}
     }
 
     if (!parsed.handlerCode || typeof parsed.handlerCode !== 'string' || parsed.handlerCode.trim().length === 0) {
-      // Fallback: try old handlerLogic field, or return error
+      // If LLM returned old field name (handlerLogic), retry with explicit conversion prompt
       if (parsed.handlerLogic && typeof parsed.handlerLogic === 'string') {
-        console.warn('[SkillGen] LLM returned handlerLogic (deprecated) — wrapping as stub. Upgrade prompt.');
-        parsed.handlerCode = `// TODO: Convert this logic to code:\n// ${parsed.handlerLogic.split('\n').join('\n// ')}\nresult = 'Skill executed (logic pending).';`;
-      } else {
+        console.warn('[SkillGen] LLM returned handlerLogic instead of handlerCode — retrying with conversion prompt');
+        const conversionMessages: NormalizedMessage[] = [
+          { role: 'user', content: `Turn this handler logic description into a TypeScript body for an async function handler(args). The function sets a variable named "result" to the output string. Use try/catch. You have access to 'args' (Record<string, any>), fetch(), and 'fs/promises' (imported as 'fs').\n\nLogic:\n${parsed.handlerLogic}\n\nReturn ONLY a JSON object: {"handlerCode": "// the executable code here"}` },
+        ];
+        try {
+          const convResponse = await makeLLMCall(
+            conversionMessages, [],
+            { provider, model, maxTokens: 2048, userId: request.userId || 'skill_gen' },
+            getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
+          );
+          const convText = convResponse.text || '';
+          const convJson = convText.match(/\{[\s\S]*\}/);
+          if (convJson) {
+            const convParsed = JSON.parse(convJson[0]);
+            if (convParsed.handlerCode && typeof convParsed.handlerCode === 'string') {
+              parsed.handlerCode = convParsed.handlerCode;
+              console.log('[SkillGen] Successfully converted handlerLogic → handlerCode');
+            }
+          }
+        } catch (e: any) {
+          console.warn('[SkillGen] handlerLogic conversion retry failed:', e.message);
+        }
+      }
+
+      // If still no handlerCode after retry, fail
+      if (!parsed.handlerCode || typeof parsed.handlerCode !== 'string' || parsed.handlerCode.trim().length === 0) {
         return { success: false, error: 'LLM did not return handlerCode', generatedCode: text };
       }
     }
@@ -260,9 +283,26 @@ ${topTools(allTools).map(t => `- ${t.name} (${t.count}x)`).join('\n')}
 
     console.log(`[SkillGen] Generated skill "${skillName}" at ${skillDir}`);
 
+    let warnings: string[] = [];
+
+    // Install dependencies so the skill can actually run
+    try {
+      await installSkillDeps(skillDir);
+      console.log(`[SkillGen] Dependencies installed for "${skillName}"`);
+    } catch (e: any) {
+      console.warn(`[SkillGen] npm install failed for "${skillName}":`, e.message);
+      warnings.push(`npm install failed: ${e.message}`);
+    }
+
+    // Runtime smoke test — verify the process can start
+    const runtimeCheck = await validateSkillRuntime(skillDir);
+    if (!runtimeCheck.valid) {
+      console.warn(`[SkillGen] Runtime check failed for "${skillName}":`, runtimeCheck.error);
+      warnings.push(`Runtime check failed: ${runtimeCheck.error}`);
+    }
+
     // Validate TypeScript compilation
     let validation = await validateSkillTypeScript(skillDir);
-    let warnings: string[] = [];
 
     if (!validation.valid) {
       console.warn(`[SkillGen] Type-check failed for "${skillName}", retrying with error feedback...`);
@@ -315,6 +355,20 @@ Return ONLY a JSON object with "handlerCode" (the fixed code body).`;
               warnings = [];
               // Use the fixed code in the return
               indexTs = fixedIndexTs;
+
+              // Install deps for the corrected skill
+              try {
+                await installSkillDeps(skillDir);
+              } catch (e: any) {
+                console.warn(`[SkillGen] npm install failed after retry for "${skillName}":`, e.message);
+                warnings.push(`npm install failed: ${e.message}`);
+              }
+
+              // Runtime smoke test on the fixed code
+              const rtCheck = await validateSkillRuntime(skillDir);
+              if (!rtCheck.valid) {
+                warnings.push(`Runtime check after retry: ${rtCheck.error}`);
+              }
             } else {
               warnings.push(`Retry still failing: ${validation.errors.slice(0, 300)}`);
               console.warn(`[SkillGen] Type-check still failing after retry for "${skillName}":`, validation.errors.slice(0, 200));
@@ -403,6 +457,48 @@ async function validateSkillTypeScript(skillDir: string): Promise<{ valid: boole
         resolve({ valid: false, errors: output || error?.message || 'Unknown error' });
       }
     });
+  });
+}
+
+/** Install npm dependencies in the skill directory so it can actually run */
+async function installSkillDeps(skillDir: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    exec('npm install --loglevel=error --no-audit --no-fund', {
+      timeout: 120000,
+      maxBuffer: 512 * 1024,
+      cwd: skillDir,
+    }, (error, _stdout, stderr) => {
+      if (error) {
+        reject(new Error(stderr.trim() || error.message));
+      } else {
+        resolve();
+      }
+    });
+  });
+}
+
+/** Quick runtime smoke test: run the skill process briefly to verify it starts */
+async function validateSkillRuntime(skillDir: string): Promise<{ valid: boolean; error?: string }> {
+  return new Promise((resolve) => {
+    const child = exec(
+      'npx tsx index.ts',
+      { timeout: 15000, cwd: skillDir, env: { ...process.env, LUMI_SKILL_SMOKE_TEST: '1' } },
+      (_error, _stdout, stderr) => {
+        // Process will exit quickly (or be killed) — success = no fatal crash
+        const fatalPatterns = ['ERR_MODULE_NOT_FOUND', 'Cannot find package', 'SyntaxError', 'TypeError:'];
+        const hasFatal = fatalPatterns.some(p => (stderr || '').includes(p));
+        if (hasFatal) {
+          resolve({ valid: false, error: (stderr || '').slice(0, 500) });
+        } else {
+          resolve({ valid: true });
+        }
+      },
+    );
+    // Kill after 5s — if it hasn't crashed by then, it successfully loaded
+    setTimeout(() => {
+      child.kill('SIGTERM');
+      resolve({ valid: true });
+    }, 5000);
   });
 }
 

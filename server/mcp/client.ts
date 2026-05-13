@@ -9,6 +9,7 @@ import { WebSocketClientTransport } from '@modelcontextprotocol/sdk/client/webso
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { exec } from 'child_process';
 
 export interface MCPServerConfig {
   command?: string;
@@ -124,6 +125,9 @@ class MCPClientManager {
 
     this.copyDirSync(sourceDir, destDir);
 
+    // Run npm install in the destination so deps are available at runtime
+    this.installDepsInDir(destDir);
+
     // Write install metadata into package.json
     const pkgPath = path.join(destDir, 'package.json');
     let pkg: any = {};
@@ -171,6 +175,20 @@ class MCPClientManager {
     };
 
     this.saveConfig(config);
+  }
+
+  /** Run npm install in a skill directory (fire-and-forget, non-blocking) */
+  private installDepsInDir(dir: string): void {
+    exec('npm install --loglevel=error --no-audit --no-fund', {
+      timeout: 120000,
+      cwd: dir,
+    }, (error, _stdout, stderr) => {
+      if (error) {
+        console.warn(`[MCP] npm install failed in ${dir}:`, stderr.trim() || error.message);
+      } else {
+        console.log(`[MCP] Dependencies installed in ${path.basename(dir)}`);
+      }
+    });
   }
 
   private copyDirSync(src: string, dest: string): void {
