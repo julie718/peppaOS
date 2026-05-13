@@ -9,6 +9,12 @@ import { EvolutionStep, EvolutionConfig, DEFAULT_EVOLUTION_CONFIG } from './evol
 class PersonalityRegistry {
   private personalities: Map<string, PersonalityConfig> = new Map();
   private loaded = false;
+  private broadcastFn: ((event: string, data: any) => void) | null = null;
+
+  /** Set a broadcast callback for real-time evolution events */
+  setBroadcast(fn: (event: string, data: any) => void): void {
+    this.broadcastFn = fn;
+  }
 
   /** Load personalities from the JSON config file */
   load(configPath?: string): void {
@@ -134,6 +140,17 @@ class PersonalityRegistry {
 
     // Persist to disk
     this.save();
+
+    // Broadcast real-time evolution event
+    if (this.broadcastFn) {
+      this.broadcastFn('personality:evolved', {
+        personalityId,
+        version: step.version,
+        narrative: step.narrative,
+        mutations: step.mutations,
+        timestamp: step.timestamp,
+      });
+    }
 
     console.log(`[Personality] ${config.name} evolved to ${step.version}: ${step.mutations.length} mutation(s)`);
     return config;

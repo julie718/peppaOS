@@ -28,6 +28,18 @@ export interface AgentRecord {
   knowledgeDomains?: string[];
   /** Whether this agent's memories can be borrowed by other agents */
   allowCrossPollination?: boolean;
+  /** Territory mode: 'open' = normal agent, 'sanctuary' = confined memory avatar */
+  territory?: 'open' | 'sanctuary';
+  /** Source of distillation (chat_records / documents / manual) */
+  distilledFrom?: string;
+  /** Evidence grading records for distilled memories */
+  evidenceMap?: Array<{ memoryIndex: number; grade: 'verbatim' | 'artifact' | 'impression'; source: string }>;
+  /** Inferred relationship type (family / close_friend / lover / mentor / colleague) */
+  relationshipType?: string;
+  /** Whether personality evolution is frozen (default true for sanctuary agents) */
+  isFrozen?: boolean;
+  /** IDs of initial seed memories created during distillation */
+  seedMemoryIds?: string[];
 }
 
 export interface AgentTickResult {

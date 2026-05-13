@@ -13,6 +13,8 @@
 
 import { readDB } from "../../db_layer";
 import { NormalizedMessage, makeLLMCall } from "../llm/providers";
+import { runWithTools } from "../llm/adapter";
+import { toolRegistry } from "../tools/registry";
 import { queryMemories, addMemory } from "../memory/store";
 import { Memory } from "../memory/types";
 import { AgentRecord } from "./runtime";
@@ -206,6 +208,24 @@ function getRoutingScore(skillTag: string, agentId: string): number {
   return agentScores?.get(agentId) || 0;
 }
 
+/** Export routing cache stats for MCP management tools */
+export function getRoutingCacheStats(): { totalSkillTags: number; totalRoutes: number; agents: Record<string, Record<string, number>> } {
+  const agents: Record<string, Record<string, number>> = {};
+  let totalRoutes = 0;
+  for (const [skillTag, agentScores] of routingCache.entries()) {
+    for (const [agentId, count] of agentScores.entries()) {
+      if (!agents[agentId]) agents[agentId] = {};
+      agents[agentId][skillTag] = count;
+      totalRoutes += count;
+    }
+  }
+  return {
+    totalSkillTags: routingCache.size,
+    totalRoutes,
+    agents,
+  };
+}
+
 /**
  * Match sub-tasks to available worker agents by skill compatibility.
  * If no suitable agent exists, returns the best generalist agent.
@@ -372,19 +392,21 @@ async function executeWorkerTask(
   }
 
   const workerPrompt = [
-    `You are worker agent "${agent.name}" (${agent.category}).`,
+    `You are worker agent "${agent.name}" (${agent.category}). You have tool access — use tools to complete the task, don't just describe what to do.`,
     `Task: ${subTask.description}`,
     modeDirective,
     memoryContext ? `Relevant memories:\n${memoryContext}` : '',
-    'Complete this sub-task. Output your result directly — no preamble.',
+    'Complete this sub-task using available tools. Output the final result.',
   ].filter(Boolean).join('\n\n');
 
   try {
     const messages: NormalizedMessage[] = [{ role: 'user', content: workerPrompt }];
-    const result = await makeLLMCall(
+    const result = await runWithTools(
       messages,
-      [],
-      { provider: llmConfig.provider, model: llmConfig.model, maxTokens: 1500 },
+      toolRegistry,
+      { provider: llmConfig.provider, model: llmConfig.model, maxTokens: 2000, userId: context.userId },
+      undefined, // no tool call callback needed for workers
+      2,         // max 2 tool iterations for workers
       llmGetters.getDeepSeek,
       llmGetters.getGemini,
       llmGetters.getOpenAI,

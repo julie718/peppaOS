@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Upload, FileText, Rocket, Shield, Cpu, Heart, Users, User, Briefcase, Mic, X, Trash2, Sparkles, Database, Zap } from 'lucide-react';
+import { Upload, FileText, Rocket, Shield, Cpu, Heart, Users, User, Briefcase, Mic, X, Trash2, Sparkles, Database, Zap, Castle, ArrowRight } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { toast } from 'sonner';
@@ -363,6 +363,24 @@ export function AgentGenerator({ t, onChatAgent }: { t: any; onChatAgent?: (agen
                       {categorySkills[selectedCategory].desc}
                     </p>
                   </div>
+                </div>
+
+                <div className="p-5 bg-fuchsia-500/5 border border-fuchsia-500/15 rounded-2xl flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-fuchsia-500/15 flex items-center justify-center flex-shrink-0">
+                      <Castle size={18} className="text-fuchsia-400" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-fuchsia-300">从聊天记录深度蒸馏</p>
+                      <p className="text-[9px] text-white/30">上传聊天记录，AI 多维度蒸馏完整人格 — 生成专属记忆化身</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => window.dispatchEvent(new CustomEvent('lumi:open-memory-lab'))}
+                    className="flex items-center gap-1 px-4 py-2 bg-fuchsia-500/15 border border-fuchsia-500/25 rounded-xl text-[10px] font-bold text-fuchsia-400 hover:bg-fuchsia-500/25 transition-all whitespace-nowrap"
+                  >
+                    前往实验室 <ArrowRight size={12} />
+                  </button>
                 </div>
 
                 <div className="flex justify-end pt-4">

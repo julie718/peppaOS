@@ -336,6 +336,61 @@ apiRouter.get("/personality/:id/evolution", (req, res) => {
   });
 });
 
+// Growth journal — retrieve daily/weekly auto-generated summaries of what Lumi learned
+apiRouter.get("/personality/:id/growth-journal", (req, res) => {
+  try {
+    const token = req.cookies.token;
+    let uid = 'anonymous';
+    if (token) {
+      try { const decoded: any = jwt.verify(token, JWT_SECRET); uid = decoded.uid; } catch {}
+    }
+
+    const db = readDB();
+    const limit = parseInt(req.query.limit as string) || 14;
+
+    // Query memories with growth_journal keyword
+    const journalEntries = (db.memories || [])
+      .filter((m: any) =>
+        m.userId === uid &&
+        m.keywords?.includes('growth_journal') &&
+        m.type === 'knowledge'
+      )
+      .sort((a: any, b: any) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+      .slice(0, limit)
+      .map((m: any) => ({
+        id: m.id,
+        content: m.content,
+        date: m.createdAt?.slice(0, 10) || '',
+        tier: m.tier,
+      }));
+
+    // Also fetch structured data entries
+    const dataEntries = (db.memories || [])
+      .filter((m: any) =>
+        m.userId === uid &&
+        m.keywords?.includes('growth_journal_data')
+      )
+      .sort((a: any, b: any) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+      .slice(0, limit)
+      .map((m: any) => {
+        try {
+          return { id: m.id, date: m.createdAt?.slice(0, 10) || '', data: JSON.parse(m.content) };
+        } catch {
+          return { id: m.id, date: m.createdAt?.slice(0, 10) || '', data: null };
+        }
+      });
+
+    res.json({
+      personalityId: req.params.id,
+      journalEntries,
+      statsEntries: dataEntries,
+      count: journalEntries.length,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Personality evolution — manually trigger evolution for a personality
 apiRouter.post("/personality/:id/evolve", asyncHandler(async (req, res) => {
   try {
@@ -858,6 +913,75 @@ apiRouter.post("/ai/chat", asyncHandler(async (req, res) => {
 mountAuthRoutes(apiRouter, JWT_SECRET, getCookieOptions);
 
 // 3. Agent Management
+// ── Agent Distillation — create a memory avatar from chat records ──
+apiRouter.post("/agents/distill", asyncHandler(async (req, res) => {
+  const token = req.cookies.token;
+  if (!token) return res.status(401).json({ error: "Unauthorized" });
+  let uid: string;
+  try { uid = (jwt.verify(token, JWT_SECRET) as any).uid; } catch { return res.status(401).json({ error: "Invalid token" }); }
+
+  const { chatLog, format, relationshipType, name: targetName } = req.body || {};
+  if (!chatLog || !format) {
+    return res.status(400).json({ error: "chatLog and format are required" });
+  }
+  if (!['wechat', 'qq', 'plain'].includes(format)) {
+    return res.status(400).json({ error: "format must be: wechat, qq, or plain" });
+  }
+
+  try {
+    const { distillPersona } = await import('./server/agents/distiller');
+    const result = await distillPersona(
+      { chatLog, format, targetName, relationshipType, userId: uid },
+      { getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen },
+    );
+
+    res.json({
+      personalityConfig: result.personalityConfig,
+      seedMemories: result.seedMemories,
+      evidenceMap: result.evidenceMap,
+      relationshipType: result.relationshipType,
+      narrative: result.narrative,
+      inferredName: result.inferredName,
+      // Summary for quick preview
+      summary: {
+        messageCount: chatLog.split('\n').filter((l: string) => l.trim()).length,
+        memoryCount: result.seedMemories.length,
+        cognitiveStyle: result.personalityConfig.personalityVector?.cognitiveStyle,
+        socialStyle: result.personalityConfig.personalityVector?.socialStyle,
+        tone: result.personalityConfig.expressionStyle.tone,
+        topPhrases: result.personalityConfig.expressionStyle.vocabularyHints?.slice(0, 5),
+      },
+    });
+  } catch (err: any) {
+    console.error('[Distill] Failed:', err.message);
+    res.status(500).json({ error: err.message || 'Distillation failed' });
+  }
+}));
+
+// List sanctuary agents for the current user
+apiRouter.get("/agents/sanctuaries", (req, res) => {
+  const token = req.cookies.token;
+  if (!token) return res.status(401).json({ error: "Unauthorized" });
+  try {
+    const decoded: any = jwt.verify(token, JWT_SECRET);
+    const db = readDB();
+    const sanctuaries = (db.agents || []).filter(
+      (a: any) => a.ownerUid === decoded.uid && a.territory === 'sanctuary'
+    ).map((a: any) => ({
+      id: a.id,
+      name: a.name,
+      relationshipType: a.relationshipType || 'close_friend',
+      isFrozen: a.isFrozen ?? true,
+      memoryCount: (db.memories || []).filter((m: any) => m.agentId === a.id).length,
+      createdAt: a.createdAt,
+      lastActiveAt: a.lastActiveAt,
+    }));
+    res.json({ sanctuaries });
+  } catch {
+    res.status(401).json({ error: "Invalid token" });
+  }
+});
+
 apiRouter.get("/agents/:id/history", (req, res) => {
   const token = req.cookies.token;
   if (!token) return res.status(401).json({ error: "Unauthorized" });
@@ -939,22 +1063,36 @@ apiRouter.post("/agents", (req, res) => {
 
   try {
     const decoded: any = jwt.verify(token, JWT_SECRET);
-    const { name, category, data, personalityId, modelPreference, memoryScope, autonomyLevel } = req.body;
+    const { name, category, data, personalityId, modelPreference, memoryScope, autonomyLevel, territory, distilledFrom, evidenceMap, relationshipType, isFrozen, seedMemoryIds, executionMode } = req.body;
     const db = readDB();
 
-    const newAgent = {
+    // Sanctuary agents always get private memory scope and frozen evolution
+    const isSanctuary = territory === 'sanctuary';
+
+    const newAgent: any = {
       id: Math.random().toString(36).substring(2, 15),
       ownerUid: decoded.uid,
       name,
-      category,
-      data,
+      category: category || (relationshipType || 'friend'),
+      data: data || '{}',
       status: "active",
       personalityId: personalityId || 'lumi',
       modelPreference: modelPreference || '',
-      memoryScope: memoryScope || 'shared',
-      autonomyLevel: autonomyLevel || 'reactive',
+      memoryScope: isSanctuary ? 'private' : (memoryScope || 'shared'),
+      autonomyLevel: isSanctuary ? 'reactive' : (autonomyLevel || 'reactive'),
       runtimeConfig: '{}',
-      createdAt: new Date().toISOString()
+      territory: territory || 'open',
+      distilledFrom: distilledFrom || '',
+      evidenceMap: evidenceMap || [],
+      relationshipType: relationshipType || '',
+      isFrozen: isFrozen ?? isSanctuary,
+      seedMemoryIds: seedMemoryIds || [],
+      executionMode: executionMode || '',
+      createdAt: new Date().toISOString(),
+      lastActiveAt: new Date().toISOString(),
+      skillTags: [],
+      knowledgeDomains: [],
+      allowCrossPollination: !isSanctuary,
     };
 
     db.agents.push(newAgent);
@@ -1624,6 +1762,11 @@ personalityRegistry.load();
 
   // Set up broadcast callback for device registry
   deviceRegistry.setBroadcast((event, data) => {
+    io.emit(event, data);
+  });
+
+  // Set up broadcast callback for personality evolution live updates
+  personalityRegistry.setBroadcast((event, data) => {
     io.emit(event, data);
   });
 

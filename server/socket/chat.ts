@@ -10,7 +10,7 @@ import { runWithTools } from "../llm/adapter";
 import { queryMemories, addMemory, addReminder, extractMemories } from "../memory";
 import { loadEmotionalState, saveEmotionalState, updateEmotionalState, generateContextualGreeting, vectorMemoryBias } from "../personality/state";
 import { personalityRegistry } from "../personality";
-import { getOrCreateActiveConversation, addMessage, getMessages } from "../conversation/manager";
+import { getOrCreateActiveConversation, addMessage, getMessages, checkAutoSummary, setConversationSummary } from "../conversation/manager";
 import { ensureBranch } from "../memory/tree";
 import { retrieveChunks } from "../agents/rag";
 import { getSensory } from "./shared";
@@ -47,6 +47,7 @@ export function registerChatHandler(
       : null;
     const memoryScope = agentRecord?.memoryScope || 'shared';
     const agentMemoryFilter = memoryScope === 'private' ? agentId : undefined;
+    const isSanctuary = agentRecord?.territory === 'sanctuary';
 
     // Retrieve personality vector early to bias memory retrieval (cross-system fusion: vector→memory)
     const personalityConfig = personalityRegistry.get(personalityId);
@@ -72,16 +73,30 @@ export function registerChatHandler(
     const isNovel = relevantMemories.length < 2;
 
     const sensory = sensoryFn(uid);
+    // Sanctuary agents use distilled personality, not immortality skill overrides
+    const skillOverride = isSanctuary ? undefined : (category ? immortalitySkills[category] : undefined);
     const { config: personality, systemPrompt: systemInstruction } = personalityRegistry.buildSystemPrompt(
       personalityId,
       { mode: 'chat', sensory },
       {
-        skillOverride: category ? immortalitySkills[category] : undefined,
+        skillOverride,
         memories: relevantMemories.length > 0 ? relevantMemories : undefined,
         ragKnowledge: ragChunks.length > 0 ? ragChunks : undefined,
         emotionalState,
       },
     );
+
+    // Inject conversation summary for long-running conversations (anti-entropy)
+    let effectiveSystemPrompt = systemInstruction;
+    const conversationId = agentId
+      ? getOrCreateActiveConversation(uid, agentId).id
+      : undefined;
+    if (conversationId) {
+      const { conversation } = checkAutoSummary(conversationId);
+      if (conversation?.summary) {
+        effectiveSystemPrompt += `\n\n## Conversation Context\nPrevious conversation summary: ${conversation.summary}`;
+      }
+    }
 
     const interactionId = crypto.randomUUID();
 
@@ -144,8 +159,9 @@ export function registerChatHandler(
         // Path A: Lumi handled this directly — no LLM needed
         responseText = cognition.responseText;
         console.log(`[Cognition] Direct tool '${cognition.intent.directToolCall?.name}' handled without LLM`);
-      } else if (cognition.intent.category === 'command' || cognition.intent.category === 'code' || cognition.intent.category === 'question') {
+      } else if (!isSanctuary && (cognition.intent.category === 'command' || cognition.intent.category === 'code' || cognition.intent.category === 'question')) {
         // Path B: Orchestrator — decompose complex tasks into sub-tasks for worker agents
+        // (Skipped for sanctuary agents — they stay in their territory)
         const complexity = classifyComplexity(text, { userId: uid, personalityId });
         if (complexity === 'complex') {
           const db = readDB();
@@ -214,7 +230,7 @@ export function registerChatHandler(
           : (history ? history.map((m: any) => ({ role: m.role, content: m.content })) : []);
 
         const messages: NormalizedMessage[] = [
-          { role: 'system', content: systemInstruction },
+          { role: 'system', content: effectiveSystemPrompt },
           ...conversationHistory,
           { role: 'user', content: text },
         ];
@@ -226,16 +242,20 @@ export function registerChatHandler(
             socket.emit("agent:chunk", { text: chunk, agentName: personality.name });
           };
 
+          // Sanctuary agents get zero tool access — they can only talk
+          const maxIterations = isSanctuary ? 0 : 3;
+
           const result = await runWithTools(
             messages,
             toolRegistry,
             { provider, model: activeModel, userId: uid },
-            (record) => {
+            isSanctuary ? undefined : (record) => {
               socket.emit("agent:tool", { name: record.name, args: record.arguments, result: record.result?.slice(0, 200), error: record.error });
             },
-            3, // max 3 tool iterations for chat
+            maxIterations,
             llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
             onChunk,
+            isSanctuary ? { toolPolicy: { allowedTools: [], requireConfirmation: [], forbiddenTools: ['*'], maxIterations: 0 } } : undefined,
           );
 
           responseText = result.text || '';
@@ -283,6 +303,14 @@ export function registerChatHandler(
       if (conversationId) {
         addMessage({ userId: uid, agentId: agentId || '', conversationId, role: 'user', content: text, personality: personality.id });
         addMessage({ userId: uid, agentId: agentId || '', conversationId, role: 'assistant', content: responseText, personality: personality.id });
+
+        // Auto-summarize long conversations (anti-entropy: prevents context overflow)
+        const { needed, recentMessages } = checkAutoSummary(conversationId);
+        if (needed && recentMessages.length > 0) {
+          summarizeConversationAsync(conversationId, recentMessages, llmGetters, provider, activeModel).catch(
+            () => {} // Non-critical
+          );
+        }
       }
 
       // Log interaction
@@ -337,8 +365,8 @@ export function registerChatHandler(
       }
       saveEmotionalState(emotionKey, updatedState);
 
-      // Emit contextual greeting on reconnect
-      if (isReconnect && updatedState.intimacy > 0.2) {
+      // Emit contextual greeting on reconnect (sanctuary agents don't initiate)
+      if (!isSanctuary && isReconnect && updatedState.intimacy > 0.2) {
         const greeting = generateContextualGreeting(updatedState);
         if (greeting) {
           socket.emit('agent:proactive', {
@@ -356,6 +384,34 @@ export function registerChatHandler(
       socket.emit("agent:status", { status: "error" });
     }
   });
+}
+
+async function summarizeConversationAsync(
+  conversationId: string,
+  recentMessages: any[],
+  llmGetters: any,
+  provider: string,
+  model: string,
+) {
+  try {
+    const transcript = recentMessages.slice(-30)
+      .map((m: any) => `${m.role || 'user'}: ${(m.message || m.content || '').slice(0, 200)}`)
+      .join('\n');
+    const summaryPrompt = `Summarize this conversation in 2-3 concise sentences. Focus on key decisions, topics discussed, and user preferences revealed. Output only the summary — no preamble.\n\n${transcript}`;
+    const result = await makeLLMCall(
+      [{ role: 'user', content: summaryPrompt }],
+      [],
+      { provider: provider as any, model, maxTokens: 300 },
+      llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
+    );
+    const summary = result.text.trim();
+    if (summary) {
+      setConversationSummary(conversationId, summary);
+      console.log(`[Conversation] Auto-summary generated for ${conversationId}`);
+    }
+  } catch (err) {
+    // Non-critical — conversation continues without summary
+  }
 }
 
 function recordTokenUsage(

@@ -448,6 +448,149 @@ Rules:
     },
   });
 
+  // ── Lumi Growth Journal (daily) — auto-generated summary of what Lumi learned ──
+  scheduler.register({
+    id: 'growth_journal',
+    cron: 'daily_9am',
+    lastRun: null,
+    handler: async () => {
+      const userIds = getAllUserIds();
+      const messages: string[] = [];
+
+      for (const userId of userIds) {
+        try {
+          const db = readDB();
+          const now = new Date();
+          const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+
+          // Collect yesterday's stats
+          const newMemories = (db.memories || []).filter((m: any) =>
+            m.userId === userId && m.createdAt && m.createdAt >= yesterday,
+          );
+          const newInteractions = (db.interactions || []).filter((i: any) =>
+            i.userId === userId && i.timestamp && i.timestamp >= yesterday,
+          );
+          const evolutionHistory = personalityRegistry.getEvolutionHistory('lumi');
+          const recentEvolution = evolutionHistory.filter((e: any) => e.timestamp >= yesterday);
+
+          // Memory stats by type and tier
+          const byType: Record<string, number> = {};
+          const byTier: Record<string, number> = {};
+          for (const m of newMemories) {
+            byType[m.type] = (byType[m.type] || 0) + 1;
+            const tier = (m as any).tier || 'episodic';
+            byTier[tier] = (byTier[tier] || 0) + 1;
+          }
+
+          // Conversation stats
+          const conversations = (db.conversations || []).filter((c: any) =>
+            c.userId === userId && c.lastActiveAt && c.lastActiveAt >= yesterday,
+          );
+
+          // Skill changes
+          const newSkills = (db.interactions || []).filter((i: any) =>
+            i.userId === userId && i.timestamp && i.timestamp >= yesterday && (i as any).mode === 'skill_gen',
+          );
+
+          // Build summary data
+          const summaryData = {
+            date: now.toISOString().slice(0, 10),
+            newMemories: newMemories.length,
+            memoriesByType: byType,
+            memoriesByTier: byTier,
+            newInteractions: newInteractions.length,
+            activeConversations: conversations.filter((c: any) => c.status === 'active').length,
+            closedConversations: conversations.filter((c: any) => c.status === 'closed').length,
+            personalityEvolved: recentEvolution.length > 0,
+            evolutionVersion: recentEvolution[0]?.version || null,
+            evolutionNarrative: recentEvolution[0]?.narrative || null,
+            newSkillsGenerated: newSkills.length,
+            // Sample of new memories
+            memoryHighlights: newMemories
+              .filter((m: any) => (m as any).tier === 'growth' || m.confidence >= 0.8)
+              .slice(0, 5)
+              .map((m: any) => m.content),
+            // Top interaction topics
+            interactionSample: newInteractions.slice(0, 3).map((i: any) =>
+              (i.content || i.message || '').slice(0, 80)
+            ),
+          };
+
+          // Generate narrative summary via LLM
+          try {
+            const narrativePrompt = `You are Lumi's growth journal writer. Write a brief, warm Chinese narrative (3-5 sentences) summarizing what Lumi learned and experienced today.
+
+Today's data (${summaryData.date}):
+- ${summaryData.newMemories} new memories formed (${Object.entries(summaryData.memoriesByType).map(([k, v]) => `${k}: ${v}`).join(', ') || 'none'})
+- ${summaryData.newInteractions} interactions
+- ${summaryData.activeConversations} active conversations, ${summaryData.closedConversations} closed
+- Memory tiers: ${Object.entries(summaryData.memoriesByTier).map(([k, v]) => `${k}: ${v}`).join(', ') || 'none'}
+${summaryData.personalityEvolved ? `- Personality evolved to ${summaryData.evolutionVersion}: ${summaryData.evolutionNarrative}` : '- No personality evolution today'}
+${summaryData.newSkillsGenerated > 0 ? `- ${summaryData.newSkillsGenerated} new skills generated` : ''}
+${summaryData.memoryHighlights.length > 0 ? `- Key memories: ${summaryData.memoryHighlights.join('; ')}` : ''}
+
+Write in first-person as Lumi, warm and introspective tone. Keep it under 150 Chinese characters. Output only the narrative — no preamble, no labels.`;
+
+            const narrativeResult = await makeLLMCall(
+              [{ role: 'user', content: narrativePrompt }],
+              [],
+              { provider: 'qwen', model: 'qwen-plus', maxTokens: 300 },
+              getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
+            );
+
+            const narrative = narrativeResult.text?.trim() || `${summaryData.newMemories} 条新记忆，${summaryData.newInteractions} 次对话 — Lumi 在成长。`;
+
+            // Store as a special memory
+            const { addMemory } = await import('./memory');
+            addMemory({
+              userId,
+              type: 'knowledge',
+              content: `[Growth Journal ${summaryData.date}] ${narrative}`,
+              keywords: ['growth_journal', 'daily_summary', summaryData.date],
+              confidence: 1.0,
+              sourceInteractionId: 'growth_journal_scheduler',
+              agentId: undefined,
+            } as any, { tier: 'growth', perspective: 'lumi_self', importance: 0.9 });
+
+            // Store structured data alongside
+            addMemory({
+              userId,
+              type: 'fact',
+              content: JSON.stringify(summaryData),
+              keywords: ['growth_journal_data', summaryData.date],
+              confidence: 1.0,
+              sourceInteractionId: 'growth_journal_scheduler',
+              agentId: undefined,
+            } as any, { tier: 'episodic', perspective: 'lumi_self', importance: 0.5 });
+
+            console.log(`[GrowthJournal] Generated for ${userId}: ${narrative.slice(0, 100)}`);
+            messages.push(`[${userId}] ${narrative.slice(0, 200)}`);
+          } catch (llmErr: any) {
+            console.warn(`[GrowthJournal] LLM generation failed for ${userId}:`, llmErr.message);
+            // Fallback: simple stats summary
+            const fallback = `${summaryData.date}: ${summaryData.newMemories} 条新记忆, ${summaryData.newInteractions} 次互动, ${summaryData.activeConversations} 个活跃对话。`;
+            const { addMemory } = await import('./memory');
+            addMemory({
+              userId,
+              type: 'knowledge',
+              content: `[Growth Journal ${summaryData.date}] ${fallback}`,
+              keywords: ['growth_journal', 'daily_summary', summaryData.date],
+              confidence: 1.0,
+              sourceInteractionId: 'growth_journal_scheduler',
+              agentId: undefined,
+            } as any, { tier: 'growth' });
+          }
+        } catch (err: any) {
+          console.warn(`[GrowthJournal] Failed for ${userId}:`, err.message);
+        }
+      }
+
+      return messages.length > 0
+        ? `📖 Growth journal updated for ${messages.length} user(s).`
+        : null;
+    },
+  });
+
   // Agent autonomous tick (every 5 min) — agents with scheduled/autonomous levels
   scheduler.register({
     id: 'agent_autonomous_tick',

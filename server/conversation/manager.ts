@@ -144,6 +144,39 @@ export function getMessagesForAgent(userId: string, agentId: string, limit = 50)
   return getMessages(conv.id, limit);
 }
 
+/** Messages threshold for auto-summarization */
+const AUTO_SUMMARY_THRESHOLD = 20;
+
+/**
+ * Check if a conversation needs auto-summarization.
+ * Returns the conversation and older messages if threshold exceeded.
+ */
+export function checkAutoSummary(
+  conversationId: string,
+): { needed: boolean; conversation: Conversation | null; recentMessages: MessageRecord[] } {
+  const db = readDB();
+  if (!db.conversations) return { needed: false, conversation: null, recentMessages: [] };
+  const conv = db.conversations.find((c: Conversation) => c.id === conversationId);
+  if (!conv || conv.messageCount < AUTO_SUMMARY_THRESHOLD) {
+    return { needed: false, conversation: conv || null, recentMessages: [] };
+  }
+  // Only summarize if last summary was more than 20 messages ago (avoid re-summarizing every message)
+  const recentMessages = getMessages(conversationId, 40);
+  return { needed: true, conversation: conv, recentMessages };
+}
+
+/**
+ * Store a conversation summary (replaces existing).
+ */
+export function setConversationSummary(conversationId: string, summary: string): void {
+  const db = readDB();
+  if (!db.conversations) return;
+  const conv = db.conversations.find((c: Conversation) => c.id === conversationId);
+  if (!conv) return;
+  conv.summary = summary;
+  writeDB(db);
+}
+
 export function getUnclosedConversation(userId: string): Conversation | null {
   const db = readDB();
   if (!db.conversations) return null;

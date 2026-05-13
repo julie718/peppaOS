@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'motion/react';
 import { Loader2, Sparkles, GitBranch, TrendingUp, Clock, Target, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
+import { useSocket } from '@/hooks/useSocket';
 
 interface OwnerProfile {
   synthesizedAt: string;
@@ -99,14 +100,35 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
   const [loading, setLoading] = useState(true);
   const [selectedStep, setSelectedStep] = useState<number | null>(null);
   const [evolving, setEvolving] = useState(false);
+  const socket = useSocket();
 
-  useEffect(() => {
+  const fetchEvolutionData = useCallback(() => {
     fetch(`/api/personality/${personalityId}/evolution`)
       .then(r => r.json())
       .then(d => { setData(d); setSelectedStep(d.history?.length > 0 ? 0 : null); })
       .catch(() => toast.error('Failed to load evolution data'))
       .finally(() => setLoading(false));
   }, [personalityId]);
+
+  useEffect(() => {
+    fetchEvolutionData();
+  }, [fetchEvolutionData]);
+
+  // Listen for real-time evolution events via WebSocket
+  useEffect(() => {
+    if (!socket) return;
+    const handler = (event: { personalityId: string; version: string; narrative: string; mutations: any[]; timestamp: string }) => {
+      if (event.personalityId === personalityId) {
+        toast.success(`Lumi evolved to ${event.version}!`, {
+          description: event.narrative?.slice(0, 100),
+        });
+        // Re-fetch to get the full updated state
+        fetchEvolutionData();
+      }
+    };
+    socket.on('personality:evolved', handler);
+    return () => { socket.off('personality:evolved', handler); };
+  }, [socket, personalityId, fetchEvolutionData]);
 
   const triggerEvolution = async () => {
     setEvolving(true);

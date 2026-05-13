@@ -16,6 +16,8 @@ import { deviceRegistry } from '../devices';
 import { canOutputHolographic, textToHolographicOutput } from '../output/holographic';
 import { setOfficeBroadcast } from '../tools/definitions/office_tools';
 import { synthesizeSpeech, getActiveProvider } from '../tts/adapter';
+import { classifyComplexity, decomposeTask, matchWorkers, executeWorkflow, aggregateWithLLM, getRoutingCacheStats } from '../agents/orchestrator';
+import { readDB } from '../../db_layer';
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
@@ -393,6 +395,238 @@ export function createLumiMcpServer(llmGetters?: {
         };
       } catch (err: any) {
         return { content: [{ type: 'text' as const, text: `Agent share failed: ${err.message}` }], isError: true };
+      }
+    },
+  );
+
+  // ── Orchestrator management tools ──
+
+  // List all worker agents with status, skills, and routing history
+  mcp.registerTool(
+    'lumi_list_workers',
+    {
+      description: '列出所有可用的 Worker Agent，包括状态、技能标签、知识域和路由缓存统计。用于监控 Lumi 主脑的工人池。',
+      inputSchema: {
+        statusFilter: z.enum(['active', 'idle', 'offline', 'all']).optional().default('all').describe('按状态过滤'),
+      },
+    },
+    async ({ statusFilter }) => {
+      try {
+        const db = readDB();
+        const agents = (db.agents || []).filter((a: any) => {
+          if (statusFilter === 'all') return true;
+          return a.status === statusFilter;
+        });
+
+        const routingStats = getRoutingCacheStats();
+
+        const workers = agents.map((a: any) => {
+          const agentRouting = routingStats.agents?.[a.id] || {};
+          return {
+            id: a.id,
+            name: a.name,
+            status: a.status || 'idle',
+            skillTags: a.skillTags || [],
+            executionMode: a.executionMode || 'lumi',
+            knowledgeDomains: a.knowledgeDomains || [],
+            memoryScope: a.memoryScope || 'shared',
+            autonomyLevel: a.autonomyLevel || 'reactive',
+            routingHistory: agentRouting,
+            createdAt: a.createdAt,
+          };
+        });
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              total: workers.length,
+              routingCacheSummary: {
+                totalSkillTags: routingStats.totalSkillTags || 0,
+                totalRoutes: routingStats.totalRoutes || 0,
+              },
+              workers,
+            }, null, 2),
+          }],
+        };
+      } catch (err: any) {
+        return { content: [{ type: 'text' as const, text: `Worker list failed: ${err.message}` }], isError: true };
+      }
+    },
+  );
+
+  // Detailed worker status
+  mcp.registerTool(
+    'lumi_worker_status',
+    {
+      description: '获取指定 Worker Agent 的详细状态，包括关联记忆数、最近任务、路由命中率。',
+      inputSchema: {
+        agentId: z.string().describe('Worker Agent ID'),
+      },
+    },
+    async ({ agentId }) => {
+      try {
+        const db = readDB();
+        const agent = (db.agents || []).find((a: any) => a.id === agentId);
+        if (!agent) {
+          return { content: [{ type: 'text' as const, text: `Agent "${agentId}" not found` }], isError: true };
+        }
+
+        // Count memories owned by this agent
+        const memoryCount = (db.memories || []).filter((m: any) => m.agentId === agentId).length;
+
+        // Recent interactions for this agent
+        const recentInteractions = (db.interactions || [])
+          .filter((i: any) => i.agentId === agentId)
+          .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+          .slice(0, 5)
+          .map((i: any) => ({
+            content: (i.content || i.message || '').slice(0, 100),
+            response: (i.response || '').slice(0, 100),
+            timestamp: i.timestamp,
+          }));
+
+        // Routing stats
+        const routingStats = getRoutingCacheStats();
+        const agentRouting = routingStats.agents?.[agentId] || {};
+
+        // Conversations
+        const conversations = (db.conversations || []).filter((c: any) => c.agentId === agentId);
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              agent: {
+                id: agent.id,
+                name: agent.name,
+                status: agent.status || 'idle',
+                skillTags: agent.skillTags || [],
+                executionMode: agent.executionMode || 'lumi',
+                knowledgeDomains: agent.knowledgeDomains || [],
+                memoryScope: agent.memoryScope || 'shared',
+                autonomyLevel: agent.autonomyLevel || 'reactive',
+                createdAt: agent.createdAt,
+              },
+              stats: {
+                memoryCount,
+                interactionCount: recentInteractions.length,
+                conversationCount: conversations.length,
+                activeConversations: conversations.filter((c: any) => c.status === 'active').length,
+              },
+              routing: agentRouting,
+              recentTasks: recentInteractions,
+            }, null, 2),
+          }],
+        };
+      } catch (err: any) {
+        return { content: [{ type: 'text' as const, text: `Worker status failed: ${err.message}` }], isError: true };
+      }
+    },
+  );
+
+  // Manually route a task through the orchestrator
+  mcp.registerTool(
+    'lumi_route_task',
+    {
+      description: '通过 Lumi 主脑编排引擎手动路由一个任务。任务会被分解并分配给合适的 Worker Agent 执行，结果汇总后返回。',
+      inputSchema: {
+        task: z.string().describe('要执行的任务描述'),
+        targetAgentId: z.string().optional().describe('指定目标 Agent ID（可选，不指定则自动匹配）'),
+      },
+    },
+    async ({ task, targetAgentId }) => {
+      try {
+        bc('mcp:activity', { device: 'xiaozhi', action: 'route_task', status: 'received', task: task.slice(0, 200) });
+
+        const complexity = classifyComplexity(task, { userId: 'mcp_remote', personalityId: 'lumi' });
+
+        if (complexity !== 'complex') {
+          // Simple task — let Lumi handle directly
+          const personality = personalityRegistry.get('lumi') || personalityRegistry.getDefault();
+          const { systemPrompt } = personalityRegistry.buildSystemPrompt('lumi', { mode: 'task', sensory: { audio: false, visual: false, spatial: false, haptic: false, holographic: false, activeDeviceTypes: [], deviceCount: 0 } });
+
+          const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: task },
+          ];
+
+          const result = await runWithTools(
+            messages, tr,
+            { provider: 'deepseek', model: 'deepseek-v4-pro', maxTokens: 2048, userId: 'mcp_remote' },
+            undefined, 2,
+            g.getDeepSeek || (() => null), g.getGemini || (() => null), g.getOpenAI || (() => null),
+            g.getAnthropic || (() => null), g.getQwen || (() => null),
+          );
+
+          return {
+            content: [{
+              type: 'text' as const,
+              text: JSON.stringify({
+                complexity: 'simple',
+                handledBy: 'Lumi (direct)',
+                result: result.text,
+                toolCalls: result.toolCalls.length,
+              }, null, 2),
+            }],
+          };
+        }
+
+        // Complex task — orchestrate
+        const db = readDB();
+        const availableAgents = (db.agents || []).filter((a: any) => a.status !== 'offline');
+
+        if (targetAgentId) {
+          // Direct routing to specified agent
+          const targetAgent = availableAgents.find((a: any) => a.id === targetAgentId);
+          if (!targetAgent) {
+            return { content: [{ type: 'text' as const, text: `Target agent "${targetAgentId}" not found or offline` }], isError: true };
+          }
+        }
+
+        if (availableAgents.length === 0) {
+          return { content: [{ type: 'text' as const, text: 'No worker agents available. Create at least one agent first.' }], isError: true };
+        }
+
+        const subTasks = await decomposeTask(
+          task,
+          { provider: 'deepseek', model: 'deepseek-v4-pro' },
+          { userId: 'mcp_remote', personalityId: 'lumi' },
+          { getDeepSeek: g.getDeepSeek || (() => null), getGemini: g.getGemini || (() => null), getOpenAI: g.getOpenAI || (() => null), getAnthropic: g.getAnthropic || (() => null), getQwen: g.getQwen || (() => null) },
+        );
+
+        const assignments = matchWorkers(subTasks, availableAgents);
+        const workflowResult = await executeWorkflow(
+          assignments,
+          { userId: 'mcp_remote', personalityId: 'lumi' },
+          { provider: 'deepseek', model: 'deepseek-v4-pro' },
+          { getDeepSeek: g.getDeepSeek || (() => null), getGemini: g.getGemini || (() => null), getOpenAI: g.getOpenAI || (() => null), getAnthropic: g.getAnthropic || (() => null), getQwen: g.getQwen || (() => null) },
+        );
+
+        const aggregated = await aggregateWithLLM(
+          workflowResult, task,
+          { provider: 'deepseek', model: 'deepseek-v4-pro' },
+          { getDeepSeek: g.getDeepSeek || (() => null), getGemini: g.getGemini || (() => null), getOpenAI: g.getOpenAI || (() => null), getAnthropic: g.getAnthropic || (() => null), getQwen: g.getQwen || (() => null) },
+        );
+
+        bc('mcp:activity', { device: 'xiaozhi', action: 'route_task', status: 'completed', subTasks: subTasks.length, agentsUsed: workflowResult.totalAgentsUsed });
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              complexity: 'complex',
+              handledBy: `Lumi Orchestrator → ${workflowResult.totalAgentsUsed} worker(s)`,
+              subTasks: subTasks.map(s => ({ id: s.id, description: s.description, skill: s.requiredSkill, agentId: s.assignedAgentId })),
+              assignments: assignments.map(a => ({ subTaskId: a.subTask.id, agentId: a.agent.id, agentName: a.agent.name })),
+              result: aggregated,
+              workflowSteps: workflowResult.subTaskResults.length,
+            }, null, 2),
+          }],
+        };
+      } catch (err: any) {
+        bc('mcp:activity', { device: 'xiaozhi', action: 'route_task', status: 'failed', error: err.message });
+        return { content: [{ type: 'text' as const, text: `Task routing failed: ${err.message}` }], isError: true };
       }
     },
   );

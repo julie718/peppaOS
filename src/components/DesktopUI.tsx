@@ -24,6 +24,7 @@ import {
   Sun,
   Maximize2,
   ChevronRight,
+  ArrowLeft,
   Clock,
   Bell,
   Disc,
@@ -35,6 +36,7 @@ import {
   MessageSquare,
   Crown,
   GitBranch,
+  Castle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { GlassCard } from './SharedUI';
@@ -56,6 +58,8 @@ import { ContextMenu } from './ContextMenu';
 import { DesktopOnboarding } from './DesktopOnboarding';
 import { DeviceSyncCenter } from './DeviceSyncCenter';
 import { AgentChatPage } from './AgentChatPage';
+import { Sanctuary } from './Sanctuary';
+import { MemoryAvatarLab } from './MemoryAvatarLab';
 import { NeuralSynthesisMonitor } from './NeuralSynthesisMonitor';
 import { ContributorNodePanel } from './ContributorNodePanel';
 import { MeshSyncSelector } from './MeshSyncSelector';
@@ -728,6 +732,9 @@ export function DesktopUI({
   const [windowOrder, setWindowOrder] = useState<string[]>(activeTab !== 'home' && activeTab !== 'knowledge' ? [activeTab] : []);
   const [knowledgeOpen, setKnowledgeOpen] = useState(activeTab === 'knowledge');
   const [chatOpen, setChatOpen] = useState(false);
+  const [sanctuaryOpen, setSanctuaryOpen] = useState(false);
+  const [sanctuaryAgent, setSanctuaryAgent] = useState<any>(null);
+  const [memoryLabOpen, setMemoryLabOpen] = useState(false);
   const [theme, setTheme] = useState<string>('celestial');
   const [nativeFiles, setNativeFiles] = useState<NativeFile[]>([]);
   const [isControlCenterOpen, setIsControlCenterOpen] = useState(false);
@@ -753,6 +760,7 @@ export function DesktopUI({
     { id: 'devices', labelKey: 'deviceMesh', icon: <Wifi size={24} />, colorClass: 'from-cyan-500 to-blue-600', windowId: 'devices' },
     { id: 'skills', labelKey: 'skills', icon: <Sparkles size={24} />, colorClass: 'from-emerald-500 to-teal-600', windowId: 'skills' },
     { id: 'subscription', labelKey: 'subscription', icon: <Crown size={24} />, colorClass: 'from-amber-400 to-yellow-600', windowId: 'subscription' },
+    { id: 'memory-avatar', labelKey: 'memoryAvatars', icon: <Castle size={24} />, colorClass: 'from-fuchsia-500 to-purple-600', windowId: 'memory-avatar' },
   ];
 
   const handleWallpaperUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -820,6 +828,13 @@ export function DesktopUI({
     window.addEventListener('lumi:switch-personality', handler);
     return () => window.removeEventListener('lumi:switch-personality', handler);
   }, [socket]);
+
+  // Listen for Memory Avatar Lab open request from AgentGenerator
+  useEffect(() => {
+    const handler = () => openMemoryAvatar();
+    window.addEventListener('lumi:open-memory-lab', handler);
+    return () => window.removeEventListener('lumi:open-memory-lab', handler);
+  }, []);
 
 
   const toggleWallpaperMode = useCallback(() => {
@@ -980,6 +995,22 @@ export function DesktopUI({
     return () => clearInterval(timer);
   }, []);
 
+  const openMemoryAvatar = async () => {
+    try { sounds.playClick(); } catch {}
+    try {
+      const res = await fetch('/api/agents/sanctuaries');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.agents && data.agents.length > 0) {
+          setSanctuaryAgent(data.agents[0]);
+          setSanctuaryOpen(true);
+          return;
+        }
+      }
+    } catch {}
+    setMemoryLabOpen(true);
+  };
+
   const toggleWindow = (tab: string) => {
     try { sounds.playClick(); } catch {}
     if (tab === 'home') {
@@ -997,6 +1028,10 @@ export function DesktopUI({
     if (tab === 'chat') {
       setChatOpen(prev => !prev);
       setActiveTab(tab);
+      return;
+    }
+    if (tab === 'memory-avatar') {
+      openMemoryAvatar();
       return;
     }
 
@@ -1827,6 +1862,44 @@ export function DesktopUI({
         isOpen={chatOpen}
         onClose={() => setChatOpen(false)}
       />
+
+      {/* Sanctuary — fullscreen immersive memory avatar space */}
+      <Sanctuary
+        agent={sanctuaryAgent}
+        isOpen={sanctuaryOpen}
+        onClose={() => { setSanctuaryOpen(false); setSanctuaryAgent(null); }}
+      />
+
+      {/* Memory Avatar Lab fullscreen overlay */}
+      <AnimatePresence>
+        {memoryLabOpen && (
+          <motion.div
+            initial={{ clipPath: 'circle(0% at 50% 95%)', opacity: 0 }}
+            animate={{ clipPath: 'circle(150% at 50% 95%)', opacity: 1 }}
+            exit={{ clipPath: 'circle(0% at 50% 95%)', opacity: 0 }}
+            transition={{ duration: 0.55, ease: [0.25, 0.1, 0.25, 1] }}
+            className="fixed inset-0 z-[215]"
+            style={{ background: 'radial-gradient(ellipse at 50% 30%, #12081a 0%, #0a0510 40%, #020205 100%)' }}
+          >
+            <div className="absolute top-4 left-4 z-10">
+              <button
+                onClick={() => setMemoryLabOpen(false)}
+                className="w-10 h-10 flex items-center justify-center bg-black/40 backdrop-blur-xl border border-white/[0.08] rounded-2xl text-white/40 hover:text-white hover:border-white/20 transition-all"
+              >
+                <ArrowLeft size={18} />
+              </button>
+            </div>
+            <MemoryAvatarLab
+              t={t}
+              onEnterSanctuary={(agent: any) => {
+                setMemoryLabOpen(false);
+                setSanctuaryAgent(agent);
+                setSanctuaryOpen(true);
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );
