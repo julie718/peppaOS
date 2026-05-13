@@ -185,6 +185,94 @@ export function computeMutations(
   const mutations: EvolutionMutation[] = [];
   const p = evolutionConfig.plasticity;
   const style = config.expressionStyle;
+  const vector = config.personalityVector;
+
+  // ── Vector-based mutations (when personalityVector is present) ──
+  if (vector) {
+    // 1. Vector shifts: nudge social and cognitive dimensions toward owner profile
+    const socialDims: { key: keyof typeof vector.socialStyle; targetFactor: number; label: string }[] = [
+      { key: 'warmth', targetFactor: profile.emotionalExpressiveness, label: 'warmth' },
+      { key: 'playfulness', targetFactor: profile.emotionalExpressiveness * 0.7, label: 'playfulness' },
+      { key: 'formality', targetFactor: profile.formalityLevel, label: 'formality' },
+      { key: 'directness', targetFactor: 1 - profile.formalityLevel * 0.5, label: 'directness' },
+    ];
+
+    for (const { key, targetFactor, label } of socialDims) {
+      const current = vector.socialStyle[key];
+      const target = +(targetFactor).toFixed(2);
+      const shift = (target - current) * p * 0.3; // Smooth: max 30% of gap per evolution
+      if (Math.abs(shift) > 0.01) {
+        const newVal = +Math.max(0, Math.min(1, current + shift)).toFixed(2);
+        if (newVal !== current) {
+          mutations.push({
+            field: `personalityVector.socialStyle.${key}`,
+            from: current,
+            to: newVal,
+            reason: `Owner ${label}: shifting toward ${newVal} (target ${target})`,
+          });
+        }
+      }
+    }
+
+    // Cognitive shifts based on owner communication patterns
+    const analyticalKeyords = ['分析', '逻辑', '数据', '推理', 'analysis', 'data', 'logical', 'analytics'];
+    const creativeKeywords = ['创意', '设计', '艺术', '创造', 'creative', 'design', 'art', 'novel'];
+    const patternCounts = profile.communicationPatterns || [];
+    const patternStr = patternCounts.join(' ').toLowerCase();
+
+    const analyticalBias = analyticalKeyords.some(k => patternStr.includes(k)) ? 0.6 : 0.3;
+    const creativeBias = creativeKeywords.some(k => patternStr.includes(k)) ? 0.6 : 0.3;
+
+    for (const [dim, target] of [['analytical', analyticalBias], ['creative', creativeBias]] as [keyof typeof vector.cognitiveStyle, number][]) {
+      const current = vector.cognitiveStyle[dim];
+      const shift = (target - current) * p * 0.25;
+      if (Math.abs(shift) > 0.01) {
+        const newVal = +Math.max(0, Math.min(1, current + shift)).toFixed(2);
+        if (newVal !== current) {
+          mutations.push({
+            field: `personalityVector.cognitiveStyle.${dim}`,
+            from: current,
+            to: newVal,
+            reason: `Cognitive ${dim} adjusting to ${newVal}`,
+          });
+        }
+      }
+    }
+
+    // 2. Vocabulary adoption (same logic, works with vector)
+    const currentHints = new Set((style.vocabularyHints || []).map(h => h.toLowerCase()));
+    const newExpressions = (profile.frequentExpressions || [])
+      .filter(expr => expr.length >= 2 && expr.length <= 8 && !currentHints.has(expr.toLowerCase()))
+      .slice(0, Math.ceil(3 * p));
+
+    if (newExpressions.length > 0) {
+      const merged = [...(style.vocabularyHints || []), ...newExpressions].slice(-15);
+      mutations.push({
+        field: 'expressionStyle.vocabularyHints',
+        from: style.vocabularyHints || [],
+        to: merged,
+        reason: `Adopting owner's expressions: ${newExpressions.join(', ')}`,
+      });
+    }
+
+    // 3. Interest absorption — append to coreMotivation if relevant
+    if (p >= 0.25 && profile.interestClusters && profile.interestClusters.length > 0) {
+      const topInterest = profile.interestClusters[0];
+      if (topInterest && !config.coreMotivation.includes(topInterest)) {
+        const absorbed = ` I share my owner's interest in ${topInterest}.`;
+        mutations.push({
+          field: 'coreMotivation',
+          from: config.coreMotivation,
+          to: config.coreMotivation + absorbed,
+          reason: `Absorbing owner's interest: ${topInterest}`,
+        });
+      }
+    }
+
+    return mutations;
+  }
+
+  // ── Legacy: discrete tone/field mutations (when no personalityVector) ──
 
   // 1. Tone shift — if owner's tone differs from current, shift gradually
   if (profile.dominantTone && profile.dominantTone !== style.tone) {
@@ -194,7 +282,6 @@ export function computeMutations(
     const currentIdx = toneOrder.indexOf(style.tone);
     const targetIdx = toneOrder.indexOf(profile.dominantTone);
     if (currentIdx !== -1 && targetIdx !== -1 && currentIdx !== targetIdx) {
-      // Move one step toward target (controlled by plasticity)
       const shift = targetIdx > currentIdx ? 1 : -1;
       const newIdx = Math.round(currentIdx + shift * p);
       const clampedIdx = Math.max(0, Math.min(toneOrder.length - 1, newIdx));
@@ -212,18 +299,18 @@ export function computeMutations(
   }
 
   // 2. Vocabulary adoption — add owner's expressions that aren't already in hints
-  const currentHints = new Set((style.vocabularyHints || []).map(h => h.toLowerCase()));
-  const newExpressions = (profile.frequentExpressions || [])
-    .filter(expr => expr.length >= 2 && expr.length <= 8 && !currentHints.has(expr.toLowerCase()))
-    .slice(0, Math.ceil(3 * p)); // Plasticity controls how many new words to adopt
+  const currentHintsLegacy = new Set((style.vocabularyHints || []).map(h => h.toLowerCase()));
+  const newExpressionsLegacy = (profile.frequentExpressions || [])
+    .filter(expr => expr.length >= 2 && expr.length <= 8 && !currentHintsLegacy.has(expr.toLowerCase()))
+    .slice(0, Math.ceil(3 * p));
 
-  if (newExpressions.length > 0) {
-    const merged = [...(style.vocabularyHints || []), ...newExpressions].slice(-15); // Cap at 15 total
+  if (newExpressionsLegacy.length > 0) {
+    const merged = [...(style.vocabularyHints || []), ...newExpressionsLegacy].slice(-15);
     mutations.push({
       field: 'expressionStyle.vocabularyHints',
       from: style.vocabularyHints || [],
       to: merged,
-      reason: `Adopting owner's frequently used expressions: ${newExpressions.join(', ')}`,
+      reason: `Adopting owner's frequently used expressions: ${newExpressionsLegacy.join(', ')}`,
     });
   }
 

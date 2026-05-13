@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { PersonalityConfig, PersonalityContext } from './types';
-import { generateSystemPrompt } from './engine';
+import { generateSystemPrompt, initVectorFromStyle, vectorToTone, vectorToVerbosity } from './engine';
 import { Memory } from '../memory/types';
 import { EmotionalState } from './state';
 import { EvolutionStep, EvolutionConfig, DEFAULT_EVOLUTION_CONFIG } from './evolution';
@@ -133,12 +133,24 @@ class PersonalityRegistry {
   /** Apply a single mutation by dot-path */
   private applyMutation(config: PersonalityConfig, mutation: EvolutionStep['mutations'][0]): void {
     const parts = mutation.field.split('.');
+
+    // Auto-initialize personalityVector when mutations target it
+    if (parts[0] === 'personalityVector' && !config.personalityVector) {
+      config.personalityVector = initVectorFromStyle(config.expressionStyle);
+    }
+
     let target: any = config;
     for (let i = 0; i < parts.length - 1; i++) {
       target = target[parts[i]];
       if (!target) return;
     }
     target[parts[parts.length - 1]] = mutation.to;
+
+    // After vector mutation, sync discrete fields derived from the vector
+    if (parts[0] === 'personalityVector' && config.personalityVector) {
+      config.expressionStyle.tone = vectorToTone(config.personalityVector);
+      config.expressionStyle.verbosity = vectorToVerbosity(config.personalityVector);
+    }
   }
 
   /** Get the evolution config for a personality (with defaults) */

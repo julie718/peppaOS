@@ -265,8 +265,15 @@ export function registerChatHandler(
         }
       }).catch(err => console.error('[Memory] Extraction failed:', err));
 
-      // Update emotional state
+      // Update emotional state — reconnect if user was away for a while
+      const hoursSinceLast = emotionalState.lastInteractionAt
+        ? (Date.now() - new Date(emotionalState.lastInteractionAt).getTime()) / (1000 * 60 * 60)
+        : 24;
+      const isReconnect = hoursSinceLast > 1;
       let updatedState = updateEmotionalState(emotionalState, { type: 'interaction', userId: uid, timestamp: new Date().toISOString() });
+      if (isReconnect) {
+        updatedState = updateEmotionalState(updatedState, { type: 'reconnect', intensity: Math.min(1, hoursSinceLast / 72), userId: uid, timestamp: new Date().toISOString() });
+      }
       if (isNovel) {
         updatedState = updateEmotionalState(updatedState, { type: 'novel_topic', userId: uid, timestamp: new Date().toISOString() });
       }

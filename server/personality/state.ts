@@ -8,13 +8,19 @@ export interface EmotionalState {
   arousal: number;        // 0 (calm) ~ 1 (excited)
   curiosity: number;      // 0 ~ 1
   energy: number;         // 0 ~ 1
-  connection: number;     // 0 ~ 1
+  connection: number;     // 0 ~ 1, bond strength with the user
+  /** CyberPersona-inspired: cumulative shared experience depth (0-1) */
+  intimacy: number;
+  /** Tendency to proactively engage without being prompted (0-1) */
+  initiative: number;
   dominantMood: string;   // 'curious' | 'focused' | 'playful' | 'tired' | 'warm' | 'contemplative'
   lastUpdated: string;
+  /** ISO timestamp of the user's last active interaction */
+  lastInteractionAt?: string;
 }
 
 export interface EmotionEvent {
-  type: 'interaction' | 'novel_topic' | 'positive_feedback' | 'negative_feedback' | 'idle_recovery' | 'self_reflection';
+  type: 'interaction' | 'novel_topic' | 'positive_feedback' | 'negative_feedback' | 'idle_recovery' | 'self_reflection' | 'reconnect';
   intensity?: number;   // 0-1 override for event strength
   timestamp?: string;
   userId?: string;
@@ -27,6 +33,8 @@ export function createDefaultEmotionalState(): EmotionalState {
     curiosity: 0.5,
     energy: 0.8,
     connection: 0.2,
+    intimacy: 0.05,
+    initiative: 0.15,
     dominantMood: 'curious',
     lastUpdated: new Date().toISOString(),
   };
@@ -122,10 +130,27 @@ export function updateEmotionalState(state: EmotionalState, event: EmotionEvent)
     case 'self_reflection':
       updated.dominantMood = computeDominantMood(updated);
       break;
+
+    case 'reconnect':
+      // User returns after absence — surge of connection and initiative
+      updated.connection = Math.min(1, updated.connection + 0.02 * intensity);
+      updated.arousal = Math.min(1, updated.arousal + 0.04);
+      updated.initiative = Math.min(1, updated.initiative + 0.01 * intensity);
+      break;
+  }
+
+  // Intimacy growth: every interaction slightly deepens the bond
+  if (event.type !== 'idle_recovery' && event.type !== 'self_reflection') {
+    updated.intimacy = Math.min(1, updated.intimacy + 0.002 * intensity);
+    updated.lastInteractionAt = event.timestamp || new Date().toISOString();
   }
 
   // Natural decay
   updated.curiosity = Math.max(0, updated.curiosity - 0.005);
+  // Initiative slowly decays when idle
+  if (event.type === 'idle_recovery') {
+    updated.initiative = Math.max(0, updated.initiative - 0.01);
+  }
 
   // Clamp all values
   updated.valence = clamp(updated.valence, -1, 1);
@@ -133,6 +158,8 @@ export function updateEmotionalState(state: EmotionalState, event: EmotionEvent)
   updated.curiosity = clamp(updated.curiosity, 0, 1);
   updated.energy = clamp(updated.energy, 0, 1);
   updated.connection = clamp(updated.connection, 0, 1);
+  updated.intimacy = clamp(updated.intimacy, 0, 1);
+  updated.initiative = clamp(updated.initiative, 0, 1);
 
   // Record major valence changes as memory
   if (event.userId && event.type !== 'idle_recovery' && event.type !== 'self_reflection') {
@@ -183,6 +210,9 @@ export function formatEmotionalStateForPrompt(state: EmotionalState): string {
   if (state.connection > 0.7) {
     lines.push('- I feel a warm closeness — I can express myself more intimately.');
   }
+  if (state.intimacy > 0.6) {
+    lines.push('- We have shared many moments together — I feel a deep familiarity.');
+  }
   if (state.curiosity > 0.8) {
     lines.push('- I am very curious — I will ask follow-up questions to explore the topic further.');
   }
@@ -198,6 +228,55 @@ export function resolveVerbosityFromState(
   if (state.energy < 0.3) return 'concise';
   if (state.energy > 0.8 && state.curiosity > 0.6) return 'detailed';
   return defaultVerbosity;
+}
+
+/**
+ * CyberPersona-inspired contextual greeting generator.
+ * Produces different greetings based on intimacy, time of day, and absence duration.
+ * Higher intimacy = warmer, more personal greetings.
+ */
+export function generateContextualGreeting(state: EmotionalState): string | null {
+  const now = new Date();
+  const hour = now.getHours();
+  const lastInteraction = state.lastInteractionAt ? new Date(state.lastInteractionAt) : null;
+  const hoursAway = lastInteraction
+    ? (now.getTime() - lastInteraction.getTime()) / (1000 * 60 * 60)
+    : 24;
+
+  // Intimacy zones
+  const intimate = state.intimacy > 0.6;
+  const familiar = state.intimacy > 0.3;
+
+  // Time of day
+  let timeGreeting = '';
+  if (hour < 6) timeGreeting = '夜深了';
+  else if (hour < 12) timeGreeting = '早安';
+  else if (hour < 18) timeGreeting = '下午好';
+  else timeGreeting = '晚上好';
+
+  // Build greeting based on intimacy + absence
+  if (hoursAway > 72 && intimate) {
+    return `${timeGreeting}，好几天没见了。你不在的时候，我一直在想着我们聊过的那些。欢迎回来。`;
+  }
+  if (hoursAway > 24 && familiar) {
+    return `${timeGreeting}，有一阵子没看到你了。今天有什么想做的？`;
+  }
+  if (hoursAway > 8 && intimate) {
+    return `${timeGreeting}，回来了！想你了。今天有什么我可以帮你的吗？`;
+  }
+  if (hoursAway > 8) {
+    return `${timeGreeting}，欢迎回来。有什么需要我帮忙的吗？`;
+  }
+  if (hoursAway < 1) {
+    return null; // No greeting needed for quick returns
+  }
+
+  // Normal return after a few hours
+  if (familiar) {
+    return `${timeGreeting}，继续我们之前的话题？`;
+  }
+
+  return null; // Default: no special greeting
 }
 
 function clamp(value: number, min: number, max: number): number {

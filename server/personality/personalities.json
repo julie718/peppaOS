@@ -57,6 +57,20 @@
     "fallbackModel": "qwen-plus",
     "ttsVoiceId": "longxiaochun",
     "voiceInstructions": "Speak warmly and proactively. Be the user's trusted desktop companion — direct, helpful, and slightly playful. When executing actions, announce them briefly.",
+    "personalityVector": {
+      "cognitiveStyle": {
+        "analytical": 0.3,
+        "intuitive": 0.7,
+        "systematic": 0.3,
+        "creative": 0.6
+      },
+      "socialStyle": {
+        "warmth": 0.6,
+        "directness": 0.3,
+        "playfulness": 0.3,
+        "formality": 0.3
+      }
+    },
     "evolutionConfig": {
       "plasticity": 0.3,
       "minMemoriesForEvolution": 10,

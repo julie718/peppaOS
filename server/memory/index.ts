@@ -1,4 +1,4 @@
-export { queryMemories, addMemory, removeMemory, decayMemories, formatMemoriesForContext, addReminder, getDueReminders, fireReminder, getUnconsolidatedEpisodic, markConsolidated } from './store';
+export { queryMemories, addMemory, removeMemory, decayMemories, dynamicDecayMemories, computeMemoryValue, promoteMemories, formatMemoriesForContext, addReminder, getDueReminders, fireReminder, getUnconsolidatedEpisodic, markConsolidated } from './store';
 export type { Reminder } from './store';
 export { extractMemories } from './extractor';
 export type { ExtractedMemory, MemoryTier, MemoryPerspective } from './types';

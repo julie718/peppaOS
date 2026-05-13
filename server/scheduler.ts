@@ -2,7 +2,7 @@
 // Each check-in fires a socket event to the UI so the user sees "Lumi checked in"
 
 import { Server as SocketIOServer } from 'socket.io';
-import { queryMemories, getDueReminders, fireReminder, runBehavioralAnalysis, decayMemories, getUnconsolidatedEpisodic } from './memory';
+import { queryMemories, getDueReminders, fireReminder, runBehavioralAnalysis, decayMemories, dynamicDecayMemories, promoteMemories, getUnconsolidatedEpisodic } from './memory';
 import { consolidateEpisodic, selfReflect, ConsolidationContext } from './memory/consolidator';
 import { buildTree, ensureBranch, moveNode } from './memory/tree';
 import { makeLLMCall } from './llm/providers';
@@ -146,7 +146,7 @@ export function registerScheduledTasks(
     },
   });
 
-  // Memory decay — applies tier-based decay for all users (every 6h)
+  // Memory decay — value-modulated tier-based decay for all users (every 6h)
   scheduler.register({
     id: 'memory_decay',
     cron: 'every_6h',
@@ -154,12 +154,30 @@ export function registerScheduledTasks(
     handler: async () => {
       const userIds = getAllUserIds();
       for (const userId of userIds) {
-        decayMemories(userId);
+        dynamicDecayMemories(userId);
       }
       const lowConf = queryMemories({ minConfidence: 0, limit: 5 });
       const decayed = lowConf.filter(m => m.confidence < 0.25 && m.confidence > 0.1);
       if (decayed.length > 0) {
         return `Some memories are fading. Would you like me to refresh what I know about you?`;
+      }
+      return null;
+    },
+  });
+
+  // Memory crystallization — auto-promote high-value memories (every 1h)
+  scheduler.register({
+    id: 'memory_crystallization',
+    cron: 'every_1h',
+    lastRun: null,
+    handler: async () => {
+      const userIds = getAllUserIds();
+      let totalPromoted = 0;
+      for (const userId of userIds) {
+        totalPromoted += promoteMemories(userId);
+      }
+      if (totalPromoted > 0) {
+        return `${totalPromoted} memories have crystallized into deeper knowledge.`;
       }
       return null;
     },

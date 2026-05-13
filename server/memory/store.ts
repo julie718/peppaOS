@@ -374,6 +374,119 @@ export function formatMemoriesForContext(memories: Memory[]): string {
   return lines.join('\n');
 }
 
+// ── OpenHer-inspired Memory Crystallization ──
+
+/**
+ * Compute a dynamic memory value score (0-1) based on:
+ * - Retrieve frequency (how often is this memory recalled)
+ * - Recency (how recently was it used)
+ * - Confidence (how sure are we)
+ * - Connectedness (is it part of a branch tree)
+ *
+ * High-value episodic memories are candidates for auto-promotion.
+ */
+export function computeMemoryValue(memory: Memory, childrenCount: number = 0): number {
+  const now = Date.now();
+
+  // Recency bonus: memories retrieved within the last 24h get a bonus
+  const hoursSinceRetrieve = memory.lastRetrievedAt
+    ? (now - new Date(memory.lastRetrievedAt).getTime()) / (1000 * 60 * 60)
+    : 72; // Never retrieved → treat as 3 days old
+  const recencyScore = Math.max(0, 1 - hoursSinceRetrieve / 72); // Decay over 72h
+
+  // Retrieve frequency: log-scale so the 1st retrieval matters most
+  const retrieveScore = Math.min(1, Math.log2(memory.retrieveCount + 1) / 5); // log2(33) ≈ 5
+
+  // Confidence
+  const confidenceScore = memory.confidence;
+
+  // Connectedness: having a parent or children adds value
+  const connectedBonus = childrenCount > 0
+    ? Math.min(0.2, childrenCount * 0.05) // Up to 0.2 bonus
+    : memory.parentId ? 0.1 : 0;
+
+  // Weighted composite
+  const value = (
+    recencyScore * 0.25 +
+    retrieveScore * 0.25 +
+    confidenceScore * 0.35 +
+    connectedBonus * 0.15
+  );
+
+  return Math.min(1, +(value).toFixed(3));
+}
+
+/**
+ * Auto-promote high-value memories to higher tiers.
+ * - Episodic → Internalized: value >= 0.65 for 3+ retrievals
+ * - Internalized → Growth: value >= 0.8 for 5+ retrievals
+ * Returns count of promoted memories.
+ */
+export function promoteMemories(userId: string): number {
+  const all = getMemoryStore();
+  let promoted = 0;
+
+  for (const m of all) {
+    if (m.userId !== userId) continue;
+
+    // Count children for connectedness bonus
+    const childrenCount = all.filter(c => c.parentId === m.id).length;
+    const value = computeMemoryValue(m, childrenCount);
+
+    if (m.tier === 'episodic' && value >= 0.65 && m.retrieveCount >= 3) {
+      m.tier = 'internalized';
+      m.importance = Math.min(1, m.importance + 0.15);
+      m.updatedAt = new Date().toISOString();
+      console.log(`[Memory] Promoted episodic→internalized: "${m.content.slice(0, 50)}..." (value: ${value.toFixed(2)})`);
+      promoted++;
+    } else if (m.tier === 'internalized' && value >= 0.8 && m.retrieveCount >= 5) {
+      m.tier = 'growth';
+      m.importance = Math.min(1, m.importance + 0.2);
+      m.updatedAt = new Date().toISOString();
+      console.log(`[Memory] Promoted internalized→growth: "${m.content.slice(0, 50)}..." (value: ${value.toFixed(2)})`);
+      promoted++;
+    }
+  }
+
+  if (promoted > 0) saveMemoryStore(all);
+  return promoted;
+}
+
+/**
+ * Dynamic tier-based decay — value modulates the decay speed.
+ * High-value memories resist decay; low-value ones decay faster.
+ */
+export function dynamicDecayMemories(userId: string): void {
+  const all = getMemoryStore();
+  let changed = false;
+
+  const baseRates: Record<MemoryTier, { amount: number; min: number }> = {
+    core_identity: { amount: 0, min: 0.9 },
+    growth: { amount: 0.02, min: 0.6 },
+    internalized: { amount: 0.03, min: 0.3 },
+    episodic: { amount: 0.05, min: 0.1 },
+  };
+
+  for (const m of all) {
+    if (m.userId !== userId) continue;
+    const rate = baseRates[m.tier] || baseRates.episodic;
+    if (rate.amount === 0) continue;
+    if (m.confidence <= rate.min) continue;
+
+    // Value modulates decay: high-value memories resist decay
+    const childrenCount = all.filter(c => c.parentId === m.id).length;
+    const value = computeMemoryValue(m, childrenCount);
+    const modulation = 1 - (value * 0.6); // value=1 → 0.4x decay, value=0 → 1x decay
+    const effectiveDecay = +(rate.amount * modulation).toFixed(3);
+
+    if (effectiveDecay <= 0) continue;
+    m.confidence = Math.max(rate.min, +(m.confidence - effectiveDecay).toFixed(2));
+    changed = true;
+  }
+
+  if (changed) saveMemoryStore(all);
+}
+
 // ── Semantic dedup & contradiction detection ──
 
 // Negation patterns in Chinese and English

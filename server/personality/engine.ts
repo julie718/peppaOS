@@ -1,4 +1,4 @@
-import { PersonalityConfig, PersonalityContext, ExpressionStyle } from './types';
+import { PersonalityConfig, PersonalityContext, ExpressionStyle, PersonalityVector } from './types';
 import { Memory } from '../memory/types';
 import { formatMemoriesForContext } from '../memory/store';
 import { EmotionalState, formatEmotionalStateForPrompt, resolveVerbosityFromState } from './state';
@@ -17,6 +17,109 @@ const VERBOSITY_GUIDE: Record<ExpressionStyle['verbosity'], string> = {
   balanced: 'Provide balanced responses — enough detail to be useful, but not overwhelming.',
   detailed: 'Provide thorough, detailed responses. Explore nuances and edge cases.',
 };
+
+// ── Personality Vector (evolving_personality-inspired) ──
+
+/** Map a continuous personality vector to the closest discrete tone */
+export function vectorToTone(v: PersonalityVector): ExpressionStyle['tone'] {
+  const { socialStyle: s, cognitiveStyle: c } = v;
+
+  // Compute weighted scores for each tone archetype
+  const scores: Record<ExpressionStyle['tone'], number> = {
+    warm: s.warmth * 0.6 + s.formality * -0.2 + c.intuitive * 0.2,
+    professional: s.formality * 0.6 + s.playfulness * -0.2 + c.systematic * 0.2,
+    technical: c.analytical * 0.5 + c.systematic * 0.4 + s.directness * 0.1,
+    playful: s.playfulness * 0.6 + c.creative * 0.3 + s.formality * -0.1,
+    inspiring: c.intuitive * 0.4 + s.warmth * 0.3 + c.creative * 0.2 + s.directness * 0.1,
+    neutral: 0, // Default –  will be selected if no other score is positive
+  };
+
+  // Filter to positive scores and pick the max
+  let best: ExpressionStyle['tone'] = 'neutral';
+  let bestScore = 0;
+  for (const [tone, score] of Object.entries(scores) as [ExpressionStyle['tone'], number][]) {
+    if (score > bestScore) {
+      bestScore = score;
+      best = tone;
+    }
+  }
+  return best;
+}
+
+/** Map a continuous personality vector to verbosity level */
+export function vectorToVerbosity(v: PersonalityVector): ExpressionStyle['verbosity'] {
+  const { cognitiveStyle: c, socialStyle: s } = v;
+  // Detailed: high analytical + high systematic
+  const detailed = c.analytical * 0.4 + c.systematic * 0.4 + s.formality * 0.2;
+  // Concise: high directness + low analytical
+  const concise = s.directness * 0.5 + (1 - c.analytical) * 0.3 + (1 - c.systematic) * 0.2;
+
+  if (detailed > 0.7) return 'detailed';
+  if (concise > 0.7) return 'concise';
+  if (detailed > concise) return 'detailed';
+  return 'balanced';
+}
+
+/** Generate a granular vector-based tone description that replaces/supplements the discrete TONE_GUIDE */
+export function vectorToneDescription(v: PersonalityVector): string {
+  const { socialStyle: s, cognitiveStyle: c } = v;
+  const parts: string[] = [];
+
+  if (s.warmth > 0.6) parts.push('express warmth and empathy');
+  if (s.warmth < 0.2) parts.push('maintain emotional distance');
+  if (s.directness > 0.6) parts.push('be direct and straightforward');
+  if (s.directness < 0.2) parts.push('be diplomatic and tactful');
+  if (s.playfulness > 0.6) parts.push('use humour and playful language');
+  if (s.formality > 0.6) parts.push('maintain a formal, professional register');
+  if (c.analytical > 0.6) parts.push('emphasize logic and analysis');
+  if (c.intuitive > 0.6) parts.push('draw on intuition and patterns');
+  if (c.systematic > 0.6) parts.push('proceed methodically, step by step');
+  if (c.creative > 0.6) parts.push('think laterally and explore creative angles');
+
+  if (parts.length === 0) return 'Communicate in a balanced, natural manner.';
+  return parts.join('; ') + '.';
+}
+
+/** Initialize a personality vector from an existing ExpressionStyle (backward-compatible seed) */
+export function initVectorFromStyle(style: ExpressionStyle): PersonalityVector {
+  const v: PersonalityVector = {
+    cognitiveStyle: { analytical: 0.3, intuitive: 0.3, systematic: 0.3, creative: 0.3 },
+    socialStyle: { warmth: 0.3, directness: 0.3, playfulness: 0.3, formality: 0.3 },
+  };
+
+  switch (style.tone) {
+    case 'warm':
+      v.socialStyle.warmth = 0.75; v.socialStyle.directness = 0.2;
+      break;
+    case 'professional':
+      v.socialStyle.formality = 0.75; v.socialStyle.playfulness = 0.1; v.cognitiveStyle.systematic = 0.6;
+      break;
+    case 'technical':
+      v.cognitiveStyle.analytical = 0.8; v.cognitiveStyle.systematic = 0.7; v.socialStyle.directness = 0.6;
+      break;
+    case 'playful':
+      v.socialStyle.playfulness = 0.8; v.cognitiveStyle.creative = 0.6; v.socialStyle.formality = 0.1;
+      break;
+    case 'inspiring':
+      v.cognitiveStyle.intuitive = 0.7; v.cognitiveStyle.creative = 0.6; v.socialStyle.warmth = 0.6;
+      break;
+    case 'neutral':
+    default:
+      break; // Keep defaults (0.3 across all)
+  }
+
+  switch (style.verbosity) {
+    case 'concise':
+      v.socialStyle.directness = Math.max(v.socialStyle.directness, 0.7);
+      break;
+    case 'detailed':
+      v.cognitiveStyle.analytical = Math.max(v.cognitiveStyle.analytical, 0.6);
+      v.cognitiveStyle.systematic = Math.max(v.cognitiveStyle.systematic, 0.6);
+      break;
+  }
+
+  return v;
+}
 
 /**
  * Generate the full system prompt for a personality in a given context.
@@ -61,9 +164,17 @@ export function generateSystemPrompt(
     ? resolveVerbosityFromState(style.verbosity, options.emotionalState)
     : style.verbosity;
 
+  const vector = effective.personalityVector;
+
   blocks.push('\n## Communication Style');
-  blocks.push(TONE_GUIDE[style.tone]);
-  blocks.push(VERBOSITY_GUIDE[verbosity]);
+  if (vector) {
+    // Use granular vector-based tone description
+    blocks.push(vectorToneDescription(vector));
+    blocks.push(VERBOSITY_GUIDE[verbosity]);
+  } else {
+    blocks.push(TONE_GUIDE[style.tone]);
+    blocks.push(VERBOSITY_GUIDE[verbosity]);
+  }
   if (style.vocabularyHints && style.vocabularyHints.length > 0) {
     blocks.push(`Favour these expression patterns: ${style.vocabularyHints.join(', ')}.`);
   }

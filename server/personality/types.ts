@@ -1,5 +1,35 @@
 import { MemoryType } from '../memory/types';
 
+/**
+ * Continuous personality vector inspired by evolving_personality's 8-dimension
+ * cognitive function model. Replaces the discrete tone/verbosity enums with
+ * smooth, evolvable parameters that can shift ±0.1 per evolution step.
+ */
+export interface PersonalityVector {
+  /** Cognitive processing style — how the personality thinks */
+  cognitiveStyle: {
+    /** Logical, data-driven, deductive reasoning */
+    analytical: number;
+    /** Big-picture, gut-feel, pattern-recognition */
+    intuitive: number;
+    /** Structured, methodical, step-by-step */
+    systematic: number;
+    /** Divergent, novel, lateral thinking */
+    creative: number;
+  };
+  /** Social expression style — how the personality communicates */
+  socialStyle: {
+    /** Emotional warmth and empathy */
+    warmth: number;
+    /** Blunt truth-telling vs diplomatic hedging */
+    directness: number;
+    /** Humour, levity, and playfulness */
+    playfulness: number;
+    /** Professional formality and decorum */
+    formality: number;
+  };
+}
+
 export interface ExpressionStyle {
   /** Short persona description for self-reference, e.g. "futuristic AI architect" */
   persona: string;
@@ -68,6 +98,10 @@ export interface PersonalityConfig {
 
   /** Custom voice instructions injected into the voice system prompt */
   voiceInstructions?: string;
+
+  /** Continuous personality vector — enables smooth evolution. When set,
+   *  expressionStyle.tone and verbosity are derived from this vector. */
+  personalityVector?: PersonalityVector;
 
   /** Per-context overrides — e.g. 'floating-window' can be more concise than 'full-screen' */
   contextOverrides?: Record<string, Partial<{
