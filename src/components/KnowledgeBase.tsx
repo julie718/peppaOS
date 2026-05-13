@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { useSocket } from '@/hooks/useSocket';
 import { NodeDetailPanel } from './NodeDetailPanel';
 import { MemoryTreeScene, TimelineTransitionController, layoutTree3D, useMemoryFilter } from './MemoryTree';
-import type { TreeNode3D, BranchCurve3D, TimelineState, MemoryNode as MemNode, FileEntry } from './MemoryTree';
+import type { TreeNode3D, BranchCurve3D, TimelineState, MemoryNode as MemNode, FileEntry, ConversationEntry } from './MemoryTree';
 
 interface MemoryTree { node: MemNode; children: MemoryTree[]; }
 
@@ -20,6 +20,7 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
 
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [memories, setMemories] = useState<MemNode[]>([]);
+  const [conversations, setConversations] = useState<ConversationEntry[]>([]);
   const [treeNodes, setTreeNodes] = useState<TreeNode3D[]>([]);
   const [branchCurves, setBranchCurves] = useState<BranchCurve3D[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,6 +69,14 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
       }
     } catch (err) { console.warn('[KnowledgeBase] memories fetch failed:', err); }
 
+    try {
+      const res = await fetch('/api/conversations?limit=50', { credentials: 'include' });
+      if (res.ok) {
+        const d = await res.json();
+        setConversations(d.conversations || []);
+      }
+    } catch (err) { console.warn('[KnowledgeBase] conversations fetch failed:', err); }
+
     setLoading(false);
   }, []);
 
@@ -84,31 +93,27 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
   // Build tree
   useEffect(() => {
     if (!isOpen) return;
-    const { nodes, curves } = layoutTree3D(memories, files);
+    const { nodes, curves } = layoutTree3D(memories, files, conversations);
     setTreeNodes(nodes);
     setBranchCurves(curves);
 
-    // Compute earliest/latest dates from memories
+    // Compute earliest/latest dates from memories + conversations
     const memsWithDates = memories.filter(m => m.nodeType !== 'branch' && m.createdAt);
-    if (memsWithDates.length > 0) {
-      const earliest = memsWithDates.reduce((a, b) =>
-        new Date(a.createdAt!).getTime() < new Date(b.createdAt!).getTime() ? a : b
-      );
-      const latest = memsWithDates.reduce((a, b) =>
-        new Date(a.createdAt!).getTime() > new Date(b.createdAt!).getTime() ? a : b
-      );
-      setTimeline(prev => ({
-        ...prev,
-        earliest: earliest.createdAt!,
-        latest: latest.createdAt!,
-      }));
+    const allWithDates = [
+      ...memsWithDates.map(m => m.createdAt!),
+      ...conversations.filter(c => c.createdAt).map(c => c.createdAt),
+    ];
+    if (allWithDates.length > 0) {
+      const sorted = allWithDates.sort();
+      setTimeline(prev => ({ ...prev, earliest: sorted[0], latest: sorted[sorted.length - 1] }));
     }
-  }, [memories, files, isOpen]);
+  }, [memories, files, conversations, isOpen]);
 
   // Find selected node data
   const selectedNode = selectedId ? treeNodes.find(n => n.id === selectedId) : null;
   const selectedFileData = selectedId ? files.find(f => f.id === selectedId) : undefined;
   const selectedMemoryData = selectedId ? memories.find(m => m.id === selectedId) : undefined;
+  const selectedConversationData = selectedId ? conversations.find(c => c.id === selectedId) : undefined;
 
   // Filtered data for rendering (timeline only; search dimming in scene)
   const filtered = useMemoryFilter(treeNodes, branchCurves, timeline);
@@ -263,6 +268,7 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
   const totalFiles = files.length;
   const totalMemories = memories.filter(m => m.nodeType !== 'branch').length;
   const totalBranches = memories.filter(m => m.nodeType === 'branch').length;
+  const totalConversations = conversations.length;
 
   return (
     <AnimatePresence>
@@ -386,6 +392,8 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
                   <span className="text-[9px] font-bold text-amber-400/60">{totalMemories} mem</span>
                   <span className="w-px h-3 bg-white/[0.08]" />
                   <span className="text-[9px] font-bold text-cyan-400/60">{totalBranches} branches</span>
+                  <span className="w-px h-3 bg-white/[0.08]" />
+                  <span className="text-[9px] font-bold text-yellow-400/60">{totalConversations} chats</span>
                 </div>
                 <button
                   onClick={onClose}
@@ -401,11 +409,12 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
           <NodeDetailPanel
             node={selectedNode ? {
               id: selectedNode.id,
-              type: selectedNode.type as 'file' | 'memory' | 'branch',
+              type: selectedNode.type as 'file' | 'memory' | 'branch' | 'conversation',
               title: selectedNode.title,
               hue: selectedNode.hue,
               fileData: selectedFileData,
               memoryData: selectedMemoryData,
+              conversationData: selectedConversationData,
               isCore: selectedNode.tier === 'core_identity',
               isBranch: selectedNode.type === 'branch',
             } : null}

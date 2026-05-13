@@ -122,6 +122,10 @@ export function addMessage(msg: {
     if (conv) {
       conv.messageCount = (conv.messageCount || 0) + 1;
       conv.lastActiveAt = now;
+      // Auto-title from first user message
+      if (!conv.title && msg.role === 'user' && msg.content?.trim()) {
+        conv.title = msg.content.trim().slice(0, 80);
+      }
     }
   }
 

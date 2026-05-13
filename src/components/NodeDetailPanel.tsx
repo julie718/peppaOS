@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Download, Trash2, Edit3, Brain, Shield, ShieldOff, File, Clock, Layers, Sparkles, CheckCircle2, Loader2 } from 'lucide-react';
+import { X, Download, Trash2, Edit3, Brain, Shield, ShieldOff, File, Clock, Layers, Sparkles, CheckCircle2, Loader2, MessageSquare } from 'lucide-react';
 
 interface FileEntry {
   id: string;
@@ -32,14 +32,25 @@ interface Memory {
   parentId?: string | null;
 }
 
+interface ConversationData {
+  id: string;
+  title: string;
+  status: string;
+  summary: string;
+  messageCount: number;
+  lastActiveAt: string;
+  createdAt: string;
+}
+
 interface NodeDetailPanelProps {
   node: {
     id: string;
-    type: 'file' | 'memory' | 'branch';
+    type: 'file' | 'memory' | 'branch' | 'conversation';
     title: string;
     hue: number;
     fileData?: FileEntry;
     memoryData?: Memory;
+    conversationData?: ConversationData;
     isCore?: boolean;
     isBranch?: boolean;
   } | null;
@@ -126,6 +137,8 @@ export function NodeDetailPanel({
               >
                 {node.type === 'file' ? (
                   <File size={18} className="text-white/80" />
+                ) : node.type === 'conversation' ? (
+                  <MessageSquare size={18} className="text-white/80" />
                 ) : node.isBranch ? (
                   <Layers size={18} className="text-white/80" />
                 ) : (
@@ -135,7 +148,7 @@ export function NodeDetailPanel({
               <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-bold text-white/90 truncate">{node.title}</h3>
                 <span className="text-[9px] text-white/30 uppercase tracking-wider">
-                  {node.type === 'file' ? 'File' : node.isBranch ? 'Branch' : 'Memory'} · {node.id.slice(0, 8)}
+                  {node.type === 'file' ? 'File' : node.type === 'conversation' ? 'Conversation' : node.isBranch ? 'Branch' : 'Memory'} · {node.id.slice(0, 8)}
                 </span>
               </div>
               <button
@@ -230,6 +243,46 @@ export function NodeDetailPanel({
                       </div>
                     </div>
                   )}
+                </>
+              )}
+
+              {/* Conversation content */}
+              {node.type === 'conversation' && node.conversationData && (
+                <>
+                  {node.conversationData.summary && (
+                    <div className="space-y-1.5">
+                      <label className="text-[8px] font-bold text-white/20 uppercase tracking-widest">Summary</label>
+                      <p className="text-sm text-white/75 leading-relaxed bg-white/[0.04] rounded-xl p-3 border border-white/[0.06]">
+                        {node.conversationData.summary}
+                      </p>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="p-3 bg-white/[0.04] rounded-xl border border-white/[0.06]">
+                      <label className="text-[7px] font-bold text-white/15 uppercase tracking-widest">Messages</label>
+                      <p className="text-xs font-bold text-white/65 mt-0.5">{node.conversationData.messageCount || 0}</p>
+                    </div>
+                    <div className="p-3 bg-white/[0.04] rounded-xl border border-white/[0.06]">
+                      <label className="text-[7px] font-bold text-white/15 uppercase tracking-widest">Status</label>
+                      <p className="text-xs font-bold text-white/65 mt-0.5 capitalize">{node.conversationData.status || 'unknown'}</p>
+                    </div>
+                    <div className="p-3 bg-white/[0.04] rounded-xl border border-white/[0.06]">
+                      <label className="text-[7px] font-bold text-white/15 uppercase tracking-widest">Last Active</label>
+                      <p className="text-xs font-bold text-white/65 mt-0.5">
+                        {node.conversationData.lastActiveAt
+                          ? new Date(node.conversationData.lastActiveAt).toLocaleDateString()
+                          : '-'}
+                      </p>
+                    </div>
+                    <div className="p-3 bg-white/[0.04] rounded-xl border border-white/[0.06]">
+                      <label className="text-[7px] font-bold text-white/15 uppercase tracking-widest">Created</label>
+                      <p className="text-xs font-bold text-white/65 mt-0.5">
+                        {node.conversationData.createdAt
+                          ? new Date(node.conversationData.createdAt).toLocaleDateString()
+                          : '-'}
+                      </p>
+                    </div>
+                  </div>
                 </>
               )}
             </div>

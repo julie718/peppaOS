@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TreeNode3D, MemoryNode, FileEntry, BranchCurve3D } from './types';
+import { TreeNode3D, MemoryNode, FileEntry, ConversationEntry, BranchCurve3D } from './types';
 
 const TIER_RADII: Record<string, number> = {
   core_identity: 0.15,
@@ -15,6 +15,7 @@ const TIER_HUES: Record<string, number> = {
   episodic: 90,
 };
 const FILE_HUE = 130;
+const CONV_HUE = 50;
 
 const COLUMN_BASE_Y = -1.8;
 const COLUMN_TOP_Y = 1.8;
@@ -29,6 +30,7 @@ function hashAngle(id: string): number {
 export function layoutTree3D(
   memories: MemoryNode[],
   files: FileEntry[],
+  conversations?: ConversationEntry[],
 ): { nodes: TreeNode3D[]; curves: BranchCurve3D[] } {
   const memNodes = new Map<string, TreeNode3D>();
   const roots: TreeNode3D[] = [];
@@ -64,6 +66,13 @@ export function layoutTree3D(
     children: [], fileData: f, radius: 0.04,
   }));
 
+  const convNodes: TreeNode3D[] = (conversations || []).map(c => ({
+    id: c.id, type: 'conversation' as const,
+    title: c.title || c.summary?.slice(0, 40) || `对话 ${c.id.slice(0, 8)}`,
+    hue: CONV_HUE, depth: 0, position: new THREE.Vector3(),
+    children: [], conversationData: c, radius: 0.045,
+  }));
+
   // ── Position nodes by time (y-axis) and tier (radius) ──
   const memsWithDates = [...memNodes.values()].filter(m => m.memoryData?.createdAt);
   const dates = memsWithDates.map(m => new Date(m.memoryData!.createdAt!).getTime());
@@ -95,8 +104,19 @@ export function layoutTree3D(
     fileNodes[i].position.set(Math.cos(angle) * r, y, Math.sin(angle) * r * 0.6);
   }
 
+  // Conversation nodes scattered in an outer ring
+  for (let i = 0; i < convNodes.length; i++) {
+    const angle = hashAngle(convNodes[i].id) + Math.PI * 0.5;
+    const r = 1.5 + Math.random() * 0.3;
+    const conv = convNodes[i].conversationData;
+    const created = conv?.createdAt ? new Date(conv.createdAt).getTime() : Date.now();
+    const yFrac = (created - minT) / (timeRange || 1);
+    const y = COLUMN_BASE_Y + Math.max(0, Math.min(1, yFrac)) * COLUMN_HEIGHT;
+    convNodes[i].position.set(Math.cos(angle) * r, y, Math.sin(angle) * r * 0.6);
+  }
+
   // ── No-data seed ──
-  if (memNodes.size === 0 && fileNodes.length === 0) {
+  if (memNodes.size === 0 && fileNodes.length === 0 && convNodes.length === 0) {
     return buildSeedNodes();
   }
 
@@ -125,7 +145,7 @@ export function layoutTree3D(
     }
   }
 
-  const allNodes: TreeNode3D[] = [...memNodes.values(), ...fileNodes];
+  const allNodes: TreeNode3D[] = [...memNodes.values(), ...fileNodes, ...convNodes];
   return { nodes: allNodes, curves };
 }
 

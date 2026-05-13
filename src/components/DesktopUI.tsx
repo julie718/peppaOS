@@ -60,6 +60,7 @@ import { Sanctuary } from './Sanctuary';
 import { MemoryAvatarLab } from './MemoryAvatarLab';
 import { AvatarStudio } from './AvatarStudio';
 import { ReminderPanel } from './ReminderPanel';
+import { ReminderWidget } from './ReminderWidget';
 import { PetAvatar } from './SpriteAnimator';
 import { getDefaultPets } from '../pets/defaults';
 import type { PetConfig } from '../pets/types';
@@ -1784,6 +1785,9 @@ export function DesktopUI({
 
               <NeuralSynthesisMonitor t={t} onOpenTokens={() => toggleWindow('tokens')} />
 
+
+              {/* Reminder Widget */}
+              <ReminderWidget onOpenFull={() => toggleWindow('reminders')} />
 
               {/* Notification Preview */}
               {notifications.filter(n => !n.read).length > 0 && (

@@ -30,11 +30,23 @@ export interface FileEntry {
   createdAt?: string;
 }
 
+export interface ConversationEntry {
+  id: string;
+  userId?: string;
+  agentId?: string;
+  title: string;
+  status: 'active' | 'paused' | 'closed';
+  summary: string;
+  messageCount: number;
+  lastActiveAt: string;
+  createdAt: string;
+}
+
 // ── 3D tree layout ──
 
 export interface TreeNode3D {
   id: string;
-  type: 'trunk' | 'branch' | 'leaf' | 'file';
+  type: 'trunk' | 'branch' | 'leaf' | 'file' | 'conversation';
   title: string;
   hue: number;
   tier?: string;
@@ -44,6 +56,7 @@ export interface TreeNode3D {
   children: TreeNode3D[];
   memoryData?: MemoryNode;
   fileData?: FileEntry;
+  conversationData?: ConversationEntry;
   /** Radius hint for rendering */
   radius: number;
 }
