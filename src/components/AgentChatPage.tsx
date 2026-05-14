@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, MessageSquare, Loader2, ArrowLeft, Ghost, Zap, Cpu, Sparkles, Upload, FileText, Mic, Video, CheckCircle2, Pause, Play, Square, ChevronDown, History, Clock, Plus, Info, Copy, Check, Trash2 } from 'lucide-react';
+import { Send, MessageSquare, Loader2, ArrowLeft, Ghost, Zap, Cpu, Sparkles, Upload, FileText, Mic, Video, CheckCircle2, Pause, Play, Square, ChevronDown, ChevronRight, XCircle, History, Clock, Plus, Info, Copy, Check, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { socketService } from '@/services/socketService';
@@ -28,6 +28,28 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose }: { t: any; use
   const [showVoicePicker, setShowVoicePicker] = useState(false);
   const voicePickerRef = useRef<HTMLDivElement>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [installedSkillNames, setInstalledSkillNames] = useState<string[]>([]);
+
+  // Fetch installed skills to generate dynamic suggestions
+  useEffect(() => {
+    fetch('/api/skills').then(r => r.json()).then(data => {
+      setInstalledSkillNames((data.skills || []).map((s: any) => s.name?.toLowerCase?.() || ''));
+    }).catch(() => {});
+  }, []);
+
+  const hasCreativeSkill = installedSkillNames.some((n: string) => ['minimax', 'pixelle', 'video-editor', 'video editor'].some(k => n.includes(k)));
+  const hasFetcher = installedSkillNames.some((n: string) => ['fetcher', 'web'].some(k => n.includes(k)));
+  const hasDesktop = installedSkillNames.some((n: string) => ['desktop', 'commander'].some(k => n.includes(k)));
+
+  const quickSuggestions = [
+    { id: 'chat', label: t.suggestChat || '随便聊聊', prompt: '你好Lumi，今天有什么有趣的发现吗？', show: true },
+    { id: 'creative', label: t.suggestCreative || '生成一张图片', prompt: '帮我生成一张星空下的赛博朋克城市图片', show: hasCreativeSkill },
+    { id: 'fetch', label: t.suggestFetch || '总结网页内容', prompt: '帮我抓取这篇文章的内容并总结要点', show: hasFetcher },
+    { id: 'desktop', label: t.suggestDesktop || '桌面整理', prompt: '帮我把桌面上的文件按日期整理一下', show: hasDesktop },
+    { id: 'music', label: t.suggestMusic || '创作一首音乐', prompt: '帮我创作一首舒缓的钢琴曲，带有海浪的声音', show: hasCreativeSkill },
+  ];
+
+  const visibleSuggestions = quickSuggestions.filter(s => s.show).slice(0, 4);
 
   const { callState, audioLevel, startCall, endCall, error: callError } = useVoiceCall({
     socket,
@@ -280,10 +302,18 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose }: { t: any; use
     });
 
     socket.on("agent:tool", (data: { name: string; args: any; result?: string; error?: string }) => {
-      toast(`Tool: ${data.name}`, {
-        description: data.error ? `Error: ${data.error}` : (data.result?.slice(0, 100) || (t.chatExecuting || 'Executing...')),
-        icon: data.error ? undefined : <CheckCircle2 size={14} className="text-celestial-saturn" />,
-      });
+      setMessages(prev => [...prev, {
+        id: `tool-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        userName: data.name,
+        text: data.error || data.result || '',
+        timestamp: new Date().toISOString(),
+        type: 'tool',
+        toolName: data.name,
+        toolArgs: data.args,
+        toolResult: data.result,
+        toolError: data.error,
+        toolStatus: data.error ? 'error' : 'done',
+      }]);
     });
 
     socket.on("agent:response", (data: { text: string; agentName: string; source?: string }) => {
@@ -363,9 +393,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose }: { t: any; use
     }
   }, [messages]);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const text = newMessage.trim();
+  const sendText = async (text: string) => {
     if (!text || !user) return;
 
     const userMsg = {
@@ -427,6 +455,11 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose }: { t: any; use
         setIsTyping(false);
       }
     }
+  };
+
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    sendText(newMessage.trim());
   };
 
   const toggleListening = () => {
@@ -785,13 +818,69 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose }: { t: any; use
                 <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">{t.loading || 'Loading...'}</span>
               </div>
             ) : messages.length === 0 && (
-              <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-20">
-                <Sparkles size={64} className="text-celestial-saturn" />
-                <p className="text-lg font-medium">{t.awakePrompt || 'Your agent has awakened.'}<br/>{t.awakePromptSub || 'Begin the first conversation.'}</p>
+              <div className="h-full flex flex-col items-center justify-center text-center space-y-8 px-4">
+                <div className="space-y-3 opacity-20">
+                  <Sparkles size={64} className="text-celestial-saturn mx-auto" />
+                  <p className="text-lg font-medium">{t.awakePrompt || 'Your agent has awakened.'}<br/>{t.awakePromptSub || 'Begin the first conversation.'}</p>
+                </div>
+                {visibleSuggestions.length > 0 && (
+                  <div className="space-y-3 max-w-md w-full">
+                    <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-white/20 font-bold">
+                      <Sparkles size={12} />
+                      {t.tryThese || 'Try these'}
+                    </div>
+                    <div className="grid gap-2">
+                      {visibleSuggestions.map(s => (
+                        <button
+                          key={s.id}
+                          onClick={() => sendText(s.prompt)}
+                          className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10 text-sm text-white/60 hover:text-celestial-saturn hover:border-celestial-saturn/30 hover:bg-celestial-saturn/5 transition-all text-left group"
+                        >
+                          <span>{s.label}</span>
+                          <ChevronRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity text-celestial-saturn" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
             <AnimatePresence initial={false}>
               {messages.map((msg) => (
+                msg.type === 'tool' ? (
+                  <motion.div
+                    key={msg.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex flex-col items-start"
+                  >
+                    <div className={`relative max-w-[85%] p-4 rounded-2xl text-xs ${
+                      msg.toolStatus === 'error'
+                        ? 'bg-red-500/10 border border-red-500/20 text-red-400'
+                        : 'bg-amber-500/5 border border-amber-500/20 text-amber-400'
+                    }`}>
+                      <div className="flex items-center gap-2 mb-1">
+                        {msg.toolStatus === 'error' ? (
+                          <XCircle size={14} />
+                        ) : (
+                          <Loader2 size={14} className="animate-spin" />
+                        )}
+                        <span className="font-bold uppercase tracking-widest text-[10px]">{msg.toolName}</span>
+                      </div>
+                      {msg.toolArgs && (
+                        <div className="text-[10px] opacity-50 truncate max-w-[200px]">
+                          {JSON.stringify(msg.toolArgs).slice(0, 80)}
+                        </div>
+                      )}
+                      {msg.toolResult && (
+                        <div className="text-[10px] text-green-400/70 mt-1 truncate max-w-[250px]">{msg.toolResult.slice(0, 150)}</div>
+                      )}
+                      {msg.toolError && (
+                        <div className="text-[10px] text-red-400/70 mt-1">{msg.toolError}</div>
+                      )}
+                    </div>
+                  </motion.div>
+                ) : (
                 <motion.div
                   key={msg.id}
                   initial={{ opacity: 0, y: 10 }}
@@ -823,7 +912,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose }: { t: any; use
                     {msg.userName} • {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </motion.div>
-              ))}
+              )))}
             </AnimatePresence>
             {isTyping && (
               <div className="flex flex-col gap-3">

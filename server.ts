@@ -1710,6 +1710,46 @@ apiRouter.get("/system/stats", (_req: any, res: any) => {
   }
 });
 
+// Ecosystem stats — aggregated for the Ecosystem page
+apiRouter.get("/ecosystem/stats", (_req: any, res: any) => {
+  try {
+    const db = readDB();
+    const mcpConfig = getMCPConfig();
+    const allServers = Object.entries(mcpConfig);
+    const enabledServers = allServers.filter(([, c]) => c.enabled);
+    const connectedServers = mcpManager.getConnectedServers();
+
+    const totalMem = os.totalmem();
+
+    // Compute token totals from usage log
+    const allUsage: any[] = db.tokenUsage || [];
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    let tokenTotal = 0;
+    let dailyTokens = 0;
+    const today = new Date().toISOString().slice(0, 10);
+    for (const u of allUsage) {
+      tokenTotal += u.totalTokens || 0;
+      if (u.timestamp >= cutoff) dailyTokens += u.totalTokens || 0;
+    }
+
+    res.json({
+      skillCount: allServers.length,
+      enabledSkillCount: enabledServers.length,
+      connectedSkillCount: connectedServers.length,
+      toolCount: toolRegistry.list().length,
+      agentCount: (db.agents || []).length,
+      interactionCount: (db.interactions || []).length,
+      conversationCount: (db.conversations || []).length,
+      deviceCount: io ? io.engine.clientsCount : 0,
+      ramTotal: Math.round(totalMem / 1024 / 1024 / 1024 * 10) / 10,
+      tokenTotal,
+      dailyTokens,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Latency stats — LLM / TTS / STT inference timing
 apiRouter.get("/monitor/latency", (_req: any, res: any) => {
   res.json(getLatencyStats());

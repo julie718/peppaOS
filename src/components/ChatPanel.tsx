@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Mic, MicOff, CheckCircle, XCircle, Loader2, MessageSquare, Plus, Square, Copy, Trash2, Wifi, WifiOff, Check } from 'lucide-react';
+import { Send, Mic, MicOff, CheckCircle, XCircle, Loader2, MessageSquare, Plus, Square, Copy, Trash2, Wifi, WifiOff, Check, Sparkles, ChevronRight } from 'lucide-react';
 
 export interface ChatMessage {
   id: string;
@@ -188,10 +188,10 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
     setMessages([]);
   }, []);
 
-  const handleSend = useCallback(() => {
-    if (!input.trim() || !socket) return;
-    const text = input.trim();
-    setInput('');
+  const handleSend = useCallback((textOverride?: string) => {
+    const text = (textOverride || input).trim();
+    if (!text || !socket) return;
+    if (!textOverride) setInput('');
 
     setMessages(prev => [...prev, {
       id: crypto.randomUUID().slice(0, 9),
@@ -381,9 +381,28 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
           className="flex-1 overflow-y-auto px-3 py-2 space-y-1 text-xs scrollbar-thin"
         >
           {messages.length === 0 && !isTyping && (
-            <div className="text-center text-white/30 py-12">
-              <MessageSquare size={24} className="mx-auto mb-2 opacity-50" />
-              <p>{activeConvId ? (t?.chatPanelEmpty || 'Type a message or use voice to start') : (t?.newConversationHint || 'Start a new conversation')}</p>
+            <div className="text-center text-white/30 py-8 space-y-6">
+              <div className="space-y-2">
+                <MessageSquare size={24} className="mx-auto opacity-50" />
+                <p className="text-[11px]">{activeConvId ? (t?.chatPanelEmpty || 'Type a message or use voice to start') : (t?.newConversationHint || 'Start a new conversation')}</p>
+              </div>
+              <div className="grid gap-1.5 px-2">
+                {[
+                  { label: '随便聊聊', prompt: '你好Lumi，今天有什么有趣的发现吗？' },
+                  { label: '生成图片', prompt: '帮我生成一张星空下的赛博朋克城市图片' },
+                  { label: '总结网页', prompt: '帮我抓取这篇文章并总结要点' },
+                  { label: '桌面整理', prompt: '帮我把桌面上的文件按日期整理一下' },
+                ].map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleSend(s.prompt)}
+                    className="flex items-center justify-between p-2.5 rounded-xl bg-white/5 border border-white/5 text-[10px] text-white/40 hover:text-celestial-saturn hover:border-celestial-saturn/20 hover:bg-celestial-saturn/5 transition-all text-left group"
+                  >
+                    <span>{s.label}</span>
+                    <ChevronRight size={11} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -528,7 +547,7 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
               className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white/80 placeholder-white/30 focus:outline-none focus:border-celestial-glow/40 transition-colors"
             />
             <button
-              onClick={handleSend}
+              onClick={() => handleSend()}
               disabled={!input.trim()}
               className="p-1.5 rounded-lg bg-celestial-glow/20 text-celestial-glow hover:bg-celestial-glow/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >

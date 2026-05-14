@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Rocket, Sparkles, Zap, Shield, Cpu, Globe, Users, Database, ShoppingBag, Ghost, ShieldCheck, ShoppingCart, Network, Share2, Link } from 'lucide-react';
 import { Button } from './ui/button';
@@ -21,6 +21,23 @@ export function LumiEcosystem({ t, onChatAgent }: { t: any; onChatAgent?: (agent
   const [hasDevice, setHasDevice] = useState(false);
   const [isIncubating, setIsIncubating] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [ecosystemStats, setEcosystemStats] = useState<{ skillCount: number; enabledSkillCount: number; connectedSkillCount: number; toolCount: number; agentCount: number; interactionCount: number; deviceCount: number; ramTotal: number; tokenTotal: number; dailyTokens: number } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/ecosystem/stats')
+      .then(r => r.json())
+      .then(setEcosystemStats)
+      .catch(() => {});
+  }, []);
+
+  const s = ecosystemStats;
+  const fmtNum = (n: number) => n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n);
+  const fmtTokens = (n: number) => {
+    if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1) + 'B';
+    if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+    if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+    return String(n);
+  };
   
   const sectionRefs = React.useRef<{ [key: string]: HTMLElement | null }>({});
 
@@ -67,10 +84,10 @@ export function LumiEcosystem({ t, onChatAgent }: { t: any; onChatAgent?: (agent
         <GlassCard className="p-8 md:p-12 rounded-[3rem] md:rounded-[4rem] border-white/5 bg-white/[0.02] backdrop-blur-3xl relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-r from-celestial-saturn/5 via-transparent to-celestial-nebula/5" />
           <div className="relative z-10 grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12">
-            <PulseCounter label={t.activeNodes} value="1,284" />
-            <PulseCounter label={t.syncRate} value="98.2%" colorClass="text-celestial-glow" />
-            <PulseCounter label={t.meshThroughput} value="4.2 PB/s" colorClass="text-celestial-nebula" />
-            <PulseCounter label={t.activeSpirits} value="12,402" colorClass="text-celestial-mars" />
+            <PulseCounter label={t.activeNodes} value={s ? fmtNum(s.deviceCount) : '1,284'} />
+            <PulseCounter label={t.syncRate} value={s ? `${s.connectedSkillCount}/${s.skillCount} Online` : '98.2%'} colorClass="text-celestial-glow" />
+            <PulseCounter label={t.meshThroughput} value={s ? `${fmtTokens(s.dailyTokens)} tokens` : '4.2 PB/s'} colorClass="text-celestial-nebula" />
+            <PulseCounter label={t.activeSpirits} value={s ? fmtNum(s.agentCount) : '12,402'} colorClass="text-celestial-mars" />
           </div>
         </GlassCard>
       </section>
@@ -375,8 +392,8 @@ export function LumiEcosystem({ t, onChatAgent }: { t: any; onChatAgent?: (agent
             </GlassCard>
 
             <div className="grid grid-cols-2 gap-4">
-              <EcosystemStat icon={<Cpu size={16} />} label={t.memory} value="128GB" />
-              <EcosystemStat icon={<Globe size={16} />} label={t.sensing} value="Active" />
+              <EcosystemStat icon={<Cpu size={16} />} label={t.memory} value={s ? `${s.ramTotal}GB` : '128GB'} />
+              <EcosystemStat icon={<Globe size={16} />} label={t.sensing} value={s ? `${s.toolCount} Tools` : 'Active'} />
             </div>
           </div>
         </div>

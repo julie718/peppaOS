@@ -659,6 +659,73 @@ function Spotlight({ isOpen, onClose, onSelect, apps, t }: { isOpen: boolean; on
   );
 }
 
+function DailyCapability({ t, onInstall }: { t: any; onInstall: (skillId: string) => void }) {
+  const [skill, setSkill] = useState<{ id: string; name: string; desc: string; iconColor: string } | null>(null);
+  const [installing, setInstalling] = useState(false);
+
+  useEffect(() => {
+    const skills = [
+      { id: 'pixelle', name: 'Pixelle Studio', desc: 'AI image & video generation', iconColor: 'from-purple-500 to-pink-500' },
+      { id: 'minimax', name: 'MiniMax Studio', desc: 'Music, video, image & voice AI', iconColor: 'from-amber-400 to-yellow-500' },
+      { id: 'desktop-automation', name: 'Desktop Commander', desc: 'Full desktop control via AI', iconColor: 'from-cyan-500 to-blue-500' },
+      { id: 'video-editor', name: 'Video Forge', desc: 'Video & audio editing suite', iconColor: 'from-rose-500 to-orange-500' },
+      { id: 'fetcher', name: 'Web Fetcher Pro', desc: 'Smart web content extraction', iconColor: 'from-blue-500 to-cyan-400' },
+      { id: 'code-sandbox', name: 'Code Sandbox', desc: 'Run Python & JS in cloud sandbox', iconColor: 'from-green-500 to-emerald-400' },
+    ];
+    const idx = new Date().getDate() % skills.length;
+    fetch('/api/skills').then(r => r.json()).then(data => {
+      const installed = (data.skills || []).map((s: any) => s.name?.toLowerCase?.() || '');
+      const uninstalled = skills.filter(s => !installed.some((n: string) => n.includes(s.id)));
+      setSkill(uninstalled.length > 0 ? uninstalled[idx % uninstalled.length] : null);
+    }).catch(() => {});
+  }, []);
+
+  if (!skill) return null;
+
+  const handleInstall = async () => {
+    setInstalling(true);
+    try {
+      await fetch('/api/marketplace/skills/acquire', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skillId: `skill-${skill.id}`, skillName: skill.name, installSource: 'bundled', installPath: `server/skills/bundled/${skill.id}` }),
+      });
+      toast.success(`${skill.name} installed!`);
+      onInstall(skill.id);
+    } catch { toast.error('Install failed'); }
+    finally { setInstalling(false); }
+  };
+
+  return (
+    <GlassCard className="p-5 rounded-[2rem] border-white/5 bg-black/20 space-y-3">
+      <div className="flex items-center gap-2">
+        <Sparkles size={12} className="text-celestial-saturn" />
+        <span className="text-[9px] font-black uppercase tracking-widest text-white/30">{t.dailyCapability || 'Daily Capability'}</span>
+      </div>
+      <div className="flex items-center gap-3">
+        <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${skill.iconColor} flex items-center justify-center shrink-0`}>
+          <Sparkles size={14} className="text-white" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h4 className="text-[11px] font-bold text-white/80">{skill.name}</h4>
+          <p className="text-[8px] text-white/30 truncate">{skill.desc}</p>
+        </div>
+      </div>
+      <button
+        onClick={handleInstall}
+        disabled={installing}
+        className="w-full h-9 rounded-xl bg-white/10 text-white/60 hover:bg-white/20 text-[10px] font-bold transition-all disabled:opacity-50 flex items-center justify-center"
+      >
+        {installing ? (
+          <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}>
+            <Activity size={14} />
+          </motion.div>
+        ) : 'Install'}
+      </button>
+    </GlassCard>
+  );
+}
+
 export function DesktopUI({ 
   t, 
   user, 
@@ -1770,6 +1837,9 @@ export function DesktopUI({
               </div>
 
               <NeuralSynthesisMonitor t={t} onOpenTokens={() => toggleWindow('tokens')} />
+
+              {/* Daily Capability Widget */}
+              <DailyCapability t={t} onInstall={(skillId) => toggleWindow('skills')} />
 
               {/* Notification Preview */}
               {notifications.filter(n => !n.read).length > 0 && (
