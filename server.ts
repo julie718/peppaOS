@@ -36,6 +36,9 @@ import { attachMcpWebSocket, connectMcpServerToRemote } from "./server/mcp/ws_tr
 import { attachLAPWebSocket } from "./server/lap/transport";
 import { lapRoutes } from "./server/lap/routes";
 import { createMessagingRoutes } from "./server/messaging";
+import { mountEnterpriseRoutes } from "./server/enterprise/routes";
+import { mountBranchRoutes } from "./server/enterprise/main_api";
+import { attachEnterpriseWs } from "./server/enterprise/ws_sync";
 import { generateSkill, autoGenerateSkill } from "./server/skills/generator";
 import { getRecentWorkflows, clearWorkflows } from "./server/skills/worklog";
 import { getMarketplaceSkills, getSkillById, searchSkills, getCategories, recordInstall, publishSkill, rateSkill, getSkillRatings } from "./server/marketplace/registry";
@@ -1771,6 +1774,17 @@ if (feishuCfg.appId && feishuCfg.appSecret) {
   console.log('[Feishu] Messaging routes mounted at /api/feishu/*');
 } else {
   console.log('[Feishu] Not configured — set FEISHU_APP_ID and FEISHU_APP_SECRET in .env');
+}
+
+// Enterprise routes — organization management, KB, templates, audit
+// Only mounted when LUMI_MODE=enterprise
+if (process.env.LUMI_MODE === 'enterprise') {
+  mountEnterpriseRoutes(apiRouter, io);
+  mountBranchRoutes(apiRouter);
+  attachEnterpriseWs(io);
+  console.log('[Enterprise] Routes mounted at /api/enterprise/*');
+  console.log('[Enterprise] Branch API mounted at /api/branch/*');
+  console.log('[Enterprise] WebSocket sync attached');
 }
 
 // MCP Server — exposes Lumi as an MCP server for remote devices

@@ -26,7 +26,7 @@ function getCachedEmbedding(text: string): number[] | undefined {
 }
 
 /** Cosine similarity between two vectors */
-function cosineSimilarity(a: number[], b: number[]): number {
+export function cosineSimilarity(a: number[], b: number[]): number {
   if (a.length !== b.length || a.length === 0) return 0;
   let dot = 0, normA = 0, normB = 0;
   for (let i = 0; i < a.length; i++) {
@@ -39,7 +39,7 @@ function cosineSimilarity(a: number[], b: number[]): number {
 }
 
 /** Generate embedding vector via OpenAI text-embedding-3-small. Returns null if API unavailable. */
-async function generateEmbedding(text: string): Promise<number[] | null> {
+export async function generateEmbedding(text: string): Promise<number[] | null> {
   // Check cache first
   const cached = getCachedEmbedding(text);
   if (cached) return cached;

@@ -17,6 +17,7 @@ import { getSensory } from "./shared";
 import { processInput, handleLLMFailure, CognitiveContext } from "../cognition";
 import { checkLLMAccess, recordUsage, estimateTokens } from "../subscription/proxy";
 import { classifyComplexity, decomposeTask, matchWorkers, executeWorkflow, aggregateWithLLM, recordWorkflowPattern, shouldDistillSkill, buildSkillDescription } from "../agents/orchestrator";
+import { searchKnowledgeBase } from "../enterprise/kb";
 
 export function registerChatHandler(
   socket: Socket,
@@ -30,9 +31,9 @@ export function registerChatHandler(
   sensoryFn: (uid: string) => any,
   userIdFn: (s: Socket) => string,
 ) {
-  socket.on("agent:chat", async (data: { text: string; history: any[]; personalityId?: string; category?: string; agentId?: string }) => {
+  socket.on("agent:chat", async (data: { text: string; history: any[]; personalityId?: string; category?: string; agentId?: string; domain?: string; orgId?: string | null }) => {
     console.log('[ChatHandler] agent:chat RECEIVED:', JSON.stringify(data).slice(0, 300));
-    const { text, history, personalityId = "lumi", category, agentId } = data;
+    const { text, history, personalityId = "lumi", category, agentId, domain, orgId } = data;
     const uid = userIdFn(socket);
     console.log('[ChatHandler] uid:', uid, 'agentId:', agentId);
 
@@ -69,6 +70,22 @@ export function registerChatHandler(
         ragChunks = chunks.map((c: any) => c.content);
       }
 
+      // Enterprise: search company KB when in work domain
+      let kbContext: string | undefined;
+      if (domain === 'work' && orgId) {
+        try {
+          const kbResults = await searchKnowledgeBase(orgId, text, 3);
+          if (kbResults.length > 0) {
+            kbContext = kbResults
+              .map(r => `[${r.title}] ${r.chunk}`)
+              .join('\n');
+            console.log('[ChatHandler] KB search results:', kbResults.length, 'articles found');
+          }
+        } catch (err: any) {
+          console.warn('[ChatHandler] KB search failed:', err.message);
+        }
+      }
+
       const emotionKey = agentMemoryFilter ? `${uid}_agent_${agentId}` : uid;
       const emotionalState = loadEmotionalState(emotionKey);
       console.log('[ChatHandler] emotionalState loaded');
@@ -98,6 +115,11 @@ export function registerChatHandler(
         if (summaryContext) {
           effectiveSystemPrompt += `\n\n## Conversation Context\n${summaryContext}`;
         }
+      }
+
+      // Inject company knowledge base context when in work domain
+      if (kbContext) {
+        effectiveSystemPrompt += `\n\n## Company Knowledge Base\n${kbContext}\n\nUse the above company knowledge to inform your response. Cite article titles when referencing company policy.`;
       }
 
       const interactionId = crypto.randomUUID();

@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
 import { readDB, writeDB } from "../../db_layer";
 import { syncUserToSupabase } from "../config/supabase";
+import { getMember, listUserOrgs } from "../enterprise/db";
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -173,6 +174,64 @@ export function mountAuthRoutes(router: Router, jwtSecret: string, getCookieOpti
       writeDB(db);
 
       res.json({ success: true });
+    } catch (e) {
+      res.status(401).json({ error: "Invalid token" });
+    }
+  });
+
+  // Switch into organization context — returns a new JWT with orgId + orgRole
+  router.post("/auth/switch-org", (req, res) => {
+    let token = req.cookies.token;
+    if (!token && req.headers.authorization?.startsWith('Bearer ')) {
+      token = req.headers.authorization.slice(7);
+    }
+    if (!token) return res.status(401).json({ error: "Not authenticated" });
+
+    try {
+      const decoded: any = jwt.verify(token, jwtSecret);
+      const { orgId } = req.body;
+      if (!orgId) return res.status(400).json({ error: "orgId is required" });
+
+      const membership = getMember(orgId, decoded.uid);
+      if (!membership || membership.status !== 'active') {
+        return res.status(403).json({ error: "You are not a member of this organization" });
+      }
+
+      const orgToken = jwt.sign(
+        {
+          uid: decoded.uid,
+          username: decoded.username,
+          role: decoded.role || 'user',
+          orgId: membership.orgId,
+          orgRole: membership.role,
+        },
+        jwtSecret,
+        { expiresIn: "24h" }
+      );
+
+      res.cookie("token", orgToken, getCookieOptions());
+      res.json({
+        success: true,
+        orgId: membership.orgId,
+        orgRole: membership.role,
+      });
+    } catch (e) {
+      res.status(401).json({ error: "Invalid token" });
+    }
+  });
+
+  // List user's organization memberships (for org switcher UI)
+  router.get("/auth/orgs", (req, res) => {
+    let token = req.cookies.token;
+    if (!token && req.headers.authorization?.startsWith('Bearer ')) {
+      token = req.headers.authorization.slice(7);
+    }
+    if (!token) return res.status(401).json({ error: "Not authenticated" });
+
+    try {
+      const decoded: any = jwt.verify(token, jwtSecret);
+      const orgs = listUserOrgs(decoded.uid);
+      res.json({ orgs });
     } catch (e) {
       res.status(401).json({ error: "Invalid token" });
     }

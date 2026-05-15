@@ -55,6 +55,13 @@ function migrateSchema(): Promise<void> {
     db!.run("ALTER TABLE memories ADD COLUMN agentId TEXT DEFAULT ''", () => {});
     // Add location to memories for spatial context
     db!.run("ALTER TABLE memories ADD COLUMN location TEXT DEFAULT ''", () => {});
+    // Enterprise: domain + orgId for data classification
+    db!.run("ALTER TABLE memories ADD COLUMN domain TEXT DEFAULT 'personal'", () => {});
+    db!.run("ALTER TABLE memories ADD COLUMN orgId TEXT DEFAULT ''", () => {});
+    db!.run("ALTER TABLE interactions ADD COLUMN domain TEXT DEFAULT 'personal'", () => {});
+    db!.run("ALTER TABLE interactions ADD COLUMN orgId TEXT DEFAULT ''", () => {});
+    db!.run("ALTER TABLE agents ADD COLUMN domain TEXT DEFAULT 'personal'", () => {});
+    db!.run("ALTER TABLE agents ADD COLUMN orgId TEXT DEFAULT ''", () => {});
     // Add memories table if it doesn't exist
     db!.run(`CREATE TABLE IF NOT EXISTS memories (
       id TEXT PRIMARY KEY,
@@ -73,7 +80,9 @@ function migrateSchema(): Promise<void> {
       importance REAL NOT NULL DEFAULT 0.3,
       parentId TEXT,
       agentId TEXT DEFAULT '',
-      nodeType TEXT NOT NULL DEFAULT 'leaf'
+      nodeType TEXT NOT NULL DEFAULT 'leaf',
+      domain TEXT DEFAULT 'personal',
+      orgId TEXT DEFAULT ''
     )`, () => {});
     // Migrate: add new columns to existing memories table
     db!.run("ALTER TABLE memories ADD COLUMN tier TEXT NOT NULL DEFAULT 'episodic'", () => {});
@@ -145,7 +154,9 @@ function createTables(): Promise<void> {
         modelPreference TEXT DEFAULT '',
         memoryScope TEXT DEFAULT 'shared',
         autonomyLevel TEXT DEFAULT 'reactive',
-        runtimeConfig TEXT DEFAULT '{}'
+        runtimeConfig TEXT DEFAULT '{}',
+        domain TEXT DEFAULT 'personal',
+        orgId TEXT DEFAULT ''
       );
 
       CREATE TABLE IF NOT EXISTS interactions (
@@ -160,6 +171,10 @@ function createTables(): Promise<void> {
         mode TEXT DEFAULT '',
         toolCalls TEXT DEFAULT '',
         conversationId TEXT DEFAULT '',
+        cognitiveIntent TEXT DEFAULT '',
+        llmWasCalled INTEGER DEFAULT 0,
+        domain TEXT DEFAULT 'personal',
+        orgId TEXT DEFAULT '',
         timestamp TEXT NOT NULL
       );
 
@@ -220,6 +235,105 @@ function createTables(): Promise<void> {
         totalTokens INTEGER NOT NULL,
         mode TEXT DEFAULT 'chat',
         interactionId TEXT DEFAULT '',
+        timestamp TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS organizations (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        slug TEXT UNIQUE NOT NULL,
+        ownerUid TEXT NOT NULL,
+        settings TEXT NOT NULL DEFAULT '{}',
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS departments (
+        id TEXT PRIMARY KEY,
+        orgId TEXT NOT NULL,
+        name TEXT NOT NULL,
+        parentId TEXT,
+        createdAt TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS org_memberships (
+        id TEXT PRIMARY KEY,
+        orgId TEXT NOT NULL,
+        userId TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'member',
+        departmentId TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        invitedBy TEXT,
+        joinedAt TEXT,
+        createdAt TEXT NOT NULL,
+        UNIQUE(orgId, userId)
+      );
+
+      CREATE TABLE IF NOT EXISTS org_invitations (
+        id TEXT PRIMARY KEY,
+        orgId TEXT NOT NULL,
+        code TEXT UNIQUE NOT NULL,
+        createdBy TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'member',
+        departmentId TEXT,
+        maxUses INTEGER DEFAULT 0,
+        useCount INTEGER DEFAULT 0,
+        expiresAt TEXT,
+        createdAt TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS enterprise_kb_articles (
+        id TEXT PRIMARY KEY,
+        orgId TEXT NOT NULL,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        category TEXT DEFAULT 'general',
+        tags TEXT DEFAULT '[]',
+        authorId TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'published',
+        viewCount INTEGER DEFAULT 0,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS enterprise_kb_embeddings (
+        id TEXT PRIMARY KEY,
+        articleId TEXT NOT NULL,
+        chunkIndex INTEGER NOT NULL,
+        embedding TEXT NOT NULL,
+        content TEXT NOT NULL,
+        modelName TEXT NOT NULL DEFAULT 'text-embedding-3-small',
+        createdAt TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS agent_templates (
+        id TEXT PRIMARY KEY,
+        orgId TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        category TEXT NOT NULL,
+        config TEXT NOT NULL,
+        icon TEXT DEFAULT 'Bot',
+        version INTEGER DEFAULT 1,
+        status TEXT NOT NULL DEFAULT 'draft',
+        authorId TEXT NOT NULL,
+        reviewedBy TEXT,
+        reviewComment TEXT,
+        downloadCount INTEGER DEFAULT 0,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS audit_log (
+        id TEXT PRIMARY KEY,
+        orgId TEXT NOT NULL,
+        userId TEXT NOT NULL,
+        action TEXT NOT NULL,
+        resourceType TEXT NOT NULL,
+        resourceId TEXT NOT NULL,
+        details TEXT DEFAULT '{}',
+        ipAddress TEXT,
+        userAgent TEXT,
         timestamp TEXT NOT NULL
       );
     `;
@@ -305,6 +419,16 @@ async function loadMemoryDB(): Promise<void> {
   // Load token usage
   const tokenUsageRaw = await query<any>('SELECT * FROM token_usage');
 
+  // Load enterprise tables
+  const organizations = await query<any>('SELECT * FROM organizations');
+  const departments = await query<any>('SELECT * FROM departments');
+  const orgMemberships = await query<any>('SELECT * FROM org_memberships');
+  const orgInvitations = await query<any>('SELECT * FROM org_invitations');
+  const enterpriseKbArticles = await query<any>('SELECT * FROM enterprise_kb_articles');
+  const enterpriseKbEmbeddings = await query<any>('SELECT * FROM enterprise_kb_embeddings');
+  const agentTemplates = await query<any>('SELECT * FROM agent_templates');
+  const auditLogEntries = await query<any>('SELECT * FROM audit_log');
+
   // Load settings
   const settingsRaw = await query<any>('SELECT * FROM settings');
   const settings = settingsRaw.map((s: any) => ({ key: s.key, value: s.value }));
@@ -332,6 +456,8 @@ async function loadMemoryDB(): Promise<void> {
     memoryScope: a.memoryScope || 'shared',
     autonomyLevel: a.autonomyLevel || 'reactive',
     runtimeConfig: a.runtimeConfig || '{}',
+    domain: a.domain || 'personal',
+    orgId: a.orgId || '',
   }));
 
   const interactions = interactionsRaw.map((i: any) => ({
@@ -344,6 +470,8 @@ async function loadMemoryDB(): Promise<void> {
     conversationId: i.conversationId || '',
     cognitiveIntent: i.cognitiveIntent || '',
     llmWasCalled: i.llmWasCalled ? true : false,
+    domain: i.domain || 'personal',
+    orgId: i.orgId || '',
   }));
 
   memoryDB = {
@@ -353,12 +481,20 @@ async function loadMemoryDB(): Promise<void> {
     marketplaceSkills,
     skills,
     founderVision,
-    memories: memories || [],
+    memories: (memories || []).map((m: any) => ({ ...m, domain: m.domain || 'personal', orgId: m.orgId || '' })),
     reminders: remindersRaw || [],
     conversations: conversationsRaw || [],
     settings: settings || [],
     voiceProfiles: voiceProfiles || {},
     tokenUsage: tokenUsageRaw || [],
+    organizations: organizations || [],
+    departments: departments || [],
+    orgMemberships: orgMemberships || [],
+    orgInvitations: orgInvitations || [],
+    enterpriseKbArticles: enterpriseKbArticles || [],
+    enterpriseKbEmbeddings: enterpriseKbEmbeddings || [],
+    agentTemplates: agentTemplates || [],
+    auditLog: auditLogEntries || [],
   };
 }
 
@@ -460,21 +596,21 @@ async function persistMemoryDB(): Promise<void> {
     },
     {
       name: 'agents',
-      createSQL: `CREATE TABLE _temp_agents (id TEXT PRIMARY KEY, name TEXT NOT NULL, category TEXT NOT NULL, config TEXT NOT NULL, createdAt TEXT NOT NULL, userId TEXT, status TEXT DEFAULT 'active', personalityId TEXT DEFAULT 'lumi', modelPreference TEXT DEFAULT '', memoryScope TEXT DEFAULT 'shared', autonomyLevel TEXT DEFAULT 'reactive', runtimeConfig TEXT DEFAULT '{}')`,
-      insertSQL: `INSERT INTO _temp_agents (id, name, category, config, createdAt, userId, status, personalityId, modelPreference, memoryScope, autonomyLevel, runtimeConfig) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      rows: () => memoryDB.agents.map((a: any) => [a.id, a.name, a.category, a.data || a.config || '{}', a.createdAt, a.ownerUid || a.userId || null, a.status || 'active', a.personalityId || 'lumi', a.modelPreference || '', a.memoryScope || 'shared', a.autonomyLevel || 'reactive', a.runtimeConfig || '{}']),
+      createSQL: `CREATE TABLE _temp_agents (id TEXT PRIMARY KEY, name TEXT NOT NULL, category TEXT NOT NULL, config TEXT NOT NULL, createdAt TEXT NOT NULL, userId TEXT, status TEXT DEFAULT 'active', personalityId TEXT DEFAULT 'lumi', modelPreference TEXT DEFAULT '', memoryScope TEXT DEFAULT 'shared', autonomyLevel TEXT DEFAULT 'reactive', runtimeConfig TEXT DEFAULT '{}', domain TEXT DEFAULT 'personal', orgId TEXT DEFAULT '')`,
+      insertSQL: `INSERT INTO _temp_agents (id, name, category, config, createdAt, userId, status, personalityId, modelPreference, memoryScope, autonomyLevel, runtimeConfig, domain, orgId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      rows: () => memoryDB.agents.map((a: any) => [a.id, a.name, a.category, a.data || a.config || '{}', a.createdAt, a.ownerUid || a.userId || null, a.status || 'active', a.personalityId || 'lumi', a.modelPreference || '', a.memoryScope || 'shared', a.autonomyLevel || 'reactive', a.runtimeConfig || '{}', a.domain || 'personal', a.orgId || '']),
     },
     {
       name: 'interactions',
-      createSQL: `CREATE TABLE _temp_interactions (id TEXT PRIMARY KEY, userId TEXT NOT NULL, agentId TEXT, module TEXT, message TEXT NOT NULL, response TEXT, role TEXT DEFAULT '', personality TEXT DEFAULT '', mode TEXT DEFAULT '', toolCalls TEXT DEFAULT '', conversationId TEXT DEFAULT '', cognitiveIntent TEXT DEFAULT '', llmWasCalled INTEGER DEFAULT 0, timestamp TEXT NOT NULL)`,
-      insertSQL: `INSERT INTO _temp_interactions (id, userId, agentId, module, message, response, role, personality, mode, toolCalls, conversationId, cognitiveIntent, llmWasCalled, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      rows: () => memoryDB.interactions.map((i: any) => [i.id, i.userId || 'unknown', i.agentId || null, i.personality || i.module || null, i.content || i.message || '', i.response || '', i.role || '', i.personality || '', i.mode || '', i.toolCalls ? JSON.stringify(i.toolCalls) : '', i.conversationId || '', i.cognitiveIntent || '', i.llmWasCalled ? 1 : 0, i.timestamp]),
+      createSQL: `CREATE TABLE _temp_interactions (id TEXT PRIMARY KEY, userId TEXT NOT NULL, agentId TEXT, module TEXT, message TEXT NOT NULL, response TEXT, role TEXT DEFAULT '', personality TEXT DEFAULT '', mode TEXT DEFAULT '', toolCalls TEXT DEFAULT '', conversationId TEXT DEFAULT '', cognitiveIntent TEXT DEFAULT '', llmWasCalled INTEGER DEFAULT 0, domain TEXT DEFAULT 'personal', orgId TEXT DEFAULT '', timestamp TEXT NOT NULL)`,
+      insertSQL: `INSERT INTO _temp_interactions (id, userId, agentId, module, message, response, role, personality, mode, toolCalls, conversationId, cognitiveIntent, llmWasCalled, domain, orgId, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      rows: () => memoryDB.interactions.map((i: any) => [i.id, i.userId || 'unknown', i.agentId || null, i.personality || i.module || null, i.content || i.message || '', i.response || '', i.role || '', i.personality || '', i.mode || '', i.toolCalls ? JSON.stringify(i.toolCalls) : '', i.conversationId || '', i.cognitiveIntent || '', i.llmWasCalled ? 1 : 0, i.domain || 'personal', i.orgId || '', i.timestamp]),
     },
     {
       name: 'memories',
-      createSQL: `CREATE TABLE _temp_memories (id TEXT PRIMARY KEY, userId TEXT NOT NULL, type TEXT NOT NULL, content TEXT NOT NULL, keywords TEXT NOT NULL DEFAULT '[]', confidence REAL NOT NULL DEFAULT 0.5, sourceInteractionId TEXT NOT NULL DEFAULT '', createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL, lastRetrievedAt TEXT, retrieveCount INTEGER NOT NULL DEFAULT 0, tier TEXT NOT NULL DEFAULT 'episodic', perspective TEXT NOT NULL DEFAULT 'owner_trait', importance REAL NOT NULL DEFAULT 0.3, parentId TEXT, agentId TEXT DEFAULT '', nodeType TEXT NOT NULL DEFAULT 'leaf', location TEXT DEFAULT '')`,
-      insertSQL: `INSERT INTO _temp_memories (id, userId, type, content, keywords, confidence, sourceInteractionId, createdAt, updatedAt, lastRetrievedAt, retrieveCount, tier, perspective, importance, parentId, agentId, nodeType, location) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      rows: () => (memoryDB.memories || []).map((m: any) => [m.id, m.userId, m.type, m.content, JSON.stringify(m.keywords || []), m.confidence || 0.5, m.sourceInteractionId || '', m.createdAt, m.updatedAt, m.lastRetrievedAt, m.retrieveCount || 0, m.tier || 'episodic', m.perspective || 'owner_trait', m.importance ?? 0.3, m.parentId || null, m.agentId || '', m.nodeType || 'leaf', m.location || '']),
+      createSQL: `CREATE TABLE _temp_memories (id TEXT PRIMARY KEY, userId TEXT NOT NULL, type TEXT NOT NULL, content TEXT NOT NULL, keywords TEXT NOT NULL DEFAULT '[]', confidence REAL NOT NULL DEFAULT 0.5, sourceInteractionId TEXT NOT NULL DEFAULT '', createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL, lastRetrievedAt TEXT, retrieveCount INTEGER NOT NULL DEFAULT 0, tier TEXT NOT NULL DEFAULT 'episodic', perspective TEXT NOT NULL DEFAULT 'owner_trait', importance REAL NOT NULL DEFAULT 0.3, parentId TEXT, agentId TEXT DEFAULT '', nodeType TEXT NOT NULL DEFAULT 'leaf', location TEXT DEFAULT '', domain TEXT DEFAULT 'personal', orgId TEXT DEFAULT '')`,
+      insertSQL: `INSERT INTO _temp_memories (id, userId, type, content, keywords, confidence, sourceInteractionId, createdAt, updatedAt, lastRetrievedAt, retrieveCount, tier, perspective, importance, parentId, agentId, nodeType, location, domain, orgId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      rows: () => (memoryDB.memories || []).map((m: any) => [m.id, m.userId, m.type, m.content, JSON.stringify(m.keywords || []), m.confidence || 0.5, m.sourceInteractionId || '', m.createdAt, m.updatedAt, m.lastRetrievedAt, m.retrieveCount || 0, m.tier || 'episodic', m.perspective || 'owner_trait', m.importance ?? 0.3, m.parentId || null, m.agentId || '', m.nodeType || 'leaf', m.location || '', m.domain || 'personal', m.orgId || '']),
     },
     {
       name: 'reminders',
@@ -525,6 +661,54 @@ async function persistMemoryDB(): Promise<void> {
       createSQL: `CREATE TABLE _temp_token_usage (id TEXT PRIMARY KEY, userId TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL, promptTokens INTEGER NOT NULL, completionTokens INTEGER NOT NULL, totalTokens INTEGER NOT NULL, mode TEXT DEFAULT 'chat', interactionId TEXT DEFAULT '', timestamp TEXT NOT NULL)`,
       insertSQL: `INSERT INTO _temp_token_usage (id, userId, provider, model, promptTokens, completionTokens, totalTokens, mode, interactionId, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       rows: () => (memoryDB.tokenUsage || []).map((u: any) => [u.id, u.userId, u.provider, u.model, u.promptTokens, u.completionTokens, u.totalTokens, u.mode || 'chat', u.interactionId || '', u.timestamp]),
+    },
+    {
+      name: 'organizations',
+      createSQL: `CREATE TABLE _temp_organizations (id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT UNIQUE NOT NULL, ownerUid TEXT NOT NULL, settings TEXT NOT NULL DEFAULT '{}', createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL)`,
+      insertSQL: `INSERT INTO _temp_organizations (id, name, slug, ownerUid, settings, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      rows: () => (memoryDB.organizations || []).map((o: any) => [o.id, o.name, o.slug, o.ownerUid, o.settings || '{}', o.createdAt, o.updatedAt]),
+    },
+    {
+      name: 'departments',
+      createSQL: `CREATE TABLE _temp_departments (id TEXT PRIMARY KEY, orgId TEXT NOT NULL, name TEXT NOT NULL, parentId TEXT, createdAt TEXT NOT NULL)`,
+      insertSQL: `INSERT INTO _temp_departments (id, orgId, name, parentId, createdAt) VALUES (?, ?, ?, ?, ?)`,
+      rows: () => (memoryDB.departments || []).map((d: any) => [d.id, d.orgId, d.name, d.parentId || null, d.createdAt]),
+    },
+    {
+      name: 'org_memberships',
+      createSQL: `CREATE TABLE _temp_org_memberships (id TEXT PRIMARY KEY, orgId TEXT NOT NULL, userId TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'member', departmentId TEXT, status TEXT NOT NULL DEFAULT 'active', invitedBy TEXT, joinedAt TEXT, createdAt TEXT NOT NULL, UNIQUE(orgId, userId))`,
+      insertSQL: `INSERT INTO _temp_org_memberships (id, orgId, userId, role, departmentId, status, invitedBy, joinedAt, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      rows: () => (memoryDB.orgMemberships || []).map((m: any) => [m.id, m.orgId, m.userId, m.role || 'member', m.departmentId || null, m.status || 'active', m.invitedBy || null, m.joinedAt || null, m.createdAt]),
+    },
+    {
+      name: 'org_invitations',
+      createSQL: `CREATE TABLE _temp_org_invitations (id TEXT PRIMARY KEY, orgId TEXT NOT NULL, code TEXT UNIQUE NOT NULL, createdBy TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'member', departmentId TEXT, maxUses INTEGER DEFAULT 0, useCount INTEGER DEFAULT 0, expiresAt TEXT, createdAt TEXT NOT NULL)`,
+      insertSQL: `INSERT INTO _temp_org_invitations (id, orgId, code, createdBy, role, departmentId, maxUses, useCount, expiresAt, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      rows: () => (memoryDB.orgInvitations || []).map((inv: any) => [inv.id, inv.orgId, inv.code, inv.createdBy, inv.role || 'member', inv.departmentId || null, inv.maxUses || 0, inv.useCount || 0, inv.expiresAt || null, inv.createdAt]),
+    },
+    {
+      name: 'enterprise_kb_articles',
+      createSQL: `CREATE TABLE _temp_enterprise_kb_articles (id TEXT PRIMARY KEY, orgId TEXT NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, category TEXT DEFAULT 'general', tags TEXT DEFAULT '[]', authorId TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'published', viewCount INTEGER DEFAULT 0, createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL)`,
+      insertSQL: `INSERT INTO _temp_enterprise_kb_articles (id, orgId, title, content, category, tags, authorId, status, viewCount, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      rows: () => (memoryDB.enterpriseKbArticles || []).map((a: any) => [a.id, a.orgId, a.title, a.content, a.category || 'general', a.tags || '[]', a.authorId, a.status || 'published', a.viewCount || 0, a.createdAt, a.updatedAt]),
+    },
+    {
+      name: 'enterprise_kb_embeddings',
+      createSQL: `CREATE TABLE _temp_enterprise_kb_embeddings (id TEXT PRIMARY KEY, articleId TEXT NOT NULL, chunkIndex INTEGER NOT NULL, embedding TEXT NOT NULL, content TEXT NOT NULL, modelName TEXT NOT NULL DEFAULT 'text-embedding-3-small', createdAt TEXT NOT NULL)`,
+      insertSQL: `INSERT INTO _temp_enterprise_kb_embeddings (id, articleId, chunkIndex, embedding, content, modelName, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      rows: () => (memoryDB.enterpriseKbEmbeddings || []).map((e: any) => [e.id, e.articleId, e.chunkIndex, e.embedding, e.content, e.modelName || 'text-embedding-3-small', e.createdAt]),
+    },
+    {
+      name: 'agent_templates',
+      createSQL: `CREATE TABLE _temp_agent_templates (id TEXT PRIMARY KEY, orgId TEXT NOT NULL, name TEXT NOT NULL, description TEXT NOT NULL, category TEXT NOT NULL, config TEXT NOT NULL, icon TEXT DEFAULT 'Bot', version INTEGER DEFAULT 1, status TEXT NOT NULL DEFAULT 'draft', authorId TEXT NOT NULL, reviewedBy TEXT, reviewComment TEXT, downloadCount INTEGER DEFAULT 0, createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL)`,
+      insertSQL: `INSERT INTO _temp_agent_templates (id, orgId, name, description, category, config, icon, version, status, authorId, reviewedBy, reviewComment, downloadCount, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      rows: () => (memoryDB.agentTemplates || []).map((t: any) => [t.id, t.orgId, t.name, t.description, t.category, t.config, t.icon || 'Bot', t.version || 1, t.status || 'draft', t.authorId, t.reviewedBy || null, t.reviewComment || null, t.downloadCount || 0, t.createdAt, t.updatedAt]),
+    },
+    {
+      name: 'audit_log',
+      createSQL: `CREATE TABLE _temp_audit_log (id TEXT PRIMARY KEY, orgId TEXT NOT NULL, userId TEXT NOT NULL, action TEXT NOT NULL, resourceType TEXT NOT NULL, resourceId TEXT NOT NULL, details TEXT DEFAULT '{}', ipAddress TEXT, userAgent TEXT, timestamp TEXT NOT NULL)`,
+      insertSQL: `INSERT INTO _temp_audit_log (id, orgId, userId, action, resourceType, resourceId, details, ipAddress, userAgent, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      rows: () => (memoryDB.auditLog || []).map((l: any) => [l.id, l.orgId, l.userId, l.action, l.resourceType, l.resourceId, l.details || '{}', l.ipAddress || null, l.userAgent || null, l.timestamp]),
     },
   ];
 

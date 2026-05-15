@@ -1,0 +1,403 @@
+/**
+ * Enterprise REST API routes.
+ *
+ * Mounted under /api/enterprise when LUMI_MODE=enterprise.
+ * All routes use the unified auth middleware (no inline JWT copy-paste).
+ */
+
+import { Router, Request, Response } from 'express';
+import { requireAuth, requireOrgRole, requireOrgMember, optionalAuth } from '../middleware/auth';
+import * as Org from './org';
+import * as EDB from './db';
+import * as KB from './kb';
+import * as Templates from './templates';
+import * as Audit from './audit';
+import { Server as SocketIOServer } from 'socket.io';
+
+export function mountEnterpriseRoutes(router: Router, io?: SocketIOServer) {
+  // ── Health / status ──────────────────────────────────────────────────
+
+  router.get('/enterprise/status', optionalAuth, (_req: Request, res: Response) => {
+    const connected = !!_req.user?.orgId;
+    res.json({
+      enabled: true,
+      connected,
+      orgId: _req.user?.orgId || null,
+      orgRole: _req.user?.orgRole || null,
+    });
+  });
+
+  // ── Organization CRUD ────────────────────────────────────────────────
+
+  router.post('/enterprise/org', requireAuth, (req: Request, res: Response) => {
+    const { name, slug } = req.body;
+    if (!name || !slug) {
+      res.status(400).json({ error: 'name and slug are required' });
+      return;
+    }
+    const existing = Org.getOrganizationBySlug(slug);
+    if (existing) {
+      res.status(409).json({ error: 'Organization slug already taken' });
+      return;
+    }
+    const org = Org.createOrganization(name, slug, req.user!.uid);
+    res.status(201).json(org);
+  });
+
+  router.get('/enterprise/org/:orgId', requireAuth, requireOrgMember, (req: Request, res: Response) => {
+    const org = Org.getOrganization(req.params.orgId);
+    if (!org) {
+      res.status(404).json({ error: 'Organization not found' });
+      return;
+    }
+    res.json(org);
+  });
+
+  router.put('/enterprise/org/:orgId', requireAuth, requireOrgRole('owner', 'admin'), (req: Request, res: Response) => {
+    const org = Org.updateOrganization(req.params.orgId, req.user!.uid, req.body);
+    if (!org) {
+      res.status(404).json({ error: 'Organization not found' });
+      return;
+    }
+    res.json(org);
+  });
+
+  router.delete('/enterprise/org/:orgId', requireAuth, requireOrgRole('owner'), (req: Request, res: Response) => {
+    const result = Org.deleteOrganization(req.params.orgId, req.user!.uid);
+    if (!result) {
+      res.status(403).json({ error: 'Only the owner can delete an organization' });
+      return;
+    }
+    res.json({ success: true });
+  });
+
+  router.get('/enterprise/org', requireAuth, (req: Request, res: Response) => {
+    const orgs = Org.listUserOrganizations(req.user!.uid);
+    res.json(orgs);
+  });
+
+  // ── Members ──────────────────────────────────────────────────────────
+
+  router.get('/enterprise/org/:orgId/members', requireAuth, requireOrgMember, (req: Request, res: Response) => {
+    const members = Org.listOrgMembers(req.params.orgId);
+    res.json(members);
+  });
+
+  router.post('/enterprise/org/:orgId/members', requireAuth, requireOrgRole('owner', 'admin'), (req: Request, res: Response) => {
+    const { userId, role, departmentId } = req.body;
+    if (!userId) {
+      res.status(400).json({ error: 'userId is required' });
+      return;
+    }
+    const membership = Org.inviteMember(req.params.orgId, req.user!.uid, userId, role, departmentId);
+    res.status(201).json(membership);
+  });
+
+  router.delete('/enterprise/org/:orgId/members/:userId', requireAuth, requireOrgRole('owner', 'admin'), (req: Request, res: Response) => {
+    const result = Org.removeOrgMember(req.params.orgId, req.user!.uid, req.params.userId);
+    if (!result) {
+      res.status(404).json({ error: 'Member not found' });
+      return;
+    }
+    res.json({ success: true });
+  });
+
+  router.put('/enterprise/org/:orgId/members/:userId/role', requireAuth, requireOrgRole('owner', 'admin'), (req: Request, res: Response) => {
+    const { role } = req.body;
+    if (!role) {
+      res.status(400).json({ error: 'role is required' });
+      return;
+    }
+    const m = Org.changeMemberRole(req.params.orgId, req.user!.uid, req.params.userId, role);
+    if (!m) {
+      res.status(404).json({ error: 'Member not found' });
+      return;
+    }
+    res.json(m);
+  });
+
+  // ── Departments ──────────────────────────────────────────────────────
+
+  router.get('/enterprise/org/:orgId/departments', requireAuth, requireOrgMember, (req: Request, res: Response) => {
+    const depts = Org.getOrgDepartments(req.params.orgId);
+    res.json(depts);
+  });
+
+  router.post('/enterprise/org/:orgId/departments', requireAuth, requireOrgRole('owner', 'admin'), (req: Request, res: Response) => {
+    const { name, parentId } = req.body;
+    if (!name) {
+      res.status(400).json({ error: 'name is required' });
+      return;
+    }
+    const dept = Org.createOrgDepartment(req.params.orgId, name, parentId);
+    res.status(201).json(dept);
+  });
+
+  // ── Knowledge Base ───────────────────────────────────────────────────
+
+  router.get('/enterprise/kb/articles', requireAuth, requireOrgMember, (req: Request, res: Response) => {
+    const articles = KB.listArticles(req.user!.orgId!, {
+      category: req.query.category as string | undefined,
+      status: req.query.status as string | undefined,
+    });
+    res.json(articles);
+  });
+
+  router.get('/enterprise/kb/articles/:articleId', requireAuth, requireOrgMember, (req: Request, res: Response) => {
+    const article = KB.getArticle(req.user!.orgId!, req.params.articleId);
+    if (!article) {
+      res.status(404).json({ error: 'Article not found' });
+      return;
+    }
+    res.json(article);
+  });
+
+  router.post('/enterprise/kb/articles', requireAuth, requireOrgMember, (req: Request, res: Response) => {
+    const { title, content, category, tags, status } = req.body;
+    if (!title || !content) {
+      res.status(400).json({ error: 'title and content are required' });
+      return;
+    }
+    const article = KB.createArticle(req.user!.orgId!, req.user!.uid, { title, content, category, tags, status });
+    res.status(201).json(article);
+  });
+
+  router.put('/enterprise/kb/articles/:articleId', requireAuth, requireOrgMember, (req: Request, res: Response) => {
+    const article = KB.updateArticle(req.user!.orgId!, req.user!.uid, req.params.articleId, req.body);
+    if (!article) {
+      res.status(404).json({ error: 'Article not found' });
+      return;
+    }
+    res.json(article);
+  });
+
+  router.delete('/enterprise/kb/articles/:articleId', requireAuth, requireOrgRole('owner', 'admin'), (req: Request, res: Response) => {
+    const result = KB.deleteArticle(req.user!.orgId!, req.user!.uid, req.params.articleId);
+    if (!result) {
+      res.status(404).json({ error: 'Article not found' });
+      return;
+    }
+    res.json({ success: true });
+  });
+
+  router.post('/enterprise/kb/articles/:articleId/index', requireAuth, requireOrgRole('owner', 'admin'), (req: Request, res: Response) => {
+    KB.indexArticle(req.user!.orgId!, req.params.articleId).then(count => {
+      res.json({ success: true, indexedChunks: count });
+    }).catch(err => {
+      res.status(500).json({ error: err.message });
+    });
+  });
+
+  router.post('/enterprise/kb/search', requireAuth, requireOrgMember, (req: Request, res: Response) => {
+    const { query, limit } = req.body;
+    if (!query) {
+      res.status(400).json({ error: 'query is required' });
+      return;
+    }
+    KB.searchKnowledgeBase(req.user!.orgId!, query, limit || 5).then(results => {
+      res.json(results);
+    }).catch(err => {
+      res.status(500).json({ error: err.message });
+    });
+  });
+
+  // ── Agent Templates ───────────────────────────────────────────────────
+
+  router.get('/enterprise/templates', requireAuth, requireOrgMember, (req: Request, res: Response) => {
+    const templates = Templates.listTemplates(req.user!.orgId!, {
+      status: req.query.status as EDB.TemplateStatus | undefined,
+      category: req.query.category as string | undefined,
+      authorId: req.query.authorId as string | undefined,
+    });
+    res.json(templates);
+  });
+
+  router.get('/enterprise/templates/:templateId', requireAuth, requireOrgMember, (req: Request, res: Response) => {
+    const t = Templates.getTemplate(req.user!.orgId!, req.params.templateId);
+    if (!t) {
+      res.status(404).json({ error: 'Template not found' });
+      return;
+    }
+    res.json(t);
+  });
+
+  router.post('/enterprise/templates', requireAuth, requireOrgMember, (req: Request, res: Response) => {
+    const { name, description, category, config, icon } = req.body;
+    if (!name || !description || !category || !config) {
+      res.status(400).json({ error: 'name, description, category, and config are required' });
+      return;
+    }
+    const t = Templates.createTemplate(req.user!.orgId!, req.user!.uid, { name, description, category, config, icon });
+    res.status(201).json(t);
+  });
+
+  router.post('/enterprise/templates/:templateId/submit', requireAuth, requireOrgMember, (req: Request, res: Response) => {
+    const t = Templates.submitForReview(req.user!.orgId!, req.user!.uid, req.params.templateId);
+    if (!t) {
+      res.status(400).json({ error: 'Cannot submit this template (check status and ownership)' });
+      return;
+    }
+    if (io) {
+      io.to(`org:${req.user!.orgId}`).emit('template:submitted', { templateId: req.params.templateId, authorId: req.user!.uid });
+    }
+    res.json(t);
+  });
+
+  router.post('/enterprise/templates/:templateId/approve', requireAuth, requireOrgRole('owner', 'admin'), (req: Request, res: Response) => {
+    const t = Templates.approveTemplate(req.user!.orgId!, req.user!.uid, req.params.templateId, req.body.comment);
+    if (!t) {
+      res.status(400).json({ error: 'Cannot approve this template (must be pending_review)' });
+      return;
+    }
+    if (io) {
+      io.to(`org:${req.user!.orgId}`).emit('template:approved', { templateId: req.params.templateId, reviewerId: req.user!.uid });
+    }
+    res.json(t);
+  });
+
+  router.post('/enterprise/templates/:templateId/reject', requireAuth, requireOrgRole('owner', 'admin'), (req: Request, res: Response) => {
+    const { comment } = req.body;
+    if (!comment) {
+      res.status(400).json({ error: 'Rejection reason (comment) is required' });
+      return;
+    }
+    const t = Templates.rejectTemplate(req.user!.orgId!, req.user!.uid, req.params.templateId, comment);
+    if (!t) {
+      res.status(400).json({ error: 'Cannot reject this template (must be pending_review)' });
+      return;
+    }
+    if (io) {
+      io.to(`org:${req.user!.orgId}`).emit('template:rejected', { templateId: req.params.templateId, reviewerId: req.user!.uid });
+    }
+    res.json(t);
+  });
+
+  router.post('/enterprise/templates/:templateId/publish', requireAuth, requireOrgRole('owner', 'admin'), (req: Request, res: Response) => {
+    const t = Templates.publishTemplate(req.user!.orgId!, req.user!.uid, req.params.templateId);
+    if (!t) {
+      res.status(400).json({ error: 'Cannot publish this template (must be approved)' });
+      return;
+    }
+    if (io) {
+      io.to(`org:${req.user!.orgId}`).emit('template:published', { templateId: req.params.templateId });
+    }
+    res.json(t);
+  });
+
+  router.post('/enterprise/templates/:templateId/install', requireAuth, requireOrgMember, (req: Request, res: Response) => {
+    const result = Templates.installTemplate(req.user!.orgId!, req.user!.uid, req.params.templateId);
+    if (!result) {
+      res.status(400).json({ error: 'Cannot install this template (must be published)' });
+      return;
+    }
+    res.json(result);
+  });
+
+  // ── Invitations ──────────────────────────────────────────────────────
+
+  router.post('/enterprise/org/:orgId/invitations', requireAuth, requireOrgRole('owner', 'admin'), (req: Request, res: Response) => {
+    const inv = Org.createOrgInvitation(req.params.orgId, req.user!.uid, {
+      role: req.body.role,
+      departmentId: req.body.departmentId,
+      maxUses: req.body.maxUses,
+      expiresAt: req.body.expiresAt,
+    });
+    res.status(201).json(inv);
+  });
+
+  router.get('/enterprise/invitations/:code', optionalAuth, (req: Request, res: Response) => {
+    const result = Org.validateInvitation(req.params.code);
+    if (!result.valid) {
+      res.status(404).json({ error: result.reason });
+      return;
+    }
+    // Return org info (but not full invitation details) for the join page
+    res.json({
+      valid: true,
+      org: {
+        id: result.org!.id,
+        name: result.org!.name,
+        slug: result.org!.slug,
+      },
+      role: result.invitation!.role,
+    });
+  });
+
+  router.post('/enterprise/invitations/:code/accept', requireAuth, (req: Request, res: Response) => {
+    const result = Org.acceptInvitation(req.params.code, req.user!.uid);
+    if (!result.success) {
+      res.status(400).json({ error: result.reason });
+      return;
+    }
+    // Emit member.joined event via WebSocket if available
+    if (io) {
+      io.to(`org:${result.orgId}`).emit('member:joined', {
+        userId: req.user!.uid,
+        username: req.user!.username,
+        orgId: result.orgId,
+      });
+    }
+    res.json({ success: true, orgId: result.orgId, membership: result.membership });
+  });
+
+  // ── Audit Log (admin only) ───────────────────────────────────────────
+
+  router.get('/enterprise/audit', requireAuth, requireOrgRole('owner', 'admin'), (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = parseInt(req.query.offset as string) || 0;
+
+    // If filter params are present, use queryAuditLog
+    const hasFilters = req.query.userId || req.query.action || req.query.resourceType || req.query.from || req.query.to;
+    if (hasFilters) {
+      const entries = Audit.queryAuditLog(req.user!.orgId!, {
+        userId: req.query.userId as string,
+        action: req.query.action as string,
+        resourceType: req.query.resourceType as string,
+        resourceId: req.query.resourceId as string,
+        from: req.query.from as string,
+        to: req.query.to as string,
+      }, limit, offset);
+      res.json(entries);
+      return;
+    }
+
+    const entries = EDB.listAuditLog(req.user!.orgId!, limit, offset);
+    res.json(entries);
+  });
+
+  router.get('/enterprise/audit/stats', requireAuth, requireOrgRole('owner', 'admin'), (req: Request, res: Response) => {
+    const daysBack = parseInt(req.query.days as string) || 7;
+    const stats = Audit.getAuditStats(req.user!.orgId!, daysBack);
+    res.json(stats);
+  });
+
+  router.get('/enterprise/audit/export', requireAuth, requireOrgRole('owner', 'admin'), (req: Request, res: Response) => {
+    const csv = Audit.exportAuditCSV(req.user!.orgId!, {
+      userId: req.query.userId as string,
+      action: req.query.action as string,
+      resourceType: req.query.resourceType as string,
+      from: req.query.from as string,
+      to: req.query.to as string,
+    });
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="audit-${req.user!.orgId}-${Date.now()}.csv"`);
+    res.send(csv);
+  });
+
+  // ── Connection ───────────────────────────────────────────────────────
+
+  router.post('/enterprise/org/:orgId/revoke/:userId', requireAuth, requireOrgRole('owner', 'admin'), (req: Request, res: Response) => {
+    const m = Org.revokeMemberConnection(req.params.orgId, req.user!.uid, req.params.userId);
+    if (!m) {
+      res.status(404).json({ error: 'Member not found' });
+      return;
+    }
+    if (io) {
+      io.to(`org:${req.params.orgId}`).emit('member:left', {
+        userId: req.params.userId,
+        orgId: req.params.orgId,
+      });
+    }
+    res.json({ success: true });
+  });
+}

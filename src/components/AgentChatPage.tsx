@@ -21,7 +21,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose }: { t: any; use
   const [messages, setMessages] = useState<any[]>([]);
   const [agentMetadata, setAgentMetadata] = useState<Partial<AgentResponse>>({});
   const { platform, isElectron } = usePlatform();
-  const { aiConfig } = useApp();
+  const { aiConfig, orgConnection, workDomain } = useApp();
   const socket = useSocket();
   const [selectedVoiceId, setSelectedVoiceId] = useState<string | undefined>();
   const [voices, setVoices] = useState<any[]>([]);
@@ -422,6 +422,8 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose }: { t: any; use
         personalityId: 'lumi',
         category: agentCategory,
         agentId,
+        domain: workDomain,
+        orgId: orgConnection?.orgId || null,
       });
 
       // Clear safety timer when response arrives
@@ -616,7 +618,14 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose }: { t: any; use
             <Ghost className="w-4 h-4 md:w-5 md:h-5" />
           </div>
           <div className="text-right sm:text-left">
-            <h2 className="text-base md:text-xl font-bold tracking-tight truncate max-w-[120px] sm:max-w-none">{agentName}</h2>
+            <h2 className="text-base md:text-xl font-bold tracking-tight truncate max-w-[120px] sm:max-w-none flex items-center gap-2">
+              {agentName}
+              {workDomain === 'work' && orgConnection?.connected && (
+                <span className="text-[8px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 font-medium uppercase tracking-wider">
+                  {t.enterpriseWorkDomain || 'Work'}
+                </span>
+              )}
+            </h2>
             <p className="text-[8px] md:text-[10px] uppercase tracking-widest text-white/40 font-bold">{agentCategory}</p>
           </div>
         </div>

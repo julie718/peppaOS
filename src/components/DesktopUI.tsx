@@ -38,6 +38,7 @@ import {
   Castle,
   Brush,
   Mic,
+  Briefcase,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { GlassCard } from './SharedUI';
@@ -56,6 +57,8 @@ import { ContextMenu } from './ContextMenu';
 import { DesktopOnboarding } from './DesktopOnboarding';
 import { DeviceSyncCenter } from './DeviceSyncCenter';
 import { AgentChatPage } from './AgentChatPage';
+import { EnterpriseHub } from './enterprise/EnterpriseHub';
+import { WorkModeSwitch } from './enterprise/WorkModeSwitch';
 import { Sanctuary } from './Sanctuary';
 import { MemoryAvatarLab } from './MemoryAvatarLab';
 import { AvatarStudio } from './AvatarStudio';
@@ -770,7 +773,7 @@ export function DesktopUI({
   const personalScale = useTransform(cameraZ, [0, -1000], [1, 0.4]);
   const personalOpacity = useTransform(cameraZ, [0, -400], [1, 0]);
   const { isTauri } = usePlatform();
-  const { selectedVoiceId, unreadCount, notifications } = useApp();
+  const { selectedVoiceId, unreadCount, notifications, orgConnection, workDomain, switchDomain } = useApp();
 
   const [openWindows, setOpenWindows] = useState<string[]>(activeTab !== 'home' && activeTab !== 'knowledge' ? [activeTab] : []);
   const [minimizedWindows, setMinimizedWindows] = useState<string[]>([]);
@@ -848,8 +851,10 @@ export function DesktopUI({
   const wallpaperInputRef = React.useRef<HTMLInputElement>(null);
 
   // Desktop icon layout: absolute positioning, 4 columns, fixed spacing
+  const isOrgAdmin = orgConnection?.connected && (orgConnection.orgRole === 'owner' || orgConnection.orgRole === 'admin');
   const desktopIcons = [
     { id: 'kernel', labelKey: 'osKernel', icon: <Cpu size={24} />, colorClass: 'from-orange-600 to-red-500', windowId: 'kernel' },
+    ...(isOrgAdmin ? [{ id: 'workbench', labelKey: 'enterpriseWorkbench', icon: <Briefcase size={24} />, colorClass: 'from-blue-500 to-indigo-600', windowId: 'enterprise' as const }] : []),
     { id: 'tools', labelKey: 'tools', icon: <Wrench size={24} />, colorClass: 'from-amber-500 to-orange-600', windowId: 'tools' },
     { id: 'github-mcp', labelKey: 'githubMCP', icon: <Globe size={24} />, colorClass: 'from-purple-500 to-violet-600', windowId: 'github-mcp' },
     { id: 'devices', labelKey: 'deviceMesh', icon: <Wifi size={24} />, colorClass: 'from-cyan-500 to-blue-600', windowId: 'devices' },
@@ -903,6 +908,19 @@ export function DesktopUI({
   useEffect(() => {
     if (callError) toast.error(callError);
   }, [callError]);
+
+  // Listen for enterprise navigation events
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.tab) {
+        if (detail.tab === 'enterprise' && !isOrgAdmin) return;
+        setActiveTab(detail.tab);
+      }
+    };
+    window.addEventListener('lumi:navigate', handler);
+    return () => window.removeEventListener('lumi:navigate', handler);
+  }, [setActiveTab, isOrgAdmin]);
 
   // Listen for Memory Avatar Lab open request from AgentGenerator
   useEffect(() => {
@@ -1508,6 +1526,12 @@ export function DesktopUI({
                <span className="text-[8px] font-black text-white/20 uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/5 border border-white/5">Lumi</span>
             </div>
 
+            {orgConnection?.connected && (
+              <div className="flex items-center gap-2">
+                <WorkModeSwitch domain={workDomain} onToggle={() => switchDomain(workDomain === 'personal' ? 'work' : 'personal')} connected={orgConnection.connected} />
+              </div>
+            )}
+
             <button
               onClick={() => setIsControlCenterOpen(!isControlCenterOpen)}
               className="flex items-center gap-3 px-3 py-1 bg-white/5 hover:bg-white/10 rounded-full border border-white/5 transition-all group"
@@ -1793,7 +1817,13 @@ export function DesktopUI({
                 return (
                   <motion.div
                     key={def.id}
-                    onDoubleClick={() => toggleWindow(def.windowId)}
+                    onDoubleClick={() => {
+                      if (def.id === 'workbench') {
+                        setActiveTab('enterprise');
+                      } else {
+                        toggleWindow(def.windowId);
+                      }
+                    }}
                     onContextMenu={(e: React.MouseEvent) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -2060,6 +2090,21 @@ export function DesktopUI({
         isOpen={chatOpen}
         onClose={() => setChatOpen(false)}
       />
+
+      {/* Enterprise Workbench fullscreen overlay — admin/owner only */}
+      <AnimatePresence>
+        {activeTab === 'enterprise' && isOrgAdmin && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="fixed inset-0 z-[220] bg-celestial-deep overflow-auto"
+          >
+            <EnterpriseHub />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Sanctuary — fullscreen immersive memory avatar space */}
       <Sanctuary

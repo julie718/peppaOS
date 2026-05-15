@@ -1,0 +1,184 @@
+/**
+ * Enterprise WebSocket Sync — real-time channel between branches and company server.
+ *
+ * Attaches to the existing Socket.IO server and adds org-scoped rooms.
+ * Branches join their org room on connect; the company server broadcasts
+ * events (member changes, template status, KB updates) to all branches in the org.
+ */
+
+import { Server as SocketIOServer, Socket } from 'socket.io';
+import jwt from 'jsonwebtoken';
+import { getMember } from './db';
+import { removeBranchHeartbeat } from './main_api';
+
+let io: SocketIOServer | null = null;
+const branchSockets = new Map<string, Set<string>>(); // userId -> Set<socketId>
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+
+// ── Initialize ──────────────────────────────────────────────────────────
+
+export function attachEnterpriseWs(server: SocketIOServer) {
+  io = server;
+
+  io.on('connection', (socket: Socket) => {
+    const userId = extractUserId(socket);
+    const orgId = extractOrgId(socket);
+
+    // Track branch socket
+    if (userId !== 'anonymous') {
+      if (!branchSockets.has(userId)) branchSockets.set(userId, new Set());
+      branchSockets.get(userId)!.add(socket.id);
+    }
+
+    // Join org room if authenticated
+    if (orgId) {
+      socket.join(`org:${orgId}`);
+      socket.data.orgId = orgId;
+      socket.data.userId = userId;
+      console.log(`[WS:Enterprise] ${userId} joined org:${orgId} on socket ${socket.id}`);
+    }
+
+    // ── Branch heartbeat ──────────────────────────────────────────────
+
+    socket.on('enterprise:heartbeat', (data: { orgId: string }) => {
+      if (data.orgId && userId !== 'anonymous') {
+        socket.emit('enterprise:heartbeat:ack', { serverTime: new Date().toISOString() });
+      }
+    });
+
+    // ── Work domain sync push ─────────────────────────────────────────
+
+    socket.on('enterprise:sync', (data: { orgId: string; payload: any }) => {
+      // Branch pushes work data in real-time via WS instead of REST
+      // The server acknowledges receipt; full processing is async
+      if (data.orgId === socket.data.orgId) {
+        socket.emit('enterprise:sync:ack', { received: true, count: countSyncItems(data.payload) });
+      }
+    });
+
+    // ── KB cache invalidation request ─────────────────────────────────
+
+    socket.on('enterprise:kb:invalidate', (data: { orgId: string }) => {
+      if (data.orgId === socket.data.orgId) {
+        // Notify all branches in the org to re-pull KB cache
+        io!.to(`org:${data.orgId}`).emit('enterprise:kb:stale', {
+          orgId: data.orgId,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    });
+
+    // ── Disconnect ────────────────────────────────────────────────────
+
+    socket.on('disconnect', () => {
+      if (userId !== 'anonymous') {
+        const sockets = branchSockets.get(userId);
+        if (sockets) {
+          sockets.delete(socket.id);
+          if (sockets.size === 0) {
+            branchSockets.delete(userId);
+            removeBranchHeartbeat(userId);
+          }
+        }
+      }
+      if (socket.data.orgId) {
+        console.log(`[WS:Enterprise] ${userId} left org:${socket.data.orgId}`);
+      }
+    });
+  });
+}
+
+// ── Broadcast helpers (called by routes / business logic) ───────────────
+
+export function broadcastToOrg(orgId: string, event: string, data: any) {
+  if (!io) return;
+  io.to(`org:${orgId}`).emit(event, data);
+}
+
+export function broadcastToUser(userId: string, event: string, data: any) {
+  if (!io) return;
+  const sockets = branchSockets.get(userId);
+  if (!sockets) return;
+  for (const socketId of sockets) {
+    io.to(socketId).emit(event, data);
+  }
+}
+
+// ── Event emitters ──────────────────────────────────────────────────────
+
+export function emitMemberJoined(orgId: string, userId: string, username: string) {
+  broadcastToOrg(orgId, 'member:joined', { userId, username, orgId });
+}
+
+export function emitMemberLeft(orgId: string, userId: string) {
+  broadcastToOrg(orgId, 'member:left', { userId, orgId });
+}
+
+export function emitTemplateSubmitted(orgId: string, templateId: string, authorId: string) {
+  broadcastToOrg(orgId, 'template:submitted', { templateId, authorId, orgId });
+}
+
+export function emitTemplateStatusChange(orgId: string, templateId: string, status: string) {
+  broadcastToOrg(orgId, 'template:status', { templateId, status, orgId });
+}
+
+export function emitKbUpdated(orgId: string, articleId: string, action: 'created' | 'updated' | 'deleted') {
+  broadcastToOrg(orgId, 'kb:article', { articleId, action, orgId });
+}
+
+// ── Auth helpers ────────────────────────────────────────────────────────
+
+function extractUserId(socket: Socket): string {
+  try {
+    const authToken = socket.handshake?.auth?.token;
+    if (authToken) {
+      const decoded: any = jwt.verify(authToken, JWT_SECRET);
+      return decoded.uid || 'anonymous';
+    }
+    const cookies = socket.handshake.headers.cookie;
+    if (cookies) {
+      const token = cookies
+        .split(';')
+        .find((c: string) => c.trim().startsWith('token='))
+        ?.split('=')[1];
+      if (token) {
+        const decoded: any = jwt.verify(token, JWT_SECRET);
+        return decoded.uid || 'anonymous';
+      }
+    }
+  } catch {}
+  return 'anonymous';
+}
+
+function extractOrgId(socket: Socket): string | null {
+  try {
+    const authToken = socket.handshake?.auth?.token;
+    if (authToken) {
+      const decoded: any = jwt.verify(authToken, JWT_SECRET);
+      return decoded.orgId || null;
+    }
+  } catch {}
+  return null;
+}
+
+function countSyncItems(payload: any): number {
+  let count = 0;
+  if (payload?.memories) count += payload.memories.length;
+  if (payload?.interactions) count += payload.interactions.length;
+  if (payload?.agents) count += payload.agents.length;
+  return count;
+}
+
+// ── Status ──────────────────────────────────────────────────────────────
+
+export function getBranchConnectionCount(): number {
+  return branchSockets.size;
+}
+
+export function getOrgConnectionCount(orgId: string): number {
+  if (io) {
+    const room = io.sockets.adapter.rooms.get(`org:${orgId}`);
+    return room ? room.size : 0;
+  }
+  return 0;
+}

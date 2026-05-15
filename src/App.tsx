@@ -19,6 +19,7 @@ import { Solutions } from './components/Solutions';
 import { FoundersSanctuary } from './components/FoundersSanctuary';
 import { LocalAgentSphere } from './components/LocalAgentSphere';
 import { FloatingAgent } from './components/FloatingAgent';
+import { EnterpriseHub } from './components/enterprise/EnterpriseHub';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ProactiveNotifications } from './components/ProactiveNotifications';
 import { LoadingFallback } from './components/LoadingFallback';
@@ -148,6 +149,8 @@ export default function App() {
         return <FoundersSanctuary t={t} user={user} onBack={() => setActiveTab('home')} />;
       case 'profile':
         return !user ? <LoginRequired t={t} onLogin={handleLogin} /> : <Profile t={t} />;
+      case 'enterprise':
+        return !user ? <LoginRequired t={t} onLogin={handleLogin} /> : <EnterpriseHub />;
       case 'settings':
         return !user ? <LoginRequired t={t} onLogin={handleLogin} /> : <Settings t={t} lang={lang} setLang={setLang} />;
       case 'voice':

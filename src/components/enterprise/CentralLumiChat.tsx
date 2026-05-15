@@ -1,0 +1,153 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { motion } from 'motion/react';
+import { Building2, Send, Loader2, User, Bot } from 'lucide-react';
+
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+}
+
+export function CentralLumiChat() {
+  const [messages, setMessages] = useState<Message[]>([
+    { role: 'assistant', content: "Hello! I'm your company's Lumi. I can help with policies, culture, knowledge base, and more. What would you like to know?", timestamp: Date.now() },
+  ]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const handleSend = async () => {
+    if (!input.trim() || loading) return;
+    const userMsg: Message = { role: 'user', content: input.trim(), timestamp: Date.now() };
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
+    setLoading(true);
+
+    try {
+      // Search KB for relevant context
+      const kbRes = await fetch('/api/enterprise/kb/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: userMsg.content, limit: 3 }),
+        credentials: 'include',
+      });
+      let kbContext = '';
+      if (kbRes.ok) {
+        const results = await kbRes.json();
+        if (results.length > 0) {
+          kbContext = '\n\nRelevant knowledge base context:\n' +
+            results.map((r: any) => `[${r.title}] ${r.chunk}`).join('\n\n');
+        }
+      }
+
+      // Call LLM with KB context
+      const chatRes = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            { role: 'system', content: `You are the company Lumi, the organizational AI assistant. Answer questions using the provided knowledge base context when available. Be professional, helpful, and aligned with company culture.${kbContext}` },
+            ...messages.map(m => ({ role: m.role, content: m.content })),
+            { role: 'user', content: userMsg.content },
+          ],
+        }),
+        credentials: 'include',
+      });
+
+      const data = await chatRes.json();
+      const reply = data.reply || data.message || "I'm having trouble processing that right now.";
+
+      setMessages(prev => [...prev, { role: 'assistant', content: reply, timestamp: Date.now() }]);
+    } catch {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: "I'm currently unable to reach the company server. Please check your connection.",
+        timestamp: Date.now(),
+      }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-12rem)]">
+      {/* Header */}
+      <div className="flex items-center gap-3 p-6 pb-4 border-b border-white/5">
+        <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+          <Building2 size={20} className="text-blue-400" />
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-white">Company Lumi</h2>
+          <p className="text-white/30 text-xs">Organizational AI — ask about policies, culture, and knowledge</p>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        {messages.map((msg, i) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
+          >
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+              msg.role === 'user' ? 'bg-purple-500/10' : 'bg-blue-500/10'
+            }`}>
+              {msg.role === 'user' ? (
+                <User size={14} className="text-purple-400" />
+              ) : (
+                <Bot size={14} className="text-blue-400" />
+              )}
+            </div>
+            <div className={`max-w-[70%] rounded-2xl px-4 py-3 ${
+              msg.role === 'user'
+                ? 'bg-purple-500/10 border border-purple-500/20 text-white/90'
+                : 'bg-white/5 border border-white/10 text-white/80'
+            }`}>
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+              <span className="text-[10px] text-white/20 mt-1 block">
+                {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+          </motion.div>
+        ))}
+        {loading && (
+          <div className="flex gap-3">
+            <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+              <Bot size={14} className="text-blue-400" />
+            </div>
+            <div className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
+              <Loader2 size={16} className="animate-spin text-blue-400" />
+            </div>
+          </div>
+        )}
+        <div ref={endRef} />
+      </div>
+
+      {/* Input */}
+      <div className="p-4 border-t border-white/5">
+        <div className="flex items-center gap-3">
+          <input
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSend()}
+            placeholder="Ask about company policies, knowledge base..."
+            className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder:text-white/20 focus:outline-none focus:border-blue-500/40"
+          />
+          <button
+            onClick={handleSend}
+            disabled={!input.trim() || loading}
+            className="p-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-30 disabled:cursor-not-allowed text-white transition-colors"
+          >
+            {loading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

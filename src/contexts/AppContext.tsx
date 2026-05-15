@@ -44,6 +44,13 @@ interface ToolOverride {
   securityLevel?: string;
 }
 
+export interface OrgConnection {
+  orgId: string;
+  orgRole: string;
+  orgName: string;
+  connected: boolean;
+}
+
 interface AppContextType {
   user: UserProfile | null;
   loading: boolean;
@@ -63,6 +70,10 @@ interface AppContextType {
   // Tools
   toolOverrides: Record<string, ToolOverride>;
   setToolOverride: (name: string, override: ToolOverride) => void;
+  // Enterprise
+  orgConnection: OrgConnection | null;
+  workDomain: 'personal' | 'work';
+  switchDomain: (domain: 'personal' | 'work') => void;
   // Core
   login: () => Promise<void>;
   logout: () => Promise<void>;
@@ -99,6 +110,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [toolOverrides, setToolOverrides] = useState<Record<string, ToolOverride>>(() => {
     try { return JSON.parse(localStorage.getItem('lumi_tool_overrides') || '{}'); } catch { return {}; }
   });
+
+  // Enterprise state
+  const [orgConnection, setOrgConnection] = useState<OrgConnection | null>(() => {
+    try { return JSON.parse(localStorage.getItem('lumi_org_connection') || 'null'); } catch { return null; }
+  });
+  const [workDomain, setWorkDomain] = useState<'personal' | 'work'>(() => {
+    try { return (localStorage.getItem('lumi_work_domain') as 'personal' | 'work') || 'personal'; } catch { return 'personal'; }
+  });
+
+  const switchDomain = (domain: 'personal' | 'work') => {
+    setWorkDomain(domain);
+    localStorage.setItem('lumi_work_domain', domain);
+  };
 
   const updateAIConfig = (newConfig: Partial<AIConfig>) => {
     setAiConfig(prev => {
@@ -316,6 +340,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       clearNotifications,
       toolOverrides,
       setToolOverride,
+      orgConnection,
+      workDomain,
+      switchDomain,
       login,
       logout,
       createAgent,

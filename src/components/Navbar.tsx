@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Rocket, MessageSquare, Globe, Users, User as UserIcon, BookOpen, Zap, ChevronDown, Database, ShoppingBag, Cloud, Network, Smartphone, Laptop, Handshake, Building2, Smile, Settings as SettingsIcon } from 'lucide-react';
+import { Rocket, MessageSquare, Globe, Users, User as UserIcon, BookOpen, Zap, ChevronDown, Database, ShoppingBag, Cloud, Network, Smartphone, Laptop, Handshake, Building2, Smile, Settings as SettingsIcon, Briefcase } from 'lucide-react';
 import { Button } from './ui/button';
 import { motion, AnimatePresence } from 'motion/react';
+import { WorkModeSwitch } from './enterprise/WorkModeSwitch';
+import { useApp } from '../contexts/AppContext';
 
 interface NavbarProps {
   user: any;
@@ -17,6 +19,7 @@ interface NavbarProps {
 export function Navbar({ user, onLogin, onLogout, activeTab, setActiveTab, lang, setLang, t }: NavbarProps) {
   const [isProductsOpen, setIsProductsOpen] = useState(false);
   const [isEcoOpen, setIsEcoOpen] = useState(false);
+  const { workDomain, switchDomain, orgConnection } = useApp();
 
   const productCategories = [
     { id: 'core', label: t.coreDevices, desc: t.coreDevicesDesc, icon: <Laptop size={16} /> },
@@ -138,6 +141,7 @@ export function Navbar({ user, onLogin, onLogout, activeTab, setActiveTab, lang,
 
           <NavItem active={activeTab === 'docs'} onClick={() => setActiveTab('docs')} icon={<BookOpen size={18} />} label={t.docs} />
           <NavItem active={activeTab === 'solutions'} onClick={() => setActiveTab('solutions')} icon={<Building2 size={18} />} label={t.coreVision || "Core Vision"} />
+          <NavItem active={activeTab === 'enterprise'} onClick={() => setActiveTab('enterprise')} icon={<Briefcase size={18} />} label={t.enterpriseWorkbench || 'Workbench'} />
           <NavItem active={activeTab === 'join'} onClick={() => setActiveTab('join')} icon={<Users size={18} />} label={t.join} />
         </div>
 
@@ -198,7 +202,14 @@ export function Navbar({ user, onLogin, onLogout, activeTab, setActiveTab, lang,
 
         {user ? (
           <div className="flex items-center gap-3">
-            <button 
+            {orgConnection && (
+              <WorkModeSwitch
+                domain={workDomain}
+                onToggle={() => switchDomain(workDomain === 'personal' ? 'work' : 'personal')}
+                connected={orgConnection.connected}
+              />
+            )}
+            <button
               onClick={() => setActiveTab('settings')}
               className={`p-2 rounded-full transition-all ${activeTab === 'settings' ? 'text-celestial-saturn bg-celestial-saturn/10' : 'text-white/40 hover:text-white/60 hover:bg-white/5'}`}
               title={t.settings}

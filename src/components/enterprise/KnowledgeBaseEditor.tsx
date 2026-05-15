@@ -1,0 +1,141 @@
+import React, { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
+import { Save, FileText, Tag, Loader2, BookOpen } from 'lucide-react';
+import { Button } from '../ui/button';
+
+interface Props {
+  articleId?: string;
+  onSaved?: () => void;
+}
+
+export function KnowledgeBaseEditor({ articleId, onSaved }: Props) {
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [category, setCategory] = useState('general');
+  const [tags, setTags] = useState('');
+  const [status, setStatus] = useState<'draft' | 'published'>('draft');
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (articleId) {
+      setLoading(true);
+      fetch(`/api/enterprise/kb/articles/${articleId}`, { credentials: 'include' })
+        .then(r => r.json())
+        .then(a => {
+          setTitle(a.title);
+          setContent(a.content);
+          setCategory(a.category);
+          setStatus(a.status);
+          try { setTags(JSON.parse(a.tags).join(', ')); } catch { setTags(''); }
+        })
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    }
+  }, [articleId]);
+
+  const handleSave = async () => {
+    if (!title.trim() || !content.trim()) return;
+    setSaving(true);
+    try {
+      const url = articleId
+        ? `/api/enterprise/kb/articles/${articleId}`
+        : '/api/enterprise/kb/articles';
+      const method = articleId ? 'PUT' : 'POST';
+      const tagArr = tags.split(',').map(t => t.trim()).filter(Boolean);
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content, category, tags: tagArr, status }),
+        credentials: 'include',
+      });
+
+      if (res.ok) {
+        onSaved?.();
+        if (!articleId) { setTitle(''); setContent(''); setTags(''); }
+      }
+    } catch {} finally { setSaving(false); }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6 text-center text-white/30">
+        <Loader2 size={24} className="mx-auto animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 space-y-4 max-w-3xl mx-auto">
+      <h2 className="text-xl font-bold text-white flex items-center gap-2">
+        <FileText size={24} className="text-blue-400" />
+        {articleId ? 'Edit Article' : 'New Article'}
+      </h2>
+
+      <div className="flex items-center gap-3">
+        <input
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          placeholder="Article title..."
+          className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/20 focus:outline-none focus:border-blue-500/40"
+        />
+        <select
+          value={category}
+          onChange={e => setCategory(e.target.value)}
+          className="px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white/70 text-sm focus:outline-none"
+        >
+          <option value="general">General</option>
+          <option value="policy">Policy</option>
+          <option value="sop">SOP</option>
+          <option value="product">Product</option>
+          <option value="culture">Culture</option>
+          <option value="hr">HR</option>
+          <option value="tech">Technical</option>
+        </select>
+        <select
+          value={status}
+          onChange={e => setStatus(e.target.value as any)}
+          className="px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white/70 text-sm focus:outline-none"
+        >
+          <option value="draft">Draft</option>
+          <option value="published">Published</option>
+        </select>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Tag size={14} className="text-white/30" />
+        <input
+          value={tags}
+          onChange={e => setTags(e.target.value)}
+          placeholder="Tags (comma separated)"
+          className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder:text-white/20 focus:outline-none focus:border-blue-500/40"
+        />
+      </div>
+
+      <textarea
+        value={content}
+        onChange={e => setContent(e.target.value)}
+        placeholder="Write your article content here... Markdown supported."
+        className="w-full h-64 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder:text-white/20 focus:outline-none focus:border-blue-500/40 resize-y font-mono"
+      />
+
+      <div className="flex items-center gap-3">
+        <Button
+          onClick={handleSave}
+          disabled={saving || !title.trim() || !content.trim()}
+          className="bg-blue-600 hover:bg-blue-500 text-white rounded-lg flex items-center gap-2"
+        >
+          {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+          {articleId ? 'Update' : 'Create'} Article
+        </Button>
+        <Button
+          onClick={() => window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'enterprise', sub: 'kb' } }))}
+          className="bg-white/10 hover:bg-white/20 text-white/70 rounded-lg flex items-center gap-2"
+        >
+          <BookOpen size={16} /> Back to KB
+        </Button>
+      </div>
+    </div>
+  );
+}
