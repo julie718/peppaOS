@@ -63,6 +63,7 @@ import { mountSystemRoutes } from "./server/routes/system_routes";
 import { registerChatHandler } from "./server/socket/chat";
 import { registerTaskHandler } from "./server/socket/task";
 import { registerVoiceHandlers } from "./server/socket/voice";
+import { createWakeDetector, isWakeWord } from "./server/stt/wake_detector";
 import { getSensory, perceptionEvents, MAX_PERCEPTION_EVENTS } from "./server/socket/shared";
 import { loadKeys, saveKeys, getKey, getAllKeyNames } from "./server/config/keys";
 import { getLatencyStats, recordLatency } from "./server/monitor/latency_store";
@@ -2213,6 +2214,48 @@ io.on("connection", (socket) => {
     } catch (err) {
       console.error("[chat:messages] Error:", err);
       socket.emit("chat:messages", { conversationId: data.conversationId, messages: [] });
+    }
+  });
+
+  // ── Wake Word Detection via Qwen ASR (server-side, works in WebView2) ──
+  let wakeDetector: ReturnType<typeof createWakeDetector> | null = null;
+
+  socket.on("wake:start", async () => {
+    const uid = getUserIdFromSocket(socket);
+    try {
+      // Stop any existing detector
+      if (wakeDetector) { try { wakeDetector.stop(); } catch {} }
+      wakeDetector = createWakeDetector();
+
+      wakeDetector.onWake((keyword: string) => {
+        logger.info(`[Wake] "${keyword}" detected for user ${uid}`);
+        socket.emit("wake:detected", { keyword, timestamp: new Date().toISOString() });
+      });
+
+      wakeDetector.onError((err: Error) => {
+        logger.error(`[Wake] Error for user ${uid}:`, err.message);
+        socket.emit("wake:error", { message: err.message });
+      });
+
+      socket.emit("wake:started");
+      logger.info(`[Wake] Started for user ${uid}`);
+    } catch (err: any) {
+      socket.emit("wake:error", { message: err.message || 'Failed to start wake detector' });
+    }
+  });
+
+  socket.on("wake:audio", (data: { audio: number[] }) => {
+    if (!wakeDetector) return;
+    try {
+      const buf = Buffer.from(new Int16Array(data.audio).buffer);
+      wakeDetector.sendAudio(buf);
+    } catch {}
+  });
+
+  socket.on("wake:stop", () => {
+    if (wakeDetector) {
+      try { wakeDetector.stop(); } catch {}
+      wakeDetector = null;
     }
   });
 

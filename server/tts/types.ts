@@ -7,6 +7,12 @@ export interface TTSConfig {
   stability?: number;
   similarityBoost?: number;
   signal?: AbortSignal;
+  /** Speech rate 0.5–2.0, default 1.0 (CosyVoice only) */
+  speechRate?: number;
+  /** Pitch shift 0.5–2.0, default 1.0 (CosyVoice only) */
+  pitch?: number;
+  /** Volume 0.1–2.0, default 1.0 (CosyVoice only) */
+  volume?: number;
 }
 
 export interface TTSResult {

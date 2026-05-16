@@ -45,18 +45,23 @@ export async function synthesizeSpeech(
   text: string,
   voiceId: string = 'longxiaochun_v3',
   signal?: AbortSignal,
+  speechRate?: number,
+  pitch?: number,
+  volume?: number,
 ): Promise<TTSResult> {
   const apiKey = getApiKey();
 
-  const body = {
-    model: 'cosyvoice-v3-flash',
-    input: {
-      text,
-      voice: voiceId,
-      format: 'mp3',
-      sample_rate: 22050,
-    },
+  const input: Record<string, any> = {
+    text,
+    voice: voiceId,
+    format: 'mp3',
+    sample_rate: 22050,
   };
+  if (speechRate !== undefined) input.speech_rate = speechRate;
+  if (pitch !== undefined) input.pitch = pitch;
+  if (volume !== undefined) input.volume = volume;
+
+  const body = { model: 'cosyvoice-v3-flash', input };
 
   const res = await fetch(BASE_URL, {
     method: 'POST',

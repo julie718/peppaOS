@@ -230,13 +230,13 @@ async function processVoiceInput(
     isCancelled: () => pipelineAbort?.signal.aborted ?? false,
   };
   const ttsProvider = getTTSProvider();
-  // Emotion-adaptive voice: load current emotional state and pick a matching voice
-  const emotionVoiceId = (() => {
+  // Emotion-adaptive voice: map mood to speech parameters, preserve user's chosen voiceId
+  const emotionVoice = ((): { voiceId: string; speechRate?: number; pitch?: number; volume?: number } => {
     try {
       const es = loadEmotionalState(session.userId);
       if (es) return resolveEmotionVoice(session.currentVoiceId || 'longxiaochun_v3', es);
     } catch {}
-    return session.currentVoiceId || 'longxiaochun_v3';
+    return { voiceId: session.currentVoiceId || 'longxiaochun_v3' };
   })();
   let responseText = '';
   let toolResults: any[] = [];
@@ -265,7 +265,10 @@ async function processVoiceInput(
       try {
         const ttsResult = await synthesizeSpeech(txt, {
           provider: ttsProvider,
-          voiceId: emotionVoiceId,
+          voiceId: emotionVoice.voiceId,
+          speechRate: emotionVoice.speechRate,
+          pitch: emotionVoice.pitch,
+          volume: emotionVoice.volume,
           signal: ttsAbort?.signal,
         });
         if (!ttsAbort?.signal.aborted && session.bgGeneration === myGeneration) {
@@ -841,12 +844,15 @@ export function registerVoiceHandlers(
     const ttsProvider = getTTSProvider();
     if (!ttsProvider) return;
 
-    const proactiveVoiceId = resolveEmotionVoice(voiceId, es);
+    const proactiveVoice = resolveEmotionVoice(voiceId, es);
 
     try {
       const result = await synthesizeSpeech(data.message, {
         provider: ttsProvider,
-        voiceId: proactiveVoiceId,
+        voiceId: proactiveVoice.voiceId,
+        speechRate: proactiveVoice.speechRate,
+        pitch: proactiveVoice.pitch,
+        volume: proactiveVoice.volume,
       });
       const proactiveGain = computeVolumeGain();
       socket.emit("audio:proactive_speak", {

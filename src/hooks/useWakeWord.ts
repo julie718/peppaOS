@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import type { Socket } from 'socket.io-client';
 
 interface UseWakeWordOptions {
-  /** Porcupine access key (free at https://picovoice.ai) */
+  /** Socket.IO connection for server-side Qwen ASR wake word detection */
+  socket?: Socket | null;
+  /** Porcupine access key (free at https://picovoice.ai) — optional, server-side Qwen ASR is the default */
   accessKey?: string;
-  /** Keyword to detect — built-in or custom (requires .ppn file at /porcupine/<keyword_lowercase>.ppn). Falls back to "Jarvis" if custom model missing. */
+  /** Keyword to detect. Default 'Jarvis' */
   keyword?: string;
   /** Ref to the startCall function from useVoiceCall */
   startCallRef: React.MutableRefObject<((voiceId?: string, personalityId?: string, agentId?: string) => Promise<void>)>;
   /** Enable/disable wake word */
   enabled?: boolean;
-  /** Sensitivity 0-1. Default 0.5 */
+  /** Sensitivity 0-1. Default 0.5 (Picovoice only) */
   sensitivity?: number;
   /** Voice ID to pass to startCall */
   voiceId?: string;
@@ -37,8 +40,9 @@ interface UseWakeWordReturn {
 const PICOVOICE_ACCESS_KEY_STORAGE = 'lumi_picovoice_key';
 
 export function useWakeWord({
+  socket,
   accessKey: propKey,
-  keyword = 'Computer',
+  keyword = 'Jarvis',
   startCallRef,
   enabled = false,
   sensitivity = 0.5,
@@ -54,20 +58,20 @@ export function useWakeWord({
   const [lastDetection, setLastDetection] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const engineRef = useRef<any>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const ctxRef = useRef<AudioContext | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const enabledRef = useRef(enabled);
+  const socketRef = useRef(socket);
 
   enabledRef.current = enabled;
+  socketRef.current = socket;
 
   const accessKey = propKey || localStorage.getItem(PICOVOICE_ACCESS_KEY_STORAGE) || '';
 
-  const disable = useCallback(() => {
-    setIsListening(false);
+  const cleanupAudio = useCallback(() => {
     if (processorRef.current) {
-      processorRef.current.disconnect();
+      try { processorRef.current.disconnect(); } catch {}
       processorRef.current = null;
     }
     if (ctxRef.current && ctxRef.current.state !== 'closed') {
@@ -78,18 +82,104 @@ export function useWakeWord({
       streamRef.current.getTracks().forEach(t => t.stop());
       streamRef.current = null;
     }
-    if (engineRef.current) {
-      try { engineRef.current.release(); } catch {}
-      engineRef.current = null;
-    }
   }, []);
 
-  const enable = useCallback(async () => {
-    if (!accessKey) {
-      // Silently skip — no key configured
+  const disable = useCallback(() => {
+    setIsListening(false);
+    const s = socketRef.current;
+    if (s?.connected) {
+      s.emit('wake:stop');
+      s.off('wake:detected');
+      s.off('wake:started');
+      s.off('wake:error');
+    }
+    cleanupAudio();
+  }, [cleanupAudio]);
+
+  // ── Server-side Qwen ASR wake detection (primary) ──
+
+  const enableQwenWake = useCallback(async () => {
+    const s = socketRef.current;
+    if (!s?.connected) {
+      setError('Socket not connected — retrying...');
       return;
     }
 
+    try {
+      setError(null);
+      console.log('[WakeWord-Qwen] Opening microphone...');
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      streamRef.current = stream;
+      console.log('[WakeWord-Qwen] Mic opened, setting up AudioContext');
+
+      const ctx = new AudioContext({ sampleRate: 16000 });
+      ctxRef.current = ctx;
+      const source = ctx.createMediaStreamSource(stream);
+      const processor = ctx.createScriptProcessor(4096, 1, 1);
+      processorRef.current = processor;
+
+      processor.onaudioprocess = (event) => {
+        if (!enabledRef.current) return;
+        try {
+          const input = event.inputBuffer.getChannelData(0);
+          const pcm = new Int16Array(input.length);
+          for (let i = 0; i < input.length; i++) {
+            pcm[i] = Math.max(-32768, Math.min(32767, Math.round(input[i] * 32767)));
+          }
+          socketRef.current?.emit('wake:audio', { audio: Array.from(pcm) });
+        } catch { /* ignore */ }
+      };
+
+      source.connect(processor);
+      processor.connect(ctx.destination);
+
+      // Set up listeners BEFORE emitting wake:start
+      s.off('wake:detected');
+      s.off('wake:started');
+      s.off('wake:error');
+
+      s.on('wake:detected', (data: { keyword: string; timestamp: string }) => {
+        console.log('[WakeWord-Qwen] Detected:', data.keyword);
+        setLastDetection(data.timestamp);
+        onDetection?.();
+
+        if (isCallActive?.()) {
+          onInterrupt?.();
+        } else {
+          startCallRef.current?.(voiceId, personalityId, agentId);
+        }
+      });
+
+      s.on('wake:started', () => {
+        console.log('[WakeWord-Qwen] Server confirmed, listening');
+        setIsListening(true);
+        setIsSupported(true);
+      });
+
+      s.on('wake:error', (data: { message: string }) => {
+        console.warn('[WakeWord-Qwen] Server error:', data.message);
+        setError(data.message);
+      });
+
+      console.log('[WakeWord-Qwen] Emitting wake:start');
+      s.emit('wake:start');
+    } catch (err: any) {
+      cleanupAudio();
+      const msg = err.message || 'Failed to start wake word';
+      if (msg.includes('NotAllowedError') || msg.includes('Permission')) {
+        setError('Microphone permission denied. Please allow mic access.');
+      } else {
+        setError(msg);
+      }
+    }
+  }, [voiceId, personalityId, agentId, startCallRef, cleanupAudio, onDetection, isCallActive, onInterrupt]);
+
+  // ── Picovoice on-device detection (fallback) ──
+
+  const enablePicovoice = useCallback(async () => {
     try {
       setError(null);
 
@@ -124,7 +214,6 @@ export function useWakeWord({
           { publicPath: '/porcupine_params.pv' },
         );
       } else {
-        // Custom keyword — try loading .ppn file, fall back to Jarvis
         const safeName = keyword.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
         const customPath = `/porcupine/${safeName}.ppn`;
         try {
@@ -135,7 +224,7 @@ export function useWakeWord({
             { publicPath: '/porcupine_params.pv' },
           );
         } catch {
-          console.warn(`[WakeWord] Custom keyword "${keyword}" (${customPath}) not found, falling back to "Jarvis". Place a .ppn file at public/porcupine/${safeName}.ppn`);
+          console.warn(`[WakeWord] Custom keyword "${keyword}" not found, falling back to "Jarvis"`);
           engine = await Porcupine.create(
             accessKey,
             { builtin: BuiltInKeyword.Jarvis, sensitivity },
@@ -145,10 +234,6 @@ export function useWakeWord({
         }
       }
 
-      engineRef.current = engine;
-      setIsSupported(true);
-
-      // Open mic at Porcupine's required sample rate
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
@@ -169,14 +254,15 @@ export function useWakeWord({
             pcm[i] = Math.max(-32768, Math.min(32767, Math.round(input[i] * 32767)));
           }
           engine.process(pcm);
-        } catch { /* ignore processing errors */ }
+        } catch { /* ignore */ }
       };
 
       source.connect(processor);
       processor.connect(ctx.destination);
       setIsListening(true);
+      setIsSupported(true);
     } catch (err: any) {
-      disable();
+      cleanupAudio();
       const msg = err.message || 'Failed to initialize wake word';
       if (msg.includes('NotAllowedError') || msg.includes('Permission')) {
         setError('Microphone permission denied.');
@@ -186,21 +272,38 @@ export function useWakeWord({
         setError(msg);
       }
     }
-  }, [accessKey, keyword, sensitivity, voiceId, personalityId, agentId, startCallRef, disable]);
+  }, [accessKey, keyword, sensitivity, voiceId, personalityId, agentId, startCallRef, cleanupAudio]);
 
-  // Auto-start if enabled
+  const enable = useCallback(async () => {
+    // Stop any existing session first
+    disable();
+
+    if (accessKey) {
+      console.log('[WakeWord] Using Picovoice (on-device)');
+      await enablePicovoice();
+    } else if (socketRef.current?.connected) {
+      console.log('[WakeWord] Using Qwen ASR (server-side)');
+      await enableQwenWake();
+    } else {
+      console.log('[WakeWord] No Picovoice key and socket not connected, waiting...');
+      setError('Waiting for connection...');
+    }
+  }, [accessKey, disable, enablePicovoice, enableQwenWake]);
+
+  // Auto-start / stop — includes socket state so it retries when connection becomes available
   useEffect(() => {
-    if (enabled && accessKey && !isListening) {
+    console.log('[WakeWord] State change — enabled:', enabled, 'isListening:', isListening, 'socket:', !!socketRef.current?.connected);
+    if (enabled && !isListening) {
       enable();
     } else if (!enabled && isListening) {
       disable();
     }
-  }, [enabled]);
+  }, [enabled, isListening, enable, disable, socket?.connected]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => { disable(); };
-  }, [disable]);
+  }, []);
 
   return { isListening, isSupported, lastDetection, error, enable, disable };
 }

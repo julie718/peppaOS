@@ -8,7 +8,7 @@ export async function synthesizeSpeech(text: string, config: TTSConfig): Promise
     case 'gptsovits':
       return gptsovits.synthesizeSpeech(text, config.voiceId, config.signal);
     case 'cosyvoice':
-      return cosyvoice.synthesizeSpeech(text, config.voiceId, config.signal);
+      return cosyvoice.synthesizeSpeech(text, config.voiceId, config.signal, config.speechRate, config.pitch, config.volume);
     default:
       throw new Error(`Unknown TTS provider: ${config.provider}`);
   }
@@ -51,43 +51,42 @@ export function getActiveProvider(): TTSProvider | null {
 }
 
 /**
- * Map emotional state to a CosyVoice voice preset that matches the mood.
- * Falls back to the user's configured voiceId if no strong emotional match.
+ * Map emotional state to speech parameters (speed/pitch/volume) while
+ * preserving the user's chosen voiceId. Emotion should change HOW the
+ * voice speaks, not WHO is speaking.
  */
 export function resolveEmotionVoice(defaultVoiceId: string, emotionalState?: {
   dominantMood?: string;
   arousal?: number;
   valence?: number;
   energy?: number;
-}): string {
-  if (!emotionalState) return defaultVoiceId;
+}): { voiceId: string; speechRate?: number; pitch?: number; volume?: number } {
+  if (!emotionalState) return { voiceId: defaultVoiceId };
 
   const { dominantMood, arousal = 0.5, valence = 0, energy = 0.5 } = emotionalState;
 
-  // Mood → voice character mapping (CosyVoice v3 presets)
-  const moodVoiceMap: Record<string, string> = {
-    playful: 'longanhuan',       // upbeat female
-    excited: 'longxiaochun_v3',   // bright female
-    warm: 'longanyun_v3',         // warm male
-    curious: 'longcheng_v3',      // smart male
-    focused: 'longtian_v3',       // rational male
-    contemplative: 'longxing_v3', // gentle female
-    tired: 'longwan_v3',          // soft female
-    calm: 'longxiaoxia_v3',       // calm female
-    sad: 'longanrou_v3',          // tender female
-    affectionate: 'longhan_v3',   // affectionate male
-  };
-
-  if (dominantMood && moodVoiceMap[dominantMood]) {
-    return moodVoiceMap[dominantMood];
+  // Mood → speech parameters only (voiceId stays as user selected)
+  if (dominantMood) {
+    switch (dominantMood) {
+      case 'excited':  return { voiceId: defaultVoiceId, speechRate: 1.15, pitch: 1.05 };
+      case 'playful':  return { voiceId: defaultVoiceId, speechRate: 1.10, pitch: 1.03 };
+      case 'tired':    return { voiceId: defaultVoiceId, speechRate: 0.85, pitch: 0.95 };
+      case 'sad':      return { voiceId: defaultVoiceId, speechRate: 0.90, pitch: 0.90, volume: 0.85 };
+      case 'calm':     return { voiceId: defaultVoiceId, speechRate: 0.95 };
+      case 'focused':  return { voiceId: defaultVoiceId, speechRate: 1.05 };
+      case 'warm':
+      case 'affectionate':
+      case 'contemplative':
+      case 'curious':
+        return { voiceId: defaultVoiceId };
+    }
   }
 
-  // Fallback: use arousal + valence to pick
-  if (arousal > 0.7 && valence > 0.3) return 'longanhuan';   // high energy + positive = upbeat
-  if (arousal > 0.7 && valence < -0.2) return 'longxiaochun_v3'; // high energy + negative = intense/bright
-  if (arousal < 0.3 && valence > 0.2) return 'longxing_v3';  // low energy + positive = gentle
-  if (arousal < 0.3 && valence < -0.2) return 'longwan_v3';  // low energy + negative = soft/melancholy
-  if (valence > 0.4) return 'longanyun_v3';                   // positive = warm
+  // Fallback: arousal + valence → speech parameters
+  if (arousal > 0.7 && valence > 0.3)  return { voiceId: defaultVoiceId, speechRate: 1.10, pitch: 1.03 };
+  if (arousal > 0.7 && valence < -0.2) return { voiceId: defaultVoiceId, speechRate: 1.12, pitch: 1.05 };
+  if (arousal < 0.3 && valence > 0.2)  return { voiceId: defaultVoiceId, speechRate: 0.92 };
+  if (arousal < 0.3 && valence < -0.2) return { voiceId: defaultVoiceId, speechRate: 0.88, volume: 0.85 };
 
-  return defaultVoiceId;
+  return { voiceId: defaultVoiceId };
 }

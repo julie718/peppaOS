@@ -900,11 +900,12 @@ export function DesktopUI({
     socket,
   });
 
-  // Wake word detection (requires Picovoice access key, costs nothing without one)
+  // Wake word detection — server-side Qwen ASR (DASHSCOPE_API_KEY), falls back to Picovoice
   const wakeWord = useWakeWord({
+    socket,
     startCallRef,
     enabled: true,
-    keyword: 'Hey Lumi',
+    keyword: 'Jarvis',
     onDetection: () => sounds.playWakeChime(),
     isCallActive: () => callState !== 'idle',
     onInterrupt: () => interrupt(),
@@ -1769,7 +1770,17 @@ export function DesktopUI({
               />
               {wakeWord.isListening && callState === 'idle' && (
                 <div className="mt-2 text-[10px] text-white/20 uppercase tracking-[0.25em] font-mono">
-                  Listening for &ldquo;Hey Lumi&rdquo;
+                  Listening for &ldquo;Jarvis&rdquo;
+                </div>
+              )}
+              {wakeWord.error && (
+                <div className="mt-2 text-[10px] text-red-400/60 font-mono max-w-[200px] text-center leading-relaxed">
+                  Wake: {wakeWord.error}
+                </div>
+              )}
+              {!wakeWord.isListening && !wakeWord.error && callState === 'idle' && (
+                <div className="mt-2 text-[10px] text-yellow-400/40 font-mono">
+                  Wake word initializing...
                 </div>
               )}
               </>
