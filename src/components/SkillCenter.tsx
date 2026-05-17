@@ -217,7 +217,7 @@ export function SkillCenter({ t }: { t: any }) {
 
   const SAMPLE_PROMPTS = [
     t.skillGeneratePlaceholder || 'e.g. Check if a website is down, generate QR codes...',
-    'Website uptime monitor', 'Stock price fetcher', 'QR code generator', 'CSV to JSON',
+    '', '', '', '',
   ];
 
   return (
@@ -291,7 +291,7 @@ export function SkillCenter({ t }: { t: any }) {
                           </div>
                           <div>
                             <h3 className="text-lg font-black text-white tracking-tight">{skill.name}</h3>
-                            <span className="text-[10px] text-white/30 font-mono uppercase tracking-widest">Flagship Skill</span>
+                            <span className="text-[10px] text-white/30 font-mono uppercase tracking-widest">{t.flagshipSkill || 'Flagship Skill'}</span>
                           </div>
                         </div>
                         <p className="text-sm text-white/50 leading-relaxed">{skill.desc}</p>
@@ -306,9 +306,9 @@ export function SkillCenter({ t }: { t: any }) {
                               isInstalled ? 'bg-green-500/20 text-green-400' : 'bg-white text-black hover:scale-105'
                             }`}
                           >
-                            {isInstalled ? <><CheckCircle size={14} className="mr-1" /> Installed</> : isInstalling ? <><RefreshCw size={14} className="mr-1 animate-spin" /> Installing...</> : <><Download size={14} className="mr-1" /> Install</>}
+                            {isInstalled ? <><CheckCircle size={14} className="mr-1" /> {t.installedStatus || 'Installed'}</> : isInstalling ? <><RefreshCw size={14} className="mr-1 animate-spin" /> {t.installingStatus || 'Installing...'}</> : <><Download size={14} className="mr-1" /> {t.installBtn || 'Install'}</>}
                           </Button>
-                          <span className="text-[10px] text-white/20 font-mono">Try: "{skill.prompt.slice(0, 40)}..."</span>
+                          <span className="text-[10px] text-white/20 font-mono">{t.tryPrompt || 'Try: '}"{skill.prompt.slice(0, 40)}..."</span>
                         </div>
                       </div>
                     </motion.div>
@@ -345,7 +345,7 @@ export function SkillCenter({ t }: { t: any }) {
                           isInstalled ? 'bg-green-500/20 text-green-400' : 'bg-white/10 text-white/60 hover:bg-white/20'
                         }`}
                       >
-                        {isInstalled ? <CheckCircle size={12} /> : isInstalling ? <RefreshCw size={12} className="animate-spin" /> : <Download size={12} />}
+                        {isInstalled ? <><CheckCircle size={12} /> {t.installedStatus || 'Installed'}</> : isInstalling ? <><RefreshCw size={12} className="animate-spin" /> {t.installingStatus || 'Installing...'}</> : <><Download size={12} /> {t.installBtn || 'Install'}</>}
                       </Button>
                     </motion.div>
                   );
@@ -419,18 +419,18 @@ export function SkillCenter({ t }: { t: any }) {
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
                         {skill.requiresApiKey && (
-                          <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 rounded-full text-[8px] font-bold uppercase text-amber-400" title={`Requires ${skill.apiKeyEnv} API key`}>
+                          <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 rounded-full text-[8px] font-bold uppercase text-amber-400" title={(t.requiresApiKey || 'Requires') + ' ' + skill.apiKeyEnv + ' API key'}>
                             <Key size={8} /> API
                           </span>
                         )}
                         {skill.requiresSetup && (
-                          <span className="flex items-center gap-1 px-2 py-0.5 bg-purple-500/10 rounded-full text-[8px] font-bold uppercase text-purple-400" title={skill.setupNote || 'Requires manual setup'}>
+                          <span className="flex items-center gap-1 px-2 py-0.5 bg-purple-500/10 rounded-full text-[8px] font-bold uppercase text-purple-400" title={skill.setupNote || (t.setupRequired || 'Requires manual setup')}>
                             <Wrench size={8} /> Setup
                           </span>
                         )}
                         {skill.installed && (
                           <span className="flex items-center gap-1 px-2 py-1 bg-green-500/10 rounded-full text-[9px] font-bold uppercase text-green-400">
-                            <CheckCircle size={10} /> {t.installed || 'Installed'}
+                            <CheckCircle size={10} /> {t.installedStatus || 'Installed'}
                           </span>
                         )}
                       </div>
@@ -447,7 +447,7 @@ export function SkillCenter({ t }: { t: any }) {
                     {skill.requiresApiKey && skill.apiKeyUrl && (
                       <div className="mb-3 p-2 bg-amber-500/5 border border-amber-500/10 rounded-xl">
                         <p className="text-[9px] text-amber-300/70 leading-relaxed">
-                          Requires <strong>{skill.apiKeyEnv}</strong> — <a href={skill.apiKeyUrl} target="_blank" rel="noopener" className="underline hover:text-amber-200">get API key</a>
+                          Requires <strong>{skill.apiKeyEnv}</strong> — <a href={skill.apiKeyUrl} target="_blank" rel="noopener" className="underline hover:text-amber-200">{t.getApiKey || 'get API key'}</a>
                         </p>
                       </div>
                     )}
@@ -482,9 +482,9 @@ export function SkillCenter({ t }: { t: any }) {
                         }`}
                       >
                         {skill.installed ? (
-                          <><CheckCircle size={12} className="mr-1" /> {t.installed || 'Installed'}</>
+                          <><CheckCircle size={12} className="mr-1" /> {t.installedStatus || 'Installed'}</>
                         ) : installing === skill.id ? (
-                          <><RefreshCw size={12} className="mr-1 animate-spin" /> {t.installing || 'Installing...'}</>
+                          <><RefreshCw size={12} className="mr-1 animate-spin" /> {t.installingStatus || 'Installing...'}</>
                         ) : (
                           <><Download size={12} className="mr-1" /> {t.installBtn || 'Install'}</>
                         )}

@@ -141,7 +141,7 @@ export function UnifiedAgent({ t, user, onEnterSanctuary }: { t: any; user: any;
   }, [user]);
 
   useEffect(() => {
-    if (agentsError) toast.error('Failed to load agent configuration');
+    if (agentsError) toast.error(t.failedToLoadAgentConfig || 'Failed to load agent configuration');
   }, [agentsError]);
 
   const fetchFounderVision = async () => {

@@ -321,7 +321,7 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
             <Plus size={14} />
             {t?.newConversation || 'New'}
           </button>
-          <div className="ml-2 flex-shrink-0" title={connected ? 'Connected' : 'Disconnected'}>
+          <div className="ml-2 flex-shrink-0" title={connected ? (t?.connected || 'Connected') : (t?.disconnected || 'Disconnected')}>
             {connected ? (
               <Wifi size={12} className="text-green-400/60" />
             ) : (
@@ -371,7 +371,7 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
                   <span
                     onClick={(e) => handleCloseConversation(conv.id, e)}
                     className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-red-500/20 text-white/20 hover:text-red-400"
-                    title="Close conversation"
+                    title={t?.closeConversation || 'Close conversation'}
                   >
                     <Trash2 size={10} />
                   </span>
@@ -450,7 +450,7 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
                   <div className="flex justify-end group">
                     <div className="max-w-[80%] bg-purple-500/20 border border-purple-500/30 rounded-lg px-3 py-1.5 relative">
                       <div className="flex items-center gap-1 text-purple-300/60 text-[10px] mb-0.5">
-                        <Mic size={10} /> voice
+                        <Mic size={10} /> {t?.voice || 'voice'}
                       </div>
                       <p className="text-white/90 whitespace-pre-wrap">{msg.content}</p>
                       {showTime && <span className="text-white/30 text-[10px]">{formatTime(msg.timestamp)}</span>}
@@ -521,10 +521,10 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
                 <button
                   onClick={handleCancelTask}
                   className="text-[10px] text-red-400/60 hover:text-red-400 font-bold uppercase tracking-wider flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-red-500/10 transition-colors"
-                  title="Cancel task"
+                  title={t?.cancelTask || 'Cancel task'}
                 >
                   <Square size={10} />
-                  Stop
+                  {t?.stop || 'Stop'}
                 </button>
               </motion.div>
             )}

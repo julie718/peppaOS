@@ -4,6 +4,7 @@ import {
   Building2, Users, BookOpen, Package, Activity,
   Clock, Wifi, WifiOff, RefreshCw, ArrowRight,
 } from 'lucide-react';
+import { useT } from '../../lib/useT';
 
 interface DashboardStats {
   memberCount: number;
@@ -15,6 +16,7 @@ interface DashboardStats {
 }
 
 export function BranchDashboard() {
+  const t = useT();
   const [stats, setStats] = useState<DashboardStats>({
     memberCount: 0,
     kbArticleCount: 0,
@@ -58,9 +60,9 @@ export function BranchDashboard() {
   };
 
   const cards = [
-    { label: 'Members', value: stats.memberCount, icon: <Users size={20} />, color: 'text-green-400', bg: 'bg-green-500/10' },
-    { label: 'Knowledge Base', value: stats.kbArticleCount, icon: <BookOpen size={20} />, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-    { label: 'Templates', value: stats.templateCount, icon: <Package size={20} />, color: 'text-purple-400', bg: 'bg-purple-500/10' },
+    { label: t.enterpriseMembers, value: stats.memberCount, icon: <Users size={20} />, color: 'text-green-400', bg: 'bg-green-500/10' },
+    { label: t.enterpriseKB, value: stats.kbArticleCount, icon: <BookOpen size={20} />, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+    { label: t.enterpriseTemplates, value: stats.templateCount, icon: <Package size={20} />, color: 'text-purple-400', bg: 'bg-purple-500/10' },
   ];
 
   return (
@@ -79,7 +81,7 @@ export function BranchDashboard() {
             stats.syncStatus === 'connected' ? 'bg-green-500/10 text-green-400' : 'bg-amber-500/10 text-amber-400'
           }`}>
             {stats.syncStatus === 'connected' ? <Wifi size={12} /> : <WifiOff size={12} />}
-            {stats.syncStatus === 'connected' ? 'Online' : 'Offline'}
+            {stats.syncStatus === 'connected' ? t.enterpriseConnectionOnline : t.enterpriseConnectionOffline}
           </span>
           <button
             onClick={loadStats}

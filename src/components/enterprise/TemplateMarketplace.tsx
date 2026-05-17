@@ -5,6 +5,7 @@ import {
   Loader2, ExternalLink, CheckCircle,
 } from 'lucide-react';
 import { Button } from '../ui/button';
+import { useT } from '../../lib/useT';
 
 interface Template {
   id: string;
@@ -20,6 +21,7 @@ interface Template {
 }
 
 export function TemplateMarketplace() {
+  const t = useT();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [filtered, setFiltered] = useState<Template[]>([]);
   const [search, setSearch] = useState('');
@@ -67,7 +69,7 @@ export function TemplateMarketplace() {
         const data = await res.json();
         // Refresh list to update download count
         loadTemplates();
-        alert(`Template "${data.template.name}" installed! Check your agents.`);
+        alert(`${t.templateAdded || 'Template added to your agents'}: ${data.template.name}`);
       }
     } catch {} finally { setInstalling(null); }
   };
@@ -79,9 +81,9 @@ export function TemplateMarketplace() {
       <div>
         <h2 className="text-xl font-bold text-white flex items-center gap-2">
           <Package size={24} className="text-purple-400" />
-          Template Marketplace
+          {t.templateMarketplace || 'Template Marketplace'}
         </h2>
-        <p className="text-white/40 text-sm">Discover and install agent templates from your organization</p>
+        <p className="text-white/40 text-sm">{t.templateMarketplaceDesc || 'Discover and install agent templates from your organization'}</p>
       </div>
 
       {/* Filters */}
@@ -91,7 +93,7 @@ export function TemplateMarketplace() {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search templates..."
+            placeholder={t.searchTemplates || 'Search templates...'}
             className="w-full pl-9 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder:text-white/20 focus:outline-none focus:border-purple-500/40"
           />
         </div>
@@ -100,7 +102,7 @@ export function TemplateMarketplace() {
           onChange={e => setCategory(e.target.value)}
           className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white/60 text-sm"
         >
-          <option value="">All Categories</option>
+          <option value="">{t.allCategoriesFilter || 'All Categories'}</option>
           {categories.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
@@ -111,7 +113,7 @@ export function TemplateMarketplace() {
       ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-white/30">
           <Package size={32} className="mx-auto mb-2 opacity-30" />
-          No templates found
+          {t.noTemplatesFound || 'No templates found'}
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-4">
@@ -171,7 +173,7 @@ export function TemplateMarketplace() {
                 <Tag size={12} /> {selected.category}
               </span>
               <span className="text-xs text-white/40 flex items-center gap-1">
-                <Download size={12} /> {selected.downloadCount} installs
+                <Download size={12} /> {selected.downloadCount} {t.numInstalls || 'installs'}
               </span>
               <span className="text-xs text-white/40 flex items-center gap-1">
                 <Clock size={12} /> v{selected.version}
@@ -188,12 +190,12 @@ export function TemplateMarketplace() {
               ) : (
                 <Download size={16} />
               )}
-              {installing === selected.id ? 'Installing...' : 'Install Template'}
+              {installing === selected.id ? (t.installingTemplate || 'Installing...') : (t.installTemplate || 'Install Template')}
             </Button>
 
             {installing === selected.id && (
               <p className="text-center text-green-400 text-xs mt-2 flex items-center justify-center gap-1">
-                <CheckCircle size={12} /> Template added to your agents
+                <CheckCircle size={12} /> {t.templateAdded || 'Template added to your agents'}
               </p>
             )}
           </motion.div>

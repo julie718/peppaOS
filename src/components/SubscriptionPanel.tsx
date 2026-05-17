@@ -219,7 +219,7 @@ export function SubscriptionPanel({ t }: { t: any }) {
                   <span className="text-[9px] font-bold text-celestial-saturn uppercase tracking-widest">Current Plan</span>
                 ) : (
                   <button
-                    onClick={() => toast.info('Contact admin to upgrade: maoxiansheng946@github')}
+                    onClick={() => toast.info(t.contactAdminUpgrade || 'Contact admin to upgrade: maoxiansheng946@github')}
                     className="text-[9px] font-bold text-white/30 hover:text-white/60 uppercase tracking-widest transition-colors"
                   >
                     Upgrade →

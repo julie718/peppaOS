@@ -28,7 +28,7 @@ export function VoicePicker({ t, direction = 'up', refreshTrigger = 0 }: { t: an
     setLoadingVoices(true);
     listVoices()
       .then(data => { setVoices([...data.cloned, ...data.premade]); })
-      .catch(() => toast.error('Failed to load voices'))
+      .catch(() => toast.error(t.failedToLoadVoices || 'Failed to load voices'))
       .finally(() => setLoadingVoices(false));
   }, [refreshTrigger]);
 
@@ -111,7 +111,7 @@ export function VoicePicker({ t, direction = 'up', refreshTrigger = 0 }: { t: an
                 <Search size={14} className="text-white/30" />
                 <input
                   className="bg-transparent text-white/80 text-sm placeholder-white/30 outline-none flex-1"
-                  placeholder="Search voices..."
+                  placeholder={t.searchVoices || 'Search voices...'}
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                 />

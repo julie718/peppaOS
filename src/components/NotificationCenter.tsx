@@ -1,6 +1,8 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { Bell, X, CheckCheck, Trash2, Info, AlertTriangle, CheckCircle, Zap } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
+import { useT } from '../lib/useT';
+import { useEffect, useState } from 'react';
 
 const ICONS: Record<string, React.ReactNode> = {
   info: <Info size={14} className="text-blue-400" />,
@@ -11,6 +13,38 @@ const ICONS: Record<string, React.ReactNode> = {
 
 export function NotificationCenter() {
   const { notifications, unreadCount, markAllNotificationsRead, clearNotifications } = useApp();
+  const t = useT();
+  const [historical, setHistorical] = useState<any[]>([]);
+
+  // Load persisted proactive interactions from server
+  useEffect(() => {
+    fetch('/api/interactions?mode=proactive', { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setHistorical(data.reverse().slice(0, 30));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Merge in-memory notifications with historical proactive interactions
+  const allItems = [
+    ...notifications,
+    ...historical
+      .filter((h: any) => {
+        const histMsg = (h.message || h.content || '').replace(/^\[.*?\]\s*/, '');
+        return !notifications.some(n => n.message === histMsg);
+      })
+      .map((h: any) => ({
+        id: h.id,
+        type: h.mode === 'proactive' ? 'system' : 'info',
+        title: h.personality || 'Lumi',
+        message: (h.message || h.content || '').replace(/^\[.*?\]\s*/, ''),
+        timestamp: h.timestamp ? new Date(h.timestamp).getTime() : Date.now(),
+        read: true,
+      })),
+  ].sort((a, b) => b.timestamp - a.timestamp);
 
   return (
     <div className="h-full flex flex-col bg-zinc-950/60 backdrop-blur-xl text-white overflow-y-auto">
@@ -24,13 +58,13 @@ export function NotificationCenter() {
           )}
         </div>
         <div>
-          <h2 className="text-sm font-bold text-white/90">Notification Center</h2>
+          <h2 className="text-sm font-bold text-white/90">{t.ncTitle || 'Notification Center'}</h2>
           <p className="text-[10px] text-white/30">
-            {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
+            {unreadCount > 0 ? unreadCount + ' ' + (t.unreadCount || 'unread') : (t.allCaughtUp || 'All caught up')}
           </p>
         </div>
         <div className="flex-1" />
-        {notifications.length > 0 && (
+        {allItems.length > 0 && (
           <div className="flex gap-2">
             <button
               onClick={markAllNotificationsRead}
@@ -49,16 +83,16 @@ export function NotificationCenter() {
       </div>
 
       <div className="flex-1 p-4">
-        {notifications.length === 0 ? (
+        {allItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-white/15">
             <Bell size={48} className="mb-4 opacity-20" />
-            <span className="text-xs font-bold uppercase tracking-widest">No notifications</span>
-            <span className="text-[10px] mt-1">System events and alerts will appear here</span>
+            <span className="text-xs font-bold uppercase tracking-widest">{t.ncEmpty || 'No notifications'}</span>
+            <span className="text-[10px] mt-1">{t.systemEventsHere || 'System events and alerts will appear here'}</span>
           </div>
         ) : (
           <div className="space-y-1">
             <AnimatePresence>
-              {notifications.map(n => (
+              {allItems.map(n => (
                 <motion.div
                   key={n.id}
                   initial={{ opacity: 0, x: -20 }}

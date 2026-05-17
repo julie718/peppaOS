@@ -190,7 +190,7 @@ export function Settings({
                     </select>
                     <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20" />
                   </div>
-                  <p className="text-[9px] text-white/20 px-2">Active model: <span className="text-white/40 font-mono">{aiConfig.model}</span> — change per provider in API Matrix.</p>
+                  <p className="text-[9px] text-white/20 px-2">{t?.activeModel || 'Active model'}: <span className="text-white/40 font-mono">{aiConfig.model}</span> — {t?.changePerProvider || 'change per provider in API Matrix.'}</p>
                 </div>
               </div>
             </SettingsSection>
@@ -330,7 +330,7 @@ export function Settings({
             className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-bold text-red-400/60 hover:text-red-300 hover:bg-red-500/10 transition-all"
           >
             <LogOut size={14} />
-            Sign Out
+            {t?.signOut || 'Sign Out'}
           </button>
         </div>
       </div>
@@ -529,7 +529,7 @@ function LLMProviderRow({ icon, label, providerId, models, placeholder, disabled
       setKeyValue('');
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    }).catch(() => toast.error('Failed to remove key'));
+    }).catch(() => toast.error(t?.failedToRemoveKey || 'Failed to remove key'));
   };
 
   const handleSaveKey = () => {
@@ -540,7 +540,7 @@ function LLMProviderRow({ icon, label, providerId, models, placeholder, disabled
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ keys: { [serverKey]: keyValue.trim() } }),
     }).then(() => setServerConfigured(true))
-      .catch(() => toast.error('Failed to save key'));
+      .catch(() => toast.error(t?.failedToSaveKey || 'Failed to save key'));
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -572,7 +572,7 @@ function LLMProviderRow({ icon, label, providerId, models, placeholder, disabled
       <div className="flex items-center gap-2">
         <div className="p-2 bg-white/5 rounded-lg">{icon}</div>
         <label className="text-[10px] font-black uppercase tracking-widest text-white/50">{label}</label>
-        {serverConfigured && <span className="text-[8px] px-2 py-0.5 bg-green-500/10 border border-green-500/20 text-green-400 rounded-full font-bold">CONFIGURED</span>}
+        {serverConfigured && <span className="text-[8px] px-2 py-0.5 bg-green-500/10 border border-green-500/20 text-green-400 rounded-full font-bold">{t?.configured || 'CONFIGURED'}</span>}
         {saved && <CheckCircle size={14} className="text-green-400 ml-auto" />}
       </div>
       <div className="flex gap-3">
@@ -583,13 +583,13 @@ function LLMProviderRow({ icon, label, providerId, models, placeholder, disabled
             value={keyValue}
             onChange={e => setKeyValue(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSaveKey()}
-            placeholder={serverConfigured && !keyValue ? 'Key saved on server' : placeholder}
+            placeholder={serverConfigured && !keyValue ? (t?.keySavedOnServer || 'Key saved on server') : placeholder}
             className="w-full bg-black/40 border border-white/10 rounded-xl p-4 pr-16 text-white font-mono text-sm outline-none focus:border-celestial-saturn/50 transition-colors disabled:opacity-50"
           />
           <div className="absolute right-2 top-2 flex gap-1">
             <button type="button" onClick={() => setShowKey(!showKey)}
               className="h-10 px-2 bg-white/5 hover:bg-white/10 text-[8px] font-bold uppercase border border-white/5 rounded-lg">
-              {showKey ? 'Hide' : 'Show'}
+              {showKey ? (t?.hide || 'Hide') : (t?.show || 'Show')}
             </button>
           </div>
         </div>
@@ -609,7 +609,7 @@ function LLMProviderRow({ icon, label, providerId, models, placeholder, disabled
         </Button>
       </div>
       <div className="flex items-center gap-3">
-        <label className="text-[9px] font-black uppercase text-white/30 tracking-wider whitespace-nowrap">Model</label>
+        <label className="text-[9px] font-black uppercase text-white/30 tracking-wider whitespace-nowrap">{t?.model || 'Model'}</label>
         <input
           type="text"
           value={model}
@@ -622,7 +622,7 @@ function LLMProviderRow({ icon, label, providerId, models, placeholder, disabled
           {models.map(m => <option key={m} value={m} />)}
         </datalist>
         {aiConfig.provider === providerId && (
-          <span className="text-[8px] px-2 py-0.5 bg-celestial-saturn/10 border border-celestial-saturn/20 text-celestial-saturn rounded-full font-bold whitespace-nowrap">ACTIVE</span>
+          <span className="text-[8px] px-2 py-0.5 bg-celestial-saturn/10 border border-celestial-saturn/20 text-celestial-saturn rounded-full font-bold whitespace-nowrap">{t?.activeBadge || 'ACTIVE'}</span>
         )}
       </div>
     </div>
@@ -714,7 +714,7 @@ function ApiMatrixPage({ t, providerStatus }: { t: any; providerStatus: Record<s
         {tab === 'llm' ? (
           <>
             <p className="text-sm text-white/40 max-w-xl mb-6">
-              Configure API keys and preferred models for each LLM provider. These keys are stored server-side and shared across all devices.
+              {t.apiMatrixLLMDesc || 'Configure API keys and preferred models for each LLM provider. These keys are stored server-side and shared across all devices.'}
             </p>
             <div className="grid grid-cols-1 gap-6">
               <LLMProviderRow
@@ -767,25 +767,25 @@ function ApiMatrixPage({ t, providerStatus }: { t: any; providerStatus: Record<s
         ) : tab === 'skills' ? (
           <>
             <p className="text-sm text-white/40 max-w-xl mb-6">
-              API keys for premium skill services. These enable creative generation, music, video, code sandboxing, and more.
+              {t.apiMatrixSkillsDesc || 'API keys for premium skill services. These enable creative generation, music, video, code sandboxing, and more.'}
             </p>
             <div className="grid grid-cols-1 gap-6">
               <ApiKeyField
                 icon={<Sparkle size={18} className="text-amber-400" />}
-                label="MiniMax (Music + Video + TTS + Voice Clone)"
-                placeholder="Enter MiniMax API key..."
+                label={t.minimaxLabel || 'MiniMax (Music + Video + TTS + Voice Clone)'}
+                placeholder={t.minimaxPlaceholder || 'Enter MiniMax API key...'}
                 storageKey="lumi_minimax_key"
                 serverKey="MINIMAX_API_KEY"
-                hint="Powers music generation, video creation, image synthesis, text-to-speech, and voice cloning. Get your key at platform.minimaxi.com"
+                hint={t.minimaxHint || 'Powers music generation, video creation, image synthesis, text-to-speech, and voice cloning. Get your key at platform.minimaxi.com'}
                 t={t}
               />
               <ApiKeyField
                 icon={<Terminal size={18} className="text-green-400" />}
-                label="E2B (Code Sandbox)"
-                placeholder="Enter E2B API key..."
+                label={t.e2bLabel || 'E2B (Code Sandbox)'}
+                placeholder={t.e2bPlaceholder || 'Enter E2B API key...'}
                 storageKey="lumi_e2b_key"
                 serverKey="E2B_API_KEY"
-                hint="Secure cloud sandbox for executing Python and JavaScript code. Get your key at e2b.dev"
+                hint={t.e2bHint || 'Secure cloud sandbox for executing Python and JavaScript code. Get your key at e2b.dev'}
                 t={t}
               />
             </div>
@@ -793,31 +793,31 @@ function ApiMatrixPage({ t, providerStatus }: { t: any; providerStatus: Record<s
         ) : (
           <>
             <p className="text-sm text-white/40 max-w-xl mb-6">
-              Both speech recognition (Qwen ASR) and speech synthesis (CosyVoice TTS) run on DashScope. One key covers everything.
+              {t.voiceServicesDesc || 'Both speech recognition (Qwen ASR) and speech synthesis (CosyVoice TTS) run on DashScope. One key covers everything.'}
             </p>
             <div className="grid grid-cols-1 gap-6">
               <ApiKeyField
                 icon={<Zap size={18} className="text-violet-400" />}
-                label="DashScope (STT + TTS)"
+                label={t.dashscopeLabel || 'DashScope (STT + TTS)'}
                 placeholder="sk-..."
                 storageKey="lumi_dashscope_key"
                 serverKey="DASHSCOPE_API_KEY"
-                hint="Powers Qwen ASR for speech recognition and CosyVoice for speech synthesis. Get your key at dashscope.aliyun.com"
+                hint={t.dashscopeHint || 'Powers Qwen ASR for speech recognition and CosyVoice for speech synthesis. Get your key at dashscope.aliyun.com'}
                 t={t}
               />
             </div>
             <div className="mt-6 p-4 bg-white/5 rounded-xl border border-white/10">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-bold text-white/80">允许Lumi主动语音问候</p>
-                  <p className="text-[10px] text-white/30 mt-0.5">开启后，Lumi会在检测到异常或长时间不活动时主动开口说话</p>
+                  <p className="text-xs font-bold text-white/80">{t.proactiveVoiceGreeting || '允许Lumi主动语音问候'}</p>
+                  <p className="text-[10px] text-white/30 mt-0.5">{t.proactiveVoiceGreetingDesc || '开启后，Lumi会在检测到异常或长时间不活动时主动开口说话'}</p>
                 </div>
                 <ProactiveVoiceToggle />
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-bold text-white/80">持续语音通道 (Always-On Voice)</p>
-                  <p className="text-[10px] text-white/30 mt-0.5">开启后麦克风不会自动断开，Lumi始终在听。像贾维斯一样随时插话</p>
+                  <p className="text-xs font-bold text-white/80">{t.alwaysOnVoiceLabel || '持续语音通道 (Always-On Voice)'}</p>
+                  <p className="text-[10px] text-white/30 mt-0.5">{t.alwaysOnVoiceDesc || '开启后麦克风不会自动断开，Lumi始终在听。像贾维斯一样随时插话'}</p>
                 </div>
                 <AlwaysOnVoiceToggle />
               </div>

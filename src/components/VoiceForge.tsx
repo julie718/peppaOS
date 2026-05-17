@@ -6,6 +6,7 @@ import { deleteVoice } from '../services/voiceService';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { toast } from 'sonner';
+import { useT } from '../lib/useT';
 
 export function VoiceForge({ t, compact, onCloneSuccess }: { t: any; compact?: boolean; onCloneSuccess?: () => void }) {
   const {
@@ -46,7 +47,7 @@ export function VoiceForge({ t, compact, onCloneSuccess }: { t: any; compact?: b
 
   useEffect(() => {
     if (recordings.length > prevRecordingCount.current) {
-      toast.success(`Recording captured (${(recordings[recordings.length - 1]?.size / 1024).toFixed(0)} KB)`);
+      toast.success(t.recordingCaptured || `Recording captured (${(recordings[recordings.length - 1]?.size / 1024).toFixed(0)} KB)`);
     }
     prevRecordingCount.current = recordings.length;
   }, [recordings.length]);
@@ -106,7 +107,7 @@ export function VoiceForge({ t, compact, onCloneSuccess }: { t: any; compact?: b
     const files = Array.from(e.target.files || []);
     if (files.length > 0) {
       addFiles(files);
-      toast.success(`Added ${files.length} file(s)`);
+      toast.success(t.addedFiles || `Added ${files.length} file(s)`);
     }
     if (e.target) e.target.value = ''; // Reset so same file can be re-selected
   };
@@ -114,7 +115,7 @@ export function VoiceForge({ t, compact, onCloneSuccess }: { t: any; compact?: b
   const handleClone = async () => {
     console.log('[VoiceForge] handleClone called, voiceName:', voiceName, 'recordings:', recordings.length);
     if (!voiceName.trim()) {
-      toast.error("Please enter a name for your voice essence.");
+      toast.error(t.enterVoiceName || "Please enter a name for your voice essence.");
       return;
     }
     try {
@@ -157,7 +158,7 @@ export function VoiceForge({ t, compact, onCloneSuccess }: { t: any; compact?: b
           </div>
           <div className="flex items-center gap-3 p-4 bg-celestial-saturn/10 rounded-2xl border border-celestial-saturn/20 shadow-xl">
              <Sparkles className="text-celestial-saturn animate-pulse" size={20} />
-             <div className="text-[10px] font-black uppercase tracking-widest text-celestial-saturn">Neural Synthesis Active</div>
+             <div className="text-[10px] font-black uppercase tracking-widest text-celestial-saturn">{t.neuralSynthesisActive || 'Neural Synthesis Active'}</div>
           </div>
         </div>
       )}
@@ -218,30 +219,30 @@ export function VoiceForge({ t, compact, onCloneSuccess }: { t: any; compact?: b
                              {recordingDuration}s
                            </span>
                            <span className="text-[10px] font-bold text-white/20">
-                             / 15-30s recommended
+                             {t.secRecommended || '/ 15-30s recommended'}
                            </span>
                            {recordingDuration >= 15 && (
-                             <span className="text-[10px] font-black text-green-400 animate-pulse">OPTIMAL</span>
+                             <span className="text-[10px] font-black text-green-400 animate-pulse">{t.vfOptimal || 'OPTIMAL'}</span>
                            )}
                          </div>
                        )}
                        <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest italic leading-relaxed">
                          {isRecording
                            ? recordingDuration < 5
-                             ? "Keep speaking — neural map needs more data"
+                             ? (t.keepSpeaking || "Keep speaking — neural map needs more data")
                              : recordingDuration < 15
-                               ? "Good — a few more seconds for optimal capture"
+                               ? (t.goodMoreSeconds || "Good — a few more seconds for optimal capture")
                                : recordingDuration < 30
-                                 ? "Neural patterns captured — stop when ready"
-                                 : "Excellent! Recording complete — stop to save"
-                           : "Speak naturally for 15-30 seconds for optimal capture."}
+                                 ? (t.neuralPatternsCaptured || "Neural patterns captured — stop when ready")
+                                 : (t.recordingComplete || "Excellent! Recording complete — stop to save")
+                           : (t.speakNaturally || "Speak naturally for 15-30 seconds for optimal capture.")}
                        </p>
                     </div>
 
                     {/* File upload alternative */}
                     <div className="flex items-center gap-2 pt-2">
                       <div className="flex-1 h-px bg-white/5" />
-                      <span className="text-[8px] text-white/15 uppercase tracking-widest">or</span>
+                      <span className="text-[8px] text-white/15 uppercase tracking-widest">{t.orDivider || 'or'}</span>
                       <div className="flex-1 h-px bg-white/5" />
                     </div>
                     <input
@@ -257,7 +258,7 @@ export function VoiceForge({ t, compact, onCloneSuccess }: { t: any; compact?: b
                       className="h-10 px-6 rounded-full bg-white/5 border border-white/10 text-[10px] font-black uppercase tracking-widest text-white/50 hover:bg-white/10 hover:text-white transition-all"
                     >
                       <Upload size={14} className="mr-1" />
-                      Upload Audio File
+                      {t.uploadAudioFile || 'Upload Audio File'}
                     </Button>
                  </div>
               </div>
@@ -274,7 +275,7 @@ export function VoiceForge({ t, compact, onCloneSuccess }: { t: any; compact?: b
                      <History size={14} />
                      {t.recordings || 'Recordings'} ({recordings.length})
                    </h4>
-                   <button onClick={() => recordings.forEach((_, i) => removeRecording(i))} className="text-[9px] font-bold text-red-400 uppercase tracking-widest hover:underline transition-all">Clear All</button>
+                   <button onClick={() => recordings.forEach((_, i) => removeRecording(i))} className="text-[9px] font-bold text-red-400 uppercase tracking-widest hover:underline transition-all">{t.vfClearAll || 'Clear All'}</button>
                 </div>
 
                 <div className="grid grid-cols-1 gap-3">
@@ -285,8 +286,8 @@ export function VoiceForge({ t, compact, onCloneSuccess }: { t: any; compact?: b
                               <Volume2 size={18} />
                            </div>
                            <div>
-                              <div className="text-[10px] font-black text-white/80 uppercase">Sample {i + 1}</div>
-                              <div className="text-[8px] text-white/20 uppercase font-black">{(recording.size / 1024).toFixed(1)} KB • WebM Opus</div>
+                              <div className="text-[10px] font-black text-white/80 uppercase">{t.sampleLabel || 'Sample'} {i + 1}</div>
+                              <div className="text-[8px] text-white/20 uppercase font-black">{(recording.size / 1024).toFixed(1)} {t.kbWebMOpus || 'KB • WebM Opus'}</div>
                            </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -333,7 +334,7 @@ export function VoiceForge({ t, compact, onCloneSuccess }: { t: any; compact?: b
                            'text-yellow-400'
                          }`}>
                            {cloneStatus === 'error' ? cloneError :
-                            cloneStatus === 'success' ? 'Voice cloned successfully!' :
+                            cloneStatus === 'success' ? (t.voiceClonedSuccessStatus || 'Voice cloned successfully!') :
                             cloneProgress}
                          </span>
                        </div>
@@ -378,7 +379,7 @@ export function VoiceForge({ t, compact, onCloneSuccess }: { t: any; compact?: b
               <section className="space-y-4">
                  <div className="flex items-center justify-between">
                     <h4 className="text-xs font-black uppercase tracking-[0.3em] text-white/40 italic">{t.clonedVoices || 'Cloned Voices'}</h4>
-                    <span className="text-[10px] font-mono text-celestial-saturn/40">{clonedVoices.length} / 10 limit</span>
+                    <span className="text-[10px] font-mono text-celestial-saturn/40">{clonedVoices.length} {t.voicesLimit || '/ 10 limit'}</span>
                  </div>
                  
                  <div className="grid grid-cols-1 gap-4">
@@ -421,6 +422,7 @@ export function VoiceForge({ t, compact, onCloneSuccess }: { t: any; compact?: b
 }
 
 function VoiceCard({ voice, onDelete, isCloned = false }: { voice: any, onDelete?: () => void, isCloned?: boolean }) {
+  const t = useT();
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
@@ -444,11 +446,11 @@ function VoiceCard({ voice, onDelete, isCloned = false }: { voice: any, onDelete
       const audio = new Audio(url);
       audioRef.current = audio;
       audio.onended = () => { setIsPlaying(false); URL.revokeObjectURL(url); };
-      audio.onerror = () => { setIsPlaying(false); URL.revokeObjectURL(url); toast.error('Playback failed'); };
+      audio.onerror = () => { setIsPlaying(false); URL.revokeObjectURL(url); toast.error(t.playbackFailed || 'Playback failed'); };
       await audio.play();
       setIsPlaying(true);
     } catch {
-      toast.error('Failed to play voice sample');
+      toast.error(t.failedToPlaySample || 'Failed to play voice sample');
     } finally {
       setIsLoading(false);
     }

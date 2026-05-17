@@ -30,11 +30,11 @@ export function MobileIntro({ t, onBack, onPreview }: MobileIntroProps) {
           className="flex items-center gap-2 text-white/40 hover:text-celestial-nebula transition-colors uppercase tracking-widest text-xs font-bold"
         >
           <ArrowLeft size={16} />
-          Back to Ecosystem
+          {t.backToEcosystem || 'Back to Ecosystem'}
         </button>
         <div className="flex items-center gap-3 px-4 py-2 bg-celestial-nebula/10 border border-celestial-nebula/20 rounded-full">
            <div className="w-2 h-2 rounded-full bg-celestial-nebula animate-pulse" />
-           <span className="text-[10px] font-black text-celestial-nebula uppercase tracking-widest text-white/80">Lumi Mobile Sync v1.2.0 Active</span>
+           <span className="text-[10px] font-black text-celestial-nebula uppercase tracking-widest text-white/80">{t.lumiMobileSyncActive || 'Lumi Mobile Sync v1.2.0 Active'}</span>
         </div>
       </div>
 
@@ -43,13 +43,13 @@ export function MobileIntro({ t, onBack, onPreview }: MobileIntroProps) {
         <div className="space-y-8">
           <div className="space-y-4">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-celestial-nebula/10 border border-celestial-nebula/20 rounded-full text-[10px] font-black text-celestial-nebula uppercase tracking-widest">
-              Portable Neural Gateway
+              {t.portableNeuralGateway || 'Portable Neural Gateway'}
             </div>
             <h1 className="text-6xl md:text-7xl font-black tracking-tighter leading-none italic uppercase">
-              Neural Sensory <span className="text-celestial-nebula text-glow">Perception</span>
+              {t.neuralSensoryPerception || <>Neural Sensory <span className="text-celestial-nebula text-glow">Perception</span></>}
             </h1>
             <p className="text-xl text-white/40 leading-relaxed max-w-lg italic">
-              Your agent, decoupled from the workstation. Distributed mesh networking combined with real-time sensory sharding.
+              {t.mobileHeroDesc || 'Your agent, decoupled from the workstation. Distributed mesh networking combined with real-time sensory sharding.'}
             </p>
           </div>
 
@@ -60,8 +60,8 @@ export function MobileIntro({ t, onBack, onPreview }: MobileIntroProps) {
              >
                <PhoneIcon size={24} className="text-white group-hover:rotate-12 transition-transform" />
                <div className="text-left">
-                  <div className="text-lg leading-none">LAUNCH MOBILE HUB</div>
-                  <div className="text-[10px] opacity-80 tracking-wider uppercase">BETA PREVIEW</div>
+                  <div className="text-lg leading-none">{t.launchMobileHub || 'LAUNCH MOBILE HUB'}</div>
+                  <div className="text-[10px] opacity-80 tracking-wider uppercase">{t.betaPreview || 'BETA PREVIEW'}</div>
                </div>
              </button>
           </div>
@@ -69,7 +69,7 @@ export function MobileIntro({ t, onBack, onPreview }: MobileIntroProps) {
           <div className="grid grid-cols-2 gap-4 max-w-sm">
              <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-2">
                 <div className="flex justify-between items-center">
-                   <span className="text-[8px] font-black text-white/30 uppercase">Camera Stream</span>
+                   <span className="text-[8px] font-black text-white/30 uppercase">{t.cameraStream || 'Camera Stream'}</span>
                    <div className="w-1 h-1 rounded-full bg-green-500 animate-pulse" />
                 </div>
                 <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
@@ -78,8 +78,8 @@ export function MobileIntro({ t, onBack, onPreview }: MobileIntroProps) {
              </div>
              <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-2">
                 <div className="flex justify-between items-center">
-                   <span className="text-[8px] font-black text-white/30 uppercase">Sensors</span>
-                   <span className="text-[8px] font-bold text-celestial-nebula font-mono">ACTIVE</span>
+                   <span className="text-[8px] font-black text-white/30 uppercase">{t.sensors || 'Sensors'}</span>
+                   <span className="text-[8px] font-bold text-celestial-nebula font-mono">{t.activeStatusCap || 'ACTIVE'}</span>
                 </div>
                 <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
                    <div className="h-full bg-white/20 w-1/2" />
@@ -135,15 +135,15 @@ export function MobileIntro({ t, onBack, onPreview }: MobileIntroProps) {
                  </div>
 
                  <div className="space-y-1 relative z-10">
-                    <div className="text-3xl font-black tracking-tighter italic">MOBILE HUB</div>
-                    <div className="text-[9px] text-celestial-nebula font-black uppercase tracking-[0.4em] mb-4">Real-time Sensory Sharding</div>
+                    <div className="text-3xl font-black tracking-tighter italic">{t.mobileHub || 'MOBILE HUB'}</div>
+                    <div className="text-[9px] text-celestial-nebula font-black uppercase tracking-[0.4em] mb-4">{t.realtimeSensorySharding || 'Real-time Sensory Sharding'}</div>
                  </div>
 
                  <div className="w-full space-y-4 relative z-10">
                     <div className="bg-white/5 p-4 rounded-2xl border border-white/5 flex flex-col gap-2">
                        <div className="flex justify-between items-center text-[8px] font-black text-white/30 uppercase">
-                          <span>Environment Metadata</span>
-                          <span className="text-celestial-nebula">Capturing...</span>
+                          <span>{t.environmentMetadata || 'Environment Metadata'}</span>
+                          <span className="text-celestial-nebula">{t.capturing || 'Capturing...'}</span>
                        </div>
                        <motion.div 
                          animate={{ opacity: [0.3, 1, 0.3] }}
@@ -159,7 +159,7 @@ export function MobileIntro({ t, onBack, onPreview }: MobileIntroProps) {
                       <div key={i} className="flex flex-col gap-2">
                         <div className="flex justify-between text-[8px] font-black text-white/20 uppercase tracking-widest">
                            <span>Mesh Peer Nexus_0{i}</span>
-                           <span>ONLINE</span>
+                           <span>{t.meshOnline || 'ONLINE'}</span>
                         </div>
                         <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
                            <motion.div 
@@ -184,8 +184,8 @@ export function MobileIntro({ t, onBack, onPreview }: MobileIntroProps) {
       {/* Downloads Section */}
       <section className="pt-8 space-y-8">
         <div className="text-center">
-          <h2 className="text-3xl font-black tracking-widest uppercase">Mobile Binary Packages</h2>
-          <p className="text-white/40 text-sm">Deploy the Lumi client to your portable devices</p>
+          <h2 className="text-3xl font-black tracking-widest uppercase">{t.mobileBinaryPackages || 'Mobile Binary Packages'}</h2>
+          <p className="text-white/40 text-sm">{t.deployMobileClient || 'Deploy the Lumi client to your portable devices'}</p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-6">
@@ -193,7 +193,7 @@ export function MobileIntro({ t, onBack, onPreview }: MobileIntroProps) {
             <GlassCard key={dl.platform} className="p-8 border-white/5 hover:border-celestial-nebula/30 transition-colors group">
               <div className="flex justify-between items-start mb-6">
                 <span className="text-4xl">{dl.icon}</span>
-                <span className="text-[10px] font-bold py-1 px-3 bg-white/5 rounded-full text-white/40 uppercase tracking-widest">Released</span>
+                <span className="text-[10px] font-bold py-1 px-3 bg-white/5 rounded-full text-white/40 uppercase tracking-widest">{t.releasedBadge || 'Released'}</span>
               </div>
               <div className="space-y-4">
                 <div>
@@ -202,7 +202,7 @@ export function MobileIntro({ t, onBack, onPreview }: MobileIntroProps) {
                 </div>
                 <button className="w-full py-4 bg-white/5 hover:bg-celestial-nebula text-white font-black rounded-xl border border-white/10 transition-all flex items-center justify-center gap-2 group">
                   <Download size={18} className="group-hover:translate-y-0.5 transition-transform" />
-                  INIT INSTALL
+                  {t.initInstall || 'INIT INSTALL'}
                 </button>
               </div>
             </GlassCard>
@@ -215,11 +215,11 @@ export function MobileIntro({ t, onBack, onPreview }: MobileIntroProps) {
                  <QrCode size={120} className="text-black" />
               </div>
               <div className="space-y-4">
-                 <h3 className="text-2xl font-bold">Quick Scan</h3>
-                 <p className="text-sm text-white/40 max-w-xs">Scan the QR code with your mobile device to open the decentralized installation gateway.</p>
+                 <h3 className="text-2xl font-bold">{t.quickScan || 'Quick Scan'}</h3>
+                 <p className="text-sm text-white/40 max-w-xs">{t.scanQRCode || 'Scan the QR code with your mobile device to open the decentralized installation gateway.'}</p>
                  <div className="flex items-center gap-2 text-celestial-nebula font-bold text-xs">
                     <div className="w-2 h-2 bg-celestial-nebula rounded-full animate-ping" />
-                    GATEWAY ONLINE
+                    {t.gatewayOnline || 'GATEWAY ONLINE'}
                  </div>
               </div>
            </GlassCard>

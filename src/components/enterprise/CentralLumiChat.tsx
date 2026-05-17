@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Building2, Send, Loader2, User, Bot } from 'lucide-react';
+import { useT } from '../../lib/useT';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -9,6 +10,7 @@ interface Message {
 }
 
 export function CentralLumiChat() {
+  const t = useT();
   const [messages, setMessages] = useState<Message[]>([
     { role: 'assistant', content: "Hello! I'm your company's Lumi. I can help with policies, culture, knowledge base, and more. What would you like to know?", timestamp: Date.now() },
   ]);
@@ -81,7 +83,7 @@ export function CentralLumiChat() {
           <Building2 size={20} className="text-blue-400" />
         </div>
         <div>
-          <h2 className="text-lg font-bold text-white">Company Lumi</h2>
+          <h2 className="text-lg font-bold text-white">{t.enterpriseChat}</h2>
           <p className="text-white/30 text-xs">Organizational AI — ask about policies, culture, and knowledge</p>
         </div>
       </div>

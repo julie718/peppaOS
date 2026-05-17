@@ -1,4 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { setLang } from './lib/useT';
 import * as authService from './services/authService';
 import { Navbar } from './components/Navbar';
 import { UnifiedAgent } from './components/UnifiedAgent';
@@ -55,6 +56,10 @@ export default function App() {
   const t = translations[lang];
 
 
+
+  useEffect(() => {
+    setLang(lang);
+  }, [lang]);
 
   useEffect(() => {
     if (uiMode === 'desktop') {

@@ -243,7 +243,7 @@ export function LandingSections({ t, onNavigateToSolutions, onSelectDesktop, onS
            </div>
            <div className="text-right hidden sm:block">
               <span className="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-[10px] font-black text-white/40 uppercase tracking-widest">
-                {t.nodesSynced}: 42,901
+                {t.nodesSynced}: {t.nodeCount || '42,901'}
               </span>
            </div>
         </div>
@@ -359,7 +359,7 @@ export function LandingSections({ t, onNavigateToSolutions, onSelectDesktop, onS
         >
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-celestial-saturn/20 border border-celestial-saturn/30 rounded-full text-[10px] font-bold uppercase tracking-widest text-celestial-saturn">
             <Smartphone size={12} />
-            Desktop App Available
+            {t.desktopAppAvailable || 'Desktop App Available'}
           </div>
           <h2 className="text-4xl font-black tracking-tighter">{t.downloadTitle || 'Ready to go native?'}</h2>
           <p className="text-white/40 max-w-xl mx-auto">
@@ -371,17 +371,17 @@ export function LandingSections({ t, onNavigateToSolutions, onSelectDesktop, onS
               className="px-8 py-4 bg-celestial-saturn text-black font-black rounded-2xl hover:scale-105 active:scale-95 transition-all inline-flex items-center gap-2 shadow-xl"
             >
               <Smartphone size={18} />
-              Download for Windows
+              {t.downloadForWindows || 'Download for Windows'}
             </a>
             <button
               onClick={onSelectDesktop}
               className="px-8 py-4 bg-white/5 border border-white/10 text-white font-black rounded-2xl hover:bg-white/10 transition-all inline-flex items-center gap-2"
             >
               <Globe size={18} />
-              Launch Web App
+              {t.launchWebApp || 'Launch Web App'}
             </button>
           </div>
-          <p className="text-[10px] text-white/20 font-mono">v2.0.4 · Windows 10+ · 120MB · Free</p>
+          <p className="text-[10px] text-white/20 font-mono">{t.versionInfo || 'v2.0.4 · Windows 10+ · 120MB · Free'}</p>
         </motion.div>
       </section>
 

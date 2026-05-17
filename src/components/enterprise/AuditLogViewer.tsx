@@ -5,6 +5,7 @@ import {
   Clock, User, Activity, FileText, X,
 } from 'lucide-react';
 import { Button } from '../ui/button';
+import { useT } from '../../lib/useT';
 
 interface AuditEntry {
   id: string;
@@ -17,6 +18,7 @@ interface AuditEntry {
 }
 
 export function AuditLogViewer() {
+  const t = useT();
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ userId: '', action: '', resourceType: '' });
@@ -82,7 +84,7 @@ export function AuditLogViewer() {
         <div>
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <ScrollText size={24} className="text-amber-400" />
-            Audit Log
+            {t.enterpriseAudit}
           </h2>
           <p className="text-white/40 text-sm">{entries.length} entries</p>
         </div>

@@ -9,7 +9,7 @@ import { makeLLMCall } from './llm/providers';
 import { getWeatherBrief, getTimeGreeting } from './services/weather';
 import { autoGenerateSkill } from './skills/generator';
 import { autoGenerateWorkflows } from './agents/workflows';
-import { readDB } from '../db_layer';
+import { readDB, writeDB } from '../db_layer';
 import { AgentRuntime, AgentRecord } from './agents/runtime';
 import { personalityRegistry } from './personality';
 import { evolvePersonality } from './personality/evolution';
@@ -62,6 +62,37 @@ class Scheduler {
     }));
   }
 
+  /** Persist a proactive message as an interaction so it survives restarts */
+  private saveProactiveMessage(taskId: string, message: string, timestamp: string) {
+    try {
+      const db = readDB();
+      // Find the first valid userId — proactive messages are typically for a single user
+      const userIds = new Set<string>();
+      for (const m of db.memories || []) { if (m.userId) userIds.add(m.userId); }
+      for (const i of db.interactions || []) { if (i.userId) userIds.add(i.userId); }
+      const userId = userIds.size > 0 ? [...userIds][0] : 'anonymous';
+
+      if (!db.interactions) db.interactions = [];
+      db.interactions.push({
+        id: `proactive_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        userId,
+        agentId: 'lumi',
+        conversationId: '',
+        module: 'lumi',
+        message: `[${taskId}] ${message}`,
+        response: '',
+        role: 'assistant',
+        personality: 'lumi',
+        mode: 'proactive',
+        toolCalls: '',
+        timestamp,
+      });
+      writeDB(db);
+    } catch (err: any) {
+      console.warn(`[Scheduler] Failed to persist proactive message:`, err.message);
+    }
+  }
+
   private scheduleTask(task: ScheduledTask) {
     const parsed = this.parseCron(task.cron);
 
@@ -72,6 +103,7 @@ class Scheduler {
           const message = await task.handler();
           task.lastRun = new Date().toISOString();
           if (message && this.io) {
+            this.saveProactiveMessage(task.id, message, task.lastRun);
             this.io.emit('agent:proactive', {
               taskId: task.id,
               message,
@@ -91,6 +123,7 @@ class Scheduler {
           const message = await task.handler();
           task.lastRun = new Date().toISOString();
           if (message && this.io) {
+            this.saveProactiveMessage(task.id, message, task.lastRun);
             this.io.emit('agent:proactive', {
               taskId: task.id,
               message,

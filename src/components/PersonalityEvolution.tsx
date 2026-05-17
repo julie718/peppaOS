@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { Loader2, Sparkles, GitBranch, TrendingUp, Clock, Target, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSocket } from '@/hooks/useSocket';
+import { useT } from '../lib/useT';
 
 interface OwnerProfile {
   synthesizedAt: string;
@@ -52,7 +53,7 @@ interface Props {
   personalityId?: string;
 }
 
-const DIM_LABELS: Record<string, string> = {
+const DIM_LABELS_EN: Record<string, string> = {
   analytical: 'Analytical',
   intuitive: 'Intuitive',
   systematic: 'Systematic',
@@ -79,7 +80,7 @@ function getRadarPoints(
     const val = Math.max(0.05, values[dim] || 0);
     const x = cx + radius * val * Math.cos(angle);
     const y = cy + radius * val * Math.sin(angle);
-    vertices.push({ x, y, label: DIM_LABELS[dim] || dim, value: values[dim] || 0 });
+    vertices.push({ x, y, label: DIM_LABELS_EN[dim] || dim, value: values[dim] || 0 });
   }
   const points = vertices.map(v => `${v.x},${v.y}`).join(' ');
   return { points, vertices };
@@ -96,6 +97,18 @@ function getGridPoints(cx: number, cy: number, radius: number): string {
 }
 
 export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
+  const t = useT();
+  const DIM_LABELS: Record<string, string> = {
+    analytical: t.dimAnalytical || '分析型',
+    intuitive: t.dimIntuitive || '直觉型',
+    systematic: t.dimSystematic || '系统型',
+    creative: t.dimCreative || '创造型',
+    warmth: t.dimWarmth || '温暖度',
+    directness: t.dimDirectness || '直接度',
+    playfulness: t.dimPlayfulness || '趣味度',
+    formality: t.dimFormality || '正式度',
+  };
+
   const [data, setData] = useState<EvolutionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedStep, setSelectedStep] = useState<number | null>(null);
@@ -106,7 +119,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
     fetch(`/api/personality/${personalityId}/evolution`)
       .then(r => r.json())
       .then(d => { setData(d); setSelectedStep(d.history?.length > 0 ? 0 : null); })
-      .catch(() => toast.error('Failed to load evolution data'))
+      .catch(() => toast.error(t.failedToLoadEvolution || 'Failed to load evolution data'))
       .finally(() => setLoading(false));
   }, [personalityId]);
 
@@ -119,7 +132,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
     if (!socket) return;
     const handler = (event: { personalityId: string; version: string; narrative: string; mutations: any[]; timestamp: string }) => {
       if (event.personalityId === personalityId) {
-        toast.success(`Lumi evolved to ${event.version}!`, {
+        toast.success(`${t.lumiEvolvedTo || 'Lumi evolved to'} ${event.version}!`, {
           description: event.narrative?.slice(0, 100),
         });
         // Re-fetch to get the full updated state
@@ -140,7 +153,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
       const d = await refresh.json();
       setData(d);
       setSelectedStep(d.history?.length > 0 ? d.history.length - 1 : null);
-      toast.success('Personality evolved!');
+      toast.success(t.personalityEvolved || 'Personality evolved!');
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -175,7 +188,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
         <div className="flex items-center gap-3">
           <GitBranch size={18} className="text-fuchsia-400" />
           <div>
-            <h2 className="text-sm font-black text-white/90 uppercase tracking-wider">Personality Evolution</h2>
+            <h2 className="text-sm font-black text-white/90 uppercase tracking-wider">{t.personalityEvolution || 'Personality Evolution'}</h2>
             {data && (
               <p className="text-[10px] text-white/30 font-mono">
                 v{data.version} &middot; {evolutionSteps.length} step{evolutionSteps.length !== 1 ? 's' : ''}
@@ -189,14 +202,14 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
           className="flex items-center gap-2 px-4 py-2 bg-fuchsia-500/20 border border-fuchsia-500/30 rounded-xl text-[10px] font-black uppercase text-fuchsia-400 hover:bg-fuchsia-500/30 disabled:opacity-30 transition-all"
         >
           {evolving ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-          Evolve
+          {t.evolve || 'Evolve'}
         </button>
       </div>
 
       {!hasHistory ? (
         <div className="flex flex-col items-center justify-center h-64 gap-4 text-white/20">
           <TrendingUp size={48} />
-          <p className="text-xs">No evolution history yet. Lumi's personality grows with you.</p>
+          <p className="text-xs">{t.noEvolutionHistory || "No evolution history yet. Lumi's personality grows with you."}</p>
         </div>
       ) : (
         <div className="flex h-[calc(100%-65px)]">
@@ -324,23 +337,23 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
                   {selected.ownerProfile && (
                     <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-2">
                       <h3 className="text-[10px] font-black text-white/30 uppercase tracking-wider flex items-center gap-2">
-                        <Target size={12} /> Owner Profile
+                        <Target size={12} /> {t.ownerProfile || 'Owner Profile'}
                       </h3>
                       <div className="grid grid-cols-2 gap-2 text-[10px]">
                         <div>
-                          <span className="text-white/20">Dominant Tone: </span>
+                          <span className="text-white/20">{t.dominantTone || 'Dominant Tone: '}</span>
                           <span className="text-white/60">{selected.ownerProfile.dominantTone}</span>
                         </div>
                         <div>
-                          <span className="text-white/20">Formality: </span>
+                          <span className="text-white/20">{t.formalityLabel || 'Formality: '}</span>
                           <span className="text-white/60">{selected.ownerProfile.formalityLevel.toFixed(1)}</span>
                         </div>
                         <div>
-                          <span className="text-white/20">Expressiveness: </span>
+                          <span className="text-white/20">{t.expressiveness || 'Expressiveness: '}</span>
                           <span className="text-white/60">{selected.ownerProfile.emotionalExpressiveness.toFixed(1)}</span>
                         </div>
                         <div>
-                          <span className="text-white/20">Memories Analyzed: </span>
+                          <span className="text-white/20">{t.memoriesAnalyzed || 'Memories Analyzed: '}</span>
                           <span className="text-white/60">{selected.ownerProfile.memoryCount}</span>
                         </div>
                       </div>
@@ -356,7 +369,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
 
                   {/* Mutations */}
                   <h3 className="text-[10px] font-black text-white/30 uppercase tracking-wider flex items-center gap-2">
-                    <Sparkles size={12} /> Mutations
+                    <Sparkles size={12} /> {t.mutations || 'Mutations'}
                   </h3>
                   {selected.mutations.map((mut, mi) => (
                     <motion.div
@@ -383,7 +396,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
                 </>
               ) : (
                 <div className="flex items-center justify-center h-full text-white/10 text-xs">
-                  Select an evolution step to view details
+                  {t.selectEvolutionStep || 'Select an evolution step to view details'}
                 </div>
               )}
             </div>
@@ -394,10 +407,10 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
       {/* Config bar */}
       {data && (
         <div className="border-t border-white/5 px-5 py-3 flex items-center gap-6 text-[9px] text-white/20 font-mono">
-          <span>Plasticity: <span className="text-white/40">{data.evolutionConfig.plasticity.toFixed(1)}</span></span>
-          <span>Cooldown: <span className="text-white/40">{(data.evolutionConfig.cooldownMs / 86400000).toFixed(0)}d</span></span>
-          <span>Max Mutations: <span className="text-white/40">{data.evolutionConfig.maxMutationsPerStep}</span></span>
-          <span>Min Memories: <span className="text-white/40">{data.evolutionConfig.minMemoriesForEvolution}</span></span>
+          <span>{t.plasticity || 'Plasticity:'} <span className="text-white/40">{data.evolutionConfig.plasticity.toFixed(1)}</span></span>
+          <span>{t.cooldown || 'Cooldown:'} <span className="text-white/40">{(data.evolutionConfig.cooldownMs / 86400000).toFixed(0)}d</span></span>
+          <span>{t.maxMutations || 'Max Mutations:'} <span className="text-white/40">{data.evolutionConfig.maxMutationsPerStep}</span></span>
+          <span>{t.minMemories || 'Min Memories:'} <span className="text-white/40">{data.evolutionConfig.minMemoriesForEvolution}</span></span>
         </div>
       )}
     </div>

@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Building2, Key, ArrowRight, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '../ui/button';
+import { useT } from '../../lib/useT';
 
 export function JoinOrgPage() {
+  const t = useT();
   const [code, setCode] = useState('');
   const [step, setStep] = useState<'input' | 'preview' | 'joining' | 'done' | 'error'>('input');
   const [orgInfo, setOrgInfo] = useState<any>(null);
@@ -59,8 +61,8 @@ export function JoinOrgPage() {
       >
         <div className="text-center mb-8">
           <Building2 size={48} className="mx-auto text-blue-400 mb-4" />
-          <h1 className="text-2xl font-bold text-white mb-2">Join an Organization</h1>
-          <p className="text-white/50 text-sm">Enter the 8-character invitation code from your admin</p>
+          <h1 className="text-2xl font-bold text-white mb-2">{t.enterpriseJoin}</h1>
+          <p className="text-white/50 text-sm">{t.enterpriseJoinDesc}</p>
         </div>
 
         {step === 'input' && (

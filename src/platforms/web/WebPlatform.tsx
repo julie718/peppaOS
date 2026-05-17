@@ -126,9 +126,9 @@ export function WebPlatform({
                                 <div key={i} className="w-2.5 h-2.5 rounded-full bg-celestial-saturn animate-pulse shadow-[0_0_12px_#ffcc00]" style={{ animationDelay: `${i * 0.3}s` }} />
                              ))}
                           </div>
-                          <span className="text-[11px] font-black uppercase tracking-[0.2em] text-white/90">Active Nodes: 42,901</span>
+                          <span className="text-[11px] font-black uppercase tracking-[0.2em] text-white/90">{t.activeNodesLabel || 'Active Nodes'}: {t.nodeCount || '42,901'}</span>
                           <div className="w-px h-3 bg-white/20 mx-1" />
-                          <span className="text-[11px] font-black uppercase tracking-[0.2em] text-celestial-saturn">{user ? (user.role === 'admin' ? 'Founding Architect' : 'Verified Node') : 'Verified'}</span>
+                          <span className="text-[11px] font-black uppercase tracking-[0.2em] text-celestial-saturn">{user ? (user.role === 'admin' ? (t.foundingArchitect || 'Founding Architect') : (t.verifiedNode || 'Verified Node')) : (t.verified || 'Verified')}</span>
                        </div>
                        
                        <div className="flex gap-8">
@@ -155,7 +155,7 @@ export function WebPlatform({
                              className="group px-12 py-6 bg-white text-black font-black rounded-2xl hover:scale-105 active:scale-95 transition-all flex items-center gap-3 shadow-[0_0_60px_rgba(255,255,255,0.3)]"
                            >
                              <Rocket size={24} className="text-celestial-saturn group-hover:rotate-12 transition-transform" />
-                             <span className="text-lg">INITIALIZE NEURAL OS</span>
+                             <span className="text-lg">{t.initializeNeuralOS || 'INITIALIZE NEURAL OS'}</span>
                            </button>
                          </div>
                        ) : (

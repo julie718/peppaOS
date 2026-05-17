@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Building2, Settings, Save, Loader2, Trash2, Link, Copy, CheckCircle } from 'lucide-react';
 import { Button } from '../ui/button';
+import { useT } from '../../lib/useT';
 
 export function OrgSettings() {
+  const t = useT();
   const [org, setOrg] = useState<any>(null);
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(true);
@@ -91,7 +93,7 @@ export function OrgSettings() {
     <div className="p-6 space-y-6 max-w-2xl mx-auto">
       <h2 className="text-xl font-bold text-white flex items-center gap-2">
         <Settings size={24} className="text-white/40" />
-        Organization Settings
+        {t.enterpriseSettings}
       </h2>
 
       {/* General */}
@@ -133,9 +135,9 @@ export function OrgSettings() {
               onChange={e => setInvitationRole(e.target.value)}
               className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white/70 text-sm"
             >
-              <option value="member">Member</option>
-              <option value="admin">Admin</option>
-              <option value="viewer">Viewer</option>
+              <option value="member">{t.enterpriseRoleMember}</option>
+              <option value="admin">{t.enterpriseRoleAdmin}</option>
+              <option value="viewer">{t.enterpriseRoleViewer}</option>
             </select>
           </div>
           <Button

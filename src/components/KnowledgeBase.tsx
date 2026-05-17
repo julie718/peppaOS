@@ -94,13 +94,13 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
   // Actions
   const handleDelete = async (id: string) => {
     const n = treeNodes.find(nd => nd.id === id);
-    if (!n || !confirm(`Delete "${n.title}"?`)) return;
+    if (!n || !confirm(`${t.kbDeleteConfirm || 'Delete'} "${n.title}"?`)) return;
     try {
       const endpoint = n.type === 'file' ? `/api/files/delete/${encodeURIComponent(id)}` : `/api/memories/${id}`;
       const res = await fetch(endpoint, { method: 'DELETE' });
-      if (res.ok) { toast.success('Deleted'); fetchAll(); setSelectedId(null); }
-      else toast.error('Delete failed');
-    } catch { toast.error('Delete failed'); }
+      if (res.ok) { toast.success(t.kbDeleted || 'Deleted'); fetchAll(); setSelectedId(null); }
+      else toast.error(t.kbDeleteFailed || 'Delete failed');
+    } catch { toast.error(t.kbDeleteFailed || 'Delete failed'); }
   };
 
   const handleDownload = async (id: string) => {
@@ -117,25 +117,25 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
   };
 
   const handleIngest = async (id: string) => {
-    const agentId = prompt('Enter agent ID:');
+    const agentId = prompt(t.kbEnterAgentId || 'Enter agent ID:');
     if (!agentId) return;
     try {
       const res = await fetch('/api/files/ingest', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fileId: id, agentId }),
       });
-      if (res.ok) { toast.success('Ingested'); fetchAll(); }
-      else toast.error('Ingest failed');
-    } catch { toast.error('Ingest failed'); }
+      if (res.ok) { toast.success(t.kbIngested || 'Ingested'); fetchAll(); }
+      else toast.error(t.kbIngestFailed || 'Ingest failed');
+    } catch { toast.error(t.kbIngestFailed || 'Ingest failed'); }
   };
 
   const handleToggleProtect = async (id: string) => {
     try {
       const res = await fetch(`/api/memory/${id}/protect`, { method: 'PUT' });
       const d = await res.json();
-      toast.success(d.protected ? 'Protected' : 'Unprotected');
+      toast.success(d.protected ? (t.kbProtected || 'Protected') : (t.kbUnprotected || 'Unprotected'));
       fetchAll();
-    } catch { toast.error('Protect failed'); }
+    } catch { toast.error(t.kbProtectFailed || 'Protect failed'); }
   };
 
   const handleChangeTier = async (id: string, tier: string, confirmed = false) => {
@@ -147,12 +147,12 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
       if (!res.ok) {
         const d = await res.json();
         if (d.error?.includes('confirmed')) {
-          if (confirm('Promote to Core Identity?')) return handleChangeTier(id, tier, true);
+          if (confirm(t.kbPromoteConfirm || 'Promote to Core Identity?')) return handleChangeTier(id, tier, true);
           return;
         }
         throw new Error(d.error);
       }
-      toast.success('Tier changed'); fetchAll();
+      toast.success(t.kbTierChanged || 'Tier changed'); fetchAll();
     } catch (err: any) { toast.error(err.message); }
   };
 
@@ -162,9 +162,9 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content }),
       });
-      if (res.ok) { toast.success('Updated'); fetchAll(); }
-      else toast.error('Update failed');
-    } catch { toast.error('Update failed'); }
+      if (res.ok) { toast.success(t.kbUpdated || 'Updated'); fetchAll(); }
+      else toast.error(t.kbUpdateFailed || 'Update failed');
+    } catch { toast.error(t.kbUpdateFailed || 'Update failed'); }
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -177,10 +177,10 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
       const res = await fetch('/api/files/upload', { method: 'POST', body: formData, credentials: 'include' });
       if (res.ok) {
         const d = await res.json();
-        toast.success(`Uploaded ${d.files?.length || files.length} file(s)`);
+        toast.success(`${t.kbUploadedFiles || 'Uploaded'}: ${d.files?.length || files.length}`);
         fetchAll();
-      } else toast.error('Upload failed');
-    } catch { toast.error('Upload failed'); }
+      } else toast.error(t.kbUploadFailed || 'Upload failed');
+    } catch { toast.error(t.kbUploadFailed || 'Upload failed'); }
     finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -193,8 +193,8 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
       const res = await fetch('/api/memory/auto-organize', { method: 'POST' });
       const d = await res.json();
       if (d.success) { toast.success(`Organized: ${d.branchesCreated} branches, ${d.memoriesAssigned} memories`); fetchAll(); }
-      else toast.info(d.reason || 'Not enough unorganized memories');
-    } catch { toast.error('Organization failed'); }
+      else toast.info(d.reason || (t.kbNotEnoughMemories || 'Not enough unorganized memories'));
+    } catch { toast.error(t.kbOrganizationFailed || 'Organization failed'); }
     finally { setOrganizing(false); }
   };
 
@@ -203,9 +203,9 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
     try {
       const res = await fetch('/api/memory/consolidate', { method: 'POST' });
       const d = await res.json();
-      if (d.success) { toast.success('Consolidated'); fetchAll(); }
-      else toast.info(d.reason || `Need ${d.threshold || 10} memories`);
-    } catch { toast.error('Consolidation failed'); }
+      if (d.success) { toast.success(t.kbConsolidated || 'Consolidated'); fetchAll(); }
+      else toast.info(d.reason || `${t.kbNeedMemories || 'Need'} ${d.threshold || 10} ${t.kbMem || 'memories'}`);
+    } catch { toast.error(t.kbConsolidationFailed || 'Consolidation failed'); }
     finally { setConsolidating(false); }
   };
 
@@ -214,9 +214,9 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
     try {
       const res = await fetch('/api/memory/self-reflect', { method: 'POST' });
       const d = await res.json();
-      if (d.success) { toast.success('Reflection complete'); fetchAll(); }
+      if (d.success) { toast.success(t.kbReflectionComplete || 'Reflection complete'); fetchAll(); }
       else toast.info(d.reason || 'Nothing to reflect on');
-    } catch { toast.error('Reflection failed'); }
+    } catch { toast.error(t.kbReflectionFailed || 'Reflection failed'); }
     finally { setReflecting(false); }
   };
 
@@ -225,9 +225,9 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
     try {
       const res = await fetch('/api/memory/analyze-behavior', { method: 'POST' });
       const d = await res.json();
-      if (d.patternsFound > 0) { toast.success(`Found ${d.patternsFound} patterns`); fetchAll(); }
-      else toast.info('No new patterns');
-    } catch { toast.error('Analysis failed'); }
+      if (d.patternsFound > 0) { toast.success(`${t.kbPatternsFound || 'Found'} ${d.patternsFound} ${t.kbPatterns || 'patterns'}`); fetchAll(); }
+      else toast.info(t.kbNoNewPatterns || 'No new patterns');
+    } catch { toast.error(t.kbAnalysisFailed || 'Analysis failed'); }
     finally { setAnalyzing(false); }
   };
 
@@ -278,7 +278,7 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
               >
                 <div className="flex flex-col items-center gap-4">
                   <Loader2 size={40} className="animate-spin text-amber-400" />
-                  <span className="text-[11px] font-black uppercase tracking-[0.3em] text-white/30">Awakening...</span>
+                  <span className="text-[11px] font-black uppercase tracking-[0.3em] text-white/30">{t.awakening || 'Awakening...'}</span>
                 </div>
               </motion.div>
             )}
@@ -299,7 +299,7 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
                 <input
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  placeholder="Search memories..."
+                  placeholder={t.searchMemories || 'Search memories...'}
                   className="bg-transparent text-[11px] text-white/70 placeholder:text-white/20 outline-none flex-1 min-w-0"
                 />
                 <AnimatePresence>
@@ -311,7 +311,7 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
                       className="absolute top-full left-0 right-0 mt-2 bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl"
                     >
                       {searchResults.length === 0 ? (
-                        <div className="px-4 py-3 text-[10px] text-white/30">No matches found</div>
+                        <div className="px-4 py-3 text-[10px] text-white/30">{t.noMatchesFound || 'No matches found'}</div>
                       ) : (
                         searchResults.map(m => (
                           <button
@@ -347,7 +347,7 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
                   className="flex items-center gap-1.5 bg-black/40 backdrop-blur-xl border border-green-500/20 rounded-xl px-3 py-2 text-[10px] font-bold text-green-400/70 hover:text-green-300 hover:border-green-400/40 transition-all"
                 >
                   {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-                  Import
+                  {t.kbImport || 'Import'}
                 </button>
                 <button
                   onClick={handleAutoOrganize}
@@ -355,7 +355,7 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
                   className="flex items-center gap-1.5 bg-black/40 backdrop-blur-xl border border-cyan-500/20 rounded-xl px-3 py-2 text-[10px] font-bold text-cyan-400/70 hover:text-cyan-300 hover:border-cyan-400/40 transition-all"
                 >
                   {organizing ? <Loader2 size={13} className="animate-spin" /> : <Network size={13} />}
-                  Organize
+                  {t.kbOrganize || 'Organize'}
                 </button>
                 <button
                   onClick={handleConsolidate}
@@ -363,7 +363,7 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
                   className="flex items-center gap-1.5 bg-black/40 backdrop-blur-xl border border-emerald-500/20 rounded-xl px-3 py-2 text-[10px] font-bold text-emerald-400/70 hover:text-emerald-300 hover:border-emerald-400/40 transition-all"
                 >
                   {consolidating ? <Loader2 size={13} className="animate-spin" /> : <GitMerge size={13} />}
-                  Merge
+                  {t.kbMerge || 'Merge'}
                 </button>
                 <button
                   onClick={handleSelfReflect}
@@ -371,7 +371,7 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
                   className="flex items-center gap-1.5 bg-black/40 backdrop-blur-xl border border-violet-500/20 rounded-xl px-3 py-2 text-[10px] font-bold text-violet-400/70 hover:text-violet-300 hover:border-violet-400/40 transition-all"
                 >
                   {reflecting ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                  Reflect
+                  {t.kbReflect || 'Reflect'}
                 </button>
                 <button
                   onClick={handleAnalyze}
@@ -379,18 +379,18 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
                   className="flex items-center gap-1.5 bg-black/40 backdrop-blur-xl border border-amber-500/20 rounded-xl px-3 py-2 text-[10px] font-bold text-amber-400/70 hover:text-amber-300 hover:border-amber-400/40 transition-all"
                 >
                   {analyzing ? <Loader2 size={13} className="animate-spin" /> : <TrendingUp size={13} />}
-                  Patterns
+                  {t.kbPatterns || 'Patterns'}
                 </button>
               </div>
 
               {/* Right: close + stats */}
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-3 bg-black/40 backdrop-blur-xl border border-white/[0.08] rounded-2xl px-4 py-2">
-                  <span className="text-[9px] font-bold text-blue-400/60">{totalFiles} files</span>
+                  <span className="text-[9px] font-bold text-blue-400/60">{totalFiles} {t.kbFiles || 'files'}</span>
                   <span className="w-px h-3 bg-white/[0.08]" />
-                  <span className="text-[9px] font-bold text-amber-400/60">{totalMemories} mem</span>
+                  <span className="text-[9px] font-bold text-amber-400/60">{totalMemories} {t.kbMem || 'mem'}</span>
                   <span className="w-px h-3 bg-white/[0.08]" />
-                  <span className="text-[9px] font-bold text-cyan-400/60">{totalBranches} branches</span>
+                  <span className="text-[9px] font-bold text-cyan-400/60">{totalBranches} {t.kbBranches || 'branches'}</span>
                 </div>
                 <button
                   onClick={onClose}
@@ -427,7 +427,7 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
           {/* Bottom hint */}
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
             <span className="text-[9px] font-bold text-white/15 uppercase tracking-[0.15em] bg-black/30 px-4 py-1.5 rounded-full border border-white/[0.04]">
-              ESC to close · Click nodes to inspect · Drag to rotate
+              {t.kbEscHint || 'ESC to close · Click nodes to inspect · Drag to rotate'}
             </span>
           </div>
         </motion.div>

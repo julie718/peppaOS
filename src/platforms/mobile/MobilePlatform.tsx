@@ -83,11 +83,11 @@ export function MobilePlatform({ t, user, lang, setLang, onLogin, onExit, render
   };
 
   const navItems = [
-    { id: 'home', icon: LayoutGrid, label: 'Home' },
-    { id: 'factory', icon: Cpu, label: 'Factory' },
-    { id: 'core', icon: Orbit, label: 'Core' },
-    { id: 'agents', icon: MessageSquare, label: 'Agents' },
-    { id: 'profile', icon: User, label: 'Profile' },
+    { id: 'home', icon: LayoutGrid, label: t.navHome || 'Home' },
+    { id: 'factory', icon: Cpu, label: t.navFactory || 'Factory' },
+    { id: 'core', icon: Orbit, label: t.navCore || 'Core' },
+    { id: 'agents', icon: MessageSquare, label: t.navAgents || 'Agents' },
+    { id: 'profile', icon: User, label: t.navProfile || 'Profile' },
   ];
 
   const renderScreen = () => {
@@ -103,8 +103,8 @@ export function MobilePlatform({ t, user, lang, setLang, onLogin, onExit, render
           >
             <div className="flex justify-between items-end">
               <div className="space-y-1">
-                <h2 className="text-3xl font-black italic tracking-tighter uppercase">Device <span className="text-celestial-saturn text-glow-sm">Status</span></h2>
-                <p className="text-[10px] text-white/40 font-mono uppercase tracking-widest">Active Node Monitoring</p>
+                <h2 className="text-3xl font-black italic tracking-tighter uppercase">{t.deviceStatus || <>Device <span className="text-celestial-saturn text-glow-sm">Status</span></>}</h2>
+                <p className="text-[10px] text-white/40 font-mono uppercase tracking-widest">{t.activeNodeMonitoring || 'Active Node Monitoring'}</p>
               </div>
             </div>
 
@@ -117,15 +117,15 @@ export function MobilePlatform({ t, user, lang, setLang, onLogin, onExit, render
                       <Smartphone size={20} />
                     </div>
                     <div>
-                      <div className="text-xs font-black uppercase">Local Host</div>
+                      <div className="text-xs font-black uppercase">{t.localHost || 'Local Host'}</div>
                       <div className="text-[8px] text-white/40 uppercase font-mono">NODE_IP: 192.168.1.44</div>
                     </div>
                   </div>
-                  <div className="px-3 py-1 bg-celestial-saturn/10 border border-celestial-saturn/20 rounded-full text-[8px] font-black text-celestial-saturn uppercase">Linked</div>
+                  <div className="px-3 py-1 bg-celestial-saturn/10 border border-celestial-saturn/20 rounded-full text-[8px] font-black text-celestial-saturn uppercase">{t.linked || 'Linked'}</div>
                 </div>
                 <div className="space-y-1.5">
                    <div className="flex justify-between text-[8px] font-bold text-white/20 uppercase tracking-widest">
-                     <span>Sharding Sync</span>
+                     <span>{t.shardingSync || 'Sharding Sync'}</span>
                      <span>98.2%</span>
                    </div>
                    <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
@@ -141,15 +141,15 @@ export function MobilePlatform({ t, user, lang, setLang, onLogin, onExit, render
                       <Radio size={20} />
                     </div>
                     <div>
-                      <div className="text-xs font-black uppercase">Mesh Bridge</div>
+                      <div className="text-xs font-black uppercase">{t.meshBridge || 'Mesh Bridge'}</div>
                       <div className="text-[8px] text-white/40 uppercase font-mono">LATENCY: 12ms</div>
                     </div>
                   </div>
-                  <div className="px-3 py-1 bg-purple-500/10 border border-purple-500/20 rounded-full text-[8px] font-black text-purple-500 uppercase">Active</div>
+                  <div className="px-3 py-1 bg-purple-500/10 border border-purple-500/20 rounded-full text-[8px] font-black text-purple-500 uppercase">{t.activeStatus || 'Active'}</div>
                 </div>
                 <div className="space-y-1.5">
                    <div className="flex justify-between text-[8px] font-bold text-white/20 uppercase tracking-widest">
-                     <span>Global Traffic</span>
+                     <span>{t.globalTraffic || 'Global Traffic'}</span>
                      <span>4.2 PB/S</span>
                    </div>
                    <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
@@ -165,13 +165,13 @@ export function MobilePlatform({ t, user, lang, setLang, onLogin, onExit, render
                  <div className="w-8 h-8 rounded-xl bg-celestial-saturn/20 flex items-center justify-center text-celestial-saturn">
                    <ShieldCheck size={14} />
                  </div>
-                 <div className="text-[10px] font-black uppercase tracking-tight">Biometrics</div>
+                 <div className="text-[10px] font-black uppercase tracking-tight">{t.biometricsTile || 'Biometrics'}</div>
               </div>
               <div className="glass-dark p-5 rounded-[2rem] border border-white/5 flex items-center gap-3">
                  <div className="w-8 h-8 rounded-xl bg-orange-500/20 flex items-center justify-center text-orange-400">
                    <Activity size={14} />
                  </div>
-                 <div className="text-[10px] font-black uppercase tracking-tight">Telemetry</div>
+                 <div className="text-[10px] font-black uppercase tracking-tight">{t.telemetryTile || 'Telemetry'}</div>
               </div>
             </div>
           </motion.div>
@@ -186,8 +186,8 @@ export function MobilePlatform({ t, user, lang, setLang, onLogin, onExit, render
             className="h-full flex flex-col items-center justify-center space-y-12 pb-24"
           >
             <div className="text-center space-y-2">
-               <h2 className="text-4xl font-black italic tracking-tighter uppercase text-white">Central <span className="text-celestial-saturn text-glow">Persona</span></h2>
-               <p className="text-[10px] text-white/30 uppercase tracking-[0.4em] font-mono leading-none">Local Shard Integrity Verified</p>
+               <h2 className="text-4xl font-black italic tracking-tighter uppercase text-white">{t.centralPersona || <>Central <span className="text-celestial-saturn text-glow">Persona</span></>}</h2>
+               <p className="text-[10px] text-white/30 uppercase tracking-[0.4em] font-mono leading-none">{t.localShardIntegrityVerified || 'Local Shard Integrity Verified'}</p>
             </div>
 
             <motion.div 
@@ -226,7 +226,7 @@ export function MobilePlatform({ t, user, lang, setLang, onLogin, onExit, render
                        <Mic size={20} className={callState !== 'idle' ? 'animate-pulse' : ''} />
                      </div>
                      <span className={`text-xs font-black uppercase tracking-widest ${callState !== 'idle' ? 'text-celestial-saturn' : ''}`}>
-                       {callState === 'idle' ? 'Initialize Sync' : 'Session Active'}
+                       {callState === 'idle' ? (t.initializeSync || 'Initialize Sync') : (t.sessionActive || 'Session Active')}
                      </span>
                   </div>
                   <ChevronDown className={`text-white/20 -rotate-90 transition-transform ${callState !== 'idle' ? 'rotate-0' : ''}`} size={16} />
@@ -256,7 +256,7 @@ export function MobilePlatform({ t, user, lang, setLang, onLogin, onExit, render
             className="h-full pt-4 space-y-8"
           >
             <div className="flex justify-between items-end px-2">
-              <h2 className="text-3xl font-black italic tracking-tighter uppercase whitespace-pre-line leading-none">Neural <br/> <span className="text-purple-500">Entities</span></h2>
+              <h2 className="text-3xl font-black italic tracking-tighter uppercase whitespace-pre-line leading-none">{t.neuralEntities || <>Neural <br/> <span className="text-purple-500">Entities</span></>}</h2>
               <div className="w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center text-white/40">
                  <Shield size={18} />
               </div>
@@ -286,13 +286,13 @@ export function MobilePlatform({ t, user, lang, setLang, onLogin, onExit, render
                     onClick={() => setLang('en')}
                     className={`p-4 rounded-2xl border text-[10px] font-black uppercase tracking-widest transition-all ${lang === 'en' ? 'bg-celestial-saturn text-black border-celestial-saturn shadow-lg' : 'bg-white/5 border-white/5 text-white/40'}`}
                   >
-                    English
+                    {t.english || 'English'}
                   </button>
-                  <button 
+                  <button
                     onClick={() => setLang('zh')}
                     className={`p-4 rounded-2xl border text-[10px] font-black uppercase tracking-widest transition-all ${lang === 'zh' ? 'bg-celestial-saturn text-black border-celestial-saturn shadow-lg' : 'bg-white/5 border-white/5 text-white/40'}`}
                   >
-                    中文
+                    {t.chinese || '中文'}
                   </button>
                 </div>
               </div>
@@ -309,7 +309,7 @@ export function MobilePlatform({ t, user, lang, setLang, onLogin, onExit, render
                   className="w-full p-6 glass-dark rounded-[2.5rem] border border-white/5 flex items-center justify-center gap-3 text-white/40 hover:text-white transition-colors"
                 >
                   <LogOut size={20} />
-                  <span className="text-xs font-black uppercase tracking-widest text-glow-sm">Exit Mobile Interface</span>
+                  <span className="text-xs font-black uppercase tracking-widest text-glow-sm">{t.exitMobileInterface || 'Exit Mobile Interface'}</span>
                 </button>
               </div>
             )}

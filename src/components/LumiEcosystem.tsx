@@ -17,6 +17,9 @@ const SKILLS = [
   { id: 3, name: 'Market Analysis', price: '0.8 ETH', desc: 'Real-time financial and market data processing.' },
 ];
 
+// These are demo/fallback data arrays that are never actually rendered (real data comes from API)
+// Keep English as-is for mock data
+
 export function LumiEcosystem({ t, onChatAgent }: { t: any; onChatAgent?: (agent: any) => void }) {
   const [hasDevice, setHasDevice] = useState(false);
   const [isIncubating, setIsIncubating] = useState(false);
@@ -118,7 +121,7 @@ export function LumiEcosystem({ t, onChatAgent }: { t: any; onChatAgent?: (agent
               <div className="space-y-4">
                 <div className="flex justify-between text-xs font-bold uppercase tracking-widest text-white/40">
                   <span>{t.distributedStorage}</span>
-                  <span>84% Synchronized</span>
+                  <span>{t.synchronizedPercent || '84% Synchronized'}</span>
                 </div>
                 <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
                   <motion.div 
@@ -132,11 +135,11 @@ export function LumiEcosystem({ t, onChatAgent }: { t: any; onChatAgent?: (agent
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
-                  <p className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-1">Active Shards</p>
+                  <p className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-1">{t.activeShards || 'Active Shards'}</p>
                   <p className="text-xl font-bold">1,024</p>
                 </div>
                 <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
-                  <p className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-1">Redundancy</p>
+                  <p className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-1">{t.redundancy || 'Redundancy'}</p>
                   <p className="text-xl font-bold">x12</p>
                 </div>
               </div>
@@ -200,7 +203,7 @@ export function LumiEcosystem({ t, onChatAgent }: { t: any; onChatAgent?: (agent
 
               <div className="absolute bottom-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[10px] font-bold uppercase tracking-widest">
                 <Network size={12} className="text-celestial-glow" />
-                Mesh Sharding Active
+                {t.meshShardingActive || 'Mesh Sharding Active'}
               </div>
             </div>
           </div>
@@ -341,7 +344,7 @@ export function LumiEcosystem({ t, onChatAgent }: { t: any; onChatAgent?: (agent
                     {isIncubating && (
                       <div className="absolute -bottom-12 left-0 w-full px-4 space-y-3">
                         <div className="flex justify-between text-[10px] uppercase tracking-widest font-bold text-celestial-saturn/60">
-                          <span>Incubating Base Essence</span>
+                          <span>{t.incubatingBaseEssence || 'Incubating Base Essence'}</span>
                           <span>{progress}%</span>
                         </div>
                         <div className="h-1.5 bg-white/5 rounded-full overflow-hidden border border-white/5">
@@ -366,8 +369,8 @@ export function LumiEcosystem({ t, onChatAgent }: { t: any; onChatAgent?: (agent
                   {hasDevice ? <ShieldCheck size={24} /> : <Shield size={24} />}
                 </div>
                 <div>
-                  <h4 className="font-bold">Multimodal Device Status</h4>
-                  <p className="text-sm text-white/40">{hasDevice ? 'Connected & Verified' : 'No Device Detected'}</p>
+                  <h4 className="font-bold">{t.multimodalDeviceStatus || 'Multimodal Device Status'}</h4>
+                  <p className="text-sm text-white/40">{hasDevice ? (t.connectedVerified || 'Connected & Verified') : (t.noDeviceDetected || 'No Device Detected')}</p>
                 </div>
               </div>
 
@@ -393,7 +396,7 @@ export function LumiEcosystem({ t, onChatAgent }: { t: any; onChatAgent?: (agent
 
             <div className="grid grid-cols-2 gap-4">
               <EcosystemStat icon={<Cpu size={16} />} label={t.memory} value={s ? `${s.ramTotal}GB` : '128GB'} />
-              <EcosystemStat icon={<Globe size={16} />} label={t.sensing} value={s ? `${s.toolCount} Tools` : 'Active'} />
+              <EcosystemStat icon={<Globe size={16} />} label={t.sensing} value={s ? `${s.toolCount} Tools` : (t.activeLabel || 'Active')} />
             </div>
           </div>
         </div>
@@ -410,17 +413,17 @@ export function LumiEcosystem({ t, onChatAgent }: { t: any; onChatAgent?: (agent
           <CooperationCard 
             icon={<Network className="text-celestial-saturn" />} 
             title={t.multiAgentOrch || "Multi-Agent Orchestration"} 
-            desc="Lumi Core acts as the conductor, delegating sub-tasks to specialized local or peer agents."
+            desc={t.multiAgentOrchDesc || "Lumi Core acts as the conductor, delegating sub-tasks to specialized local or peer agents."}
           />
           <CooperationCard 
             icon={<Share2 className="text-celestial-mars" />} 
             title={t.secureP2P || "Secure P2P Cooperation"} 
-            desc="Collaborate with other users' nodes to access unique capabilities via encrypted tunnels."
+            desc={t.secureP2PDesc || "Collaborate with other users' nodes to access unique capabilities via encrypted tunnels."}
           />
           <CooperationCard 
             icon={<Link className="text-celestial-glow" />} 
             title={t.swarmIntel || "Swarm Intelligence"} 
-            desc="Aggregated insights from the mesh allow your agent to learn from collective experiences."
+            desc={t.swarmIntelDesc || "Aggregated insights from the mesh allow your agent to learn from collective experiences."}
           />
         </div>
 
@@ -483,11 +486,11 @@ export function LumiEcosystem({ t, onChatAgent }: { t: any; onChatAgent?: (agent
                 >
                   <Ghost size={48} />
                 </motion.div>
-                <div className="absolute -top-2 -right-2 px-3 py-1 bg-celestial-saturn text-black text-[10px] font-black rounded-full shadow-lg">OWNER</div>
+                <div className="absolute -top-2 -right-2 px-3 py-1 bg-celestial-saturn text-black text-[10px] font-black rounded-full shadow-lg">{t.ownerBadge || 'OWNER'}</div>
               </div>
               <div className="text-center">
-                <span className="text-sm font-bold uppercase tracking-widest text-white/60">Your Agent</span>
-                <p className="text-[10px] text-white/20 font-mono">ID: LUMI-8829-X</p>
+                <span className="text-sm font-bold uppercase tracking-widest text-white/60">{t.yourAgent || 'Your Agent'}</span>
+                <p className="text-[10px] text-white/20 font-mono">{t.agentIdLabel || 'ID: LUMI-8829-X'}</p>
               </div>
             </div>
 
@@ -521,8 +524,8 @@ export function LumiEcosystem({ t, onChatAgent }: { t: any; onChatAgent?: (agent
                     />
                   </div>
                   <div className="text-center">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">Peer Node</span>
-                    <p className="text-[8px] text-white/10 font-mono">ANON-{n}29</p>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">{t.peerNode || 'Peer Node'}</span>
+                    <p className="text-[8px] text-white/10 font-mono">{t.anonId || 'ANON-'}{n}29</p>
                   </div>
                 </div>
               ))}
@@ -532,7 +535,7 @@ export function LumiEcosystem({ t, onChatAgent }: { t: any; onChatAgent?: (agent
           {/* Legacy Protocol Overlay */}
           <div className="absolute bottom-6 left-8 flex items-center gap-3 px-5 py-2.5 bg-black/60 backdrop-blur-xl rounded-2xl border border-white/10">
             <ShieldCheck size={16} className="text-green-500" />
-            <span className="text-[10px] font-bold uppercase tracking-widest text-white/60">Legacy Protocol: Encrypted Shards Distributed</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-white/60">{t.legacyProtocolEncrypted || 'Legacy Protocol: Encrypted Shards Distributed'}</span>
           </div>
         </div>
       </section>
@@ -545,23 +548,23 @@ export function LumiEcosystem({ t, onChatAgent }: { t: any; onChatAgent?: (agent
         </div>
 
         <div className="grid md:grid-cols-3 gap-8">
-          <SubscriptionCard 
-            tier="Basic" 
-            price="¥99/mo" 
-            features={['100GB Neural Storage', 'Standard Sync Speed', 'Single Agent Support']} 
+          <SubscriptionCard
+            tier={t.subscriptionBasic || 'Basic'}
+            price={t.subscriptionBasicPrice || '¥99/mo'}
+            features={['100GB Neural Storage', 'Standard Sync Speed', 'Single Agent Support']}
             t={t}
           />
-          <SubscriptionCard 
-            tier="Pro" 
-            price="¥299/mo" 
-            features={['1TB Neural Storage', 'High-Speed Mesh Sync', 'Multi-Agent Support', 'Priority Processing']} 
+          <SubscriptionCard
+            tier={t.subscriptionPro || 'Pro'}
+            price={t.subscriptionProPrice || '¥299/mo'}
+            features={['1TB Neural Storage', 'High-Speed Mesh Sync', 'Multi-Agent Support', 'Priority Processing']}
             isPopular
             t={t}
           />
-          <SubscriptionCard 
-            tier="Enterprise" 
-            price="Custom" 
-            features={['Unlimited Storage', 'Dedicated Mesh Node', 'Custom AI Personality', '24/7 Neural Support']} 
+          <SubscriptionCard
+            tier={t.subscriptionEnterprise || 'Enterprise'}
+            price={t.subscriptionCustom || 'Custom'}
+            features={['Unlimited Storage', 'Dedicated Mesh Node', 'Custom AI Personality', '24/7 Neural Support']}
             t={t}
           />
         </div>
@@ -575,7 +578,7 @@ function SubscriptionCard({ tier, price, features, isPopular, t }: { tier: strin
     <GlassCard className={`flex flex-col h-full relative overflow-hidden ${isPopular ? 'border-celestial-saturn/50 shadow-[0_0_30px_rgba(255,165,0,0.1)]' : ''}`} hoverEffect={!isPopular}>
       {isPopular && (
         <div className="absolute top-6 right-[-35px] bg-celestial-saturn text-black text-[10px] font-black uppercase tracking-widest py-1 px-12 rotate-45">
-          Popular
+          {t.popular || 'Popular'}
         </div>
       )}
       <div className="space-y-6 flex-1">

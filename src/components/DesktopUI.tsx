@@ -670,12 +670,12 @@ function DailyCapability({ t, onInstall }: { t: any; onInstall: (skillId: string
 
   useEffect(() => {
     const skills = [
-      { id: 'pixelle', name: 'Pixelle Studio', desc: 'AI image & video generation', iconColor: 'from-purple-500 to-pink-500' },
-      { id: 'minimax', name: 'MiniMax Studio', desc: 'Music, video, image & voice AI', iconColor: 'from-amber-400 to-yellow-500' },
-      { id: 'desktop-automation', name: 'Desktop Commander', desc: 'Full desktop control via AI', iconColor: 'from-cyan-500 to-blue-500' },
-      { id: 'video-editor', name: 'Video Forge', desc: 'Video & audio editing suite', iconColor: 'from-rose-500 to-orange-500' },
-      { id: 'fetcher', name: 'Web Fetcher Pro', desc: 'Smart web content extraction', iconColor: 'from-blue-500 to-cyan-400' },
-      { id: 'code-sandbox', name: 'Code Sandbox', desc: 'Run Python & JS in cloud sandbox', iconColor: 'from-green-500 to-emerald-400' },
+      { id: 'pixelle', name: 'Pixelle Studio', desc: t.pixelleDesc || 'AI image & video generation', iconColor: 'from-purple-500 to-pink-500' },
+      { id: 'minimax', name: 'MiniMax Studio', desc: t.minimaxDesc || 'Music, video, image & voice AI', iconColor: 'from-amber-400 to-yellow-500' },
+      { id: 'desktop-automation', name: 'Desktop Commander', desc: t.desktopCommanderDesc || 'Full desktop control via AI', iconColor: 'from-cyan-500 to-blue-500' },
+      { id: 'video-editor', name: 'Video Forge', desc: t.videoForgeDesc || 'Video & audio editing suite', iconColor: 'from-rose-500 to-orange-500' },
+      { id: 'fetcher', name: 'Web Fetcher Pro', desc: t.webFetcherProDesc || 'Smart web content extraction', iconColor: 'from-blue-500 to-cyan-400' },
+      { id: 'code-sandbox', name: 'Code Sandbox', desc: t.codeSandboxDesc || 'Run Python & JS in cloud sandbox', iconColor: 'from-green-500 to-emerald-400' },
     ];
     const idx = new Date().getDate() % skills.length;
     fetch('/api/skills').then(r => r.json()).then(data => {
@@ -697,7 +697,7 @@ function DailyCapability({ t, onInstall }: { t: any; onInstall: (skillId: string
       });
       toast.success(`${skill.name} installed!`);
       onInstall(skill.id);
-    } catch { toast.error('Install failed'); }
+    } catch { toast.error(t.installFailed || 'Install failed'); }
     finally { setInstalling(false); }
   };
 
@@ -2126,6 +2126,7 @@ export function DesktopUI({
       {/* Knowledge Base fullscreen overlay */}
       <Suspense fallback={null}>
         <KnowledgeBase
+          t={t}
           isOpen={knowledgeOpen}
           onClose={() => setKnowledgeOpen(false)}
         />

@@ -65,12 +65,12 @@ export function Profile({ t }: { t: any }) {
         <div className="text-center md:text-left space-y-4">
           <div className="space-y-1">
             <h1 className="text-4xl font-bold tracking-tighter glow-text">{user.displayName || user.username}</h1>
-            <p className="text-white/40 font-mono text-sm">Node ID: {user.uid.slice(0, 6)}...{user.uid.slice(-4)}</p>
+            <p className="text-white/40 font-mono text-sm">{t.nodeId || 'Node ID'}: {user.uid.slice(0, 6)}...{user.uid.slice(-4)}</p>
           </div>
           <div className="flex flex-wrap justify-center md:justify-start gap-3">
-            <Badge icon={<Shield size={12} />} label="Verified Node" color="text-green-500 bg-green-500/10" />
-            <Badge icon={<Cpu size={12} />} label="Level 12 Architect" color="text-celestial-saturn bg-celestial-saturn/10" />
-            <Badge icon={<Rocket size={12} />} label="Early Explorer" color="text-celestial-mars bg-celestial-mars/10" />
+            <Badge icon={<Shield size={12} />} label={t.verifiedNode || 'Verified Node'} color="text-green-500 bg-green-500/10" />
+            <Badge icon={<Cpu size={12} />} label={t.levelArchitect || 'Level 12 Architect'} color="text-celestial-saturn bg-celestial-saturn/10" />
+            <Badge icon={<Rocket size={12} />} label={t.earlyExplorer || 'Early Explorer'} color="text-celestial-mars bg-celestial-mars/10" />
           </div>
         </div>
       </div>
@@ -91,19 +91,19 @@ export function Profile({ t }: { t: any }) {
               <div className="text-[10px] text-white/20">{t.earnCredits || 'Earn by Contributing Node Power'}</div>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Button className="rounded-xl bg-white/5 border border-white/10 text-xs h-10">Withdraw</Button>
-              <Button className="rounded-xl bg-celestial-saturn text-black font-bold text-xs h-10">Top Up</Button>
+              <Button className="rounded-xl bg-white/5 border border-white/10 text-xs h-10">{t.withdraw || 'Withdraw'}</Button>
+              <Button className="rounded-xl bg-celestial-saturn text-black font-bold text-xs h-10">{t.topUp || 'Top Up'}</Button>
             </div>
           </div>
         </GlassCard>
 
         <GlassCard className="p-8 rounded-[3rem] space-y-6" hoverEffect={false}>
-          <h3 className="text-xl font-bold tracking-tighter">Node Stats</h3>
+          <h3 className="text-xl font-bold tracking-tighter">{t.nodeStats || 'Node Stats'}</h3>
           <div className="grid grid-cols-2 gap-4">
-            <StatBox label="Total Data" value="1.2 TB" />
-            <StatBox label="Uptime" value={health?.uptime ? `${Math.floor(health.uptime / 3600)}h ${Math.floor((health.uptime % 3600) / 60)}m` : "99.9%"} />
-            <StatBox label="Node Power" value="850 GFLOPS" />
-            <StatBox label="Interactions" value={health?.database?.interactions || "1,240"} />
+            <StatBox label={t.totalData || 'Total Data'} value="1.2 TB" />
+            <StatBox label={t.uptime || 'Uptime'} value={health?.uptime ? `${Math.floor(health.uptime / 3600)}h ${Math.floor((health.uptime % 3600) / 60)}m` : "99.9%"} />
+            <StatBox label={t.nodePower || 'Node Power'} value="850 GFLOPS" />
+            <StatBox label={t.interactions || 'Interactions'} value={health?.database?.interactions || "1,240"} />
           </div>
         </GlassCard>
 
@@ -168,19 +168,19 @@ export function Profile({ t }: { t: any }) {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
-                <div className="text-[10px] text-white/40 uppercase font-bold mb-1">Status</div>
-                <div className="text-green-500 font-bold uppercase tracking-widest text-xs">Operational</div>
+                <div className="text-[10px] text-white/40 uppercase font-bold mb-1">{t.status || 'Status'}</div>
+                <div className="text-green-500 font-bold uppercase tracking-widest text-xs">{t.operational || 'Operational'}</div>
               </div>
               <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
-                <div className="text-[10px] text-white/40 uppercase font-bold mb-1">Users</div>
+                <div className="text-[10px] text-white/40 uppercase font-bold mb-1">{t.users || 'Users'}</div>
                 <div className="text-white font-bold text-xs">{health.database?.users}</div>
               </div>
               <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
-                <div className="text-[10px] text-white/40 uppercase font-bold mb-1">Agents</div>
+                <div className="text-[10px] text-white/40 uppercase font-bold mb-1">{t.agents || 'Agents'}</div>
                 <div className="text-white font-bold text-xs">{health.database?.agents}</div>
               </div>
               <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
-                <div className="text-[10px] text-white/40 uppercase font-bold mb-1">Latency</div>
+                <div className="text-[10px] text-white/40 uppercase font-bold mb-1">{t.latency || 'Latency'}</div>
                 <div className="text-celestial-saturn font-bold text-xs">12ms</div>
               </div>
             </div>

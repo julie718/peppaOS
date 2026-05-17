@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, BookOpen, Tag, Clock, ChevronRight, Loader2, Plus } from 'lucide-react';
 import { Button } from '../ui/button';
+import { useT } from '../../lib/useT';
 
 interface Article {
   id: string;
@@ -15,6 +16,7 @@ interface Article {
 }
 
 export function KnowledgeBaseBrowser() {
+  const t = useT();
   const [articles, setArticles] = useState<Article[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -66,7 +68,7 @@ export function KnowledgeBaseBrowser() {
         <div>
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <BookOpen size={24} className="text-blue-400" />
-            Knowledge Base
+            {t.enterpriseKB}
           </h2>
           <p className="text-white/40 text-sm">Company policies, SOPs, and documentation</p>
         </div>
@@ -178,7 +180,7 @@ export function KnowledgeBaseBrowser() {
               onClick={() => setSelectedArticle(null)}
               className="text-white/40 hover:text-white mb-4 text-sm"
             >
-              &larr; Back
+              {'← '}{t.back}
             </button>
             <h3 className="text-lg font-bold text-white mb-2">{selectedArticle.title}</h3>
             <div className="flex items-center gap-2 mb-4">

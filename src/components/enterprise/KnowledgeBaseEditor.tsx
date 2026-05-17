@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Save, FileText, Tag, Loader2, BookOpen } from 'lucide-react';
 import { Button } from '../ui/button';
+import { useT } from '../../lib/useT';
 
 interface Props {
   articleId?: string;
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function KnowledgeBaseEditor({ articleId, onSaved }: Props) {
+  const t = useT();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [category, setCategory] = useState('general');
@@ -70,14 +72,14 @@ export function KnowledgeBaseEditor({ articleId, onSaved }: Props) {
     <div className="p-6 space-y-4 max-w-3xl mx-auto">
       <h2 className="text-xl font-bold text-white flex items-center gap-2">
         <FileText size={24} className="text-blue-400" />
-        {articleId ? 'Edit Article' : 'New Article'}
+        {articleId ? (t.editArticle || 'Edit Article') : (t.newArticle || 'New Article')}
       </h2>
 
       <div className="flex items-center gap-3">
         <input
           value={title}
           onChange={e => setTitle(e.target.value)}
-          placeholder="Article title..."
+          placeholder={t.articleTitle || 'Article title...'}
           className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/20 focus:outline-none focus:border-blue-500/40"
         />
         <select
@@ -85,21 +87,21 @@ export function KnowledgeBaseEditor({ articleId, onSaved }: Props) {
           onChange={e => setCategory(e.target.value)}
           className="px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white/70 text-sm focus:outline-none"
         >
-          <option value="general">General</option>
-          <option value="policy">Policy</option>
-          <option value="sop">SOP</option>
-          <option value="product">Product</option>
-          <option value="culture">Culture</option>
-          <option value="hr">HR</option>
-          <option value="tech">Technical</option>
+          <option value="general">{t.catGeneral || 'General'}</option>
+          <option value="policy">{t.catPolicy || 'Policy'}</option>
+          <option value="sop">{t.catSOP || 'SOP'}</option>
+          <option value="product">{t.catProduct || 'Product'}</option>
+          <option value="culture">{t.catCulture || 'Culture'}</option>
+          <option value="hr">{t.catHR || 'HR'}</option>
+          <option value="tech">{t.catTechnical || 'Technical'}</option>
         </select>
         <select
           value={status}
           onChange={e => setStatus(e.target.value as any)}
           className="px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white/70 text-sm focus:outline-none"
         >
-          <option value="draft">Draft</option>
-          <option value="published">Published</option>
+          <option value="draft">{t.draftStatus || 'Draft'}</option>
+          <option value="published">{t.publishedStatus || 'Published'}</option>
         </select>
       </div>
 
@@ -108,7 +110,7 @@ export function KnowledgeBaseEditor({ articleId, onSaved }: Props) {
         <input
           value={tags}
           onChange={e => setTags(e.target.value)}
-          placeholder="Tags (comma separated)"
+          placeholder={t.tagsCommaSeparated || 'Tags (comma separated)'}
           className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder:text-white/20 focus:outline-none focus:border-blue-500/40"
         />
       </div>
@@ -116,7 +118,7 @@ export function KnowledgeBaseEditor({ articleId, onSaved }: Props) {
       <textarea
         value={content}
         onChange={e => setContent(e.target.value)}
-        placeholder="Write your article content here... Markdown supported."
+        placeholder={t.writeArticleContent || 'Write your article content here... Markdown supported.'}
         className="w-full h-64 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder:text-white/20 focus:outline-none focus:border-blue-500/40 resize-y font-mono"
       />
 
@@ -127,13 +129,13 @@ export function KnowledgeBaseEditor({ articleId, onSaved }: Props) {
           className="bg-blue-600 hover:bg-blue-500 text-white rounded-lg flex items-center gap-2"
         >
           {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-          {articleId ? 'Update' : 'Create'} Article
+          {articleId ? (t.updateArticle || 'Update Article') : (t.createArticle || 'Create Article')}
         </Button>
         <Button
           onClick={() => window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'enterprise', sub: 'kb' } }))}
           className="bg-white/10 hover:bg-white/20 text-white/70 rounded-lg flex items-center gap-2"
         >
-          <BookOpen size={16} /> Back to KB
+          <BookOpen size={16} /> {t.backToKB || 'Back to KB'}
         </Button>
       </div>
     </div>

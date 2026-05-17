@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Building2, BookOpen, Package, Users, Settings,
   ClipboardCheck, ScrollText, MessageSquare, ArrowLeft,
@@ -15,6 +15,7 @@ import { OrgMembers } from './OrgMembers';
 import { OrgSettings } from './OrgSettings';
 import { AuditLogViewer } from './AuditLogViewer';
 import { useApp } from '../../contexts/AppContext';
+import { useT } from '../../lib/useT';
 
 type SubView = 'dashboard' | 'kb' | 'kb-edit' | 'templates' | 'templates-create' | 'review' | 'chat' | 'members' | 'settings' | 'audit';
 
@@ -25,27 +26,28 @@ interface NavItem {
   roles: Array<'owner' | 'admin' | 'member' | 'viewer'>;
 }
 
-const allNavItems: NavItem[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: <Home size={16} />, roles: ['owner', 'admin', 'member', 'viewer'] },
-  { id: 'chat', label: 'Company Lumi', icon: <MessageSquare size={16} />, roles: ['owner', 'admin', 'member', 'viewer'] },
-  { id: 'kb', label: 'Knowledge Base', icon: <BookOpen size={16} />, roles: ['owner', 'admin', 'member', 'viewer'] },
-  { id: 'templates', label: 'Templates', icon: <Package size={16} />, roles: ['owner', 'admin', 'member', 'viewer'] },
-  { id: 'review', label: 'Review', icon: <ClipboardCheck size={16} />, roles: ['owner', 'admin'] },
-  { id: 'members', label: 'Members', icon: <Users size={16} />, roles: ['owner', 'admin'] },
-  { id: 'audit', label: 'Audit Log', icon: <ScrollText size={16} />, roles: ['owner', 'admin'] },
-  { id: 'settings', label: 'Settings', icon: <Settings size={16} />, roles: ['owner', 'admin'] },
-];
-
-const roleLabel: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-  owner:  { label: 'Owner',  icon: <Shield size={10} />, color: 'text-amber-400 bg-amber-500/10' },
-  admin:  { label: 'Admin',  icon: <Shield size={10} />, color: 'text-red-400 bg-red-500/10' },
-  member: { label: 'Member', icon: <User size={10} />,   color: 'text-blue-400 bg-blue-500/10' },
-  viewer: { label: 'Viewer', icon: <User size={10} />,   color: 'text-white/40 bg-white/5' },
-};
-
 export function EnterpriseHub() {
   const [subView, setSubView] = useState<SubView>('dashboard');
   const { workDomain, switchDomain, orgConnection } = useApp();
+  const t = useT();
+
+  const allNavItems: NavItem[] = useMemo(() => [
+    { id: 'dashboard', label: t.enterpriseDashboard, icon: <Home size={16} />, roles: ['owner', 'admin', 'member', 'viewer'] },
+    { id: 'chat', label: t.enterpriseChat, icon: <MessageSquare size={16} />, roles: ['owner', 'admin', 'member', 'viewer'] },
+    { id: 'kb', label: t.enterpriseKB, icon: <BookOpen size={16} />, roles: ['owner', 'admin', 'member', 'viewer'] },
+    { id: 'templates', label: t.enterpriseTemplates, icon: <Package size={16} />, roles: ['owner', 'admin', 'member', 'viewer'] },
+    { id: 'review', label: t.enterpriseReview, icon: <ClipboardCheck size={16} />, roles: ['owner', 'admin'] },
+    { id: 'members', label: t.enterpriseMembers, icon: <Users size={16} />, roles: ['owner', 'admin'] },
+    { id: 'audit', label: t.enterpriseAudit, icon: <ScrollText size={16} />, roles: ['owner', 'admin'] },
+    { id: 'settings', label: t.enterpriseSettings, icon: <Settings size={16} />, roles: ['owner', 'admin'] },
+  ], [t]);
+
+  const roleLabel: Record<string, { label: string; icon: React.ReactNode; color: string }> = useMemo(() => ({
+    owner:  { label: t.enterpriseRoleOwner,  icon: <Shield size={10} />, color: 'text-amber-400 bg-amber-500/10' },
+    admin:  { label: t.enterpriseRoleAdmin,  icon: <Shield size={10} />, color: 'text-red-400 bg-red-500/10' },
+    member: { label: t.enterpriseRoleMember, icon: <User size={10} />,   color: 'text-blue-400 bg-blue-500/10' },
+    viewer: { label: t.enterpriseRoleViewer, icon: <User size={10} />,   color: 'text-white/40 bg-white/5' },
+  }), [t]);
 
   React.useEffect(() => {
     const handler = (e: Event) => {
@@ -85,7 +87,7 @@ export function EnterpriseHub() {
         <div className="p-4 border-b border-white/5 space-y-3">
           <h3 className="text-white text-sm font-bold flex items-center gap-2">
             <Building2 size={16} className="text-blue-400" />
-            Work Space
+            {t.enterpriseWorkSpace}
           </h3>
           {orgConnection?.orgName && (
             <p className="text-white/30 text-[10px]">{orgConnection.orgName}</p>
@@ -104,7 +106,7 @@ export function EnterpriseHub() {
             }`}
           >
             {workDomain === 'work' ? <Briefcase size={12} /> : <User size={12} />}
-            {workDomain === 'work' ? 'Work Domain' : 'Personal Domain'}
+            {workDomain === 'work' ? t.enterpriseWorkDomain : t.enterprisePersonalDomain}
           </button>
         </div>
 
@@ -129,7 +131,7 @@ export function EnterpriseHub() {
             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-white/40 hover:text-white/60 hover:bg-white/5 transition-all"
           >
             <ArrowLeft size={16} />
-            Exit Work Space
+            {t.enterpriseExitWorkSpace}
           </button>
         </nav>
       </div>

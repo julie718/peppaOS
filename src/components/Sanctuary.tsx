@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Heart, Users, Briefcase, GraduationCap, User, Send, Loader2, Sparkles, AlertTriangle, Castle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSocket } from '@/hooks/useSocket';
+import { useT } from '../lib/useT';
 import { useApp } from '@/contexts/AppContext';
 
 interface SanctuaryAgent {
@@ -50,13 +51,14 @@ export function Sanctuary({ agent, isOpen, onClose }: { agent: SanctuaryAgent | 
   const [isTyping, setIsTyping] = useState(false);
   const [showGuardrail, setShowGuardrail] = useState(true);
   const [dependencyWarning, setDependencyWarning] = useState<string | null>(null);
+  const t_s = useT();
   const scrollRef = useRef<HTMLDivElement>(null);
   const socket = useSocket();
   const { user } = useApp();
 
   const meta = RELATIONSHIP_META[agent?.relationshipType || ''] || DEFAULT_META;
   const agentId = agent?.id || '';
-  const agentName = agent?.name || 'Memory';
+  const agentName = agent?.name || t_s.defaultMemoryLabel || 'Memory';
 
   // Load existing messages for this agent
   useEffect(() => {
@@ -164,7 +166,7 @@ export function Sanctuary({ agent, isOpen, onClose }: { agent: SanctuaryAgent | 
     const userMsg = {
       id: Date.now().toString(),
       text,
-      userName: user?.displayName || user?.username || 'You',
+      userName: user?.displayName || user?.username || t_s.defaultYouLabel || 'You',
       timestamp: new Date().toISOString(),
       type: 'user',
     };
@@ -251,7 +253,7 @@ export function Sanctuary({ agent, isOpen, onClose }: { agent: SanctuaryAgent | 
                 <h2 className="text-sm font-black text-white/80 tracking-tight">{agentName}</h2>
                 <div className="flex items-center gap-2">
                   <span className={`text-[9px] font-bold uppercase tracking-wider ${meta.color}`}>{meta.label}</span>
-                  <span className="text-[8px] text-white/15 font-mono">sanctuary</span>
+                  <span className="text-[8px] text-white/15 font-mono">{t_s.sanctuaryLabel || 'sanctuary'}</span>
                 </div>
               </div>
             </div>

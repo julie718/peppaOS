@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { Button } from './ui/button';
 import { motion, AnimatePresence } from 'motion/react';
 import { systemService } from '@/services/systemService';
+import { useT } from '../lib/useT';
 
 interface PendingConfirm {
   correlationId: string;
@@ -20,6 +21,7 @@ interface PendingConfirm {
 export function ToolConfirmDialog({ socket, isWallpaperMode = false }: { socket: any; isWallpaperMode?: boolean }) {
   const [pending, setPending] = useState<PendingConfirm[]>([]);
   const wasWallpaperRef = useRef(false);
+  const t = useT();
 
   // Temporarily exit wallpaper mode while confirm dialog is showing
   useEffect(() => {
@@ -72,8 +74,8 @@ export function ToolConfirmDialog({ socket, isWallpaperMode = false }: { socket:
                 <ShieldAlert size={24} className="text-yellow-400" />
               </div>
               <div>
-                <h3 className="text-sm font-black uppercase tracking-widest text-yellow-400">Tool Authorization</h3>
-                <p className="text-[10px] text-white/30 mt-0.5">This tool requires your explicit permission</p>
+                <h3 className="text-sm font-black uppercase tracking-widest text-yellow-400">{t.toolAuthorization || 'Tool Authorization'}</h3>
+                <p className="text-[10px] text-white/30 mt-0.5">{t.toolExplicitPermission || 'This tool requires your explicit permission'}</p>
               </div>
             </div>
 
@@ -92,7 +94,7 @@ export function ToolConfirmDialog({ socket, isWallpaperMode = false }: { socket:
 
               {pending.length > 1 && (
                 <p className="text-[10px] text-white/20 text-center">
-                  +{pending.length - 1} more tool{pending.length > 2 ? 's' : ''} waiting
+                  {pending.length - 1} {t.moreToolsWaiting || 'more tool waiting'}
                 </p>
               )}
 
@@ -101,13 +103,13 @@ export function ToolConfirmDialog({ socket, isWallpaperMode = false }: { socket:
                   onClick={() => respond(current.correlationId, false)}
                   className="flex-1 bg-white/5 text-white/60 hover:bg-white/10 font-bold text-xs px-4 py-3 rounded-xl border border-white/10 transition-all"
                 >
-                  <X size={14} className="mr-1" /> Deny
+                  <X size={14} className="mr-1" /> {t.deny || 'Deny'}
                 </Button>
                 <Button
                   onClick={() => respond(current.correlationId, true)}
                   className="flex-1 bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 font-bold text-xs px-4 py-3 rounded-xl border border-yellow-500/30 transition-all"
                 >
-                  <Check size={14} className="mr-1" /> Allow
+                  <Check size={14} className="mr-1" /> {t.allow || 'Allow'}
                 </Button>
               </div>
             </div>

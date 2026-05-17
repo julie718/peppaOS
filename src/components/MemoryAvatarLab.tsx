@@ -158,7 +158,7 @@ export function MemoryAvatarLab({ t, onEnterSanctuary }: { t: any; onEnterSanctu
 
   const handleDistill = async () => {
     if (!user) { login(); return; }
-    if (!chatLog.trim()) { toast.error('Please upload a chat log first'); return; }
+    if (!chatLog.trim()) { toast.error(t?.uploadChatLogFirst || 'Please upload a chat log first'); return; }
     setDistilling(true);
     try {
       const res = await fetch('/api/agents/distill', {
@@ -236,7 +236,7 @@ export function MemoryAvatarLab({ t, onEnterSanctuary }: { t: any; onEnterSanctu
           <Castle size={18} className="text-fuchsia-400" />
           <div>
             <h2 className="text-sm font-black text-white/90 uppercase tracking-wider">智能体生成实验室</h2>
-            <p className="text-[10px] text-white/30 font-mono">Memory Avatar Lab</p>
+            <p className="text-[10px] text-white/30 font-mono">{t?.memoryAvatarLab || 'Memory Avatar Lab'}</p>
           </div>
         </div>
         <div className="flex items-center gap-1">

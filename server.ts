@@ -1174,7 +1174,9 @@ apiRouter.get("/interactions", (req, res) => {
   try {
     const decoded: any = jwt.verify(token, JWT_SECRET);
     const db = readDB();
-    const userInteractions = db.interactions.filter((i: any) => i.userId === decoded.uid);
+    const mode = req.query.mode as string | undefined;
+    let userInteractions = db.interactions.filter((i: any) => i.userId === decoded.uid);
+    if (mode) userInteractions = userInteractions.filter((i: any) => i.mode === mode);
     res.json(userInteractions);
   } catch (e) {
     res.status(401).json({ error: "Invalid token" });

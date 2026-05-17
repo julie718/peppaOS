@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { uploadSamples, cloneVoice } from '@/services/voiceService';
 import { toast } from 'sonner';
+import { useT } from '../lib/useT';
 
 interface VoiceTrainingDialogProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ interface VoiceTrainingDialogProps {
 }
 
 export function VoiceTrainingDialog({ isOpen, onClose, onSuccess }: VoiceTrainingDialogProps) {
+  const t = useT();
   const [step, setStep] = useState<'upload' | 'naming' | 'cloning' | 'success'>('upload');
   const [files, setFiles] = useState<File[]>([]);
   const [voiceName, setVoiceName] = useState('');
@@ -43,7 +45,7 @@ export function VoiceTrainingDialog({ isOpen, onClose, onSuccess }: VoiceTrainin
 
   const startUpload = async () => {
     if (files.length === 0) {
-      toast.error('Please select at least one audio sample');
+      toast.error(t.selectAudioSample || 'Please select at least one audio sample');
       return;
     }
 
@@ -61,7 +63,7 @@ export function VoiceTrainingDialog({ isOpen, onClose, onSuccess }: VoiceTrainin
 
   const startClone = async () => {
     if (!voiceName.trim()) {
-      toast.error('Please enter a voice name');
+      toast.error(t.enterVoiceNameRequired || 'Please enter a voice name');
       return;
     }
 
@@ -140,7 +142,7 @@ export function VoiceTrainingDialog({ isOpen, onClose, onSuccess }: VoiceTrainin
                       e.preventDefault(); e.stopPropagation();
                       if (e.dataTransfer.files) {
                         const dropped = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('audio/'));
-                        if (dropped.length === 0) toast.error('Only audio files are accepted');
+                        if (dropped.length === 0) toast.error(t.onlyAudioFilesAccepted || 'Only audio files are accepted');
                         else setFiles(prev => [...prev, ...dropped]);
                       }
                     }}

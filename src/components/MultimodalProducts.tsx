@@ -56,7 +56,7 @@ export function MultimodalProducts({ t, onSelectProduct }: { t: any; onSelectPro
     <div className="max-w-7xl mx-auto space-y-24">
       <div className="text-center space-y-6">
         <h1 className="text-6xl font-bold tracking-tighter glow-text">{t.multimodalProducts}</h1>
-        <p className="text-xl text-white/60 max-w-2xl mx-auto">Hardware designed to bridge the gap between digital intelligence and physical reality.</p>
+        <p className="text-xl text-white/60 max-w-2xl mx-auto">{t.multimodalHeroDesc || 'Hardware designed to bridge the gap between digital intelligence and physical reality.'}</p>
       </div>
 
       {categories.map((category) => (
@@ -88,7 +88,7 @@ export function MultimodalProducts({ t, onSelectProduct }: { t: any; onSelectPro
                   title={product.name}
                   price={product.price || "$299"}
                   desc={product.description}
-                  specs={product.specs || ['Local Processing', 'Neural Engine', 'Privacy First']}
+                  specs={product.specs || [t.localProcessing || 'Local Processing', t.neuralEngine || 'Neural Engine', t.privacyFirst || 'Privacy First']}
                   t={t}
                   onClick={() => onSelectProduct(product)}
                 />
@@ -134,14 +134,14 @@ export function MultimodalProducts({ t, onSelectProduct }: { t: any; onSelectPro
         <div className="relative z-10 grid lg:grid-cols-2 gap-12 items-center">
           <div className="space-y-8">
             <div className="space-y-4">
-              <h2 className="text-4xl font-bold tracking-tighter">The Ecosystem Advantage</h2>
-              <p className="text-white/60 leading-relaxed">LumiAI hardware is built with a privacy-first philosophy. Unlike traditional smart devices, all data processing happens locally on your Core Node. Your voice, your biometric data, and your Agent's memory never leave your physical possession.</p>
+              <h2 className="text-4xl font-bold tracking-tighter">{t.ecosystemAdvantage || 'The Ecosystem Advantage'}</h2>
+              <p className="text-white/60 leading-relaxed">{t.ecosystemAdvantageDesc || 'LumiAI hardware is built with a privacy-first philosophy. Unlike traditional smart devices, all data processing happens locally on your Core Node. Your voice, your biometric data, and your Agent\'s memory never leave your physical possession.'}</p>
             </div>
             <div className="grid grid-cols-2 gap-6">
-              <FeatureItem icon={<Shield size={20} />} title="Zero Cloud" desc="No data upload." />
-              <FeatureItem icon={<Zap size={20} />} title="Instant Sync" desc="Low latency." />
+              <FeatureItem icon={<Shield size={20} />} title={t.zeroCloud || 'Zero Cloud'} desc={t.zeroCloudDesc || 'No data upload.'} />
+              <FeatureItem icon={<Zap size={20} />} title={t.instantSync || 'Instant Sync'} desc={t.instantSyncDesc || 'Low latency.'} />
             </div>
-            <Button className="bg-celestial-saturn text-black rounded-full px-10 py-6 font-bold text-lg hover:scale-105 transition-transform">Explore Technology</Button>
+            <Button className="bg-celestial-saturn text-black rounded-full px-10 py-6 font-bold text-lg hover:scale-105 transition-transform">{t.exploreTechnology || 'Explore Technology'}</Button>
           </div>
           <div className="relative aspect-square flex items-center justify-center">
             <motion.div 

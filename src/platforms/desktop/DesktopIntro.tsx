@@ -30,11 +30,11 @@ export function DesktopIntro({ t, onBack, onInitialize }: DesktopIntroProps) {
           className="flex items-center gap-2 text-white/40 hover:text-celestial-saturn transition-colors uppercase tracking-widest text-xs font-bold"
         >
           <ArrowLeft size={16} />
-          Back to Ecosystem
+          {t.backToEcosystem || 'Back to Ecosystem'}
         </button>
         <div className="flex items-center gap-3 px-4 py-2 bg-celestial-saturn/10 border border-celestial-saturn/20 rounded-full">
            <div className="w-2 h-2 rounded-full bg-celestial-saturn animate-pulse" />
-           <span className="text-[10px] font-black text-celestial-saturn uppercase tracking-widest text-white/80">Lumi OS v2.4.1 Stable Release</span>
+           <span className="text-[10px] font-black text-celestial-saturn uppercase tracking-widest text-white/80">{t.lumiOSStableRelease || 'Lumi OS v2.4.1 Stable Release'}</span>
         </div>
       </div>
 
@@ -43,13 +43,13 @@ export function DesktopIntro({ t, onBack, onInitialize }: DesktopIntroProps) {
         <div className="space-y-8">
           <div className="space-y-4">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] font-bold text-white/40 uppercase tracking-widest">
-              High-Performance Workstation Node
+              {t.highPerfWorkstationNode || 'High-Performance Workstation Node'}
             </div>
             <h1 className="text-6xl md:text-7xl font-black tracking-tighter leading-none italic uppercase">
-              INITIALIZE <span className="text-celestial-saturn text-glow">KINETIC</span> <br/>DESKTOP CORE
+              {t.initializeKineticDesktopCore || <>INITIALIZE <span className="text-celestial-saturn text-glow">KINETIC</span> <br/>DESKTOP CORE</>}
             </h1>
             <p className="text-xl text-white/40 leading-relaxed max-w-lg italic">
-              Transform your hardware into a sovereign neural node. Zero latency, local LLM execution, and kernel-level OS automation.
+              {t.desktopHeroDesc || 'Transform your hardware into a sovereign neural node. Zero latency, local LLM execution, and kernel-level OS automation.'}
             </p>
           </div>
 
@@ -60,22 +60,22 @@ export function DesktopIntro({ t, onBack, onInitialize }: DesktopIntroProps) {
              >
                <Layout size={24} className="text-celestial-saturn group-hover:rotate-12 transition-transform" />
                <div className="text-left">
-                  <div className="text-lg leading-none">BOOT VIRTUAL OS</div>
-                  <div className="text-[10px] opacity-60 tracking-wider">BROWSER DEMO INSTANCE</div>
+                  <div className="text-lg leading-none">{t.bootVirtualOS || 'BOOT VIRTUAL OS'}</div>
+                  <div className="text-[10px] opacity-60 tracking-wider">{t.browserDemoInstance || 'BROWSER DEMO INSTANCE'}</div>
                </div>
              </button>
              <button className="px-10 py-6 bg-white/5 text-white font-black rounded-2xl border border-white/10 hover:bg-white/10 transition-all flex items-center justify-center gap-4">
                <Download size={24} className="text-white/40" />
                <div className="text-left">
-                  <div className="text-lg leading-none">DOWNLOAD NATIVE</div>
-                  <div className="text-[10px] opacity-40 tracking-wider">STABLE V2.4.1 RELEASE</div>
+                  <div className="text-lg leading-none">{t.downloadNative || 'DOWNLOAD NATIVE'}</div>
+                  <div className="text-[10px] opacity-40 tracking-wider">{t.stableReleaseLabel || 'STABLE V2.4.1 RELEASE'}</div>
                </div>
              </button>
           </div>
           
           <div className="flex items-center gap-8 pt-4">
             <div className="flex flex-col">
-              <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">Acceleration</span>
+              <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">{t.accelerationLabel || 'Acceleration'}</span>
               <div className="flex gap-2 mt-2">
                 <div className="px-2 py-1 bg-white/5 border border-white/5 rounded text-[8px] font-bold text-white/40">NVIDIA CUDA</div>
                 <div className="px-2 py-1 bg-white/5 border border-white/5 rounded text-[8px] font-bold text-white/40">APPLE METAL</div>
@@ -97,8 +97,8 @@ export function DesktopIntro({ t, onBack, onInitialize }: DesktopIntroProps) {
                  </div>
                  <div className="w-full max-w-sm space-y-3 bg-black/40 p-4 rounded-2xl border border-white/5 backdrop-blur-xl">
                     <div className="flex justify-between items-center px-1">
-                      <span className="text-[8px] font-black text-white/20 uppercase tracking-widest">Kernel Load Sequence</span>
-                      <span className="text-[10px] font-bold text-celestial-saturn">STABLE</span>
+                      <span className="text-[8px] font-black text-white/20 uppercase tracking-widest">{t.kernelLoadSequence || 'Kernel Load Sequence'}</span>
+                      <span className="text-[10px] font-bold text-celestial-saturn">{t.stableLabel || 'STABLE'}</span>
                     </div>
                     <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
                        <motion.div 
@@ -123,19 +123,19 @@ export function DesktopIntro({ t, onBack, onInitialize }: DesktopIntroProps) {
       <section className="glass p-12 rounded-[3.5rem] border border-white/5">
         <div className="max-w-4xl mx-auto space-y-12">
           <div className="text-center space-y-2">
-            <h2 className="text-3xl font-black tracking-tighter uppercase italic">Native Node <span className="text-celestial-saturn">Superiority</span></h2>
-            <p className="text-white/30 text-sm italic">Why the desktop client is the primary choice for neural architects</p>
+            <h2 className="text-3xl font-black tracking-tighter uppercase italic">{t.nativeNodeSuperiority || <>Native Node <span className="text-celestial-saturn">Superiority</span></>}</h2>
+            <p className="text-white/30 text-sm italic">{t.desktopSuperiorityDesc || "Why the desktop client is the primary choice for neural architects"}</p>
           </div>
           
           <div className="grid md:grid-cols-2 gap-12">
             <div className="space-y-6">
-              <h4 className="text-[10px] font-black text-white/60 uppercase tracking-[0.3em] border-l-2 border-celestial-saturn pl-4">Standard Browser Edition</h4>
+              <h4 className="text-[10px] font-black text-white/60 uppercase tracking-[0.3em] border-l-2 border-celestial-saturn pl-4">{t.standardBrowserEdition || 'Standard Browser Edition'}</h4>
               <ul className="space-y-4">
                 {[
-                  'Cloud-dependent neural sync',
-                  'Restricted sandbox environment',
-                  'Standard CPU/GPU limits',
-                  'Universal compatibility'
+                  t.browserItem1 || 'Cloud-dependent neural sync',
+                  t.browserItem2 || 'Restricted sandbox environment',
+                  t.browserItem3 || 'Standard CPU/GPU limits',
+                  t.browserItem4 || 'Universal compatibility'
                 ].map((item, i) => (
                   <li key={i} className="flex items-center gap-3 text-sm text-white/30 italic">
                     <div className="w-1.5 h-1.5 rounded-full bg-white/20" />
@@ -146,13 +146,13 @@ export function DesktopIntro({ t, onBack, onInitialize }: DesktopIntroProps) {
             </div>
             
             <div className="space-y-6">
-              <h4 className="text-[10px] font-black text-celestial-saturn uppercase tracking-[0.3em] border-l-2 border-celestial-saturn pl-4">Lumi Native Kernel Node</h4>
+              <h4 className="text-[10px] font-black text-celestial-saturn uppercase tracking-[0.3em] border-l-2 border-celestial-saturn pl-4">{t.lumiNativeKernelNode || 'Lumi Native Kernel Node'}</h4>
               <ul className="space-y-4">
                 {[
-                  'Full Silicon-level local LLM execution',
-                  'Direct OS & File System automation',
-                  'Hardware acceleration (DirectX/Metal)',
-                  'Sovereign Data Vault (No telemetry)'
+                  t.kernelItem1 || 'Full Silicon-level local LLM execution',
+                  t.kernelItem2 || 'Direct OS & File System automation',
+                  t.kernelItem3 || 'Hardware acceleration (DirectX/Metal)',
+                  t.kernelItem4 || 'Sovereign Data Vault (No telemetry)'
                 ].map((item, i) => (
                   <li key={i} className="flex items-center gap-3 text-sm text-white/90 font-bold italic">
                     <Zap size={14} className="text-celestial-saturn" />
@@ -167,28 +167,28 @@ export function DesktopIntro({ t, onBack, onInitialize }: DesktopIntroProps) {
 
       {/* Features Grid */}
       <div className="grid md:grid-cols-3 gap-8">
-        <IntroFeature 
-          icon={<Cpu />} 
-          title="NVIDIA/Metal Acceleration" 
-          desc="Optimized kernels for maximum local inference speed using your hardware's full capability." 
+        <IntroFeature
+          icon={<Cpu />}
+          title={t.featureNvidiaAccel || 'NVIDIA/Metal Acceleration'}
+          desc={t.featureNvidiaAccelDesc || 'Optimized kernels for maximum local inference speed using your hardware\'s full capability.'}
         />
-        <IntroFeature 
-          icon={<Shield />} 
-          title="Zero-Knowledge Sync" 
-          desc="All personal data stays in your local vault. Only metadata sharding enters the mesh." 
+        <IntroFeature
+          icon={<Shield />}
+          title={t.featureZeroKnowledge || 'Zero-Knowledge Sync'}
+          desc={t.featureZeroKnowledgeDesc || 'All personal data stays in your local vault. Only metadata sharding enters the mesh.'}
         />
-        <IntroFeature 
-          icon={<Zap />} 
-          title="OS-Level Automation" 
-          desc="Control your system, files, and applications directly through neural commands." 
+        <IntroFeature
+          icon={<Zap />}
+          title={t.featureOSAutomation || 'OS-Level Automation'}
+          desc={t.featureOSAutomationDesc || 'Control your system, files, and applications directly through neural commands.'}
         />
       </div>
 
       {/* Downloads Section */}
       <section className="pt-8 space-y-8">
         <div className="text-center">
-          <h2 className="text-3xl font-black tracking-widest uppercase">System Binary Downloads</h2>
-          <p className="text-white/40 text-sm">Select your architecture to begin deployment</p>
+          <h2 className="text-3xl font-black tracking-widest uppercase">{t.systemBinaryDownloads || 'System Binary Downloads'}</h2>
+          <p className="text-white/40 text-sm">{t.selectArchitecture || 'Select your architecture to begin deployment'}</p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-6">
@@ -196,7 +196,7 @@ export function DesktopIntro({ t, onBack, onInitialize }: DesktopIntroProps) {
             <GlassCard key={dl.platform} className="p-8 border-white/5 hover:border-celestial-saturn/30 transition-colors group">
               <div className="flex justify-between items-start mb-6">
                 <span className="text-4xl">{dl.icon}</span>
-                <span className="text-[10px] font-bold py-1 px-3 bg-white/5 rounded-full text-white/40 uppercase tracking-widest">Stable Release</span>
+                <span className="text-[10px] font-bold py-1 px-3 bg-white/5 rounded-full text-white/40 uppercase tracking-widest">{t.stableReleaseBadge || 'Stable Release'}</span>
               </div>
               <div className="space-y-4">
                 <div>
@@ -205,7 +205,7 @@ export function DesktopIntro({ t, onBack, onInitialize }: DesktopIntroProps) {
                 </div>
                 <button className="w-full py-4 bg-white/5 hover:bg-white text-white hover:text-black font-black rounded-xl border border-white/10 transition-all flex items-center justify-center gap-2 group">
                   <Download size={18} className="group-hover:translate-y-0.5 transition-transform" />
-                  INIT DOWNLOAD
+                  {t.initDownload || 'INIT DOWNLOAD'}
                 </button>
               </div>
             </GlassCard>

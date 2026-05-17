@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Users, UserPlus, Shield, UserMinus, Loader2, Crown, User } from 'lucide-react';
 import { Button } from '../ui/button';
+import { useT } from '../../lib/useT';
 
 interface Member {
   id: string;
@@ -13,6 +14,7 @@ interface Member {
 }
 
 export function OrgMembers() {
+  const t = useT();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [orgId, setOrgId] = useState('');
@@ -85,7 +87,7 @@ export function OrgMembers() {
       <div>
         <h2 className="text-xl font-bold text-white flex items-center gap-2">
           <Users size={24} className="text-green-400" />
-          Organization Members
+          {t.enterpriseMembers}
         </h2>
         <p className="text-white/40 text-sm">{members.length} member(s)</p>
       </div>
@@ -108,9 +110,9 @@ export function OrgMembers() {
             onChange={e => setInviteRole(e.target.value)}
             className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white/70 text-sm"
           >
-            <option value="member">Member</option>
-            <option value="admin">Admin</option>
-            <option value="viewer">Viewer</option>
+            <option value="member">{t.enterpriseRoleMember}</option>
+            <option value="admin">{t.enterpriseRoleAdmin}</option>
+            <option value="viewer">{t.enterpriseRoleViewer}</option>
           </select>
         </div>
         <Button

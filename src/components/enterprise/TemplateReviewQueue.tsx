@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { ClipboardCheck, CheckCircle, XCircle, MessageSquare, Loader2, Eye } from 'lucide-react';
 import { Button } from '../ui/button';
+import { useT } from '../../lib/useT';
 
 interface ReviewTemplate {
   id: string;
@@ -15,6 +16,7 @@ interface ReviewTemplate {
 }
 
 export function TemplateReviewQueue() {
+  const t = useT();
   const [queue, setQueue] = useState<ReviewTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<ReviewTemplate | null>(null);
@@ -56,9 +58,9 @@ export function TemplateReviewQueue() {
       <div>
         <h2 className="text-xl font-bold text-white flex items-center gap-2">
           <ClipboardCheck size={24} className="text-amber-400" />
-          Template Review Queue
+          {t.templateReviewQueue || 'Template Review Queue'}
         </h2>
-        <p className="text-white/40 text-sm">{queue.length} template(s) pending review</p>
+        <p className="text-white/40 text-sm">{queue.length} {t.templatesPendingReview || 'template(s) pending review'}</p>
       </div>
 
       {loading ? (
@@ -66,7 +68,7 @@ export function TemplateReviewQueue() {
       ) : queue.length === 0 ? (
         <div className="text-center py-12 text-white/30">
           <CheckCircle size={32} className="mx-auto mb-2 text-green-400/50" />
-          All templates have been reviewed!
+          {t.allTemplatesReviewed || 'All templates have been reviewed!'}
         </div>
       ) : (
         <div className="space-y-3">
@@ -95,7 +97,7 @@ export function TemplateReviewQueue() {
                       <input
                         value={comment}
                         onChange={e => setComment(e.target.value)}
-                        placeholder="Review comment..."
+                        placeholder={t.reviewComment || 'Review comment...'}
                         className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-white text-xs placeholder:text-white/20 focus:outline-none"
                       />
                       <Button
@@ -104,14 +106,14 @@ export function TemplateReviewQueue() {
                         className="bg-green-600 hover:bg-green-500 text-white text-xs rounded-lg px-3 py-1.5 flex items-center gap-1"
                       >
                         {actionLoading === template.id ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle size={12} />}
-                        Approve
+                        {t.approve || 'Approve'}
                       </Button>
                       <Button
                         onClick={() => handleAction(template.id, 'reject')}
                         disabled={actionLoading === template.id || !comment.trim()}
                         className="bg-red-600 hover:bg-red-500 text-white text-xs rounded-lg px-3 py-1.5 flex items-center gap-1"
                       >
-                        <XCircle size={12} /> Reject
+                        <XCircle size={12} /> {t.reject || 'Reject'}
                       </Button>
                     </>
                   ) : (
@@ -119,7 +121,7 @@ export function TemplateReviewQueue() {
                       onClick={() => setSelected(template)}
                       className="bg-white/10 hover:bg-white/20 text-white/70 text-xs rounded-lg flex items-center gap-1"
                     >
-                      <Eye size={12} /> Review
+                      <Eye size={12} /> {t.review || 'Review'}
                     </Button>
                   )}
                 </div>

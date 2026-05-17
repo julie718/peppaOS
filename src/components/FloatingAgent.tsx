@@ -227,7 +227,7 @@ export function FloatingAgent({ t }: { t: any }) {
                     <Input 
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
-                      placeholder={isListening ? "Listening..." : "Ask about LumiAI..."}
+                      placeholder={isListening ? (t.listening || "Listening...") : (t.askAboutLumiAI || "Ask about LumiAI...")}
                       className="h-12 bg-black/40 border-white/10 focus:border-celestial-saturn/50 rounded-2xl pr-12"
                     />
                     <button 

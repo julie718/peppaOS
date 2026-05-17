@@ -2,6 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Mic, Phone, Loader2, Volume2 } from 'lucide-react';
 import { CallState } from '../hooks/useVoiceCall';
+import { useT } from '../lib/useT';
 
 interface VoiceCallButtonProps {
   callState: CallState;
@@ -15,15 +16,16 @@ interface VoiceCallButtonProps {
 export function VoiceCallButton({ callState, audioLevel, onStart, onEnd, hasVoice = false, className = '' }: VoiceCallButtonProps) {
   const isActive = callState !== 'idle' && callState !== 'passive';
   const isOn = callState !== 'idle';
+  const t = useT();
 
   const stateConfig: Record<CallState, { icon: React.ReactNode; color: string; label: string }> = {
-    idle: { icon: <Mic size={20} />, color: 'bg-white/5 text-white/40 border-white/10', label: 'Start' },
-    connecting: { icon: <Loader2 size={20} className="animate-spin" />, color: 'bg-celestial-saturn/10 text-celestial-saturn border-celestial-saturn/30', label: 'Connecting...' },
-    listening: { icon: <Mic size={20} />, color: 'bg-celestial-saturn text-black border-celestial-saturn shadow-[0_0_20px_rgba(255,204,0,0.4)]', label: 'Listening' },
-    thinking: { icon: <Loader2 size={20} className="animate-spin" />, color: 'bg-celestial-mars/10 text-celestial-mars border-celestial-mars/30', label: 'Thinking' },
-    speaking: { icon: <Volume2 size={20} />, color: 'bg-celestial-glow/10 text-celestial-glow border-celestial-glow/30', label: 'Speaking' },
-    queued: { icon: <Loader2 size={20} className="animate-spin" />, color: 'bg-purple-500/10 text-purple-400 border-purple-500/30', label: 'Queued' },
-    passive: { icon: <motion.div animate={{ opacity: [0.15, 0.35, 0.15] }} transition={{ duration: 3, repeat: Infinity }}><Mic size={20} /></motion.div>, color: 'bg-white/5 text-white/20 border-white/5', label: 'Passive' },
+    idle: { icon: <Mic size={20} />, color: 'bg-white/5 text-white/40 border-white/10', label: t.callStart || 'Start' },
+    connecting: { icon: <Loader2 size={20} className="animate-spin" />, color: 'bg-celestial-saturn/10 text-celestial-saturn border-celestial-saturn/30', label: t.callConnecting || 'Connecting...' },
+    listening: { icon: <Mic size={20} />, color: 'bg-celestial-saturn text-black border-celestial-saturn shadow-[0_0_20px_rgba(255,204,0,0.4)]', label: t.callListening || 'Listening' },
+    thinking: { icon: <Loader2 size={20} className="animate-spin" />, color: 'bg-celestial-mars/10 text-celestial-mars border-celestial-mars/30', label: t.callThinking || 'Thinking' },
+    speaking: { icon: <Volume2 size={20} />, color: 'bg-celestial-glow/10 text-celestial-glow border-celestial-glow/30', label: t.callSpeaking || 'Speaking' },
+    queued: { icon: <Loader2 size={20} className="animate-spin" />, color: 'bg-purple-500/10 text-purple-400 border-purple-500/30', label: t.callQueued || 'Queued' },
+    passive: { icon: <motion.div animate={{ opacity: [0.15, 0.35, 0.15] }} transition={{ duration: 3, repeat: Infinity }}><Mic size={20} /></motion.div>, color: 'bg-white/5 text-white/20 border-white/5', label: t.callPassive || 'Passive' },
   };
 
   const config = stateConfig[callState];
@@ -57,7 +59,7 @@ export function VoiceCallButton({ callState, audioLevel, onStart, onEnd, hasVoic
           isOn ? '' : (!hasVoice ? 'opacity-40 hover:opacity-100' : '')
         }`}
         disabled={isOn && callState === 'connecting'}
-        title={isOn ? 'End call' : 'Start voice call'}
+        title={isOn ? (t.endCall || 'End call') : (t.startVoiceCall || 'Start voice call')}
       >
         {config.icon}
       </motion.button>

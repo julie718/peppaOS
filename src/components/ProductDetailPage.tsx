@@ -82,7 +82,7 @@ export function ProductDetailPage({ t, product, onBack }: ProductDetailPageProps
         </Button>
         <div className="flex items-center gap-4">
           <div className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${isActive ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-white/5 border-white/10 text-white/40'}`}>
-            {isActive ? 'Device Online' : 'Standby Mode'}
+            {isActive ? (t.deviceOnline || 'Device Online') : (t.standbyMode || 'Standby Mode')}
           </div>
           <Button 
             onClick={() => setIsActive(!isActive)}
@@ -171,16 +171,16 @@ export function ProductDetailPage({ t, product, onBack }: ProductDetailPageProps
             <GlassCard className="p-6 rounded-3xl space-y-4" hoverEffect={false}>
               <div className="flex items-center gap-2 text-celestial-saturn">
                 <Shield size={18} />
-                <span className="text-xs font-bold uppercase tracking-widest">Security</span>
+                <span className="text-xs font-bold uppercase tracking-widest">{t.security || 'Security'}</span>
               </div>
-              <p className="text-sm text-white/60">End-to-end encrypted local processing. Your data never leaves the device.</p>
+              <p className="text-sm text-white/60">{t.securityDesc || 'End-to-end encrypted local processing. Your data never leaves the device.'}</p>
             </GlassCard>
             <GlassCard className="p-6 rounded-3xl space-y-4" hoverEffect={false}>
               <div className="flex items-center gap-2 text-celestial-mars">
                 <Zap size={18} />
-                <span className="text-xs font-bold uppercase tracking-widest">Performance</span>
+                <span className="text-xs font-bold uppercase tracking-widest">{t.performance || 'Performance'}</span>
               </div>
-              <p className="text-sm text-white/60">Ultra-low latency neural engine optimized for real-time interaction.</p>
+              <p className="text-sm text-white/60">{t.performanceDesc || 'Ultra-low latency neural engine optimized for real-time interaction.'}</p>
             </GlassCard>
           </div>
         </div>
@@ -191,7 +191,7 @@ export function ProductDetailPage({ t, product, onBack }: ProductDetailPageProps
             <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/5">
               <div className="flex items-center gap-3">
                 <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-celestial-saturn animate-pulse' : 'bg-white/20'}`} />
-                <span className="text-xs font-bold uppercase tracking-widest text-white/60">Digital Twin Interaction</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-white/60">{t.digitalTwinInteraction || 'Digital Twin Interaction'}</span>
               </div>
               <div className="flex gap-2">
                 <button className="p-2 rounded-lg bg-white/5 text-white/40 hover:text-white transition-colors">
@@ -207,7 +207,7 @@ export function ProductDetailPage({ t, product, onBack }: ProductDetailPageProps
               {messages.length === 0 && (
                 <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-20">
                   <Radio size={48} />
-                  <p className="text-sm">Device interface ready.<br/>Ask about features, setup, or technical specs.</p>
+                  <p className="text-sm">{t.deviceInterfaceReady || 'Device interface ready.'}<br/>{t.askAboutFeatures || 'Ask about features, setup, or technical specs.'}</p>
                 </div>
               )}
               {messages.map((msg, i) => (
@@ -240,7 +240,7 @@ export function ProductDetailPage({ t, product, onBack }: ProductDetailPageProps
                 <input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder={isActive ? "Type to interact..." : "Activate device to start interaction"}
+                  placeholder={isActive ? (t.typeToInteract || "Type to interact...") : (t.activateDevice || "Activate device to start interaction")}
                   disabled={!isActive}
                   className="flex-1 bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-celestial-saturn/50 disabled:opacity-50"
                 />
@@ -256,7 +256,7 @@ export function ProductDetailPage({ t, product, onBack }: ProductDetailPageProps
           </GlassCard>
 
           <div className="space-y-4">
-            <h3 className="text-lg font-bold tracking-tight px-2">Technical Specifications</h3>
+            <h3 className="text-lg font-bold tracking-tight px-2">{t.technicalSpecifications || 'Technical Specifications'}</h3>
             <div className="grid grid-cols-2 gap-4">
               {product.specs?.map((spec: string, i: number) => (
                 <div key={i} className="p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center gap-3">

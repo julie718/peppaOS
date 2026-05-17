@@ -327,7 +327,7 @@ export function NeuralSynthesisMonitor({ t, onOpenTokens }: { t?: any; onOpenTok
                 </span>
               ))
             ) : (
-              <span className="text-[9px] text-white/20">No sensor data</span>
+              <span className="text-[9px] text-white/20">{t?.noSensorData || 'No sensor data'}</span>
             )}
             {liveStats.fan_speed_rpm != null && (
               <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-white/5 text-white/50">

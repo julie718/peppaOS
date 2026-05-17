@@ -152,7 +152,7 @@ export function PersonalityEditor({ t }: { t?: any }) {
               )}
             </div>
           ) : (
-            <p className="text-white/30 text-xs">Evolution vector not yet initialized. It will be seeded on first interaction.</p>
+            <p className="text-white/30 text-xs">{t?.evolutionNotInit || 'Evolution vector not yet initialized. It will be seeded on first interaction.'}</p>
           )}
         </Section>
 
@@ -167,7 +167,7 @@ export function PersonalityEditor({ t }: { t?: any }) {
           {config.expressionStyle.vocabularyHints && config.expressionStyle.vocabularyHints.length > 0 && (
             <ReadonlyField label={t?.vocabularyHints || 'Vocabulary Hints'} value={config.expressionStyle.vocabularyHints.join(', ')} />
           )}
-          <ReadonlyField label="TTS Voice" value={config.ttsVoiceId || 'default'} />
+          <ReadonlyField label={t?.ttsVoice || 'TTS Voice'} value={config.ttsVoiceId || t?.defaultVoice || 'default'} />
         </Section>
 
         {/* Boundaries */}
@@ -179,7 +179,7 @@ export function PersonalityEditor({ t }: { t?: any }) {
             </div>
           ))}
           {config.behavioralBoundaries.length === 0 && (
-            <p className="text-white/20 text-xs">No boundaries defined.</p>
+            <p className="text-white/20 text-xs">{t?.noBoundariesDefined || 'No boundaries defined.'}</p>
           )}
         </Section>
 

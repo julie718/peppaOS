@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useT } from '../lib/useT';
 import { X, Download, Trash2, Edit3, Brain, Shield, ShieldOff, File, Clock, Layers, Sparkles, CheckCircle2, Loader2, MessageSquare } from 'lucide-react';
 
 interface FileEntry {
@@ -89,6 +90,7 @@ export function NodeDetailPanel({
   onChangeTier,
   onEdit,
 }: NodeDetailPanelProps) {
+  const t = useT();
   return (
     <AnimatePresence>
       {node && (
@@ -307,7 +309,7 @@ export function NodeDetailPanel({
                 <>
                   {onEdit && (
                     <button onClick={() => {
-                      const content = prompt('Edit content:', node.memoryData?.content || '');
+                      const content = prompt(t.editContentPrompt || 'Edit content:', node.memoryData?.content || '');
                       if (content) onEdit(node.id, content);
                     }} className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-bold text-white/60 transition-colors">
                       <Edit3 size={13} /> Edit

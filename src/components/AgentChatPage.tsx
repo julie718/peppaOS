@@ -123,8 +123,8 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose }: { t: any; use
     return () => window.removeEventListener('keydown', onKey);
   }, [showVoicePicker, showInfoPanel]);
 
-  const agentName = agent?.name || 'Lumi Essence';
-  const agentCategory = agent?.category || 'friend';
+  const agentName = agent?.name || (t.lumiEssence || 'Lumi Essence');
+  const agentCategory = agent?.category || (t.friend || 'friend');
   const agentId = agent?.id || 'lumi';
 
   const isFounder = agentId === 'founder' || agentCategory === 'founder' || agentName.includes('Founder') || agentName.includes('创始人');
@@ -364,7 +364,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose }: { t: any; use
                 setMessages(result.messages.map((m: any, idx: number) => ({
                   id: m.id || `hist-${idx}`,
                   text: m.content,
-                  userName: m.role === 'assistant' ? (agentNameRef.current || 'Lumi') : (user?.displayName || 'You'),
+                  userName: m.role === 'assistant' ? (agentNameRef.current || (t.lumi || 'Lumi')) : (user?.displayName || (t.you || 'You')),
                   timestamp: m.createdAt,
                   type: m.role === 'assistant' ? 'agent' : 'user',
                   mode: m.mode,
@@ -521,7 +521,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose }: { t: any; use
           const err = JSON.parse(xhr.responseText);
           toast.error(err.error || (t.uploadFailed || 'Upload failed'));
         } catch {
-          toast.error('Upload failed');
+          toast.error(t.uploadFailed || 'Upload failed');
         }
       }
     };
