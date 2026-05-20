@@ -16,6 +16,38 @@ await build({
 // Generate entry.cjs for CommonJS environments (Tauri node.exe, production serve)
 mkdirSync('dist-server', { recursive: true });
 writeFileSync('dist-server/entry.cjs', `// CJS entry point - dynamically imports the ESM server bundle.
+
+// Monkey-patch child_process to hide console windows on Windows (desktop app)
+if (process.platform === 'win32') {
+  const cp = require('child_process');
+  const origSpawn = cp.spawn;
+  const origExec = cp.exec;
+  const origExecSync = cp.execSync;
+  const origFork = cp.fork;
+
+  cp.spawn = function (cmd, args, opts) {
+    if (!opts) opts = {};
+    if (opts.windowsHide === undefined) opts.windowsHide = true;
+    return origSpawn.call(this, cmd, args, opts);
+  };
+  cp.exec = function (cmd, opts, cb) {
+    if (typeof opts === 'function') { cb = opts; opts = {}; }
+    if (!opts) opts = {};
+    if (opts.windowsHide === undefined) opts.windowsHide = true;
+    return origExec.call(this, cmd, opts, cb);
+  };
+  cp.execSync = function (cmd, opts) {
+    if (!opts) opts = {};
+    if (opts.windowsHide === undefined) opts.windowsHide = true;
+    return origExecSync.call(this, cmd, opts);
+  };
+  cp.fork = function (mod, args, opts) {
+    if (!opts) opts = {};
+    if (opts.windowsHide === undefined) opts.windowsHide = true;
+    return origFork.call(this, mod, args, opts);
+  };
+}
+
 import('./server.mjs').catch(err => {
   console.error('Failed to start Lumi OS server:', err);
   process.exit(1);

@@ -62,7 +62,7 @@ import { mountMarketplaceRoutes } from "./server/routes/marketplace_routes";
 import { mountSystemRoutes } from "./server/routes/system_routes";
 import { registerChatHandler } from "./server/socket/chat";
 import { registerTaskHandler } from "./server/socket/task";
-import { registerVoiceHandlers } from "./server/socket/voice";
+import { registerVoiceHandlers, isEchoText, isTtsPlaying } from "./server/socket/voice";
 import { createWakeDetector, isWakeWord } from "./server/stt/wake_detector";
 import { getSensory, perceptionEvents, MAX_PERCEPTION_EVENTS } from "./server/socket/shared";
 import { loadKeys, saveKeys, getKey, getAllKeyNames } from "./server/config/keys";
@@ -2227,7 +2227,7 @@ io.on("connection", (socket) => {
     try {
       // Stop any existing detector
       if (wakeDetector) { try { wakeDetector.stop(); } catch {} }
-      wakeDetector = createWakeDetector();
+      wakeDetector = createWakeDetector(undefined, isEchoText);
 
       wakeDetector.onWake((keyword: string) => {
         logger.info(`[Wake] "${keyword}" detected for user ${uid}`);
@@ -2248,6 +2248,7 @@ io.on("connection", (socket) => {
 
   socket.on("wake:audio", (data: { audio: number[] }) => {
     if (!wakeDetector) return;
+    if (isTtsPlaying()) return; // suppress echo during TTS playback
     try {
       const buf = Buffer.from(new Int16Array(data.audio).buffer);
       wakeDetector.sendAudio(buf);

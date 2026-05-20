@@ -53,6 +53,8 @@ async function prepareServer() {
   await copyIfExists(path.join(src, 'server.mjs'), path.join(dest, 'server.mjs'));
   await copyIfExists(path.join(src, 'server.cjs'), path.join(dest, 'server.cjs'));
   await copyIfExists(path.join(src, 'package.json'), path.join(dest, 'package.json'));
+  await copyIfExists(path.join(src, '.env'), path.join(dest, '.env'));
+  await copyIfExists(path.join(src, 'hide-console.cjs'), path.join(dest, 'hide-console.cjs'));
   await copyDir(path.join(src, 'server'), path.join(dest, 'server'));
 
   for (const moduleName of runtimeNodeModules) {

@@ -51,6 +51,48 @@ interface AudioSession {
 let ambientRms = 0;
 let ambientRmsLastUpdate = 0;
 
+// TTS playback flag — shared with wake detector to suppress echo during speech
+let ttsSpeakingCount = 0;
+export function isTtsPlaying(): boolean { return ttsSpeakingCount > 0; }
+
+// ── Module-level TTS echo tracker (shared with wake detector) ──
+
+/** Simple character-overlap ratio for echo detection. > 0.5 = likely echo. */
+function charOverlap(a: string, b: string): number {
+  const an = a.replace(/\s/g, '').toLowerCase();
+  const bn = b.replace(/\s/g, '').toLowerCase();
+  if (!an || !bn) return 0;
+  const setA = new Set(an);
+  const setB = new Set(bn);
+  let overlap = 0;
+  for (const c of setA) { if (setB.has(c)) overlap++; }
+  return overlap / Math.max(setA.size, setB.size);
+}
+
+const recentTtsTexts: { text: string; until: number }[] = [];
+
+/** Record a TTS sentence for echo cancellation (shared with wake detector). */
+export function addEchoText(text: string): void {
+  recentTtsTexts.push({ text, until: Date.now() + 10000 });
+}
+
+/** Check if a transcript matches recent TTS output (speaker → mic echo). */
+export function isEchoText(transcript: string): boolean {
+  const now = Date.now();
+  // Purge stale entries
+  for (let i = recentTtsTexts.length - 1; i >= 0; i--) {
+    if (recentTtsTexts[i].until <= now) recentTtsTexts.splice(i, 1);
+  }
+  if (recentTtsTexts.length === 0) return false;
+  const tNorm = transcript.replace(/\s/g, '').toLowerCase();
+  if (tNorm.length < 2) return true;
+  for (const r of recentTtsTexts) {
+    if (r.text.includes(transcript) || transcript.includes(r.text)) return true;
+    if (charOverlap(transcript, r.text) > 0.5) return true;
+  }
+  return false;
+}
+
 function getAmbientNoise(): number | null {
   if (Date.now() - ambientRmsLastUpdate > 15000) return null; // stale
   return ambientRms;
@@ -262,6 +304,7 @@ async function processVoiceInput(
       if (ttsAbort?.signal.aborted) return;
       if (session.bgGeneration !== myGeneration) return;
       session.isSpeaking = true;
+      ttsSpeakingCount++;
       try {
         const ttsResult = await synthesizeSpeech(txt, {
           provider: ttsProvider,
@@ -273,6 +316,7 @@ async function processVoiceInput(
         });
         if (!ttsAbort?.signal.aborted && session.bgGeneration === myGeneration) {
           socket.emit("audio:status", { status: "speaking" });
+          addEchoText(txt);
           const volumeGain = computeVolumeGain();
           socket.emit("audio:response", { buffer: ttsResult.audioBuffer, volumeGain });
         }
@@ -281,6 +325,9 @@ async function processVoiceInput(
         logger.warn(`[Audio TTS] ${e.message?.slice(0, 80)}`);
       } finally {
         if (session.bgGeneration === myGeneration) session.isSpeaking = false;
+        // Keep ttsSpeakingCount elevated for 3s after synthesis — client playback continues
+        const decay = () => { ttsSpeakingCount = Math.max(0, ttsSpeakingCount - 1); };
+        setTimeout(decay, 3000);
       }
     });
     ttsPromises.push(ttsQueue);
@@ -647,8 +694,13 @@ export function registerVoiceHandlers(
             }
 
             if (session.isProcessing || session.isSpeaking) {
-              // Speaking (TTS playing): any real speech → barge-in
+              // Speaking (TTS playing): only long or explicit speech → barge-in
+              // Short fragments (< 4 chars) are likely speaker echo, not user speech
               if (session.isSpeaking) {
+                if (isEchoText(text)) {
+                  logger.info(`[Audio] Echo cancelled during speech: "${text}"`);
+                  return;
+                }
                 logger.info(`[Audio] Barge-in during speech: "${text}" — aborting`);
                 if (session.ttsAbortController) {
                   session.ttsAbortController.abort();
@@ -688,6 +740,7 @@ export function registerVoiceHandlers(
                       provider: ttsProvider,
                       voiceId: session.currentVoiceId,
                     }).then(result => {
+                      addEchoText("还在处理中，请稍等。");
                       const gain = computeVolumeGain();
                       socket.emit("audio:response", { buffer: result.audioBuffer, volumeGain: gain });
                     }).catch(() => {});
@@ -847,6 +900,8 @@ export function registerVoiceHandlers(
     const proactiveVoice = resolveEmotionVoice(voiceId, es);
 
     try {
+      ttsSpeakingCount++;
+      addEchoText(data.message);
       const result = await synthesizeSpeech(data.message, {
         provider: ttsProvider,
         voiceId: proactiveVoice.voiceId,
@@ -854,6 +909,7 @@ export function registerVoiceHandlers(
         pitch: proactiveVoice.pitch,
         volume: proactiveVoice.volume,
       });
+      ttsSpeakingCount = Math.max(0, ttsSpeakingCount - 1);
       const proactiveGain = computeVolumeGain();
       socket.emit("audio:proactive_speak", {
         audioBuffer: result.audioBuffer,

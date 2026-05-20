@@ -34,6 +34,7 @@ export interface WakeDetectorSession {
 
 export function createWakeDetector(
   accessKey?: string,
+  echoFilter?: (text: string) => boolean,
 ): WakeDetectorSession {
   const apiKey = accessKey
     || process.env.DASHSCOPE_API_KEY
@@ -68,7 +69,7 @@ export function createWakeDetector(
       session: {
         input_audio_format: 'pcm',
         sample_rate: 16000,
-        input_audio_transcription: { language: 'zh' },
+        input_audio_transcription: { enabled: true, language: 'zh' },
         turn_detection: {
           type: 'server_vad',
           threshold: 0.0,
@@ -101,6 +102,10 @@ export function createWakeDetector(
           const transcript = msg.transcript || '';
           if (transcript) {
             logger.info(`[WakeDetector] Transcript: "${transcript}"`);
+            if (echoFilter && echoFilter(transcript)) {
+              logger.info(`[WakeDetector] Echo filtered: "${transcript}"`);
+              break;
+            }
             const matched = isWakeWord(transcript);
             if (matched) {
               logger.info(`[WakeDetector] WAKE WORD "${matched}" in: "${transcript}"`);

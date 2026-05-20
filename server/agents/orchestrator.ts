@@ -189,11 +189,22 @@ export function classifyComplexity(
   const teamHits = TEAM_TRIGGERS.filter(s => lower.includes(s));
   if (teamHits.length >= 1) return 'complex';
 
-  // 7. Action verbs: user wants something DONE with tools → at least moderate, dispatch to worker
+  // 7. Question detection — short questions with question markers are always simple.
+  //    "你能帮我做什么" is a question about capabilities, not an action request.
+  const QUESTION_MARKERS = [
+    '吗', '呢', '什么', '怎么', '谁', '哪', '干嘛', '干什么',
+    '能不能', '可不可以', '会不会', '可以吗', '行吗', '如何',
+    'what', 'how', 'why', 'when', 'where', 'who', 'can you', 'could you',
+  ];
+  const isQuestion = QUESTION_MARKERS.some(q => lower.includes(q));
+  const chChars = (text.match(/[一-鿿]/g) || []).length;
+  if (isQuestion && chChars < 30 && text.split(/\s+/).length < 20) return 'simple';
+
+  // 8. Action verbs: user wants something DONE with tools → at least moderate, dispatch to worker
   const actionHits = ACTION_VERBS.filter(s => lower.includes(s));
   if (actionHits.length >= 1) return 'moderate';
 
-  // 8. Pure Q&A — single question, single domain → simple
+  // 9. Pure Q&A — single question, single domain → simple
   const simpleHits = SIMPLE_VERBS.filter(s => lower.includes(s));
   const clauseCount = trimmed.split(/[.。!！?？\n]+/).filter(s => s.trim().length > 0).length;
   if (simpleHits.length >= 1 && clauseCount <= 1) return 'simple';

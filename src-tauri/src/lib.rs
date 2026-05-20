@@ -250,17 +250,16 @@ fn spawn_python(python_exe: &std::path::Path, api_py: &std::path::Path, work_dir
         normalized_api.display(),
         normalized_cwd.display(),
     );
-    match Command::new(normalized_python)
-        .arg(normalized_api)
+    let mut cmd = Command::new(normalized_python);
+    cmd.arg(normalized_api)
         .arg("-a")
         .arg("127.0.0.1")
         .arg("-p")
         .arg("9880")
         .arg("-c")
         .arg("GPT_SoVITS/configs/tts_infer.yaml")
-        .current_dir(normalized_cwd)
-        .spawn()
-    {
+        .current_dir(normalized_cwd);
+    match spawn_hidden(&mut cmd) {
         Ok(child) => {
             println!("[LumiOS] GPT-SoVITS API PID: {}", child.id());
             Some(child)
@@ -314,6 +313,19 @@ fn normalize_unc(path: &Path) -> &Path {
         }
     }
     path
+}
+
+/// Spawn a child process without showing a console window on Windows
+fn spawn_hidden(cmd: &mut Command) -> std::io::Result<Child> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000008u32); // CREATE_NO_WINDOW | DETACHED_PROCESS
+    }
+    cmd.stdin(std::process::Stdio::null());
+    cmd.stdout(std::process::Stdio::null());
+    cmd.stderr(std::process::Stdio::null());
+    cmd.spawn()
 }
 
 #[tauri::command]
@@ -626,25 +638,9 @@ pub fn run() {
                 .resource_dir()
                 .unwrap_or_default();
 
-            // Position window on secondary monitor if available, otherwise use primary
+            // Center window on primary monitor
             if let Some(window) = app.get_webview_window("main") {
-                if let Ok(monitors) = window.available_monitors() {
-                    if monitors.len() > 1 {
-                        let target = &monitors[1];
-                        let pos = target.position();
-                        let size = target.size();
-                        println!(
-                            "[LumiOS] Moving to monitor {} ({}x{} @ {},{}),",
-                            monitors.len(),
-                            size.width,
-                            size.height,
-                            pos.x,
-                            pos.y
-                        );
-                        let _ = window.set_position(tauri::PhysicalPosition::new(pos.x, pos.y));
-                        let _ = window.set_size(tauri::PhysicalSize::new(size.width, size.height));
-                    }
-                }
+                let _ = window.center();
                 let _ = window.set_fullscreen(false);
             }
 
@@ -686,12 +682,13 @@ pub fn run() {
                     normalized_entry.display(),
                     normalized_cwd.display(),
                 );
-                match Command::new(&normalized_node)
-                    .arg(&normalized_entry)
+                let mut node_cmd = Command::new(&normalized_node);
+                node_cmd.arg(&normalized_entry)
                     .env("LUMI_DESKTOP", "1")
                     .env("HOST", "127.0.0.1")
-                    .current_dir(&normalized_cwd)
-                    .spawn()
+                    .env("NODE_OPTIONS", "--require ./hide-console.cjs")
+                    .current_dir(&normalized_cwd);
+                match spawn_hidden(&mut node_cmd)
                 {
                     Ok(child) => {
                         println!("[LumiOS] Backend PID: {}", child.id());
@@ -784,12 +781,13 @@ pub fn run() {
                         if restart_node && state.node_restarts < max_restarts {
                             if let Some(ref cfg) = state.node_config {
                                 eprintln!("[LumiOS] Restarting Node backend (attempt {}/{})", state.node_restarts + 1, max_restarts);
-                                match Command::new(&cfg.exe)
-                                    .arg(&cfg.entry)
+                                let mut restart_cmd = Command::new(&cfg.exe);
+                                restart_cmd.arg(&cfg.entry)
                                     .env("LUMI_DESKTOP", "1")
                                     .env("HOST", "127.0.0.1")
-                                    .current_dir(&cfg.work_dir)
-                                    .spawn()
+                                    .env("NODE_OPTIONS", "--require ./hide-console.cjs")
+                                    .current_dir(&cfg.work_dir);
+                                match spawn_hidden(&mut restart_cmd)
                                 {
                                     Ok(child) => {
                                         println!("[LumiOS] Backend restarted, PID: {}", child.id());
@@ -824,13 +822,13 @@ pub fn run() {
                         if restart_python && state.python_restarts < max_restarts {
                             if let Some(ref cfg) = state.python_config {
                                 eprintln!("[LumiOS] Restarting Python API (attempt {}/{})", state.python_restarts + 1, max_restarts);
-                                match Command::new(&cfg.exe)
-                                    .arg(&cfg.entry)
+                                let mut restart_py_cmd = Command::new(&cfg.exe);
+                                restart_py_cmd.arg(&cfg.entry)
                                     .arg("-a").arg("127.0.0.1")
                                     .arg("-p").arg("9880")
                                     .arg("-c").arg("GPT_SoVITS/configs/tts_infer.yaml")
-                                    .current_dir(&cfg.work_dir)
-                                    .spawn()
+                                    .current_dir(&cfg.work_dir);
+                                match spawn_hidden(&mut restart_py_cmd)
                                 {
                                     Ok(child) => {
                                         println!("[LumiOS] Python API restarted, PID: {}", child.id());

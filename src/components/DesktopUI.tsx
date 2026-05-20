@@ -76,6 +76,7 @@ import { useApp } from '@/contexts/AppContext';
 const NexusGlobe = lazy(() => import('./NexusGlobe/NexusGlobe').then(m => ({ default: m.NexusGlobe })));
 import WorkflowPanel, { type WorkflowStep } from './WorkflowPanel';
 import { useWakeWord } from '../hooks/useWakeWord';
+import { useGestureDetector } from '../hooks/useGestureDetector';
 import { VoiceSubtitle } from './VoiceSubtitle';
 import { ErrorBoundary } from './ErrorBoundary';
 import { ToolConfirmDialog } from './ToolConfirmDialog';
@@ -910,6 +911,22 @@ export function DesktopUI({
     isCallActive: () => callState !== 'idle',
     onInterrupt: () => interrupt(),
   });
+
+  // Gesture detection via webcam — drives the central orb visually
+  const {
+    handOpenness,
+    handPosition,
+    gesture,
+    handVisible,
+    facePresent,
+  } = useGestureDetector({ enabled: true });
+
+  // Diffusion mode: open hand → expand, fist → collapse (toggle, not continuous)
+  const [diffused, setDiffused] = useState(false);
+  useEffect(() => {
+    if (gesture === 'open') setDiffused(true);
+    else if (gesture === 'fist') setDiffused(false);
+  }, [gesture]);
 
   // Idle→active return greeting — listens for ambient idle reports and fires on return
   const lastIdleRef = useRef<number>(0);
@@ -1767,6 +1784,13 @@ export function DesktopUI({
                 onInterrupt={interrupt}
                 onToggleMute={toggleMute}
                 onMessage={() => {}}
+                handOpenness={handOpenness}
+                handPosition={handPosition}
+                gesture={gesture}
+                handVisible={handVisible}
+                facePresent={facePresent}
+                gesturesDisabled={viewMode === 'world' || isWallpaperMode}
+                diffused={diffused}
               />
               {wakeWord.isListening && callState === 'idle' && (
                 <div className="mt-2 text-[10px] text-white/20 uppercase tracking-[0.25em] font-mono">
