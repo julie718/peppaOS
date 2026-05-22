@@ -79,6 +79,60 @@ async function agentList(_args: Record<string, any>, context?: any): Promise<str
   }
 }
 
+async function agentTerminate(args: Record<string, any>, _context?: any): Promise<string> {
+  const agentId = (args.agentId || '').trim();
+  const terminateAll = args.all === true;
+
+  try {
+    const db = readDB();
+    if (!db.agents) db.agents = [];
+
+    if (terminateAll) {
+      const activeAgents = db.agents.filter((a: any) => a.status === 'active');
+      if (activeAgents.length === 0) {
+        return 'No active agents to terminate.';
+      }
+      const count = activeAgents.length;
+      for (const agent of db.agents) {
+        if (agent.status === 'active') {
+          agent.status = 'terminated';
+          agent.terminatedAt = new Date().toISOString();
+        }
+      }
+      writeDB(db);
+      return JSON.stringify({
+        ok: true,
+        terminated: count,
+        message: `Terminated all ${count} active agents.`,
+      });
+    }
+
+    if (!agentId) {
+      return 'Error: specify agentId or set all=true to terminate all agents.';
+    }
+
+    const agent = db.agents.find((a: any) => a.id === agentId);
+    if (!agent) {
+      return `Agent "${agentId}" not found.`;
+    }
+    if (agent.status === 'terminated') {
+      return `Agent "${agentId}" is already terminated.`;
+    }
+
+    agent.status = 'terminated';
+    agent.terminatedAt = new Date().toISOString();
+    writeDB(db);
+
+    return JSON.stringify({
+      ok: true,
+      agent: { id: agent.id, name: agent.name, status: 'terminated' },
+      message: `Agent "${agent.name}" (${agent.id}) terminated.`,
+    });
+  } catch (err: any) {
+    return `Failed to terminate agent(s): ${err.message || String(err)}`;
+  }
+}
+
 export function registerAgentTools(registry: ToolRegistry): void {
   registry.register({
     name: 'agent_create',
@@ -115,5 +169,22 @@ export function registerAgentTools(registry: ToolRegistry): void {
     handler: agentList,
     permission: 'user',
     securityLevel: 'safe',
+  });
+
+  registry.register({
+    name: 'agent_terminate',
+    description:
+      'Terminate one or all active agents. Set agentId to terminate a specific agent, or set all=true to terminate every active agent at once. Terminated agents are marked as status="terminated" and will no longer appear in agent_list.',
+    parameters: {
+      type: 'object',
+      properties: {
+        agentId: { type: 'string', description: 'ID of the agent to terminate (optional if all=true)' },
+        all: { type: 'boolean', description: 'Set to true to terminate ALL active agents at once' },
+      },
+      required: [],
+    },
+    handler: agentTerminate,
+    permission: 'user',
+    securityLevel: 'confirm',
   });
 }
