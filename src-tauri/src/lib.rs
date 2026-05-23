@@ -548,6 +548,150 @@ fn get_idle_time() -> IdleInfo {
     IdleInfo { idle_ms: 0, idle_seconds: 0 }
 }
 
+// ── System Audio Volume (winmm.dll) ──
+
+#[tauri::command]
+fn get_system_volume() -> f32 {
+    #[cfg(target_os = "windows")]
+    {
+        extern "system" {
+            fn waveOutGetVolume(hwo: u32, pdwVolume: *mut u32) -> u32;
+        }
+        unsafe {
+            let mut vol: u32 = 0;
+            // WAVE_MAPPER (0xFFFFFFFF) = -1 as u32
+            if waveOutGetVolume(0xFFFFFFFFu32, &mut vol) == 0 {
+                let left = (vol & 0xFFFF) as f32;
+                let right = ((vol >> 16) & 0xFFFF) as f32;
+                let avg = (left + right) / 2.0;
+                return (avg / 65535.0 * 100.0).round();
+            }
+        }
+    }
+    50.0 // fallback
+}
+
+#[tauri::command]
+fn set_system_volume(level: f32) -> Result<f32, String> {
+    let clamped = level.max(0.0).min(100.0);
+    #[cfg(target_os = "windows")]
+    {
+        extern "system" {
+            fn waveOutSetVolume(hwo: u32, dwVolume: u32) -> u32;
+        }
+        let raw = ((clamped / 100.0) * 65535.0) as u32;
+        let vol = raw | (raw << 16); // both channels
+        unsafe {
+            if waveOutSetVolume(0xFFFFFFFFu32, vol) == 0 {
+                return Ok(clamped);
+            }
+        }
+    }
+    Ok(clamped) // web fallback: just report the value
+}
+
+// ── Monitor Brightness (dxva2.dll + user32.dll) ──
+
+#[cfg(target_os = "windows")]
+mod brightness_ffi {
+    #[repr(C)]
+    pub struct PhysicalMonitor {
+        pub h_physical_monitor: isize,
+        pub description: [u16; 128],
+    }
+
+    extern "system" {
+        pub fn MonitorFromPoint(x: i32, y: i32, dwFlags: u32) -> isize;
+        pub fn GetPhysicalMonitorsFromHMONITOR(
+            h_monitor: isize,
+            array_size: u32,
+            array: *mut PhysicalMonitor,
+        ) -> i32;
+        pub fn GetMonitorBrightness(
+            h_monitor: isize,
+            min_brightness: *mut u32,
+            current: *mut u32,
+            max_brightness: *mut u32,
+        ) -> i32;
+        pub fn SetMonitorBrightness(h_monitor: isize, new_brightness: u32) -> i32;
+        pub fn DestroyPhysicalMonitors(array_size: u32, array: *mut PhysicalMonitor) -> i32;
+    }
+}
+
+#[tauri::command]
+fn get_screen_brightness() -> f32 {
+    #[cfg(target_os = "windows")]
+    unsafe {
+        use brightness_ffi::*;
+        // MONITOR_DEFAULTTONEAREST = 2
+        let h_monitor = MonitorFromPoint(0, 0, 2);
+        if h_monitor == 0 {
+            return 50.0;
+        }
+        let mut monitors: [PhysicalMonitor; 1] = [PhysicalMonitor {
+            h_physical_monitor: 0,
+            description: [0u16; 128],
+        }];
+        if GetPhysicalMonitorsFromHMONITOR(h_monitor, 1, monitors.as_mut_ptr()) == 0 {
+            return 50.0;
+        }
+        let h = monitors[0].h_physical_monitor;
+        if h == 0 {
+            return 50.0;
+        }
+        let mut min: u32 = 0;
+        let mut cur: u32 = 0;
+        let mut max: u32 = 0;
+        let result = if GetMonitorBrightness(h, &mut min, &mut cur, &mut max) != 0 {
+            if max > min {
+                ((cur as f32 - min as f32) / (max as f32 - min as f32) * 100.0).round()
+            } else {
+                50.0
+            }
+        } else {
+            50.0
+        };
+        DestroyPhysicalMonitors(1, monitors.as_mut_ptr());
+        return result;
+    }
+    #[cfg(not(target_os = "windows"))]
+    50.0
+}
+
+#[tauri::command]
+fn set_screen_brightness(level: f32) -> Result<f32, String> {
+    let clamped = level.max(0.0).min(100.0);
+    #[cfg(target_os = "windows")]
+    unsafe {
+        use brightness_ffi::*;
+        let h_monitor = MonitorFromPoint(0, 0, 2);
+        if h_monitor == 0 {
+            return Ok(clamped);
+        }
+        let mut monitors: [PhysicalMonitor; 1] = [PhysicalMonitor {
+            h_physical_monitor: 0,
+            description: [0u16; 128],
+        }];
+        if GetPhysicalMonitorsFromHMONITOR(h_monitor, 1, monitors.as_mut_ptr()) == 0 {
+            return Ok(clamped);
+        }
+        let h = monitors[0].h_physical_monitor;
+        if h == 0 {
+            return Ok(clamped);
+        }
+        // Get min/max range first
+        let mut min: u32 = 0;
+        let mut _cur: u32 = 0;
+        let mut max: u32 = 0;
+        if GetMonitorBrightness(h, &mut min, &mut _cur, &mut max) != 0 && max > min {
+            let raw = (clamped / 100.0 * (max - min) as f32) as u32 + min;
+            SetMonitorBrightness(h, raw.max(min).min(max));
+        }
+        DestroyPhysicalMonitors(1, monitors.as_mut_ptr());
+    }
+    Ok(clamped)
+}
+
 // ── Activity Polling ──
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -654,6 +798,10 @@ pub fn run() {
             set_clipboard_text,
             get_idle_time,
             poll_activity,
+            get_system_volume,
+            set_system_volume,
+            get_screen_brightness,
+            set_screen_brightness,
         ])
         .setup(|app| {
             let resource_dir = app

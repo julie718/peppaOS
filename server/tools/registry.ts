@@ -49,6 +49,24 @@ export class ToolRegistry {
     return this.tools.get(name);
   }
 
+  unregister(name: string): boolean {
+    return this.tools.delete(name);
+  }
+
+  unregisterByPrefix(prefix: string): string[] {
+    const removed: string[] = [];
+    for (const [name] of this.tools) {
+      if (name.startsWith(prefix)) {
+        this.tools.delete(name);
+        removed.push(name);
+      }
+    }
+    if (removed.length > 0) {
+      console.log(`[ToolRegistry] Unregistered ${removed.length} tools with prefix "${prefix}"`);
+    }
+    return removed;
+  }
+
   list(filterPermission?: ToolPermission): ToolDefinition[] {
     const all = Array.from(this.tools.values());
     if (!filterPermission) return all;

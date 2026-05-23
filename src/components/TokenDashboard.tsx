@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Zap, TrendingUp, Clock, Layers, RefreshCw } from 'lucide-react';
+import { Zap, TrendingUp, Clock, Layers, RefreshCw, AlertTriangle } from 'lucide-react';
+import { socketService } from '@/services/socketService';
 
 interface ProviderStats {
   promptTokens: number;
@@ -51,15 +52,30 @@ export const TokenDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
   const [error, setError] = useState<string | null>(null);
+  const [quota, setQuota] = useState<{ used: number; cap: number; remaining: number; plan?: string } | null>(null);
 
   const fetchUsage = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const resp = await fetch(`/api/llm/usage?days=${days}`, { credentials: 'include' });
-      if (!resp.ok) throw new Error(resp.status === 401 ? 'Login required' : `HTTP ${resp.status}`);
-      const res = await resp.json();
+      const [usageResp, subResp] = await Promise.all([
+        fetch(`/api/llm/usage?days=${days}`, { credentials: 'include' }),
+        fetch('/api/subscription/status', { credentials: 'include' }),
+      ]);
+      if (!usageResp.ok) throw new Error(usageResp.status === 401 ? 'Login required' : `HTTP ${usageResp.status}`);
+      const res = await usageResp.json();
       setData(res);
+      if (subResp.ok) {
+        const sub = await subResp.json();
+        if (sub?.subscription) {
+          setQuota({
+            used: sub.subscription.tokensUsedThisMonth || 0,
+            cap: sub.subscription.monthlyTokenCap || 500000,
+            remaining: Math.max(0, (sub.subscription.monthlyTokenCap || 500000) - (sub.subscription.tokensUsedThisMonth || 0)),
+            plan: sub.subscription.planId || 'Free',
+          });
+        }
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to load');
     } finally {
@@ -68,6 +84,25 @@ export const TokenDashboard: React.FC = () => {
   }, [days]);
 
   useEffect(() => { fetchUsage(); }, [fetchUsage]);
+
+  // Auto-poll every 10s
+  useEffect(() => {
+    const id = setInterval(() => fetchUsage(), 10000);
+    return () => clearInterval(id);
+  }, [fetchUsage]);
+
+  // Socket-based instant refresh
+  useEffect(() => {
+    const s = socketService.getSocket();
+    if (!s) return;
+    const handler = () => { fetchUsage(); };
+    s.on('token:usage_update', handler);
+    s.on('token:quota_update', handler);
+    return () => {
+      s.off('token:usage_update', handler);
+      s.off('token:quota_update', handler);
+    };
+  }, [fetchUsage]);
 
   const providers = data?.byProvider ? Object.entries(data.byProvider) : [];
   const maxDaily = data?.daily?.length ? Math.max(...data.daily.map(d => d.totalTokens), 1) : 1;
@@ -139,6 +174,40 @@ export const TokenDashboard: React.FC = () => {
               <span className="text-[10px] text-white/20 ml-1">{data?.recordCount || 0} calls</span>
             </div>
           </motion.div>
+
+          {/* Quota progress bar */}
+          {quota && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-2xl bg-white/5 border border-white/5 p-4 space-y-2"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest">Quota · {quota.plan}</span>
+                <span className="text-[9px] font-mono text-white/40">{formatTokens(quota.used)} / {formatTokens(quota.cap)}</span>
+              </div>
+              <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min((quota.used / quota.cap) * 100, 100)}%` }}
+                  transition={{ duration: 0.5 }}
+                  className={`h-full rounded-full ${
+                    quota.used / quota.cap >= 0.9 ? 'bg-red-500' :
+                    quota.used / quota.cap >= 0.8 ? 'bg-amber-500' :
+                    'bg-amber-500/60'
+                  }`}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] text-white/20">{Math.round((quota.used / quota.cap) * 100)}% used</span>
+                {quota.used / quota.cap >= 0.8 && (
+                  <span className="text-[9px] text-amber-400 flex items-center gap-1">
+                    <AlertTriangle size={10} /> {quota.used / quota.cap >= 0.9 ? 'Critical' : 'Warning'}
+                  </span>
+                )}
+              </div>
+            </motion.div>
+          )}
 
           {/* Provider breakdown */}
           <div className="rounded-2xl bg-white/5 border border-white/5 p-4">

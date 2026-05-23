@@ -51,13 +51,27 @@ interface ConnectedServer {
 
 const SKILLS_DIR = path.join(os.homedir(), 'lumi_skills');
 
+interface CrashTracker {
+  consecutiveCrashes: number;
+  lastCrashTime: string;
+  lastSuccessfulConnect: string;
+  restartTimer: ReturnType<typeof setTimeout> | null;
+}
+
 class MCPClientManager {
   private servers: Map<string, ConnectedServer> = new Map();
   private configPath: string;
+  private crashTrackers: Map<string, CrashTracker> = new Map();
+  private closingSet: Set<string> = new Set();
+  private onServerRecovered?: (name: string, tools: MCPToolDef[]) => void;
+  private ioRef?: any;
 
   constructor(configPath?: string) {
     this.configPath = configPath || path.join(process.cwd(), 'server', 'mcp', 'config.json');
   }
+
+  setSocketIO(io: any): void { this.ioRef = io; }
+  setOnServerRecovered(cb: (name: string, tools: MCPToolDef[]) => void): void { this.onServerRecovered = cb; }
 
   getConfig(): Record<string, MCPServerConfig> {
     try {
@@ -308,6 +322,50 @@ class MCPClientManager {
 
     this.servers.set(name, { client, transport, config });
 
+    // Initialize crash tracker
+    if (!this.crashTrackers.has(name)) {
+      this.crashTrackers.set(name, {
+        consecutiveCrashes: 0,
+        lastCrashTime: '',
+        lastSuccessfulConnect: new Date().toISOString(),
+        restartTimer: null,
+      });
+    }
+
+    // Install crash detection on transport
+    const self = this;
+    transport.onclose = () => {
+      // If intentionally closing, skip crash detection
+      if (self.closingSet.has(name)) {
+        self.closingSet.delete(name);
+        return;
+      }
+      // If server still in map, this is an unexpected crash
+      if (self.servers.has(name)) {
+        console.log(`[MCP] CRASH DETECTED: "${name}" process exited unexpectedly`);
+        self.servers.delete(name);
+        const tracker = self.crashTrackers.get(name);
+        if (tracker) {
+          tracker.lastCrashTime = new Date().toISOString();
+        }
+        self.scheduleRestart(name);
+        self.broadcastHealth();
+      }
+    };
+
+    transport.onerror = (error: Error) => {
+      console.error(`[MCP] Error in "${name}" transport:`, error.message);
+    };
+
+    // Reset crash counter on successful connect
+    const tracker = self.crashTrackers.get(name)!;
+    tracker.consecutiveCrashes = 0;
+    tracker.lastSuccessfulConnect = new Date().toISOString();
+    if (tracker.restartTimer) {
+      clearTimeout(tracker.restartTimer);
+      tracker.restartTimer = null;
+    }
+
     const result = await client.listTools();
     return result.tools.map((tool: any) => ({
       serverName: name,
@@ -335,19 +393,30 @@ class MCPClientManager {
   }
 
   async disconnectAll(): Promise<void> {
+    // Cancel all pending restart timers
+    for (const [n, tracker] of this.crashTrackers) {
+      if (tracker.restartTimer) {
+        clearTimeout(tracker.restartTimer);
+        tracker.restartTimer = null;
+      }
+    }
     for (const [name, server] of this.servers) {
+      this.closingSet.add(name);
       try {
         await server.transport.close();
       } catch {}
     }
     this.servers.clear();
+    this.closingSet.clear();
   }
 
   async restartServer(name: string): Promise<MCPToolDef[]> {
     const server = this.servers.get(name);
     if (server) {
+      this.closingSet.add(name);
       try { await server.transport.close(); } catch {}
       this.servers.delete(name);
+      this.closingSet.delete(name);
     }
 
     const config = this.getConfig();
@@ -355,6 +424,75 @@ class MCPClientManager {
     if (!serverConfig || !serverConfig.enabled) return [];
 
     return this.connectServer(name, serverConfig);
+  }
+
+  private scheduleRestart(name: string): void {
+    const tracker = this.crashTrackers.get(name);
+    if (!tracker) return;
+
+    if (tracker.restartTimer) {
+      clearTimeout(tracker.restartTimer);
+    }
+
+    // Max 5 consecutive crashes before giving up
+    if (tracker.consecutiveCrashes >= 5) {
+      console.error(`[MCP] "${name}" crashed ${tracker.consecutiveCrashes} times — giving up. Manual intervention required.`);
+      return;
+    }
+
+    const delay = Math.min(1000 * Math.pow(2, tracker.consecutiveCrashes), 60000);
+    tracker.consecutiveCrashes++;
+
+    console.log(`[MCP] Scheduling restart for "${name}" in ${delay}ms (crash #${tracker.consecutiveCrashes})`);
+
+    tracker.restartTimer = setTimeout(async () => {
+      tracker.restartTimer = null;
+      try {
+        const config = this.getConfig();
+        const serverConfig = config[name];
+        if (!serverConfig || !serverConfig.enabled) {
+          console.log(`[MCP] Server "${name}" is now disabled, skipping restart`);
+          return;
+        }
+
+        const tools = await this.connectServer(name, serverConfig);
+        console.log(`[MCP] "${name}" restarted successfully with ${tools.length} tools`);
+
+        tracker.consecutiveCrashes = 0;
+        tracker.lastSuccessfulConnect = new Date().toISOString();
+
+        this.onServerRecovered?.(name, tools);
+      } catch (err: any) {
+        console.error(`[MCP] Restart attempt for "${name}" failed: ${err.message}`);
+      }
+      this.broadcastHealth();
+    }, delay);
+  }
+
+  getServerHealth(): Record<string, { status: string; consecutiveCrashes: number; lastCrashTime?: string; lastSuccessfulConnect?: string }> {
+    const config = this.getConfig();
+    const health: Record<string, any> = {};
+    for (const [name] of Object.entries(config)) {
+      const tracker = this.crashTrackers.get(name);
+      const isRestarting = !!tracker?.restartTimer;
+      health[name] = {
+        status: isRestarting ? 'restarting'
+          : this.servers.has(name) ? 'connected'
+          : (tracker?.consecutiveCrashes ?? 0) >= 5 ? 'failed'
+          : (tracker?.consecutiveCrashes ?? 0) > 0 ? 'crashed'
+          : 'disconnected',
+        consecutiveCrashes: tracker?.consecutiveCrashes || 0,
+        lastCrashTime: tracker?.lastCrashTime || undefined,
+        lastSuccessfulConnect: tracker?.lastSuccessfulConnect || undefined,
+      };
+    }
+    return health;
+  }
+
+  private broadcastHealth(): void {
+    if (this.ioRef) {
+      this.ioRef.emit('mcp:health_update', { servers: this.getServerHealth() });
+    }
   }
 
   getConnectedServers(): string[] {

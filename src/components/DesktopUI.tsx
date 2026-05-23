@@ -326,7 +326,9 @@ function ControlCenter({ isOpen, onClose, t, brightness, setBrightness, volume, 
              <div className="h-4 w-full bg-white/5 rounded-full relative group cursor-pointer" onClick={(e) => {
                const rect = e.currentTarget.getBoundingClientRect();
                const percent = (e.clientX - rect.left) / rect.width;
-               setBrightness(Math.min(100, Math.max(0, percent * 100)));
+               const v = Math.min(100, Math.max(0, Math.round(percent * 100)));
+               setBrightness(v);
+               systemService.setBrightness(v);
              }}>
                <motion.div 
                  animate={{ width: `${brightness}%` }}
@@ -342,10 +344,9 @@ function ControlCenter({ isOpen, onClose, t, brightness, setBrightness, volume, 
              <div className="h-4 w-full bg-white/5 rounded-full relative group cursor-pointer" onClick={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect();
                 const percent = (e.clientX - rect.left) / rect.width;
-                const v = Math.min(100, Math.max(0, percent * 100));
+                const v = Math.min(100, Math.max(0, Math.round(percent * 100)));
                 setVolume(v);
-                document.documentElement.style.setProperty('--lumi-volume', String(v / 100));
-                try { localStorage.setItem('lumi_volume', String(v)); } catch {}
+                systemService.setVolume(v);
              }}>
                <motion.div
                  animate={{ width: `${volume}%` }}
@@ -908,6 +909,9 @@ export function DesktopUI({
     startCallRef,
     enabled: true,
     keyword: 'Jarvis',
+    voiceId: selectedVoiceId,
+    personalityId: 'lumi',
+    agentId: 'lumi',
     onDetection: () => sounds.playWakeChime(),
     isCallActive: () => callState !== 'idle',
     onInterrupt: () => interrupt(),
@@ -978,6 +982,11 @@ export function DesktopUI({
     return () => window.removeEventListener('lumi:open-memory-lab', handler);
   }, []);
 
+  // Restore real system volume/brightness on mount
+  useEffect(() => {
+    systemService.getVolume().then(v => setVolume(v));
+    systemService.getBrightness().then(b => setBrightness(b));
+  }, []);
 
   const toggleWallpaperMode = useCallback(() => {
     const nextMode = !isWallpaperMode;
@@ -1152,6 +1161,13 @@ export function DesktopUI({
         toast.info('桌面形象已从另一设备同步');
       }
     });
+    socket.on('agent:notification', (data: { type: string; level: string; message: string }) => {
+      if (data.level === 'critical') {
+        toast.error(data.message, { duration: 10000 });
+      } else if (data.level === 'warning') {
+        toast.warning(data.message, { duration: 5000 });
+      }
+    });
     return () => {
       socket.off('agent:status', onStatus);
       socket.off('agent:tool_call', onToolCall);
@@ -1159,6 +1175,7 @@ export function DesktopUI({
       socket.off('agent:error', onError);
       socket.off('agent:proactive', onProactive);
       socket.off('preferences:changed');
+      socket.off('agent:notification');
     };
   }, [socket]);
 

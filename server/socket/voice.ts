@@ -17,6 +17,7 @@ import { processInput, CognitiveContext, extractSentiment } from "../cognition";
 import { runOrchestratedTask, classifyComplexity } from "../agents/orchestrator";
 import { queryMemories, addMemory } from "../memory/store";
 import { matchQuickCommand } from "../cognition/quick_commands";
+import { recordTokenUsage } from "../llm/token_tracker";
 
 interface AudioSession {
   sttSession: ReturnType<typeof createStreamingSession> | null;
@@ -376,12 +377,14 @@ async function processVoiceInput(
       isLLMAvailable: true,
     };
     const llmClassifier = async (prompt: string, userText: string): Promise<string> => {
+      const classifierModel = provider === 'deepseek' ? 'deepseek-v4-flash' : voiceModel;
       const result = await makeLLMCall(
         [{ role: 'system', content: prompt }, { role: 'user', content: userText }],
         [],
-        { provider, model: provider === 'deepseek' ? 'deepseek-v4-flash' : voiceModel, userId: session.userId, maxTokens: 60 },
+        { provider, model: classifierModel, userId: session.userId, maxTokens: 60 },
         llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
       );
+      recordTokenUsage(session.userId, provider, classifierModel, result.usage, `voice_cls_${Date.now()}`, 'voice');
       return result.text || '{"category":"unknown","confidence":0.5,"entities":{}}';
     };
 
@@ -499,6 +502,9 @@ async function processVoiceInput(
         ...(streamResult.toolCalls?.length ? { toolCalls: streamResult.toolCalls } : {}),
         reasoningContent: streamResult.reasoningContent,
       });
+
+      // Record token usage for this streaming call
+      recordTokenUsage(session.userId, provider, effectiveModel, streamResult.usage, `voice_stream_${Date.now()}`, 'voice');
 
       if (!streamResult.toolCalls || streamResult.toolCalls.length === 0) break;
 
@@ -995,6 +1001,8 @@ export function registerVoiceHandlers(
         llmGetters.getAnthropic,
         llmGetters.getQwen,
       );
+
+      recordTokenUsage(session.userId, 'qwen', 'qwen-turbo', response.usage, `voice_greet_${Date.now()}`, 'voice');
 
       const greeting = response.text?.trim() || '';
       if (!greeting) throw new Error('Empty LLM response');

@@ -20,6 +20,7 @@ import { Memory } from "../memory/types";
 import { AgentRecord } from "./runtime";
 import { recordWorkflow } from "../skills/worklog";
 import { personalityRegistry } from "../personality";
+import { recordTokenUsage } from "../llm/token_tracker";
 
 type LLMProvider = 'deepseek' | 'gemini' | 'openai' | 'anthropic' | 'qwen';
 
@@ -271,6 +272,10 @@ export async function decomposeTask(
       llmGetters.getAnthropic,
       llmGetters.getQwen,
     );
+
+    if (context?.userId) {
+      recordTokenUsage(context.userId, config.provider, config.model, result.usage, `orch_decompose_${Date.now()}`, 'orchestrator');
+    }
 
     // Parse JSON from the response (handle markdown code fences)
     let json = result.text.trim();
@@ -594,6 +599,11 @@ async function executeWorkerTask(
         workerContext,
       );
 
+      // Record token usage for each LLM call within this worker
+      for (const u of (result.usageRecords || [])) {
+        recordTokenUsage(context.userId, u.provider, u.model, { promptTokens: u.promptTokens, completionTokens: u.completionTokens, totalTokens: u.totalTokens }, `orch_worker_${Date.now()}`, 'orchestrator');
+      }
+
       if (isRetry) {
         console.log(`[Orchestrator] Worker '${agent.name}' failed on attempt ${attempt}, succeeded with '${currentAgent.name}'`);
       }
@@ -722,6 +732,7 @@ export async function aggregateWithLLM(
   originalTask: string,
   llmConfig: { provider: LLMProvider; model: string },
   llmGetters: LlmGetters,
+  userId?: string,
 ): Promise<string> {
   const workerOutputs = workflowResult.subTaskResults
     .map(r => `[${r.subTaskId}] ${r.output}`)
@@ -743,6 +754,9 @@ export async function aggregateWithLLM(
       llmGetters.getAnthropic,
       llmGetters.getQwen,
     );
+    if (userId) {
+      recordTokenUsage(userId, llmConfig.provider, llmConfig.model, result.usage, `orch_aggregate_${Date.now()}`, 'orchestrator');
+    }
     return result.text.trim();
   } catch (err) {
     console.error('[Orchestrator] LLM aggregation failed:', err);
@@ -885,7 +899,7 @@ export async function runOrchestratedTask(
 
   const aggregated = complexity === 'moderate' && capped.length <= 2
     ? workflowResult.aggregatedOutput
-    : await aggregateWithLLM(workflowResult, text, llmConfig, llmGetters);
+    : await aggregateWithLLM(workflowResult, text, llmConfig, llmGetters, context.userId);
 
   // Record workflow pattern for future skill distillation
   const skillTags = capped.map(s => s.requiredSkill);

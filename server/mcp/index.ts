@@ -9,27 +9,46 @@ import type { ToolDefinition, ToolContext } from '../tools/types';
  * Register all discovered MCP tools into our tool registry.
  * Each MCP tool gets prefixed: mcp_{serverName}_{toolName}
  */
-export async function registerMCPTools(): Promise<string[]> {
+export async function registerMCPTools(io?: any): Promise<string[]> {
+  if (io) mcpManager.setSocketIO(io);
+
   const mcpTools = await mcpManager.connectAll();
   const registered: string[] = [];
 
   for (const tool of mcpTools) {
-    // MCP tools default to 'confirm' — user must explicitly trust the server
-    const def: ToolDefinition = {
-      name: tool.name,
-      description: tool.description || `MCP tool: ${tool.name}`,
-      permission: 'public',
-      securityLevel: 'confirm',
-      parameters: mcpSchemaToParams(tool.inputSchema),
-      handler: async (params: Record<string, any>, ctx: ToolContext) => {
-        return mcpManager.callTool(tool.name, params);
-      },
-    };
-
-    toolRegistry.register(def);
+    registerTool(tool);
     registered.push(tool.name);
   }
 
+  mcpManager.setOnServerRecovered(recoverServerTools);
+
+  return registered;
+}
+
+function registerTool(tool: MCPToolDef): void {
+  const def: ToolDefinition = {
+    name: tool.name,
+    description: tool.description || `MCP tool: ${tool.name}`,
+    permission: 'public',
+    securityLevel: 'confirm',
+    parameters: mcpSchemaToParams(tool.inputSchema),
+    handler: async (params: Record<string, any>, _ctx: ToolContext) => {
+      return mcpManager.callTool(tool.name, params);
+    },
+  };
+  toolRegistry.register(def);
+}
+
+export async function recoverServerTools(name: string, tools: MCPToolDef[]): Promise<string[]> {
+  const prefix = `mcp_${name}_`;
+  toolRegistry.unregisterByPrefix(prefix);
+
+  const registered: string[] = [];
+  for (const tool of tools) {
+    registerTool(tool);
+    registered.push(tool.name);
+  }
+  console.log(`[MCP] Re-registered ${registered.length} tools for recovered server "${name}"`);
   return registered;
 }
 

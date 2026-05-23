@@ -62,6 +62,47 @@ class SystemService {
       error: 'System commands require the desktop app (Tauri). Browser mode has no shell access.',
     };
   }
+  async getVolume(): Promise<number> {
+    if (this.isTauri) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        return await invoke<number>('get_system_volume');
+      } catch { /* fallback */ }
+    }
+    return parseFloat(localStorage.getItem('lumi_volume') || '50');
+  }
+
+  async setVolume(level: number): Promise<void> {
+    localStorage.setItem('lumi_volume', String(level));
+    document.documentElement.style.setProperty('--lumi-volume', String(level));
+    if (this.isTauri) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('set_system_volume', { level });
+      } catch { /* web fallback */ }
+    }
+  }
+
+  async getBrightness(): Promise<number> {
+    if (this.isTauri) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        return await invoke<number>('get_screen_brightness');
+      } catch { /* fallback */ }
+    }
+    return parseFloat(localStorage.getItem('lumi_brightness') || '85');
+  }
+
+  async setBrightness(level: number): Promise<void> {
+    localStorage.setItem('lumi_brightness', String(level));
+    if (this.isTauri) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('set_screen_brightness', { level });
+      } catch { /* web fallback */ }
+    }
+  }
+
   /**
    * Toggle wallpaper visual mode + OS-level click-through (Win32 WS_EX_TRANSPARENT)
    */

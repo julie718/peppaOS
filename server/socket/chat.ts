@@ -18,6 +18,7 @@ import { getSensory } from "./shared";
 import { processInput, handleLLMFailure, extractSentiment, CognitiveContext } from "../cognition";
 import { matchQuickCommand } from "../cognition/quick_commands";
 import { checkLLMAccess, recordUsage, estimateTokens } from "../subscription/proxy";
+import { recordTokenUsage } from "../llm/token_tracker";
 import { runOrchestratedTask, shouldDistillSkill, buildSkillDescription } from "../agents/orchestrator";
 import { searchKnowledgeBase } from "../enterprise/kb";
 import { getWorkflow, recordWorkflowRun, listWorkflows } from "../agents/workflows";
@@ -457,7 +458,26 @@ export function registerChatHandler(
             recordTokenUsage(uid, u.provider, u.model, { promptTokens: u.promptTokens, completionTokens: u.completionTokens, totalTokens: u.totalTokens }, interactionId);
           }
           const tokens = estimateTokens(text + ' ' + responseText);
-          recordUsage(uid, tokens);
+          const subStatus = recordUsage(uid, tokens);
+
+          // Real-time token push + threshold alerts
+          const totalUsage = result.usageRecords.reduce((s: number, r: any) => s + (r.totalTokens || 0), 0);
+          socket.emit('token:usage_update', {
+            userId: uid,
+            provider: activeProvider,
+            totalTokens: totalUsage,
+            mode: 'chat',
+            timestamp: new Date().toISOString(),
+          });
+          if (subStatus) {
+            socket.emit('token:quota_update', { used: subStatus.used, cap: subStatus.cap, remaining: subStatus.remaining });
+            const pct = subStatus.used / subStatus.cap;
+            if (pct >= 0.9) {
+              socket.emit('agent:notification', { type: 'token_warning', level: 'critical', message: `Token usage at ${Math.round(pct * 100)}% (${subStatus.used.toLocaleString()} / ${subStatus.cap.toLocaleString()})` });
+            } else if (pct >= 0.8) {
+              socket.emit('agent:notification', { type: 'token_warning', level: 'warning', message: `Token usage at ${Math.round(pct * 100)}%` });
+            }
+          }
         } catch (llmErr: any) {
           console.error(`[Cognition] LLM '${activeProvider}/${activeModel}' failed: ${llmErr.message}`);
           // Try fallback provider
@@ -646,27 +666,5 @@ async function summarizeConversationAsync(
   }
 }
 
-function recordTokenUsage(
-  userId: string,
-  provider: string,
-  model: string,
-  usage: LLMUsage | undefined,
-  interactionId: string,
-) {
-  if (!usage || (usage.promptTokens === 0 && usage.completionTokens === 0)) return;
-  const db = readDB();
-  if (!db.tokenUsage) db.tokenUsage = [];
-  db.tokenUsage.push({
-    id: crypto.randomUUID(),
-    userId,
-    provider,
-    model,
-    promptTokens: usage.promptTokens,
-    completionTokens: usage.completionTokens,
-    totalTokens: usage.totalTokens,
-    mode: 'chat',
-    interactionId,
-    timestamp: new Date().toISOString(),
-  });
-  writeDB(db);
-}
+
+

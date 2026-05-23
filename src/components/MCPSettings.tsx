@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Cpu, RefreshCw, CheckCircle, XCircle, Wrench, Sparkles, Download, Plus, Search, Star, ExternalLink } from 'lucide-react';
+import { Cpu, RefreshCw, CheckCircle, XCircle, Wrench, Sparkles, Download, Plus, Search, Star, ExternalLink, AlertTriangle, XOctagon } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { toast } from 'sonner';
+import { socketService } from '@/services/socketService';
 
 interface MCPServer {
   name: string;
@@ -15,6 +16,15 @@ interface MCPServer {
   toolCount?: number;
   description?: string;
 }
+
+interface ServerHealth {
+  status: 'connected' | 'restarting' | 'crashed' | 'failed' | 'disconnected';
+  consecutiveCrashes: number;
+  lastCrashTime?: string;
+  lastSuccessfulConnect?: string;
+}
+
+type HealthMap = Record<string, ServerHealth>;
 
 export function MCPSettings({ t }: { t?: any }) {
   const [servers, setServers] = useState<MCPServer[]>([]);
@@ -53,6 +63,30 @@ export function MCPSettings({ t }: { t?: any }) {
   };
 
   useEffect(() => { fetchServers(); }, []);
+
+  const [healthMap, setHealthMap] = useState<HealthMap>({});
+
+  const fetchHealth = async () => {
+    try {
+      const res = await fetch('/api/mcp/health');
+      if (res.ok) {
+        const data = await res.json();
+        setHealthMap(data.servers || {});
+      }
+    } catch { /* health endpoint unavailable */ }
+  };
+
+  useEffect(() => { fetchHealth(); }, []);
+
+  useEffect(() => {
+    const s = socketService.getSocket();
+    if (!s) return;
+    const handler = (data: { servers: HealthMap }) => {
+      setHealthMap(data.servers || {});
+    };
+    s.on('mcp:health_update', handler);
+    return () => { s.off('mcp:health_update', handler); };
+  }, []);
 
   // Add Server form
   const [showAddForm, setShowAddForm] = useState(false);
@@ -192,11 +226,21 @@ export function MCPSettings({ t }: { t?: any }) {
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                    server.connected ? 'bg-green-500/10 text-green-500' : 'bg-white/5 text-white/20'
-                  }`}>
-                    {server.connected ? <CheckCircle size={20} /> : <XCircle size={20} />}
-                  </div>
+                  {(() => {
+                    const h = healthMap[server.name];
+                    const status = h?.status || (server.connected ? 'connected' : 'disconnected');
+                    const icon = status === 'connected' ? <CheckCircle size={20} />
+                      : status === 'restarting' ? <RefreshCw size={20} className="animate-spin" />
+                      : status === 'crashed' ? <AlertTriangle size={20} />
+                      : status === 'failed' ? <XOctagon size={20} />
+                      : <XCircle size={20} />;
+                    const bg = status === 'connected' ? 'bg-green-500/10 text-green-500'
+                      : status === 'restarting' ? 'bg-amber-500/10 text-amber-400'
+                      : status === 'crashed' ? 'bg-red-500/10 text-red-400'
+                      : status === 'failed' ? 'bg-red-500/10 text-red-400'
+                      : 'bg-white/5 text-white/20';
+                    return <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${bg}`}>{icon}</div>;
+                  })()}
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="font-bold text-white text-sm uppercase tracking-tight">{server.name}</h4>
@@ -244,12 +288,40 @@ export function MCPSettings({ t }: { t?: any }) {
                 </div>
               </div>
 
-              {server.connected && (
-                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-green-500">
-                  <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                  {t?.mcpConnected || 'Connected'}
-                </div>
-              )}
+              {(() => {
+                const h = healthMap[server.name];
+                const status = h?.status || (server.connected ? 'connected' : 'disconnected');
+                const crashes = h?.consecutiveCrashes || 0;
+                const statusLabel =
+                  status === 'connected' ? (t?.mcpConnected || '已连接')
+                  : status === 'restarting' ? (t?.mcpRestarting || `重启中${crashes > 0 ? ` (第${crashes}次)` : ''}`)
+                  : status === 'crashed' ? (t?.mcpCrashed || `已崩溃 (${crashes}次)`)
+                  : status === 'failed' ? (t?.mcpFailed || `已放弃 (${crashes}次失败)`)
+                  : t?.mcpDisconnected || '未连接';
+                const dotColor =
+                  status === 'connected' ? 'bg-green-500'
+                  : status === 'restarting' ? 'bg-amber-400'
+                  : status === 'crashed' ? 'bg-red-500'
+                  : status === 'failed' ? 'bg-red-600'
+                  : 'bg-white/20';
+                const dotAnim = status === 'connected' || status === 'restarting' ? 'animate-pulse' : '';
+                const textColor =
+                  status === 'connected' ? 'text-green-500'
+                  : status === 'restarting' ? 'text-amber-400'
+                  : status === 'crashed' || status === 'failed' ? 'text-red-400'
+                  : 'text-white/20';
+                return (
+                  <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest">
+                    <div className={`w-1.5 h-1.5 rounded-full ${dotColor} ${dotAnim}`} />
+                    <span className={textColor}>{statusLabel}</span>
+                    {h?.lastCrashTime && status !== 'connected' && (
+                      <span className="text-white/15 font-mono normal-case text-[9px]">
+                        {new Date(h.lastCrashTime).toLocaleTimeString()}
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           ))}
         </div>

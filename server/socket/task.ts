@@ -3,6 +3,7 @@
  */
 import { Socket } from "socket.io";
 import { readDB, writeDB } from "../../db_layer";
+import { recordTokenUsage } from "../llm/token_tracker";
 import { NormalizedMessage } from "../llm/providers";
 import { runWithTools, LLMUsageRecord } from "../llm/adapter";
 import { toolRegistry } from "../tools/registry";
@@ -249,7 +250,7 @@ export function registerTaskHandler(
 
       // Persist token usage
       for (const u of result.usageRecords) {
-        recordTaskTokenUsage(uid, u, interactionId);
+        recordTokenUsage(uid, u.provider, u.model, { promptTokens: u.promptTokens, completionTokens: u.completionTokens, totalTokens: u.totalTokens }, interactionId, 'task');
       }
 
       if (cancelled) {
@@ -350,21 +351,5 @@ export function registerTaskHandler(
   });
 }
 
-function recordTaskTokenUsage(userId: string, record: LLMUsageRecord, interactionId: string) {
-  if (record.promptTokens === 0 && record.completionTokens === 0) return;
-  const db = readDB();
-  if (!db.tokenUsage) db.tokenUsage = [];
-  db.tokenUsage.push({
-    id: crypto.randomUUID(),
-    userId,
-    provider: record.provider,
-    model: record.model,
-    promptTokens: record.promptTokens,
-    completionTokens: record.completionTokens,
-    totalTokens: record.totalTokens,
-    mode: 'task',
-    interactionId,
-    timestamp: new Date().toISOString(),
-  });
-  writeDB(db);
-}
+
+

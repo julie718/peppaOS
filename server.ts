@@ -335,6 +335,10 @@ apiRouter.post("/mcp", async (req, res) => {
   }
 });
 
+apiRouter.get("/mcp/health", (_req, res) => {
+  res.json({ servers: mcpManager.getServerHealth() });
+});
+
 apiRouter.post("/mcp/restart/:name", async (req, res) => {
   try {
     const tools = await mcpManager.restartServer(req.params.name);
@@ -2018,7 +2022,7 @@ async function startServer() {
   console.log(`[Tools] Registered ${toolRegistry.list().length} built-in tools`);
 
   // Register MCP tools (non-blocking, won't block startup if MCP servers are offline)
-  registerMCPTools().then(mcpTools => {
+  registerMCPTools(io).then(mcpTools => {
     if (mcpTools.length > 0) {
       console.log(`[MCP] Registered ${mcpTools.length} MCP tools (total: ${toolRegistry.list().length})`);
     }
@@ -2071,15 +2075,22 @@ async function startServer() {
   });
 
   // Cleanup on exit
-  const cleanup = () => {
+  const cleanup = async () => {
+    console.log('[Shutdown] Cleaning up...');
+    try {
+      await mcpManager.disconnectAll();
+      console.log('[MCP] All servers disconnected');
+    } catch (err: any) {
+      console.warn('[MCP] Disconnect error:', err.message);
+    }
     if (gptSovitsProcess && !gptSovitsProcess.killed) {
       console.log('[GPT-SoVITS] Stopping API server...');
       gptSovitsProcess.kill();
     }
     process.exit(0);
   };
-  process.on('SIGINT', cleanup);
-  process.on('SIGTERM', cleanup);
+  process.on('SIGINT', () => { cleanup(); });
+  process.on('SIGTERM', () => { cleanup(); });
 }
 
 startServer();
