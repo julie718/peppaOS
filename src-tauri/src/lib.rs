@@ -443,7 +443,21 @@ fn get_active_window_info() -> ActiveWindowInfo {
                 .unwrap_or_default();
         }
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "linux")]
+    {
+        // xdotool getactivewindow getwindowname
+        if let Ok(out) = Command::new("xdotool")
+            .args(["getactivewindow", "getwindowname"])
+            .output()
+        {
+            let name = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if !name.is_empty() {
+                title = name.clone();
+                process_name = name;
+            }
+        }
+    }
+    #[cfg(target_os = "macos")]
     {
         let output = Command::new("osascript")
             .args(["-e", r#"tell application "System Events" to get name of first application process whose frontmost is true"#])
@@ -541,10 +555,17 @@ fn get_idle_time() -> IdleInfo {
             }
         }
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "linux")]
     {
-        return IdleInfo { idle_ms: 0, idle_seconds: 0 };
+        // xprintidle returns idle time in ms
+        if let Ok(out) = Command::new("xprintidle").output() {
+            if let Ok(ms) = String::from_utf8_lossy(&out.stdout).trim().parse::<u64>() {
+                return IdleInfo { idle_ms: ms, idle_seconds: ms / 1000 };
+            }
+        }
     }
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+    IdleInfo { idle_ms: 0, idle_seconds: 0 };
     IdleInfo { idle_ms: 0, idle_seconds: 0 }
 }
 
@@ -559,12 +580,27 @@ fn get_system_volume() -> f32 {
         }
         unsafe {
             let mut vol: u32 = 0;
-            // WAVE_MAPPER (0xFFFFFFFF) = -1 as u32
             if waveOutGetVolume(0xFFFFFFFFu32, &mut vol) == 0 {
                 let left = (vol & 0xFFFF) as f32;
                 let right = ((vol >> 16) & 0xFFFF) as f32;
                 let avg = (left + right) / 2.0;
                 return (avg / 65535.0 * 100.0).round();
+            }
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(out) = Command::new("pactl")
+            .args(["get-sink-volume", "@DEFAULT_SINK@"])
+            .output()
+        {
+            let text = String::from_utf8_lossy(&out.stdout);
+            for part in text.split_whitespace() {
+                if part.ends_with('%') {
+                    if let Ok(v) = part.trim_end_matches('%').parse::<f32>() {
+                        return v;
+                    }
+                }
             }
         }
     }
@@ -586,6 +622,12 @@ fn set_system_volume(level: f32) -> Result<f32, String> {
                 return Ok(clamped);
             }
         }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = Command::new("pactl")
+            .args(["set-sink-volume", "@DEFAULT_SINK@", &format!("{}%", clamped as u32)])
+            .output();
     }
     Ok(clamped) // web fallback: just report the value
 }
@@ -654,7 +696,38 @@ fn get_screen_brightness() -> f32 {
         DestroyPhysicalMonitors(1, monitors.as_mut_ptr());
         return result;
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "linux")]
+    {
+        // Try brightnessctl first, then fall back to sysfs
+        if let Ok(out) = Command::new("brightnessctl").arg("get").output() {
+            if let Ok(cur) = String::from_utf8_lossy(&out.stdout).trim().parse::<f32>() {
+                if let Ok(max_out) = Command::new("brightnessctl").arg("max").output() {
+                    if let Ok(max) = String::from_utf8_lossy(&max_out.stdout).trim().parse::<f32>() {
+                        if max > 0.0 {
+                            return ((cur / max) * 100.0).round();
+                        }
+                    }
+                }
+            }
+        }
+        // sysfs fallback
+        if let Ok(entries) = std::fs::read_dir("/sys/class/backlight") {
+            for entry in entries.flatten() {
+                let base = entry.path();
+                if let (Ok(max_str), Ok(cur_str)) = (
+                    std::fs::read_to_string(base.join("max_brightness")),
+                    std::fs::read_to_string(base.join("brightness")),
+                ) {
+                    if let (Ok(max), Ok(cur)) = (max_str.trim().parse::<f32>(), cur_str.trim().parse::<f32>()) {
+                        if max > 0.0 {
+                            return ((cur / max) * 100.0).round();
+                        }
+                    }
+                }
+            }
+        }
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
     50.0
 }
 
@@ -679,7 +752,6 @@ fn set_screen_brightness(level: f32) -> Result<f32, String> {
         if h == 0 {
             return Ok(clamped);
         }
-        // Get min/max range first
         let mut min: u32 = 0;
         let mut _cur: u32 = 0;
         let mut max: u32 = 0;
@@ -688,6 +760,31 @@ fn set_screen_brightness(level: f32) -> Result<f32, String> {
             SetMonitorBrightness(h, raw.max(min).min(max));
         }
         DestroyPhysicalMonitors(1, monitors.as_mut_ptr());
+    }
+    #[cfg(target_os = "linux")]
+    {
+        // Try brightnessctl first, then sysfs
+        let pct = format!("{}%", clamped as u32);
+        let bctl = Command::new("brightnessctl")
+            .args(["set", &pct])
+            .output();
+        if bctl.is_ok() {
+            return Ok(clamped);
+        }
+        // sysfs fallback
+        if let Ok(entries) = std::fs::read_dir("/sys/class/backlight") {
+            for entry in entries.flatten() {
+                let base = entry.path();
+                if let Ok(max_str) = std::fs::read_to_string(base.join("max_brightness")) {
+                    if let Ok(max) = max_str.trim().parse::<f32>() {
+                        if max > 0.0 {
+                            let raw = (clamped / 100.0 * max) as u32;
+                            let _ = std::fs::write(base.join("brightness"), raw.to_string());
+                        }
+                    }
+                }
+            }
+        }
     }
     Ok(clamped)
 }
@@ -769,6 +866,51 @@ Write-Output "$([Convert]::ToBase64String($bytes))|${w}|${h}"#
             }
         }
     }
+    #[cfg(target_os = "linux")]
+    {
+        for tool in &["maim", "import"] {
+            let args: &[&str] = if *tool == "maim" {
+                &["--format=png"]
+            } else {
+                &["-window", "root", "png:-"]
+            };
+            if let Ok(png) = Command::new(tool).args(args).output() {
+                if png.status.success() && !png.stdout.is_empty() {
+                    // shell pipe to base64
+                    let pipe = Command::new("sh")
+                        .arg("-c")
+                        .arg(format!("{} {} | base64 -w0", tool, args.join(" ")))
+                        .output();
+                    let b64_str = pipe
+                        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+                        .unwrap_or_default();
+                    return CaptureResult {
+                        image_base64: b64_str,
+                        width: 0,
+                        height: 0,
+                    };
+                }
+            }
+        }
+        // xrandr fallback for dimensions
+        if let Ok(out) = Command::new("xrandr").output() {
+            let text = String::from_utf8_lossy(&out.stdout);
+            for line in text.lines() {
+                if line.contains(" connected") {
+                    if let Some(mode) = line.split_whitespace().nth(3) {
+                        let parts: Vec<&str> = mode.split('x').collect();
+                        if parts.len() == 2 {
+                            return CaptureResult {
+                                image_base64: String::new(),
+                                width: parts[0].parse().unwrap_or(0),
+                                height: parts[1].parse().unwrap_or(0),
+                            };
+                        }
+                    }
+                }
+            }
+        }
+    }
     CaptureResult { image_base64: String::new(), width: 0, height: 0 }
 }
 
@@ -814,7 +956,8 @@ pub fn run() {
                 let _ = window.center();
             }
 
-            // Ensure WebView2Loader.dll is alongside the EXE
+            // Ensure WebView2Loader.dll is alongside the EXE (Windows only)
+            #[cfg(target_os = "windows")]
             if let Ok(exe_path) = std::env::current_exe() {
                 if let Some(exe_dir) = exe_path.parent() {
                     let dll_dest = exe_dir.join("WebView2Loader.dll");

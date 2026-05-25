@@ -2,6 +2,13 @@ import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import process from 'node:process';
+
+// WebView2 is Windows-only; skip entirely on other platforms
+if (process.platform !== 'win32') {
+  console.log('Skipping WebView2 DLL setup (not Windows)');
+  process.exit(0);
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const root = path.resolve(path.dirname(__filename), '..');
