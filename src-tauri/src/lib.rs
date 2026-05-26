@@ -416,6 +416,7 @@ pub struct CaptureResult {
 fn get_active_window_info() -> ActiveWindowInfo {
     let mut title = String::new();
     let mut process_name = String::new();
+    #[allow(unused_mut)]
     let mut pid: u32 = 0;
 
     #[cfg(target_os = "windows")]
@@ -726,6 +727,7 @@ fn get_screen_brightness() -> f32 {
                 }
             }
         }
+        50.0
     }
     #[cfg(not(any(target_os = "windows", target_os = "linux")))]
     50.0
