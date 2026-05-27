@@ -83,7 +83,7 @@ LumiOS 是这个愿景的第一个落地形态。
 ## 快速开始
 
 ### 环境要求
-- Node.js 18+
+- Node.js 22+
 - Rust（用于 Tauri 桌面端）
 
 ### 安装
@@ -91,6 +91,7 @@ LumiOS 是这个愿景的第一个落地形态。
 ```bash
 git clone https://github.com/maoxiansheng946-dev/lumi-OS.git
 cd lumi-OS
+cp .env.example .env   # 复制配置文件模板
 npm install
 npm run dev          # 启动 Web 版本
 npm run tauri dev    # 启动桌面客户端（需 Rust 环境）
@@ -98,18 +99,18 @@ npm run tauri dev    # 启动桌面客户端（需 Rust 环境）
 
 ### 配置 API Key
 
-在项目根目录创建 `.env` 文件：
+编辑 `.env` 文件：
 
 ```env
 # 至少配置一个 LLM 提供商
 OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
-GOOGLE_API_KEY=
+GEMINI_API_KEY=
 DEEPSEEK_API_KEY=
+DASHSCOPE_API_KEY=
 
 # 语音功能（可选）
 DEEPGRAM_API_KEY=
-ELEVENLABS_API_KEY=
 ```
 
 ---
