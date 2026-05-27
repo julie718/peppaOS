@@ -84,7 +84,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'https://lumiai.asia', 'tauri://localhost'],
+    origin: (origin: string | undefined, cb: (err: Error | null, allow: boolean) => void) => cb(null, true),
     methods: ["GET", "POST"],
     credentials: true
   }
@@ -151,7 +151,7 @@ function getQwen() {
 
 // Allow credentials from any origin (Tauri webview, localhost, etc.)
 // origin: true reflects the request origin, which is compatible with credentials: true
-app.use(cors({ origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'https://lumiai.asia', 'tauri://localhost'], credentials: true }));
+app.use(cors({ origin: (origin: string | undefined, cb: (err: Error | null, allow: boolean) => void) => cb(null, true), credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 

@@ -1024,8 +1024,11 @@ pub fn run() {
                 node_cmd.arg(&normalized_entry)
                     .env("LUMI_DESKTOP", "1")
                     .env("HOST", "127.0.0.1")
-                    .env("NODE_OPTIONS", "--require ./hide-console.cjs")
                     .current_dir(&normalized_cwd);
+                // Only set NODE_OPTIONS if hide-console.cjs exists in the working directory
+                if normalized_cwd.join("hide-console.cjs").exists() {
+                    node_cmd.env("NODE_OPTIONS", "--require ./hide-console.cjs");
+                }
                 match spawn_hidden(&mut node_cmd)
                 {
                     Ok(child) => {
