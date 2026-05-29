@@ -1,5 +1,5 @@
 import { Router } from "express";
-import jwt from "jsonwebtoken";
+import { requireAuth, optionalAuth } from "../middleware/auth";
 import { readDB, writeDB } from "../../db_layer";
 import {
   getUserConversations,
@@ -8,121 +8,42 @@ import {
   getActiveConversation,
 } from "../conversation/manager";
 
-export function mountConversationRoutes(router: Router, jwtSecret: string) {
-  // List conversations for current user
-  router.get("/conversations", (req, res) => {
-    const token = req.cookies.token;
-    if (!token) return res.status(401).json({ error: "Unauthorized" });
-    try {
-      const decoded: any = jwt.verify(token, jwtSecret);
-      const limit = parseInt(req.query.limit as string) || 20;
-      const offset = parseInt(req.query.offset as string) || 0;
-      const conversations = getUserConversations(decoded.uid, limit, offset);
-      res.json({ conversations, limit, offset });
-    } catch (err: any) {
-      res.status(401).json({ error: "Invalid token" });
-    }
+export function mountConversationRoutes(router: Router, _jwtSecret: string) {
+  router.get("/conversations", requireAuth, (req, res) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const offset = parseInt(req.query.offset as string) || 0;
+    const conversations = getUserConversations(req.user!.uid, limit, offset);
+    res.json({ conversations, limit, offset });
   });
 
-  // Get active conversation
-  router.get("/conversations/active", (req, res) => {
-    const token = req.cookies.token;
-    if (!token) return res.status(401).json({ error: "Unauthorized" });
-    try {
-      const decoded: any = jwt.verify(token, jwtSecret);
-      const activeConversation = getActiveConversation(decoded.uid);
-      res.json({ activeConversation });
-    } catch (err: any) {
-      res.status(401).json({ error: "Invalid token" });
-    }
+  router.get("/conversations/active", requireAuth, (req, res) => {
+    const activeConversation = getActiveConversation(req.user!.uid);
+    res.json({ activeConversation });
   });
 
-  // Get messages for a conversation
-  router.get("/conversations/:id/messages", (req, res) => {
-    const token = req.cookies.token;
-    if (!token) return res.status(401).json({ error: "Unauthorized" });
-    try {
-      jwt.verify(token, jwtSecret);
-      const limit = parseInt(req.query.limit as string) || 50;
-      const messages = getMessages(req.params.id, limit);
-      res.json({ messages });
-    } catch (err: any) {
-      res.status(401).json({ error: "Invalid token" });
-    }
+  router.get("/conversations/:id/messages", requireAuth, (req, res) => {
+    const limit = parseInt(req.query.limit as string) || 50;
+    const messages = getMessages(req.params.id, limit);
+    res.json({ messages });
   });
 
-  // Close a conversation
-  router.post("/conversations/:id/close", (req, res) => {
-    const token = req.cookies.token;
-    if (!token) return res.status(401).json({ error: "Unauthorized" });
-    try {
-      jwt.verify(token, jwtSecret);
-      const { summary } = req.body || {};
-      const conv = closeConversation(req.params.id, summary);
-      if (!conv) return res.status(404).json({ error: "Conversation not found" });
-      res.json({ success: true, conversation: conv });
-    } catch (err: any) {
-      res.status(401).json({ error: "Invalid token" });
-    }
+  router.post("/conversations/:id/close", requireAuth, (req, res) => {
+    const { summary } = req.body || {};
+    const conv = closeConversation(req.params.id, summary);
+    if (!conv) return res.status(404).json({ error: "Conversation not found" });
+    res.json({ success: true, conversation: conv });
   });
 
-  // Delete a conversation
-  router.delete("/conversations/:id", (req, res) => {
-    const token = req.cookies.token;
-    if (!token) return res.status(401).json({ error: "Unauthorized" });
-    try {
-      jwt.verify(token, jwtSecret);
-      const db = readDB();
-      if (!db.conversations) return res.status(404).json({ error: "Not found" });
-      const idx = db.conversations.findIndex((c: any) => c.id === req.params.id);
-      if (idx === -1) return res.status(404).json({ error: "Not found" });
-      db.conversations.splice(idx, 1);
-      // Also clean up related interactions
-      if (db.interactions) {
-        db.interactions = db.interactions.filter((i: any) => i.conversationId !== req.params.id);
-      }
-      writeDB(db);
-      res.json({ success: true });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
+  router.delete("/conversations/:id", requireAuth, (req, res) => {
+    const db = readDB();
+    if (!db.conversations) return res.status(404).json({ error: "Not found" });
+    const idx = db.conversations.findIndex((c: any) => c.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: "Not found" });
+    db.conversations.splice(idx, 1);
+    if (db.interactions) {
+      db.interactions = db.interactions.filter((i: any) => i.conversationId !== req.params.id);
     }
-  });
-
-  // Get chat history for a specific agent
-  router.get("/agents/:agentId/history", (req, res) => {
-    const token = req.cookies.token;
-    if (!token) return res.status(401).json({ error: "Unauthorized" });
-    try {
-      const decoded: any = jwt.verify(token, jwtSecret);
-      const db = readDB();
-      const agentId = req.params.agentId;
-      const interactions = (db.interactions || [])
-        .filter((i: any) => i.userId === decoded.uid && i.agentId === agentId)
-        .sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-        .slice(-100);
-
-      const messages = [];
-      for (const i of interactions) {
-        if (i.message) {
-          messages.push({
-            id: i.id + "_u",
-            role: "user",
-            content: i.message,
-            timestamp: i.timestamp,
-          });
-        }
-        if (i.response) {
-          messages.push({
-            id: i.id + "_r",
-            role: "assistant",
-            content: i.response,
-            timestamp: i.timestamp,
-          });
-        }
-      }
-      res.json(messages);
-    } catch (err: any) {
-      res.status(401).json({ error: "Invalid token" });
-    }
+    writeDB(db);
+    res.json({ success: true });
   });
 }

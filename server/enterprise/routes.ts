@@ -10,6 +10,7 @@ import { requireAuth, requireOrgRole, requireOrgMember, optionalAuth } from '../
 import * as Org from './org';
 import * as EDB from './db';
 import * as KB from './kb';
+import { persistRole } from '../runtime/role';
 import * as Templates from './templates';
 import * as Audit from './audit';
 import { Server as SocketIOServer } from 'socket.io';
@@ -41,6 +42,7 @@ export function mountEnterpriseRoutes(router: Router, io?: SocketIOServer) {
       return;
     }
     const org = Org.createOrganization(name, slug, req.user!.uid);
+    persistRole('enterprise', org.id);
     res.status(201).json(org);
   });
 

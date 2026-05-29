@@ -20,7 +20,7 @@ fs.mkdirSync(KNOWLEDGE_DIR, { recursive: true });
 
 const router = Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'lumi_secret_key_2026';
+const JWT_SECRET = process.env.JWT_SECRET || 'lumiOS_default_jwt_secret_2026_local';
 
 function requireAuth(req: Request, res: Response, next: () => void): void {
   let token = req.cookies.token;

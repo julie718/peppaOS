@@ -18,7 +18,7 @@ function getUserId(req: any): string {
     if (!token && req.headers.authorization?.startsWith('Bearer ')) {
       token = req.headers.authorization.slice(7);
     }
-    if (token) return jwt.verify(token, process.env.JWT_SECRET || 'lumi_secret_key_2026').uid;
+    if (token) return jwt.verify(token, process.env.JWT_SECRET || 'lumiOS_default_jwt_secret_2026_local').uid;
   } catch {}
   return 'anonymous';
 }

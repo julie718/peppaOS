@@ -1,0 +1,123 @@
+// Misc routes that didn't fit into other modules: founder vision, feedback, admin config, enterprise chat
+import { Router } from "express";
+import { readDB, writeDB, querySQL, runSQL } from "../../db_layer";
+import { runWithTools } from "../llm/adapter";
+import { toolRegistry } from "../tools/registry";
+import { recordUsage, estimateTokens } from "../subscription/proxy";
+import { makeLLMCall, NormalizedMessage } from "../llm/providers";
+import { optionalAuth, requireAuth } from "../middleware/auth";
+
+export function mountMiscRoutes(router: Router, _jwtSecret: string, llm: {
+  getDeepSeek: any; getGemini: any; getOpenAI: any; getAnthropic: any; getQwen: any;
+}) {
+  const asyncHandler = (fn: (req: any, res: any, next?: any) => Promise<any>) =>
+    (req: any, res: any, next: any) => Promise.resolve(fn(req, res, next)).catch(next);
+
+  // ── Founder Vision ──
+  router.get("/founder/vision", (_req, res) => {
+    try {
+      const db = readDB();
+      res.json({ vision: db.founderVision || '' });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post("/founder/vision", requireAuth, (req, res) => {
+    try {
+      const { vision } = req.body || {};
+      if (typeof vision !== 'string') return res.status(400).json({ error: 'vision is required' });
+      runSQL(`INSERT OR REPLACE INTO founder_vision (id, content) VALUES (1, ?)`, [vision]);
+      const db = readDB();
+      db.founderVision = vision;
+      writeDB(db);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── Feedback ──
+  router.post("/feedback", (req, res) => {
+    try {
+      const { email, message, type, contact, position } = req.body || {};
+      const db = readDB();
+      if (!db.feedback) db.feedback = [];
+      db.feedback.push({
+        id: Math.random().toString(36).substring(2, 15),
+        email: email || '',
+        message: message || '',
+        type: type || 'general',
+        contact: contact || '',
+        position: position || '',
+        createdAt: new Date().toISOString(),
+      });
+      writeDB(db);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── Admin Config ──
+  router.get("/admin/config", (_req, res) => {
+    try {
+      const db = readDB();
+      const setting = (db.settings || []).find((s: any) => s.key === 'admin_config');
+      const config = setting ? JSON.parse(setting.value) : {};
+      res.json({ adminEmail: config.adminEmail || '' });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post("/admin/config", requireAuth, (req, res) => {
+    try {
+      const { adminEmail } = req.body || {};
+      const db = readDB();
+      if (!db.settings) db.settings = [];
+      const key = 'admin_config';
+      const value = JSON.stringify({ adminEmail: adminEmail || '' });
+      const existing = db.settings.findIndex((s: any) => s.key === key);
+      if (existing >= 0) {
+        db.settings[existing].value = value;
+      } else {
+        db.settings.push({ key, value });
+      }
+      writeDB(db);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── Enterprise Chat (simpler version of /ai/chat, used by CentralLumiChat) ──
+  router.post("/chat", optionalAuth, asyncHandler(async (req, res) => {
+    const { messages, provider: reqProvider, model: reqModel } = req.body || {};
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: 'messages array is required' });
+    }
+
+    const provider = reqProvider || 'gemini';
+    const model = reqModel || 'gemini-2.0-flash';
+    const userId = req.user?.uid || 'anonymous';
+
+    try {
+      const result = await runWithTools(
+        messages,
+        toolRegistry,
+        { provider, model, userId },
+        undefined, 3,
+        llm.getDeepSeek, llm.getGemini, llm.getOpenAI, llm.getAnthropic, llm.getQwen,
+      );
+
+      const responseText = result.text || '';
+      const tokens = estimateTokens(messages.map((m: any) => m.content || '').join(' ') + ' ' + responseText);
+      recordUsage(userId, tokens);
+      res.json({ text: responseText, toolCalls: result.toolCalls.length });
+    } catch (error: any) {
+      console.error("Chat Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  }));
+}
