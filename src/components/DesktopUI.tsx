@@ -36,6 +36,8 @@ import {
   BrainCircuit,
   Sparkles,
   Box,
+  CheckCircle2,
+  XCircle,
   Wrench,
   MessageSquare,
   Crown,
@@ -902,9 +904,14 @@ export function DesktopUI({
 
   const socket = useSocket();
   useAmbientPoller(socket); // Ambient awareness: polls window, clipboard, idle state
+  const [voiceMessages, setVoiceMessages] = useState<Array<{id:string; role:'user'|'lumi'; text:string; time:number}>>([]);
+  const [voiceToolCalls, setVoiceToolCalls] = useState<Array<{id:string; tool:string; args:string; status:'running'|'done'|'error'; time:number}>>([]);
+
   const { callState, audioLevel, startCall, startCallRef, endCall, error: callError, transcript, interrupt, toggleMute, isMuted } = useVoiceCall({
     socket,
   });
+  const callStateRef2 = useRef(callState);
+  useEffect(() => { callStateRef2.current = callState; }, [callState]);
 
   // Wake word detection — server-side Qwen ASR (DASHSCOPE_API_KEY), falls back to Picovoice
   const wakeWord = useWakeWord({
@@ -919,6 +926,23 @@ export function DesktopUI({
     isCallActive: () => callState !== 'idle',
     onInterrupt: () => interrupt(),
   });
+
+  // Track user transcript for voice chat panel
+  const prevTranscriptRef = useRef(transcript);
+  useEffect(() => {
+    if (transcript && transcript !== prevTranscriptRef.current && callState !== 'idle') {
+      setVoiceMessages(prev => [...prev.slice(-49), {id: Math.random().toString(36).slice(2,8), role:'user', text: transcript, time: Date.now()}]);
+    }
+    prevTranscriptRef.current = transcript;
+  }, [transcript, callState]);
+
+  // Clear voice panels when call ends
+  useEffect(() => {
+    if (callState === 'idle') {
+      setVoiceMessages([]);
+      setVoiceToolCalls([]);
+    }
+  }, [callState]);
 
   // Gesture detection via webcam — open hand / fist (confirm gesture), face presence
   const { handOpenness, handPosition, gesture, handVisible, facePresent } = useGestureDetector({ enabled: true });
@@ -1057,6 +1081,7 @@ export function DesktopUI({
           detail: data.result?.slice(0, 100),
           time: Date.now(),
         }]);
+        setVoiceToolCalls(prev => prev.map(t => t.tool === data.name && t.status === 'running' ? {...t, status:'done'} : t));
       } else if (data.error !== undefined) {
         setAgentStatus('executing');
         triggerPetReaction('failed', 2000);
@@ -1067,6 +1092,7 @@ export function DesktopUI({
           detail: data.error?.slice(0, 100),
           time: Date.now(),
         }]);
+        setVoiceToolCalls(prev => prev.map(t => t.tool === data.name && t.status === 'running' ? {...t, status:'error'} : t));
       } else {
         setAgentStatus('executing');
         const argsSummary = data.arguments
@@ -1079,6 +1105,7 @@ export function DesktopUI({
           detail: argsSummary || undefined,
           time: Date.now(),
         }]);
+        setVoiceToolCalls(prev => [...prev.slice(-19), {id: Math.random().toString(36).slice(2,8), tool:data.name, args:argsSummary || '', status:'running', time:Date.now()}]);
       }
     };
 
@@ -1090,6 +1117,10 @@ export function DesktopUI({
         detail: data.text?.slice(0, 100),
         time: Date.now(),
       }]);
+      // Add to voice chat panel when in a call
+      if (callStateRef2.current !== 'idle') {
+        setVoiceMessages(prev => [...prev.slice(-49), {id: Math.random().toString(36).slice(2,8), role:'lumi', text: data.text, time: Date.now()}]);
+      }
     };
 
     const onError = (data: { message: string }) => {
@@ -1545,7 +1576,7 @@ export function DesktopUI({
 
       <div className="fixed inset-0 z-[100] pointer-events-none">
         {/* Top Status Bar */}
-        <div className={`absolute top-0 inset-x-0 h-10 glass-dark border-b border-white/5 flex items-center justify-between px-6 pointer-events-auto backdrop-blur-md transition-all duration-1000 ${(isWallpaperMode || callState !== 'idle') ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+        <div className={`absolute top-0 inset-x-0 h-10 glass-dark border-b border-white/5 flex items-center justify-between px-6 pointer-events-auto backdrop-blur-md transition-all duration-1000 ${isWallpaperMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
           <div className="flex items-center gap-6">
             <button onClick={onExit} className="flex items-center gap-2 group transition-all">
                <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-celestial-mars to-celestial-saturn flex items-center justify-center p-1 group-hover:rotate-12 transition-transform shadow-lg shadow-celestial-saturn/20">
@@ -1665,7 +1696,7 @@ export function DesktopUI({
         </AnimatePresence>
 
         {/* Bottom Taskbar / Dock */}
-        <div className={`absolute bottom-6 left-1/2 -translate-x-1/2 z-50 h-16 px-4 glass-dark rounded-[2.5rem] border border-white/10 flex items-center gap-2 shadow-2xl backdrop-blur-2xl transition-all duration-1000 ${(isWallpaperMode || callState !== 'idle') ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}>
+        <div className={`absolute bottom-6 left-1/2 -translate-x-1/2 z-50 h-16 px-4 glass-dark rounded-[2.5rem] border border-white/10 flex items-center gap-2 shadow-2xl backdrop-blur-2xl transition-all duration-1000 ${isWallpaperMode ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}>
           <button 
             onClick={() => setViewMode(viewMode === 'personal' ? 'world' : 'personal')}
             className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all group relative ${
@@ -2243,6 +2274,101 @@ export function DesktopUI({
               }}
             />
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Voice Call Side Panels */}
+      <AnimatePresence>
+        {callState !== 'idle' && (
+          <>
+            {/* Left: Chat Transcript */}
+            <motion.div
+              initial={{ opacity: 0, x: -60 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -60 }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+              className="absolute left-6 top-16 bottom-32 w-[420px] max-w-[36vw] glass-dark border border-white/10 rounded-3xl p-5 flex flex-col pointer-events-auto overflow-hidden"
+            >
+              <div className="text-[11px] font-black uppercase tracking-[0.3em] text-white/50 mb-4 flex-shrink-0 flex items-center gap-2">
+                <MessageSquare size={14} className="text-celestial-saturn" />
+                {t.voiceChat || 'Voice Chat'}
+              </div>
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1 custom-scrollbar min-h-0">
+                {voiceMessages.length === 0 && (
+                  <div className="text-center pt-12 space-y-2">
+                    <Mic size={24} className="mx-auto text-white/10 animate-pulse" />
+                    <p className="text-[12px] text-white/20 italic">{t.listening || 'Listening...'}</p>
+                  </div>
+                )}
+                {voiceMessages.map(m => (
+                  <div key={m.id} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+                    <div className={`max-w-[90%] px-4 py-3 rounded-2xl text-[13px] leading-relaxed ${
+                      m.role === 'user'
+                        ? 'bg-white/10 text-white/70 rounded-br-md'
+                        : 'bg-celestial-saturn/10 border border-celestial-saturn/20 text-white/85 rounded-bl-md'
+                    }`}>
+                      {m.text.length > 300 ? m.text.slice(0, 300) + '...' : m.text}
+                    </div>
+                    <span className="text-[9px] text-white/20 mt-1 px-2">
+                      {m.role === 'user' ? 'You' : 'Lumi'} · {new Date(m.time).toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'})}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+
+            {/* Right: Neural Activity — same style as wallpaper WorkflowPanel */}
+            <motion.div
+              initial={{ opacity: 0, x: 60 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 60 }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+              className="absolute right-6 top-16 bottom-32 w-[340px] max-w-[28vw] p-5 rounded-3xl bg-black/80 backdrop-blur-2xl border border-white/10 flex flex-col pointer-events-auto overflow-hidden"
+            >
+              <div className="flex items-center justify-between mb-3 flex-shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full transition-all duration-500 ${agentStatus === 'thinking' ? 'bg-yellow-400 shadow-[0_0_12px_rgba(250,204,21,0.6)] animate-pulse' : 'bg-white/10'}`} />
+                    <div className={`w-3 h-3 rounded-full transition-all duration-500 ${agentStatus === 'executing' ? 'bg-green-400 shadow-[0_0_12px_rgba(74,222,128,0.6)] animate-pulse' : 'bg-white/10'}`} />
+                    <div className={`w-3 h-3 rounded-full transition-all duration-500 ${agentStatus === 'done' ? 'bg-red-400 shadow-[0_0_10px_rgba(248,113,113,0.5)]' : agentStatus === 'error' ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.7)] animate-pulse' : 'bg-white/10'}`} />
+                  </div>
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${
+                    agentStatus === 'thinking' ? 'text-yellow-400' : agentStatus === 'executing' ? 'text-green-400' : agentStatus === 'done' ? 'text-red-400' : agentStatus === 'error' ? 'text-red-500' : 'text-white/30'
+                  }`}>
+                    {agentStatus === 'thinking' ? 'Thinking...' : agentStatus === 'executing' ? 'Executing...' : agentStatus === 'done' ? 'Done' : agentStatus === 'error' ? 'Error' : (t.toolActivity || 'Neural Activity')}
+                  </span>
+                </div>
+                <span className="text-[8px] text-white/20 font-mono">
+                  {workflowSteps.length > 0 ? `${workflowSteps.length} steps` : ''}
+                </span>
+              </div>
+              <div className="flex-1 overflow-y-auto space-y-1.5 custom-scrollbar pr-1 min-h-0">
+                {workflowSteps.length === 0 && (
+                  <div className="text-center py-8">
+                    <p className="text-[10px] text-white/20">Waiting for agent activity...</p>
+                  </div>
+                )}
+                {workflowSteps.map(step => (
+                  <motion.div
+                    key={step.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="flex items-start gap-2 text-[10px] text-white/60 px-1"
+                  >
+                    {step.type === 'thinking' ? <BrainCircuit size={12} className="text-yellow-400 shrink-0 mt-0.5" />
+                     : step.type === 'tool_start' ? <Wrench size={12} className="text-blue-400 shrink-0 mt-0.5" />
+                     : step.type === 'tool_result' ? <CheckCircle2 size={12} className="text-green-400 shrink-0 mt-0.5" />
+                     : step.type === 'response' ? <MessageSquare size={12} className="text-purple-400 shrink-0 mt-0.5" />
+                     : <XCircle size={12} className="text-red-400 shrink-0 mt-0.5" />}
+                    <div className="min-w-0 flex-1">
+                      <span className="text-white/80">{step.text}</span>
+                      {step.detail && <div className="text-white/30 truncate mt-0.5">{step.detail}</div>}
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 
