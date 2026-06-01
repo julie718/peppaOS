@@ -124,7 +124,10 @@ export class WeChatClawBotAdapter implements MessageAdapter {
     try {
       const base = this.config.baseUrl || 'https://ilinkai.weixin.qq.com';
 
-      const cfgRes = await fetch(`${base}/ilink/bot/getconfig`, { method: 'POST', headers: this.makeHeaders(), body: '{}' });
+      const cfgRes = await fetch(`${base}/ilink/bot/getconfig`, {
+        method: 'POST', headers: this.makeHeaders(),
+        body: JSON.stringify({ ilink_user_id: this.config.botId }),
+      });
       const cfgText = await cfgRes.text();
       console.log('[WeChat] getconfig raw:', cfgText.slice(0, 200));
       let cfg: any = {};
