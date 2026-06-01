@@ -23,6 +23,12 @@ export interface MessagingConfig {
     encodingAESKey: string;
     enabled: boolean;
   };
+  wechat: {
+    botToken: string;
+    botId: string;
+    baseUrl: string;
+    enabled: boolean;
+  };
 }
 
 function loadFromEnv(): MessagingConfig {
@@ -40,6 +46,12 @@ function loadFromEnv(): MessagingConfig {
       token: process.env.WECOM_TOKEN || '',
       encodingAESKey: process.env.WECOM_ENCODING_AES_KEY || '',
       enabled: !!(process.env.WECOM_CORP_ID && process.env.WECOM_APP_SECRET),
+    },
+    wechat: {
+      botToken: process.env.WECHAT_BOT_TOKEN || '',
+      botId: process.env.WECHAT_BOT_ID || '',
+      baseUrl: process.env.WECHAT_BASE_URL || 'https://ilinkai.weixin.qq.com',
+      enabled: !!(process.env.WECHAT_BOT_TOKEN && process.env.WECHAT_BOT_ID),
     },
   };
 }
@@ -73,22 +85,19 @@ export function isMessagingConfigured(): boolean {
 }
 
 export function updateMessagingConfig(
-  partial: Partial<MessagingConfig['feishu']> & { wecom?: Partial<MessagingConfig['wecom']> },
+  partial: Partial<MessagingConfig['feishu']> & { wecom?: Partial<MessagingConfig['wecom']>; wechat?: Partial<MessagingConfig['wechat']> },
 ): MessagingConfig {
-  if (partial.wecom) {
-    _config = {
-      ..._config,
-      wecom: { ..._config.wecom, ...partial.wecom },
-    };
+  if (partial.wechat) {
+    _config = { ..._config, wechat: { ..._config.wechat, ...partial.wechat } };
+    _config.wechat.enabled = !!(_config.wechat.botToken && _config.wechat.botId);
+  } else if (partial.wecom) {
+    _config = { ..._config, wecom: { ..._config.wecom, ...partial.wecom } };
     _config.wecom.enabled = !!(_config.wecom.corpId && _config.wecom.appSecret);
   } else {
-    _config = {
-      ..._config,
-      feishu: { ..._config.feishu, ...partial as Partial<MessagingConfig['feishu']> },
-    };
+    _config = { ..._config, feishu: { ..._config.feishu, ...partial as Partial<MessagingConfig['feishu']> } };
     _config.feishu.enabled = !!(_config.feishu.appId && _config.feishu.appSecret);
   }
-  _configured = _config.feishu.enabled || _config.wecom.enabled;
+  _configured = _config.feishu.enabled || _config.wecom.enabled || _config.wechat.enabled;
   saveToFile(_config);
   return _config;
 }

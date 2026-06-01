@@ -1,0 +1,96 @@
+// WeChat ClawBot settings — QR code login flow
+import { useState, useEffect } from 'react';
+import { Button } from './ui/button';
+import { toast } from 'sonner';
+import { Loader2 } from 'lucide-react';
+
+export function WeChatSettings({ t }: { t?: any }) {
+  const [status, setStatus] = useState<any>(null);
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [qrId, setQrId] = useState<string | null>(null);
+  const [step, setStep] = useState<'idle' | 'show_qr' | 'scanning' | 'connected'>('idle');
+  const [loading, setLoading] = useState(false);
+
+  const loadStatus = () => {
+    fetch('/api/wechat/status', { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => {
+        setStatus(d);
+        if (d.configured) setStep('connected');
+      })
+      .catch(() => {});
+  };
+  useEffect(() => { loadStatus(); }, []);
+
+  const handleGetQR = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/wechat/qrcode', { credentials: 'include' });
+      const data = await res.json();
+      if (data.qrcode) {
+        setQrCode(`data:image/png;base64,${data.qrcode}`);
+        setQrId(data.qrcode_id);
+        setStep('show_qr');
+        startPolling(data.qrcode_id);
+      } else {
+        toast.error(data.error || 'Failed to get QR code');
+      }
+    } catch { toast.error('Network error'); }
+    finally { setLoading(false); }
+  };
+
+  const startPolling = (qrId: string) => {
+    setStep('scanning');
+    const check = async () => {
+      try {
+        const res = await fetch(`/api/wechat/qrcode/status?qrcode_id=${encodeURIComponent(qrId)}`, { credentials: 'include' });
+        const data = await res.json();
+        if (data.status === 'confirmed') {
+          setStep('connected');
+          loadStatus();
+          toast.success(t?.wechatLoggedIn || 'WeChat logged in!');
+          return;
+        }
+        if (data.status === 'expired') {
+          setStep('idle');
+          setQrCode(null);
+          toast.error(t?.qrExpired || 'QR code expired');
+          return;
+        }
+        setTimeout(check, 2000);
+      } catch { setTimeout(check, 3000); }
+    };
+    setTimeout(check, 2000);
+  };
+
+  return (
+    <div className="space-y-5">
+      {status?.configured ? (
+        <div className="p-4 rounded-2xl bg-green-500/10 border border-green-500/20 space-y-2">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            <span className="text-xs font-bold text-green-400">{t?.connected || 'Connected'}</span>
+          </div>
+          <p className="text-[10px] text-white/40">{t?.wechatConnected || 'Lumi is listening on WeChat.'}</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-[11px] text-white/40">{t?.wechatSetupHelp || 'Scan the QR code with WeChat to connect your personal account.'}</p>
+
+          {qrCode && (
+            <div className="flex flex-col items-center gap-3 p-4 bg-white/5 rounded-2xl border border-white/10">
+              <img src={qrCode} alt="WeChat QR" className="w-48 h-48 rounded-xl" />
+              <span className="text-[10px] text-white/30">
+                {step === 'scanning' ? (t?.scanning || 'Waiting for scan...') : (t?.scanQR || 'Scan with WeChat')}
+              </span>
+            </div>
+          )}
+
+          <Button onClick={handleGetQR} disabled={loading} className="w-full rounded-xl h-10 font-bold bg-celestial-saturn hover:bg-celestial-saturn/90 text-black">
+            {loading ? <Loader2 size={14} className="animate-spin" /> : (qrCode ? (t?.refreshQR || 'Refresh') : (t?.getQRCode || 'Get QR Code'))}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
