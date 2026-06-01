@@ -2,6 +2,7 @@ import { TTSConfig, TTSResult, TTSProvider, VoiceCloneRequest, VoiceListItem } f
 import * as gptsovits from './providers/gptsovits';
 import * as cosyvoice from './providers/cosyvoice';
 import { getKey } from '../config/keys';
+import { getVoicePreference } from '../config/voice_preference';
 
 export async function synthesizeSpeech(text: string, config: TTSConfig): Promise<TTSResult> {
   switch (config.provider) {
@@ -44,6 +45,11 @@ export async function listVoices(provider: TTSProvider): Promise<VoiceListItem[]
 }
 
 export function getActiveProvider(): TTSProvider | null {
+  const pref = getVoicePreference();
+  // If user explicitly chose a provider and it's available, use it
+  if (pref.tts === 'gptsovits' && (process.env.GPTSOVITS_API_URL || process.env.GPTSOVITS_ENABLED === 'true')) return 'gptsovits';
+  if (pref.tts === 'cosyvoice') return 'cosyvoice';
+  // Auto mode — pick based on what's available
   const dashscopeKey = process.env.DASHSCOPE_API_KEY || process.env.QWEN_API_KEY || getKey('DASHSCOPE_API_KEY') || getKey('QWEN_API_KEY');
   if (dashscopeKey) return 'cosyvoice';
   if (process.env.GPTSOVITS_API_URL || process.env.GPTSOVITS_ENABLED === 'true') return 'gptsovits';

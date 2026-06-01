@@ -4,6 +4,7 @@ import * as whisper from './providers/whisper';
 import * as qwen from './providers/qwen';
 import * as localWhisper from './providers/local-whisper';
 import { getKey } from '../config/keys';
+import { getVoicePreference } from '../config/voice_preference';
 import { recordLatency } from '../monitor/latency_store';
 
 export async function transcribe(audioBuffer: Buffer, config: STTConfig): Promise<STTResult> {
@@ -69,7 +70,13 @@ export function createStreamingSession(
 }
 
 export function getActiveSTTProvider(): STTProvider | null {
-  // Prefer local whisper when available (no API key, no network, no cost)
+  const pref = getVoicePreference();
+  // If user explicitly chose a provider, use it
+  if (pref.stt === 'local-whisper' && localWhisper.isLocalWhisperAvailable()) return 'local-whisper';
+  if (pref.stt === 'qwen') return 'qwen';
+  if (pref.stt === 'deepgram') return 'deepgram';
+  if (pref.stt === 'whisper') return 'whisper';
+  // Auto mode — prefer local, fall back to cloud
   try {
     if (localWhisper.isLocalWhisperAvailable()) return 'local-whisper';
   } catch {}
@@ -78,6 +85,5 @@ export function getActiveSTTProvider(): STTProvider | null {
   if (qwenKey) return 'qwen';
   if (process.env.DEEPGRAM_API_KEY || getKey('DEEPGRAM_API_KEY')) return 'deepgram';
   if (process.env.OPENAI_API_KEY || getKey('OPENAI_API_KEY')) return 'whisper';
-  // Fallback: try local even if Python not detected
   return 'local-whisper';
 }

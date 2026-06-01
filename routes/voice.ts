@@ -246,4 +246,31 @@ router.post('/voice/synthesize', async (req: Request, res: Response) => {
   }
 });
 
+// Voice provider preferences
+import { getVoicePreference, setVoicePreference } from '../server/config/voice_preference';
+import { getActiveProvider as getActiveTTSProvider } from '../server/tts/adapter';
+import { getActiveSTTProvider } from '../server/stt/adapter';
+
+router.get('/voice/active-provider', (_req, res) => {
+  try {
+    const pref = getVoicePreference();
+    res.json({
+      pref,
+      active: { stt: getActiveSTTProvider(), tts: getActiveTTSProvider?.() || 'cosyvoice' },
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/voice/provider', (req, res) => {
+  try {
+    const { stt, tts } = req.body;
+    const merged = setVoicePreference({ stt: stt || undefined, tts: tts || undefined } as any);
+    res.json(merged);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

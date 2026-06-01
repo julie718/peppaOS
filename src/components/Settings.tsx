@@ -29,6 +29,7 @@ import { usePlatform } from '@/hooks/usePlatform';
 import { DeviceSyncCenter } from './DeviceSyncCenter';
 import { useApp } from '@/contexts/AppContext';
 import { VoiceForge } from './VoiceForge';
+import { VoiceProviderSwitch } from './VoiceProviderSwitch';
 import { MCPSettings } from './MCPSettings';
 import { RemoteMCPSettings } from './RemoteMCPSettings';
 import { MessagingHub } from './MessagingHub';
@@ -223,6 +224,7 @@ export function Settings({
                     {t.sttEngineDesc || 'Deepgram speech recognition active. Real-time transcription available.'}
                   </p>
                 </div>
+                <VoiceProviderSwitch t={t} />
                 <button
                   onClick={() => onSectionChange?.('voice')}
                   className="w-full p-4 rounded-2xl bg-celestial-saturn/5 border border-celestial-saturn/20 hover:bg-celestial-saturn/10 transition-all text-left"
