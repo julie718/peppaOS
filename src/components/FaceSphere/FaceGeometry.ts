@@ -45,29 +45,24 @@ function classifyParticle(x: number, y: number, z: number): FaceParticle['region
   return 'head';
 }
 
-export function generateFaceParticles(count: number = 4000): FaceParticle[] {
+export function generateFaceParticles(count: number = 2000): FaceParticle[] {
   const particles: FaceParticle[] = [];
 
-  // Generate points on the head ellipsoid surface + some interior fill
-  while (particles.length < count) {
-    // Rejection sampling inside head volume
-    const x = (Math.random() - 0.5) * HEAD_W * 2 * 1.1;
-    const y = (Math.random() - 0.5) * HEAD_H * 2 * 1.1;
-    const z = (Math.random() - 0.5) * HEAD_D * 2 * 1.1;
+  // Fibonacci sphere for fast uniform surface distribution
+  const phi = Math.PI * (3 - Math.sqrt(5));
+  for (let i = 0; i < count; i++) {
+    const y = 1 - (i / (count - 1)) * 2; // -1 to 1
+    const radius = Math.sqrt(1 - y * y);
+    const theta = phi * i;
 
-    if (isInsideHead(x, y, z)) {
-      // Push to surface for better visual
-      const dx = x / HEAD_W;
-      const dy = y / HEAD_H;
-      const dz = z / HEAD_D;
-      const len = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
-      const sx = (dx / len) * HEAD_W * (0.85 + Math.random() * 0.15);
-      const sy = (dy / len) * HEAD_H * (0.85 + Math.random() * 0.15);
-      const sz = (dz / len) * HEAD_D * (0.85 + Math.random() * 0.15);
+    const sx = Math.cos(theta) * radius * HEAD_W;
+    const sy = y * HEAD_H;
+    const sz = Math.sin(theta) * radius * HEAD_D;
 
-      const region = classifyParticle(sx, sy, sz);
-      particles.push({ position: [sx, sy, sz], region });
-    }
+    // Slight random jitter outward for natural look
+    const jitter = 0.85 + Math.random() * 0.15;
+    const region = classifyParticle(sx * jitter, sy * jitter, sz * jitter);
+    particles.push({ position: [sx * jitter, sy * jitter, sz * jitter], region });
   }
 
   return particles;

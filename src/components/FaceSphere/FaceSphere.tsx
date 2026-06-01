@@ -181,9 +181,9 @@ function FaceParticles({ audioLevel, callState, sentiment, scale: faceScale }: F
 // ── R3F Canvas wrapper ──
 export function FaceSphere(props: FaceSphereProps) {
   return (
-    <div style={{ width: 320, height: 320, pointerEvents: 'none' }}>
+    <div style={{ width: 420, height: 420, pointerEvents: 'none' }}>
       <Canvas
-        camera={{ position: [0, 0.05, 1.5], fov: 45, near: 0.1, far: 10 }}
+        camera={{ position: [0, 0.02, 1.7], fov: 50, near: 0.1, far: 10 }}
         gl={{ alpha: true, antialias: true, preserveDrawingBuffer: false }}
         style={{ background: 'transparent' }}
       >

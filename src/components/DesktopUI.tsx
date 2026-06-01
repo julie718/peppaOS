@@ -842,6 +842,9 @@ export function DesktopUI({
 
   const [theme, setTheme] = useState<string>('celestial');
   const [isLightMode, setIsLightMode] = useState(false);
+  useEffect(() => {
+    document.documentElement.setAttribute('data-mode', isLightMode ? 'light' : 'dark');
+  }, [isLightMode]);
   const [nativeFiles, setNativeFiles] = useState<NativeFile[]>([]);
   const [isControlCenterOpen, setIsControlCenterOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
