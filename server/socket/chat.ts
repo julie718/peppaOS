@@ -330,6 +330,9 @@ export function registerChatHandler(
           socket.emit("agent:status", { status: "idle" });
           if (conversationId) {
             addMessage({ userId: uid, agentId: agentId || '', conversationId, role: 'user', content: text, personality: personality.id });
+            if (quickResult.toolCall) {
+              addMessage({ userId: uid, agentId: agentId || '', conversationId, role: 'tool', content: `[Tool: ${quickResult.toolCall.name}] Called` });
+            }
             addMessage({ userId: uid, agentId: agentId || '', conversationId, role: 'assistant', content: quickResult.responseText, personality: personality.id });
             socket.emit('chat:conversation_updated', { conversationId, agentId: agentId || '' });
             // Track topics for quick commands too
@@ -433,6 +436,8 @@ export function registerChatHandler(
         }
       }
 
+      const allToolRecords: { name: string; args: string; result?: string; error?: string }[] = [];
+
       if (!responseText) {
         // Path C: Normal LLM path (simple queries, or orchestrator fallback)
 
@@ -474,11 +479,14 @@ export function registerChatHandler(
           // Sanctuary agents get zero tool access — they can only talk
           const maxIterations = isSanctuary ? 0 : (personality.toolPolicy.maxIterations || 25);
 
+          // Collect tool calls for persistence
+
           const result = await runWithTools(
             messages,
             toolRegistry,
             { provider: activeProvider, model: activeModel, userId: uid },
             isSanctuary ? undefined : (record) => {
+              allToolRecords.push({ name: record.name, args: JSON.stringify(record.arguments || {}), result: record.result?.slice(0, 500), error: record.error });
               socket.emit("agent:tool", { name: record.name, args: record.arguments, result: record.result?.slice(0, 200), error: record.error });
             },
             maxIterations,
@@ -522,7 +530,8 @@ export function registerChatHandler(
               const fallback = await runWithTools(
                 messages, toolRegistry,
                 { provider: 'gemini', model: DEFAULT_MODELS.gemini, userId: uid },
-                undefined, 1,
+                (record) => { allToolRecords.push({ name: record.name, args: JSON.stringify(record.arguments || {}), result: record.result?.slice(0, 500), error: record.error }); },
+                1,
                 llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
                 undefined,
                 { desktopRelay, isCancelled: () => abortController.signal.aborted },
@@ -549,6 +558,13 @@ export function registerChatHandler(
 
       if (conversationId) {
         addMessage({ userId: uid, agentId: agentId || '', conversationId, role: 'user', content: text, personality: personality.id });
+        // Persist tool calls interleaved before the assistant response
+        for (const tc of allToolRecords) {
+          const tcSummary = tc.error
+            ? `[Tool: ${tc.name}] Error: ${tc.error}`
+            : `[Tool: ${tc.name}] ${tc.result || 'Done'}`;
+          addMessage({ userId: uid, agentId: agentId || '', conversationId, role: 'tool', content: tcSummary });
+        }
         addMessage({ userId: uid, agentId: agentId || '', conversationId, role: 'assistant', content: responseText, personality: personality.id });
         socket.emit('chat:conversation_updated', { conversationId, agentId: agentId || '' });
 

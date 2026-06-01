@@ -1154,26 +1154,27 @@ export function DesktopUI({
       }, 5000);
     };
 
-    const onProactive = (data: { taskId: string; message: string; timestamp: string }) => {
-      // Trigger pet reaction based on notification type
-      switch (data.taskId) {
-        case 'reminder_check':
-          triggerPetReaction('wave', 2000);
-          break;
-        case 'daily_summary':
-          triggerPetReaction('wave', 2000);
-          break;
-        case 'evening_wrapup':
-          triggerPetReaction('wave', 2000);
-          break;
-        case 'memory_decay':
-          triggerPetReaction('jump', 1500);
-          break;
-        case 'behavioral_analysis':
-          triggerPetReaction('jump', 1500);
-          break;
-        default:
-          triggerPetReaction('jump', 1200);
+    const onProactive = (data: { type?: string; taskId: string; message: string; timestamp: string }) => {
+      const taskId = data.type || data.taskId || data.taskId;
+      // Always add to notification center so user can find it later
+      addNotification({
+        type: taskId === 'daily_summary' || taskId === 'evening_wrapup' ? 'success' :
+              taskId === 'memory_decay' || taskId === 'reminder_check' ? 'warning' : 'info',
+        title: taskId === 'daily_summary' ? 'Daily Summary' :
+               taskId === 'evening_wrapup' ? 'Evening Wrap-up' :
+               taskId === 'reminder_check' ? 'Reminder' :
+               taskId === 'memory_decay' ? 'Memory' :
+               taskId === 'behavioral_analysis' ? 'Insight' : 'Lumi',
+        message: data.message,
+      });
+      // Trigger pet reaction
+      switch (taskId) {
+        case 'reminder_check': triggerPetReaction('wave', 2000); break;
+        case 'daily_summary': triggerPetReaction('wave', 2000); break;
+        case 'evening_wrapup': triggerPetReaction('wave', 2000); break;
+        case 'memory_decay': triggerPetReaction('jump', 1500); break;
+        case 'behavioral_analysis': triggerPetReaction('jump', 1500); break;
+        default: triggerPetReaction('jump', 1200); break;
       }
     };
 
