@@ -396,16 +396,8 @@ fn minimize_window(window: tauri::WebviewWindow) -> Result<(), String> {
 fn toggle_maximize_window(window: tauri::WebviewWindow) -> Result<(), String> {
     let is_max = window.is_maximized().map_err(|e| e.to_string())?;
     if is_max {
-        // Un-maximize to a normal windowed size (1280x820, centered)
-        let _ = window.set_size(tauri::LogicalSize::new(1280u32, 820u32));
-        let _ = window.center();
-        let _ = window.set_always_on_top(false);
-        let _ = window.set_resizable(true);
         window.unmaximize().map_err(|e| e.to_string())
     } else {
-        // Go back to fullscreen
-        let _ = window.set_always_on_top(true);
-        let _ = window.set_fullscreen(true);
         window.maximize().map_err(|e| e.to_string())
     }
 }
