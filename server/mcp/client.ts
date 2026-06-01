@@ -436,6 +436,17 @@ class MCPClientManager {
     return this.connectServer(name, serverConfig);
   }
 
+  /** Disconnect a server without restarting it (used when disabling) */
+  async disconnectServer(name: string): Promise<void> {
+    const server = this.servers.get(name);
+    if (server) {
+      this.closingSet.add(name);
+      try { await server.transport.close(); } catch {}
+      this.servers.delete(name);
+      this.closingSet.delete(name);
+    }
+  }
+
   private scheduleRestart(name: string): void {
     const tracker = this.crashTrackers.get(name);
     if (!tracker) return;

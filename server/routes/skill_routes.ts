@@ -159,6 +159,7 @@ export function mountSkillRoutes(
       if (!config[req.params.name]) return res.status(404).json({ error: 'Skill not found' });
       config[req.params.name].enabled = true;
       updateMCPConfig(config);
+      try { await mcpManager.restartServer(req.params.name); } catch {} // start the process
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -172,6 +173,7 @@ export function mountSkillRoutes(
       if (!config[req.params.name]) return res.status(404).json({ error: 'Skill not found' });
       config[req.params.name].enabled = false;
       updateMCPConfig(config);
+      try { await mcpManager.disconnectServer(req.params.name); } catch {} // stop the process
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
