@@ -327,7 +327,6 @@ export function registerChatHandler(
             }
           }
           socket.emit("agent:response", { text: quickResult.responseText, agentName: personality.name, source: "quick_command" });
-          socket.emit("agent:status", { status: "idle" });
           if (conversationId) {
             addMessage({ userId: uid, agentId: agentId || '', conversationId, role: 'user', content: text, personality: personality.id });
             if (quickResult.toolCall) {
@@ -335,7 +334,10 @@ export function registerChatHandler(
             }
             addMessage({ userId: uid, agentId: agentId || '', conversationId, role: 'assistant', content: quickResult.responseText, personality: personality.id });
             socket.emit('chat:conversation_updated', { conversationId, agentId: agentId || '' });
-            // Track topics for quick commands too
+          }
+          socket.emit("agent:status", { status: "idle" });
+          // Track topics for quick commands too
+          if (conversationId) {
             try {
               const topics = extractTopics(text);
               for (const topic of topics) trackTopic(conversationId, topic);
@@ -566,7 +568,7 @@ export function registerChatHandler(
           addMessage({ userId: uid, agentId: agentId || '', conversationId, role: 'tool', content: tcSummary });
         }
         addMessage({ userId: uid, agentId: agentId || '', conversationId, role: 'assistant', content: responseText, personality: personality.id });
-        socket.emit('chat:conversation_updated', { conversationId, agentId: agentId || '' });
+        // (conversation_updated NOW emitted AFTER agent:response — see below)
 
         // Topic tracking — extract and record topics for cross-session continuity
         try {
@@ -596,7 +598,12 @@ export function registerChatHandler(
       });
       writeDB(db);
 
+      // Emit response BEFORE conversation_updated so the client finalizes streaming first
       socket.emit("agent:response", { text: responseText, agentName: personality.name, source: "chat" });
+      // Re-emit conversation_updated AFTER response so the client syncs from API with complete data
+      if (conversationId) {
+        socket.emit('chat:conversation_updated', { conversationId, agentId: agentId || '' });
+      }
       socket.emit("agent:status", { status: "idle" });
 
       // Clean up abort session

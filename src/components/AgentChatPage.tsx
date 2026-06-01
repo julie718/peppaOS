@@ -375,6 +375,8 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
 
     // Live-refresh messages from API when voice/other sources save to conversation.
     // Skip if a chunk stream is in-progress OR local state is already up-to-date.
+    // conversation_updated NOW fires AFTER agent:response (order fixed in chat.ts).
+    // Reload from API only if counts differ (voice added messages, tool msgs persisted, etc).
     socket.on("chat:conversation_updated", (data: { conversationId: string; agentId: string }) => {
       if (data.agentId !== agentId) return;
       fetchConversations();
@@ -385,10 +387,10 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
           .then(r => r.json())
           .then(result => {
             if (!result.messages || !Array.isArray(result.messages)) return;
-            // Only replace if API has more messages (e.g. voice added some).
-            // If counts match, local state is already correct — no-op to avoid flicker.
             setMessages(prev => {
-              if (prev.length >= result.messages.length) return prev;
+              // Only replace if counts changed (new voice/tool messages) — avoids flicker
+              const localCount = prev.filter(m => m.type !== 'tool').length;
+              if (localCount >= result.messages.length) return prev;
               return result.messages.map((m: any, idx: number) => ({
                 id: m.id || `hist-${idx}`,
                 text: m.content,
