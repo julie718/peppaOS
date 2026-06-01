@@ -325,12 +325,29 @@ export function createWeComRoutes(
   const router = Router();
   const adapter = new WeComAdapter(config);
 
+  // Helper: parse raw query string to avoid Express decoding + as space
+  function rawQuery(url: string): Record<string, string> {
+    const qs = (url || '').split('?')[1] || '';
+    const map: Record<string, string> = {};
+    for (const part of qs.split('&')) {
+      const eq = part.indexOf('=');
+      if (eq < 0) continue;
+      const k = part.slice(0, eq);
+      const v = decodeURIComponent(part.slice(eq + 1));
+      map[k] = v;
+    }
+    return map;
+  }
+
   // ── GET /wecom/events — URL verification ──
   router.get('/wecom/events', (req, res) => {
     try {
-      const { msg_signature, timestamp, nonce, echostr } = req.query as Record<string, string>;
+      const q = rawQuery(req.originalUrl);
+      const { msg_signature, timestamp, nonce, echostr } = q;
       if (!echostr) return res.status(400).send('Missing echostr');
+      console.log('[WeCom] Verifying URL — sig:', msg_signature?.slice(0, 10), 'ts:', timestamp, 'nonce:', nonce, 'echostr:', echostr?.slice(0, 20));
       const plaintext = adapter.verifyUrl(echostr, { msg_signature, timestamp, nonce });
+      console.log('[WeCom] URL verified, plaintext:', plaintext.slice(0, 50));
       res.type('text/plain').send(plaintext);
     } catch (err: any) {
       console.error('[WeCom] URL verify error:', err.message);
@@ -341,11 +358,10 @@ export function createWeComRoutes(
   // ── POST /wecom/events — receive messages ──
   router.post('/wecom/events', async (req, res) => {
     try {
-      // WeCom callback POST sends XML in the body
-      const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
-      const msg_signature = (req.query.msg_signature || req.body.msg_signature || '') as string;
-      const timestamp = (req.query.timestamp || req.body.timestamp || '') as string;
-      const nonce = (req.query.nonce || req.body.nonce || '') as string;
+      const q = rawQuery(req.originalUrl);
+      const msg_signature = q.msg_signature || req.body.msg_signature || '';
+      const timestamp = q.timestamp || req.body.timestamp || '';
+      const nonce = q.nonce || req.body.nonce || '';
 
       // Verify signature
       if (msg_signature && timestamp && nonce) {
@@ -358,7 +374,8 @@ export function createWeComRoutes(
         } catch { /* best-effort verification */ }
       }
 
-      const msg = adapter.parseEvent({ rawBody });
+      const bodyStr2 = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+      const msg = adapter.parseEvent({ rawBody: bodyStr2 });
       if (!msg) {
         return res.send('success'); // WeCom expects plaintext "success"
       }

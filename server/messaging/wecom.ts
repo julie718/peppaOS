@@ -75,32 +75,50 @@ export class WeComAdapter implements MessageAdapter {
     const key = Buffer.from(this.config.encodingAESKey + '=', 'base64'); // 43→44 chars
     const iv = key.subarray(0, 16);
     const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-    decipher.setAutoPadding(false); // WeCom uses PKCS7, handled manually
+    decipher.setAutoPadding(false);
     let buf = Buffer.concat([decipher.update(encrypted, 'base64'), decipher.final()]);
     // PKCS7 unpad
     const padLen = buf[buf.length - 1];
     if (padLen > 0 && padLen <= 32) buf = buf.subarray(0, buf.length - padLen);
     // Strip random prefix (16 bytes) + network byte order length (4 bytes)
     const content = buf.subarray(16);
-    const len = content.readUInt32BE(0);
-    const xml = content.subarray(4, 4 + len).toString('utf-8');
+    const msgLen = content.readUInt32BE(0);
+    const xml = content.subarray(4, 4 + msgLen).toString('utf-8');
+    const receiveid = content.subarray(4 + msgLen).toString('utf-8');
+    // Verify receiveid matches corpId (handles both corpId format: plain ID or with wx prefix)
+    if (receiveid && !receiveid.includes(this.config.corpId) && !this.config.corpId.includes(receiveid)) {
+      console.warn('[WeCom] receiveid mismatch — expected:', this.config.corpId, 'got:', receiveid);
+    }
     return xml;
   }
 
   // ── SHA1 Signature Verification ──
 
+  private sha1(...parts: string[]): string {
+    return crypto.createHash('sha1').update(parts.sort().join('')).digest('hex');
+  }
+
   verifyWebhook(params: Record<string, any>): boolean {
     const { msg_signature, timestamp, nonce, echostr } = params;
     if (!msg_signature || !timestamp || !nonce) return false;
-    const arr = [this.config.token, timestamp, nonce, echostr || ''].sort();
-    const expected = crypto.createHash('sha1').update(arr.join('')).digest('hex');
-    return expected === msg_signature;
+    const expected = this.sha1(this.config.token, timestamp, nonce, echostr || '');
+    const match = expected === msg_signature;
+    if (!match) {
+      console.log('[WeCom] SIG MISMATCH — expected:', expected.slice(0, 20), 'got:', msg_signature.slice(0, 20));
+      console.log('[WeCom] token:', this.config.token?.slice(0, 5) + '***', 'ts:', timestamp, 'nonce:', nonce);
+    }
+    return match;
   }
 
   /** URL verification: decrypt echostr and return plaintext */
   verifyUrl(echostr: string, params: Record<string, any>): string {
     if (!this.verifyWebhook({ ...params, echostr })) throw new Error('Signature verification failed');
-    return this.decrypt(echostr);
+    const plaintext = this.decrypt(echostr);
+    // Validate corpId is in the decrypted message
+    const parsed = this.extractXml(plaintext);
+    const appId = parsed && this.getTag(parsed, 'ToUserName');
+    console.log('[WeCom] Decrypted — appId/ToUserName:', appId, 'corpId:', this.config.corpId);
+    return plaintext;
   }
 
   // ── Event Parsing ──
