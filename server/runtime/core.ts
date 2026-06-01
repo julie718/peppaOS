@@ -35,7 +35,11 @@ export function createApp(): AppContext {
 
   // Allow credentials from any origin (Tauri webview, localhost, etc.)
   app.use(cors({ origin: (origin: string | undefined, cb: (err: Error | null, allow: boolean) => void) => cb(null, true), credentials: true }));
-  app.use(express.json({ limit: '10mb' }));
+  // Capture raw body before JSON parse (needed for WeCom XML webhooks)
+  app.use(express.json({
+    limit: '10mb',
+    verify: (req: any, _res, buf: Buffer) => { req.rawBody = buf.toString('utf8'); },
+  }));
   app.use(cookieParser());
 
   const apiRouter = express.Router();
