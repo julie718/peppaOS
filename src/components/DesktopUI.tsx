@@ -1996,18 +1996,11 @@ export function DesktopUI({
             <div className="flex flex-col gap-6 w-full lg:w-96">
               {/* Modern Widgets Grid */}
               <div className="grid grid-cols-2 gap-4">
-                 <GlassCard className="p-4 rounded-[2rem] border-white/5 bg-black/20 flex flex-col items-center justify-center text-center gap-2">
-                    <Clock size={20} className="text-celestial-saturn" />
-                    <div className="text-xl font-black text-white/80">
-                       {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                    <span className="text-[8px] font-bold text-white/30 uppercase tracking-widest">{time.toLocaleDateString(undefined, { weekday: 'long' })}</span>
-                 </GlassCard>
-                 <GlassCard className="p-4 rounded-[2rem] border-white/5 bg-black/20 flex flex-col items-center justify-center text-center gap-2">
-                    <div className="text-celestial-glow"><Battery size={20} /></div>
-                    <BatteryWidget t={t} />
-                 </GlassCard>
+                 <ClockWidget t={t} time={time} />
+                 <BatteryWidget t={t} />
               </div>
+
+              <NeuralSynthesisMonitor t={t} onOpenTokens={() => toggleWindow('tokens')} />
 
               {/* Daily Capability Widget */}
               <DailyCapability t={t} onInstall={(skillId) => toggleWindow('skills')} />
@@ -2497,9 +2490,86 @@ function BatteryIndicator() {
   );
 }
 
+function useClickAway(ref: React.RefObject<HTMLElement | null>, handler: () => void) {
+  useEffect(() => {
+    const listener = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) handler();
+    };
+    document.addEventListener('mousedown', listener);
+    return () => document.removeEventListener('mousedown', listener);
+  }, [ref, handler]);
+}
+
+function ClockWidget({ t, time }: { t?: any; time: Date }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useClickAway(ref, () => setIsOpen(false));
+
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const today = time;
+  const monthDays = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).getDay();
+  const calDays = Array.from({ length: monthDays }, (_, i) => i + 1);
+
+  return (
+    <div ref={ref} className="relative">
+      <GlassCard
+        className="p-4 rounded-[2rem] border-white/5 bg-black/20 flex flex-col items-center justify-center text-center gap-2 cursor-pointer hover:bg-white/[0.06] transition-all"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <Clock size={20} className="text-celestial-saturn" />
+        <div className="text-xl font-black text-white/80">
+          {today.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </div>
+        <span className="text-[8px] font-bold text-white/30 uppercase tracking-widest">
+          {days[today.getDay()]}, {months[today.getMonth()]} {today.getDate()}
+        </span>
+      </GlassCard>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: -8 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          className="absolute top-full mt-2 left-0 z-[80] w-64 p-4 rounded-2xl bg-black/90 backdrop-blur-2xl border border-white/10 shadow-2xl pointer-events-auto"
+        >
+          <div className="text-center mb-3">
+            <div className="text-xs font-black uppercase tracking-widest text-white/60">
+              {months[today.getMonth()]} {today.getFullYear()}
+            </div>
+          </div>
+          <div className="grid grid-cols-7 gap-1 mb-2">
+            {['S','M','T','W','T','F','S'].map((d, i) => (
+              <span key={i} className="text-[8px] font-bold text-white/20 text-center">{d}</span>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {Array.from({ length: firstDay }, (_, i) => <div key={`e${i}`} />)}
+            {calDays.map(d => (
+              <div
+                key={d}
+                className={`text-[10px] text-center py-1 rounded-md font-mono ${
+                  d === today.getDate() ? 'bg-celestial-saturn text-black font-bold' : 'text-white/60 hover:bg-white/10 cursor-pointer'
+                }`}
+              >
+                {d}
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 pt-3 border-t border-white/5 text-[9px] text-white/30 text-center font-mono">
+            {today.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+          </div>
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
 function BatteryWidget({ t }: { t?: any }) {
   const [level, setLevel] = useState<number | null>(null);
   const [charging, setCharging] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useClickAway(ref, () => setIsOpen(false));
 
   useEffect(() => {
     const nav = navigator as any;
@@ -2513,13 +2583,65 @@ function BatteryWidget({ t }: { t?: any }) {
     }
   }, []);
 
-  if (level === null) return <><div className="text-xl font-black text-white/80">--%</div><span className="text-[8px] font-bold text-white/30 uppercase tracking-widest">{t?.webMode || 'Web Mode'}</span></>;
+  const estHours = level != null ? Math.round((level / 100) * (charging ? 0 : 8)) : null;
+  const powerDraw = level != null ? Math.round(60 - level * 0.3) : null;
 
   return (
-    <>
-      <div className="text-xl font-black text-white/80">{level}%</div>
-      <span className="text-[8px] font-bold text-white/30 uppercase tracking-widest">{charging ? (t?.charging || 'Charging') : (t?.battery || 'Battery')}</span>
-    </>
+    <div ref={ref} className="relative">
+      <GlassCard
+        className="p-4 rounded-[2rem] border-white/5 bg-black/20 flex flex-col items-center justify-center text-center gap-2 cursor-pointer hover:bg-white/[0.06] transition-all"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <Battery size={20} className={level != null && level <= 20 ? 'text-red-400' : level != null && level <= 50 ? 'text-yellow-400' : 'text-celestial-glow'} />
+        <div className="text-xl font-black text-white/80">{level != null ? `${level}%` : '--%'}</div>
+        <span className="text-[8px] font-bold text-white/30 uppercase tracking-widest">
+          {level == null ? (t?.webMode || 'Web Mode') : charging ? (t?.charging || 'Charging') : (t?.battery || 'Battery')}
+        </span>
+      </GlassCard>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: -8 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          className="absolute top-full mt-2 right-0 z-[80] w-56 p-4 rounded-2xl bg-black/90 backdrop-blur-2xl border border-white/10 shadow-2xl pointer-events-auto"
+        >
+          <div className="text-[10px] font-black uppercase tracking-widest text-white/50 mb-3">
+            {t?.powerUsage || 'Power Usage'}
+          </div>
+          <div className="space-y-2">
+            <div className="flex justify-between text-[10px]">
+              <span className="text-white/40">{t?.currentLevel || 'Current Level'}</span>
+              <span className="font-bold text-white/80">{level}%</span>
+            </div>
+            <div className="flex justify-between text-[10px]">
+              <span className="text-white/40">{t?.status || 'Status'}</span>
+              <span className={`font-bold ${charging ? 'text-green-400' : 'text-white/80'}`}>
+                {charging ? (t?.charging || 'Charging') : (t?.onBattery || 'On Battery')}
+              </span>
+            </div>
+            {estHours != null && !charging && (
+              <div className="flex justify-between text-[10px]">
+                <span className="text-white/40">{t?.estRemaining || 'Est. Remaining'}</span>
+                <span className="font-bold text-white/80">~{estHours}h</span>
+              </div>
+            )}
+            {powerDraw != null && (
+              <div className="flex justify-between text-[10px]">
+                <span className="text-white/40">{t?.estPowerDraw || 'Est. Power Draw'}</span>
+                <span className="font-bold text-white/80">~{powerDraw}W</span>
+              </div>
+            )}
+            <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${level ?? 0}%` }}
+                className={`h-full rounded-full ${(level ?? 100) <= 20 ? 'bg-red-500' : (level ?? 100) <= 50 ? 'bg-yellow-500' : 'bg-gradient-to-r from-cyan-400 to-green-400'}`}
+              />
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </div>
   );
 }
+
 
