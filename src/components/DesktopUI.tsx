@@ -1635,7 +1635,10 @@ export function DesktopUI({
                 <button onClick={() => { toggleWindow('settings'); }} className="w-full text-left px-4 py-2 text-[11px] text-white/60 hover:text-white hover:bg-white/10 transition-colors">{t.settings || 'Settings'}</button>
                 <button onClick={onExit} className="w-full text-left px-4 py-2 text-[11px] text-red-400/70 hover:text-red-400 hover:bg-white/10 transition-colors">{t.exit || 'Exit'}</button>
               </TopMenuButton>
-              <TopMenuButton label={t.edit || 'Edit'} onClick={() => toggleWindow('settings')} />
+              <TopMenuButton label={t.edit || 'Edit'}>
+                <button onClick={() => { toggleWindow('settings'); setSettingsSection('personalization'); }} className="w-full text-left px-4 py-2 text-[11px] text-white/60 hover:text-white hover:bg-white/10 transition-colors">{t.desktopCustomize || 'Desktop'}</button>
+                <button onClick={() => { toggleWindow('settings'); setSettingsSection('general'); }} className="w-full text-left px-4 py-2 text-[11px] text-white/60 hover:text-white hover:bg-white/10 transition-colors">{t.language || 'Language'}</button>
+              </TopMenuButton>
               <TopMenuButton label={t.kernel || 'Kernel'} onClick={() => toggleWindow('kernel')} />
               <TopMenuButton label={t.view || 'View'} onClick={() => setViewMode(viewMode === 'personal' ? 'world' : 'personal')} />
               <TopMenuButton label={t.matrix || 'Matrix'} onClick={() => setIsSearchOpen(true)} />
