@@ -41,6 +41,8 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
   const [connected, setConnected] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [installedSkillNames, setInstalledSkillNames] = useState<string[]>([]);
+  const [streamingText, setStreamingText] = useState('');
+  const [isStreaming, setIsStreaming] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const activeConvIdRef = useRef<string | null>(null);
@@ -124,6 +126,8 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
 
     const onResponse = (data: { text: string; agentName?: string }) => {
       setIsTyping(false);
+      setIsStreaming(false);
+      setStreamingText('');
       setMessages(prev => [...prev, {
         id: crypto.randomUUID().slice(0, 9),
         type: 'lumi',
@@ -133,9 +137,18 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
       refreshConversations();
     };
 
+    const onChunk = (data: { text: string; agentName?: string }) => {
+      setIsStreaming(true);
+      setStreamingText(prev => prev + data.text);
+    };
+
     const onStatus = (data: { status: string }) => {
       if (data.status === 'thinking') setIsTyping(true);
-      else if (data.status === 'idle' || data.status === 'error') setIsTyping(false);
+      else if (data.status === 'idle' || data.status === 'error') {
+        setIsTyping(false);
+        setIsStreaming(false);
+        setStreamingText('');
+      }
     };
 
     const onToolCall = (data: {
@@ -185,12 +198,14 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
     };
 
     socket.on('agent:response', onResponse);
+    socket.on('agent:chunk', onChunk);
     socket.on('agent:status', onStatus);
     socket.on('agent:tool_call', onToolCall);
     socket.on('audio:transcript', onTranscript);
 
     return () => {
       socket.off('agent:response', onResponse);
+      socket.off('agent:chunk', onChunk);
       socket.off('agent:status', onStatus);
       socket.off('agent:tool_call', onToolCall);
       socket.off('audio:transcript', onTranscript);
@@ -504,8 +519,22 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
               </motion.div>
             ))}
 
+            {/* Streaming indicator — live text as it arrives */}
+            {isStreaming && streamingText && (
+              <motion.div
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex justify-start"
+              >
+                <div className="max-w-[85%] bg-white/5 border border-celestial-glow/20 rounded-lg px-3 py-1.5">
+                  <p className="text-white/80 whitespace-pre-wrap">{streamingText}</p>
+                  <span className="inline-block w-1.5 h-3 bg-celestial-glow/60 animate-pulse ml-0.5 align-middle" />
+                </div>
+              </motion.div>
+            )}
+
             {/* Typing indicator */}
-            {isTyping && (
+            {isTyping && !isStreaming && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}

@@ -12,8 +12,10 @@ import { loadEmotionalState, saveEmotionalState, updateEmotionalState, vectorMem
 import { personalityRegistry } from "../personality";
 import { canOutputHolographic, textToHolographicOutput } from "../output/holographic";
 import { getOrCreateActiveConversation } from "../conversation/manager";
-import { processInput, handleLLMFailure, CognitiveContext, CognitiveResult } from "../cognition";
+import { processInput, handleLLMFailure, extractSentiment, CognitiveContext, CognitiveResult } from "../cognition";
 import { classifyComplexity, decomposeTask, matchWorkers, executeWorkflow, aggregateWithLLM, recordWorkflowPattern, shouldDistillSkill, buildSkillDescription } from "../agents/orchestrator";
+import { getMessagesByTokenBudget, addMessage, extractTopics, trackTopic, getTopicContext } from "../conversation/manager";
+import { loadHIMState, saveHIMState, updateEmotionalStateWithHIM } from "../personality/state";
 
 export function registerTaskHandler(
   socket: Socket,
@@ -73,9 +75,24 @@ export function registerTaskHandler(
     let activeProvider = userLLMPrefs.provider || 'deepseek';
     let activeModel = (userLLMPrefs.models || {})[activeProvider] || DEFAULT_MODELS[activeProvider] || 'deepseek-chat';
 
+    // ── Load persisted conversation history (survives page reload) ──
+    let effectiveSystemPrompt = systemInstruction;
+    const convForHistory = getOrCreateActiveConversation(uid);
+    const voiceHistory: NormalizedMessage[] = [];
+    if (convForHistory) {
+      const recentMsgs = getMessagesByTokenBudget(convForHistory.id, 16000);
+      for (const m of recentMsgs) {
+        if (m.message) voiceHistory.push({ role: 'user', content: m.message });
+        if (m.response) voiceHistory.push({ role: 'assistant', content: m.response });
+      }
+      // Inject topic context for continuity
+      const topicCtx = getTopicContext(convForHistory.id);
+      if (topicCtx) effectiveSystemPrompt += topicCtx;
+    }
+
     const messages: NormalizedMessage[] = [
-      { role: 'system', content: systemInstruction },
-      ...(data.history ? data.history.map((m: any) => ({ role: m.role, content: m.content })) : []),
+      { role: 'system', content: effectiveSystemPrompt },
+      ...voiceHistory,
       { role: 'user', content: data.text },
     ];
 
@@ -104,6 +121,20 @@ export function registerTaskHandler(
       cognition = await processInput(data.text, cognitiveCtx);
 
       // If cognitive engine handled directly (simple command), skip LLM entirely
+      // ── Auto-select model: flash for simple chat, pro for complex tasks ──
+      const complexCategories = ['command', 'code', 'question', 'analysis'];
+      const isComplex = complexCategories.includes(cognition.intent.category);
+      if (activeProvider === 'deepseek') {
+        activeModel = isComplex ? 'deepseek-v4-pro' : 'deepseek-v4-flash';
+      } else if (activeProvider === 'qwen') {
+        activeModel = isComplex ? 'qwen-max' : 'qwen-plus';
+      } else if (activeProvider === 'gemini') {
+        activeModel = isComplex ? 'gemini-2.5-pro' : 'gemini-2.0-flash';
+      } else if (activeProvider === 'openai') {
+        activeModel = isComplex ? 'gpt-4o' : 'gpt-4o-mini';
+      }
+      console.log(`[Task] Model auto-selected: ${activeProvider}/${activeModel} for category: ${cognition.intent.category}`);
+
       if (cognition.directToolExecuted && cognition.responseText) {
         console.log(`[Cognition] Task handled directly: ${cognition.intent.category}/${cognition.intent.subIntent}`);
         socket.emit("agent:response", { text: cognition.responseText, agentName: personality.name });
@@ -254,10 +285,13 @@ export function registerTaskHandler(
             error: record.error,
           });
         },
-        5,
+        25,
         llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
         (chunk) => {
-          if (!cancelled) socket.emit("task:chunk", { text: chunk, agentName: personality.name });
+          if (!cancelled) {
+            socket.emit("task:chunk", { text: chunk, agentName: personality.name });
+            socket.emit("agent:chunk", { text: chunk, agentName: personality.name });
+          }
         },
         { desktopRelay, requestConfirmation, toolPolicy: personality.toolPolicy, isCancelled: () => cancelled },
       );
@@ -339,12 +373,21 @@ export function registerTaskHandler(
         }
       }).catch(err => console.error('[Memory] Extraction failed:', err));
 
-      // Update emotional state
+      // Update emotional state with sentiment analysis + HIM
+      const sentiment = extractSentiment(data.text);
       let updatedState = updateEmotionalState(emotionalState, {
         type: 'interaction',
         userId: uid,
         timestamp: new Date().toISOString(),
       });
+      if (sentiment.valence !== 0 || sentiment.frustration > 0 || sentiment.urgency > 0) {
+        updatedState = updateEmotionalState(updatedState, {
+          type: 'sentiment_analysis',
+          sentiment,
+          userId: uid,
+          timestamp: new Date().toISOString(),
+        });
+      }
       if (isNovelTask) {
         updatedState = updateEmotionalState(updatedState, {
           type: 'novel_topic',
@@ -352,7 +395,23 @@ export function registerTaskHandler(
           timestamp: new Date().toISOString(),
         });
       }
-      saveEmotionalState(uid, updatedState);
+      const himState = loadHIMState(uid);
+      const { state: himUpdated, him: newHim } = updateEmotionalStateWithHIM(updatedState, { type: 'self_reflection', userId: uid }, himState, data.text.slice(0, 40));
+      saveEmotionalState(uid, himUpdated);
+      saveHIMState(uid, newHim);
+
+      // ── Persist messages via conversation manager for cross-session continuity ──
+      if (convForHistory) {
+        addMessage({ userId: uid, agentId: '', conversationId: convForHistory.id, role: 'user', content: data.text, personality: personality.id });
+        if (result.text) {
+          addMessage({ userId: uid, agentId: '', conversationId: convForHistory.id, role: 'assistant', content: result.text, personality: personality.id });
+        }
+        try {
+          const topics = extractTopics(data.text + ' ' + result.text);
+          for (const topic of topics) trackTopic(convForHistory.id, topic);
+        } catch {}
+        socket.emit('chat:conversation_updated', { conversationId: convForHistory.id, agentId: '' });
+      }
 
     } catch (err: any) {
       console.error("[Agent Task Error]:", err);
