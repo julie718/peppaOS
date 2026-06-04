@@ -24,6 +24,8 @@ interface ScheduledTask {
   cron: string;
   lastRun: string | null;
   handler: () => Promise<string | null>;
+  /** If true, result is stored internally but NOT broadcast as a proactive notification */
+  quiet?: boolean;
 }
 
 type LLMGetters = {
@@ -104,18 +106,20 @@ class Scheduler {
           task.lastRun = new Date().toISOString();
           if (message && this.io) {
             this.saveProactiveMessage(task.id, message, task.lastRun);
-            this.io.emit('agent:proactive', {
-              taskId: task.id,
-              message,
-              timestamp: task.lastRun,
-            });
+            if (!task.quiet) {
+              this.io.emit('agent:proactive', {
+                taskId: task.id,
+                message,
+                timestamp: task.lastRun,
+              });
+            }
           }
         } catch (err: any) {
           console.warn(`[Scheduler] Task "${task.id}" failed:`, err.message);
         }
       }, parsed.intervalMs);
       this.timers.set(task.id, timer);
-      console.log(`[Scheduler] Registered task "${task.id}" every ${parsed.intervalMs / 1000}s`);
+      console.log(`[Scheduler] Registered task "${task.id}" every ${parsed.intervalMs / 1000}s${task.quiet ? ' (quiet)' : ''}`);
     } else {
       // Real cron expression — use recursive setTimeout to hit exact times
       const runAndReschedule = async () => {
@@ -124,11 +128,13 @@ class Scheduler {
           task.lastRun = new Date().toISOString();
           if (message && this.io) {
             this.saveProactiveMessage(task.id, message, task.lastRun);
-            this.io.emit('agent:proactive', {
-              taskId: task.id,
-              message,
-              timestamp: task.lastRun,
-            });
+            if (!task.quiet) {
+              this.io.emit('agent:proactive', {
+                taskId: task.id,
+                message,
+                timestamp: task.lastRun,
+              });
+            }
           }
         } catch (err: any) {
           console.warn(`[Scheduler] Task "${task.id}" failed:`, err.message);
@@ -263,6 +269,7 @@ export function registerScheduledTasks(
   scheduler.register({
     id: 'memory_decay',
     cron: 'every_6h',
+    quiet: true,
     lastRun: null,
     handler: async () => {
       const userIds = getAllUserIds();
@@ -283,6 +290,7 @@ export function registerScheduledTasks(
   scheduler.register({
     id: 'memory_crystallization',
     cron: 'every_1h',
+    quiet: true,
     lastRun: null,
     handler: async () => {
       const userIds = getAllUserIds();
@@ -304,6 +312,7 @@ export function registerScheduledTasks(
   scheduler.register({
     id: 'memory_consolidation',
     cron: 'every_30m',
+    quiet: true,
     lastRun: null,
     handler: async () => {
       const userIds = getAllUserIds();
@@ -328,6 +337,7 @@ export function registerScheduledTasks(
   scheduler.register({
     id: 'narrative_consolidation',
     cron: 'every_6h',
+    quiet: true,
     lastRun: null,
     handler: async () => {
       const userIds = getAllUserIds();
@@ -473,6 +483,7 @@ Output ONLY the reflection — no preamble, no labels.`;
   scheduler.register({
     id: 'behavioral_analysis',
     cron: 'every_6h',
+    quiet: true,
     lastRun: null,
     handler: async () => {
       const userIds = getAllUserIds();
@@ -491,6 +502,7 @@ Output ONLY the reflection — no preamble, no labels.`;
   scheduler.register({
     id: 'memory_auto_organize',
     cron: 'every_6h',
+    quiet: true,
     lastRun: null,
     handler: async () => {
       const userIds = getAllUserIds();
@@ -583,6 +595,7 @@ Rules:
   scheduler.register({
     id: 'personality_evolution',
     cron: 'every_6h',
+    quiet: true,
     lastRun: null,
     handler: async () => {
       const userIds = getAllUserIds();
@@ -641,6 +654,7 @@ Rules:
   scheduler.register({
     id: 'weekly_review',
     cron: 'every_7d',
+    quiet: true,
     lastRun: null,
     handler: async () => {
       const userIds = getAllUserIds();
@@ -707,6 +721,7 @@ Rules:
   scheduler.register({
     id: 'monthly_review',
     cron: '1 0 1 * *',
+    quiet: true,
     lastRun: null,
     handler: async () => {
       const userIds = getAllUserIds();
@@ -772,6 +787,7 @@ Rules:
   scheduler.register({
     id: 'yearly_review',
     cron: '0 0 1 1 *',
+    quiet: true,
     lastRun: null,
     handler: async () => {
       const userIds = getAllUserIds();
@@ -837,6 +853,7 @@ Rules:
   scheduler.register({
     id: 'auto_skill_gen',
     cron: 'every_30m',
+    quiet: true,
     lastRun: null,
     handler: async () => {
       const result = await autoGenerateSkill(
@@ -857,6 +874,7 @@ Rules:
   scheduler.register({
     id: 'auto_workflow_gen',
     cron: 'every_hour',
+    quiet: true,
     lastRun: null,
     handler: async () => {
       try {
@@ -1018,6 +1036,7 @@ Write in first-person as Lumi, warm and introspective tone. Keep it under 150 Ch
   scheduler.register({
     id: 'agent_autonomous_tick',
     cron: 'every_30m',
+    quiet: true,
     lastRun: null,
     handler: async () => {
       const db = readDB();
@@ -1087,6 +1106,7 @@ Write in first-person as Lumi, warm and introspective tone. Keep it under 150 Ch
   scheduler.register({
     id: 'proactive_lumi_scan',
     cron: 'every_1h',
+    quiet: true,
     lastRun: null,
     handler: async () => {
       const userIds = getAllUserIds();
@@ -1289,6 +1309,7 @@ Output ONLY the prediction message — no preamble, no labels.`;
   scheduler.register({
     id: 'memory_this_day',
     cron: 'daily_9am',
+    quiet: true,
     lastRun: null,
     handler: async () => {
       const userIds = getAllUserIds();
@@ -1355,6 +1376,7 @@ Output ONLY the prediction message — no preamble, no labels.`;
   scheduler.register({
     id: 'spatiotemporal_analysis',
     cron: 'every_6h',
+    quiet: true,
     lastRun: null,
     handler: async () => {
       const userIds = getAllUserIds();
@@ -1397,6 +1419,7 @@ Output ONLY the prediction message — no preamble, no labels.`;
   scheduler.register({
     id: 'ephemeral_cleanup',
     cron: 'every_1h',
+    quiet: true,
     lastRun: null,
     handler: async () => {
       const removed = cleanupEphemeralAgents(6);

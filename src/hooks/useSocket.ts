@@ -159,6 +159,27 @@ async function handleDesktopExec(socket: Socket, data: {
         output = `Pressed: ${args.key}`;
         break;
       }
+      case 'desktop_set_wallpaper_mode': {
+        const enabled = args.enabled !== false;
+        await invoke('set_wallpaper_mode', { enabled });
+        output = `Wallpaper mode: ${enabled ? 'ON' : 'OFF'}`;
+        break;
+      }
+      case 'desktop_cursor_glow_show': {
+        window.dispatchEvent(new CustomEvent('cursor-glow:show'));
+        output = 'Glow shown';
+        break;
+      }
+      case 'desktop_cursor_glow_update': {
+        window.dispatchEvent(new CustomEvent('cursor-glow:update', { detail: { x: args.x, y: args.y } }));
+        output = `Glow updated: (${args.x}, ${args.y})`;
+        break;
+      }
+      case 'desktop_cursor_glow_hide': {
+        window.dispatchEvent(new CustomEvent('cursor-glow:hide'));
+        output = 'Glow hidden';
+        break;
+      }
       default:
         socket.emit(`tool:desktop_result:${correlationId}`, {
           error: `Unknown desktop tool: ${name}`,

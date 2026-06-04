@@ -22,6 +22,7 @@ import { LocalAgentSphere } from './components/LocalAgentSphere';
 import { FloatingAgent } from './components/FloatingAgent';
 import { OrgHub } from './components/org/OrgHub';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { CursorGlow } from './components/CursorGlow';
 import { ProactiveNotifications } from './components/ProactiveNotifications';
 import { LoadingFallback } from './components/LoadingFallback';
 import { Toaster } from 'sonner';
@@ -178,6 +179,7 @@ export default function App() {
           : 'bg-celestial-deep'
     }`}>
       <ErrorBoundary>
+      <CursorGlow />
       <ProactiveNotifications />
       <Toaster position="top-right" theme="dark" />
       <Suspense fallback={<LoadingFallback />}>
