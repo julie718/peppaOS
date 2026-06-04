@@ -142,6 +142,7 @@ class PersonalityRegistry {
       version: step.version,
       timestamp: step.timestamp,
       trigger: step.trigger,
+      depth: step.depth || 'full',
       ownerProfile: step.ownerProfile,
       mutations: step.mutations,
       narrative: step.narrative,
@@ -220,6 +221,76 @@ class PersonalityRegistry {
         console.error('[Personality] Failed to save config:', err);
       }
     }
+  }
+
+  /**
+   * Apply a real-time identity correction from user feedback.
+   * Removes contradicted interests/claims from coreMotivation and interestClusters,
+   * then persists to disk immediately — no 7-day cooldown wait.
+   */
+  async correctIdentity(
+    personalityId: string,
+    changes: {
+      removeInterest?: string;
+      removeFromMotivation?: string;
+      newMotivation?: string;
+    },
+  ): Promise<boolean> {
+    const config = this.get(personalityId);
+    if (!config) return false;
+
+    const extConfig = config as any;
+
+    // Remove contradicted interest from motivation text
+    if (changes.removeFromMotivation) {
+      const target = changes.removeFromMotivation.trim();
+      config.coreMotivation = config.coreMotivation
+        .replace(new RegExp(target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/,\s*,/g, ',')
+        .trim();
+      // Edge case: trailing period after removal
+      config.coreMotivation = config.coreMotivation.replace(/\s\.$/, '.');
+    }
+
+    // Replace entire motivation if provided
+    if (changes.newMotivation) {
+      config.coreMotivation = changes.newMotivation;
+    }
+
+    // Remove from interest clusters
+    if (changes.removeInterest) {
+      const ownerProfile = extConfig.ownerProfile || extConfig.evolutionHistory?.find((e: any) => e.ownerProfile)?.ownerProfile;
+      if (ownerProfile?.interestClusters) {
+        ownerProfile.interestClusters = ownerProfile.interestClusters.filter(
+          (ic: string) => !ic.includes(changes.removeInterest!) && !changes.removeInterest!.includes(ic),
+        );
+      }
+      // Also clean up any old evolution history references
+      if (extConfig.evolutionHistory) {
+        for (const entry of extConfig.evolutionHistory) {
+          if (entry.ownerProfile?.interestClusters) {
+            entry.ownerProfile.interestClusters = entry.ownerProfile.interestClusters.filter(
+              (ic: string) => !ic.includes(changes.removeInterest!) && !changes.removeInterest!.includes(ic),
+            );
+          }
+        }
+      }
+    }
+
+    // Bump version to reflect correction
+    const [major, minor] = (config.version || '2.3').split('.').map(Number);
+    config.version = `${major}.${(minor || 0) + 1}`;
+
+    // Persist immediately
+    this.save();
+    this.broadcastFn?.('personality:corrected', {
+      personalityId,
+      changes,
+      newVersion: config.version,
+    });
+    console.log(`[Personality] ${config.name} identity corrected to ${config.version}`);
+    return true;
   }
 
   /**

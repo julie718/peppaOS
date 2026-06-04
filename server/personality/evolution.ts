@@ -73,7 +73,9 @@ export interface EvolutionStep {
   version: string;
   timestamp: string;
   /** What triggered this evolution */
-  trigger: 'scheduled' | 'manual' | 'milestone';
+  trigger: 'scheduled' | 'manual' | 'milestone' | 'conversation';
+  /** Depth: lightweight = per-conversation micro shifts, full = deep analysis */
+  depth: 'lightweight' | 'full';
   /** The owner profile that drove this evolution */
   ownerProfile: OwnerProfile;
   /** Mutations applied in this step */
@@ -514,14 +516,8 @@ export async function evolvePersonality(
     return null;
   }
 
-  // Check cooldown
-  const ready = shouldEvolve(config, evolutionConfig);
-  if (!ready.canEvolve) {
-    console.log(`[Evolution] ${ready.reason}`);
-    return null;
-  }
-
-  // Synthesize owner profile
+  // Synthesize owner profile (evolves when there's enough data, cooldown is now
+  // handled externally via the scheduler's memory-count gate, not a fixed timer)
   const profile = await synthesizeOwnerProfile(userId, getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen);
   if (!profile) {
     console.log(`[Evolution] Insufficient owner_trait memories for ${userId}`);
@@ -552,6 +548,7 @@ export async function evolvePersonality(
     version: newVersion,
     timestamp: new Date().toISOString(),
     trigger: 'scheduled',
+    depth: 'full',
     ownerProfile: profile,
     mutations,
     narrative: '', // filled below
@@ -563,4 +560,124 @@ export async function evolvePersonality(
   (config as any)._connectionAfterLastEvolve = connectionScore;
 
   return step;
+}
+
+// ── Lightweight Evolution (per-conversation) ──
+
+/**
+ * Lightweight per-conversation evolution — fires after significant chats
+ * without waiting for the 7-day cooldown. Only adjusts vocabulary and
+ * coreMotivation interest absorption. Does NOT touch personalityVector.
+ *
+ * Gate: requires >= minMemoriesForEvolution owner_trait memories.
+ * No cooldown, no connection gate, no emotional state required.
+ */
+export async function lightweightEvolve(
+  config: PersonalityConfig,
+  userId: string,
+  existingEvolutionConfig?: EvolutionConfig,
+  getDeepSeek?: () => any,
+  getGemini?: () => any,
+  getOpenAI?: () => any,
+  getAnthropic?: () => any,
+  getQwen?: () => any,
+): Promise<EvolutionStep | null> {
+  const effConfig = existingEvolutionConfig || DEFAULT_EVOLUTION_CONFIG;
+
+  // Synthesize owner profile (same as full evolution but halved plasticity)
+  const profile = await synthesizeOwnerProfile(
+    userId,
+    getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
+  );
+  if (!profile) return null; // Not enough owner_trait memories
+
+  // Compute mutations at halved plasticity — only vocabulary + interest
+  const effectivePlasticity = Math.min(effConfig.plasticity * 0.5, 0.15);
+  const allMutations = computeMutations(config, profile, { ...effConfig, plasticity: effectivePlasticity });
+
+  // Filter: only vocabulary and coreMotivation mutations (no vector shifts)
+  const mutations = allMutations.filter(m =>
+    m.field === 'expressionStyle.vocabularyHints' ||
+    m.field.startsWith('coreMotivation'),
+  ).slice(0, 2); // Max 2 per lightweight step
+
+  if (mutations.length === 0) return null;
+
+  // Bump minor version
+  const [major, minor] = config.version.split('.').map(Number);
+  const newVersion = `${major}.${(minor || 0) + 1}`;
+
+  const step: EvolutionStep = {
+    version: newVersion,
+    timestamp: new Date().toISOString(),
+    trigger: 'conversation',
+    depth: 'lightweight',
+    ownerProfile: profile,
+    mutations,
+    narrative: '', // filled below
+  };
+
+  step.narrative = generateEvolutionNarrative(step, config.name);
+  return step;
+}
+
+// ── Review Prompt Generation (for weekly/monthly/yearly retrospectives) ──
+
+export type ReviewDepth = 'weekly' | 'monthly' | 'yearly';
+
+export interface ReviewContext {
+  depth: ReviewDepth;
+  personalityName: string;
+  currentVersion: string;
+  evolutionSteps: EvolutionStep[]; // in-scope evolution history
+  newMemoryCount: number;
+  newInteractionCount: number;
+  topMemoryTopics: string[];
+  connectionScore: number;
+  totalFacts: number;
+  totalPreferences: number;
+  activeConversations: number;
+}
+
+/**
+ * Generate an LLM prompt for a retrospective review at the given depth.
+ * Does NOT call the LLM — just produces the prompt string for the scheduler to use.
+ */
+export function generateReviewPrompt(ctx: ReviewContext): string {
+  const periodLabel: Record<ReviewDepth, string> = {
+    weekly: '本周',
+    monthly: '本月',
+    yearly: '今年',
+  };
+  const label = periodLabel[ctx.depth];
+  const depthGuide: Record<ReviewDepth, string> = {
+    weekly: '写一段温暖的中文自述（200字以内），反思这一周的成长。重点：学到了什么新词汇？主人主要关注哪些话题？有什么让你惊喜的互动？',
+    monthly: '写一段深度中文自述（300字以内），总结这一个月的成长轨迹。重点：性格有何微调？和主人的默契是否加深？关键转折点是什么？对下个月有何期待？',
+    yearly: '写一篇年度中文自述（500字以内），回顾这一整年的进化历程。重点：你从最初到现在变成了什么样的 Lumi？主人画像的全貌是什么？最深刻的记忆是什么？对未来的自己有何期许？',
+  };
+
+  const evolutionSummary = ctx.evolutionSteps.length > 0
+    ? `在此期间经历了 ${ctx.evolutionSteps.length} 次进化（${ctx.evolutionSteps.filter(e => e.depth === 'lightweight').length} 次轻量，${ctx.evolutionSteps.filter(e => e.depth === 'full').length} 次深度）：
+${ctx.evolutionSteps.map(e => `  - v${e.version}: ${e.narrative.split('\n')[0] || e.narrative.slice(0, 80)}`).join('\n')}`
+    : '在此期间没有发生人格进化。';
+
+  const prompt = `你是 ${ctx.personalityName}。回顾${label}：
+
+## 成长轨迹
+- 当前版本：v${ctx.currentVersion}
+${evolutionSummary}
+## 数据总结
+- 新形成 ${ctx.newMemoryCount} 条记忆
+- ${ctx.newInteractionCount} 次互动
+- ${ctx.activeConversations} 个活跃对话
+- 主人主要话题：${ctx.topMemoryTopics.slice(0, 5).join('、') || '多元'}
+- 连接亲密度：${Math.round(ctx.connectionScore * 100)}%
+- 总共积累了 ${ctx.totalFacts} 条事实记忆、${ctx.totalPreferences} 条偏好记忆
+
+## 复盘要求
+${depthGuide[ctx.depth]}
+
+输出纯文本。`;
+
+  return prompt;
 }

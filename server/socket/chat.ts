@@ -11,6 +11,7 @@ import { queryMemories, queryMemoriesVector, addMemory, addReminder, extractMemo
 import { loadEmotionalState, saveEmotionalState, updateEmotionalState, updateEmotionalStateWithHIM, loadHIMState, saveHIMState, generateContextualGreeting, vectorMemoryBias } from "../personality/state";
 import { buildModeOverlay } from "../personality/engine";
 import { personalityRegistry } from "../personality";
+import { lightweightEvolve } from "../personality/evolution";
 import { getOrCreateActiveConversation, addMessage, getMessages, getMessagesByTokenBudget, checkAutoSummary, setConversationSummary, getConversationSummary, setConversationMode, getUnclosedConversation, extractTopics, trackTopic, getTopicContext } from "../conversation/manager";
 import { ensureBranch } from "../memory/tree";
 import { retrieveChunks } from "../agents/rag";
@@ -626,7 +627,60 @@ export function registerChatHandler(
             } as any, { domain, orgId: orgId || '' });
           }
           console.log(`[ChatHandler] Correction learned: ${corrected.memories.length} memories with boosted confidence`);
+
+          // Real-time identity correction: when user contradicts a claim Lumi makes about the user
+          // (e.g. "我不做自动驾驶" → remove from coreMotivation immediately, no 7-day wait)
+          try {
+            const identityCheck = await makeLLMCall(
+              [
+                {
+                  role: 'system',
+                  content: `Detect identity corrections. Lumi's coreMotivation:\n"${personalityConfig.coreMotivation}"\nLumi's belief about owner's interests: ${JSON.stringify((personalityConfig as any).ownerProfile?.interestClusters || [])}\n\nUser said: "${text}"\nLumi said: "${responseText.slice(0, 300)}"\n\nIs the user denying something Lumi believes about them (interest, trait, name, profession)? If YES, return JSON: {"correctsIdentity": true, "removeInterest": "exact text from coreMotivation to remove", "rewriteMotivation": "rewrite coreMotivation without the false claim, preserving everything else, or null"}. If NO, return {"correctsIdentity": false}.\nReturn ONLY JSON.`,
+                },
+              ],
+              [],
+              { provider: 'deepseek', model: 'deepseek-v4-flash', userId: uid, maxTokens: 300 },
+              llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
+            );
+            const identityResult = JSON.parse((identityCheck.text || '').replace(/```json|```/g, '').trim() || '{}');
+            if (identityResult.correctsIdentity) {
+              const removed = await personalityRegistry.correctIdentity(personalityId, {
+                removeInterest: identityResult.removeInterest || undefined,
+                removeFromMotivation: identityResult.removeInterest || undefined,
+                newMotivation: identityResult.rewriteMotivation || undefined,
+              });
+              if (removed) {
+                console.log(`[ChatHandler] Identity corrected in real-time: removed "${identityResult.removeInterest}"`);
+              }
+            }
+          } catch (idErr: any) {
+            console.warn('[ChatHandler] Identity correction check failed:', idErr.message);
+          }
         } catch (err: any) { console.warn('[ChatHandler] Correction extraction failed:', err.message); }
+      }
+
+      // Lightweight per-conversation evolution — micro-shifts after meaningful chats
+      // Fires if enough owner_trait memories have accumulated, no 7-day wait needed
+      if (!isSanctuary && responseText && cognition.intent.category !== 'command') {
+        try {
+          const evolutionConfig = personalityRegistry.getEvolutionConfig(personalityId);
+          const step = await lightweightEvolve(
+            personalityConfig,
+            uid,
+            evolutionConfig,
+            llmGetters.getDeepSeek,
+            llmGetters.getGemini,
+            llmGetters.getOpenAI,
+            llmGetters.getAnthropic,
+            llmGetters.getQwen,
+          );
+          if (step) {
+            personalityRegistry.applyEvolution(personalityId, step);
+            console.log(`[ChatHandler] Lightweight evolution: v${step.version}, ${step.mutations.length} mutation(s)`);
+          }
+        } catch (evErr: any) {
+          console.warn('[ChatHandler] Lightweight evolution failed:', evErr.message);
+        }
       }
 
       // Async memory extraction — skip trivial/command messages to reduce noise
