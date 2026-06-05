@@ -394,11 +394,22 @@ fn minimize_window(window: tauri::WebviewWindow) -> Result<(), String> {
 
 #[tauri::command]
 fn toggle_maximize_window(window: tauri::WebviewWindow) -> Result<(), String> {
-    let is_max = window.is_maximized().map_err(|e| e.to_string())?;
+    // On macOS with decorations: false, native maximize() is broken.
+    // Use primary monitor dimensions to manually maximize/unmaximize.
+    let is_max = window.is_maximized().unwrap_or(false);
     if is_max {
         window.unmaximize().map_err(|e| e.to_string())
     } else {
-        window.maximize().map_err(|e| e.to_string())
+        match window.primary_monitor() {
+            Ok(Some(monitor)) => {
+                let size = monitor.size();
+                let pos = monitor.position();
+                let _ = window.set_position(tauri::PhysicalPosition::new(pos.x, pos.y));
+                let _ = window.set_size(tauri::PhysicalSize::new(size.width, size.height));
+                Ok(())
+            }
+            _ => window.maximize().map_err(|e| e.to_string()),
+        }
     }
 }
 
@@ -1106,9 +1117,11 @@ pub fn run() {
                 .resource_dir()
                 .unwrap_or_default();
 
-            // Center window on primary monitor
+            // Center window on primary monitor, then maximize
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.center();
+                // Use maximize() instead of native fullscreen — works on macOS borderless
+                let _ = window.maximize();
             }
 
             // Ensure WebView2Loader.dll is alongside the EXE (Windows only)

@@ -859,11 +859,18 @@ export function DesktopUI({
   const [isFullscreen, setIsFullscreen] = useState(true); // Tauri starts fullscreen
   useEffect(() => {
     const check = () => {
-      setIsFullscreen(window.innerWidth >= screen.width - 10 && window.innerHeight >= screen.height - 10);
+      // 80px tolerance — macOS menu bar + Dock reduce available inner size
+      const nearFull = window.innerWidth >= screen.width - 80 && window.innerHeight >= screen.height - 80;
+      setIsFullscreen(nearFull);
     };
     check();
+    // Retry after 500ms — window may still be sizing at mount
+    const t = setTimeout(check, 500);
     window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener('resize', check);
+    };
   }, []);
   const [iconPositions, setIconPositions] = useState<Record<string, { x: number; y: number }>>(() => {
     try { return JSON.parse(localStorage.getItem('lumi_icon_positions') || '{}'); } catch { return {}; }
@@ -1425,7 +1432,7 @@ export function DesktopUI({
           backgroundRepeat: 'no-repeat',
         } : {}),
         ...(isFullscreen ? {} : {
-          transform: 'scale(0.75)',
+          transform: 'scale(0.95)',
           transformOrigin: 'center center',
         }),
       }}
