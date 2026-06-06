@@ -76,6 +76,9 @@ interface AppContextType {
   orgConnection: OrgConnection | null;
   workDomain: 'personal' | 'work';
   switchDomain: (domain: 'personal' | 'work') => void;
+  // Operation mode
+  operationMode: 'desktop_control' | 'terminal' | 'autonomous';
+  setOperationMode: (mode: 'desktop_control' | 'terminal' | 'autonomous') => void;
   // Core
   login: () => Promise<void>;
   logout: () => Promise<void>;
@@ -143,6 +146,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
           localStorage.setItem('lumi_org_connection', JSON.stringify(data.connection));
         }
       }
+    } catch {}
+  };
+
+  const [operationMode, setOperationModeState] = useState<'desktop_control' | 'terminal' | 'autonomous'>(() => {
+    try { return (localStorage.getItem('lumi_operation_mode') as any) || 'desktop_control'; } catch { return 'desktop_control'; }
+  });
+
+  const setOperationMode = async (mode: 'desktop_control' | 'terminal' | 'autonomous') => {
+    setOperationModeState(mode);
+    localStorage.setItem('lumi_operation_mode', mode);
+    try {
+      await fetch('/api/preferences/operation_mode', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode }),
+        credentials: 'include',
+      });
     } catch {}
   };
 
@@ -406,6 +426,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       orgConnection,
       workDomain,
       switchDomain,
+      operationMode,
+      setOperationMode,
       login,
       logout,
       createAgent,

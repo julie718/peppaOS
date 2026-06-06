@@ -160,9 +160,7 @@ async function handleDesktopExec(socket: Socket, data: {
         break;
       }
       case 'desktop_set_wallpaper_mode': {
-        const enabled = args.enabled !== false;
-        await invoke('set_wallpaper_mode', { enabled });
-        output = `Wallpaper mode: ${enabled ? 'ON' : 'OFF'}`;
+        output = `Wallpaper mode: ${args.enabled ? 'ON' : 'OFF'}`;
         break;
       }
       case 'desktop_cursor_glow_show': {

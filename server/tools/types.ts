@@ -15,6 +15,8 @@ export interface ToolContext {
   toolPolicy?: import('../personality/types').ToolPolicy;
   /** Returns true if the task has been cancelled — checked between tool iterations */
   isCancelled?: () => boolean;
+  /** Progress callback for long-running tools (computer_use) — reports each step */
+  onProgress?: (step: string) => void;
   /** LLM provider getters for tools that need to call vision/text models internally */
   llmGetters?: {
     getDeepSeek: () => any;

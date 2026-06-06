@@ -19,6 +19,7 @@ import { runOrchestratedTask, classifyComplexity } from "../agents/orchestrator"
 import { queryMemories, addMemory } from "../memory/store";
 import { matchQuickCommand } from "../cognition/quick_commands";
 import { recordTokenUsage } from "../llm/token_tracker";
+import { getOperationModeConfig } from "../cognition/operation_modes";
 
 interface AudioSession {
   sttSession: ReturnType<typeof createStreamingSession> | null;
@@ -213,7 +214,19 @@ async function processVoiceInput(
     if (tc) topicContext = tc;
   } catch {}
 
-  const voiceSystemPrompt = fullPersonalityPrompt + voiceOverlay + topicContext;
+  const operationMode = (() => {
+    try {
+      const db = readDB();
+      const setting = (db.settings || []).find((s: any) => s.key === `op_mode_${session.userId}`);
+      if (setting) return JSON.parse(setting.value).mode;
+    } catch {}
+    return 'desktop_control';
+  })();
+
+  const opModeConfigV = getOperationModeConfig(operationMode);
+  const opModeOverlay = opModeConfigV ? '\n\n' + opModeConfigV.promptOverlay : '';
+
+  const voiceSystemPrompt = fullPersonalityPrompt + voiceOverlay + opModeOverlay + topicContext;
 
   const DEFAULT_MODELS: Record<string, string> = {
     deepseek: 'deepseek-v4-pro', qwen: 'qwen-plus', openai: 'gpt-4o',
@@ -227,6 +240,7 @@ async function processVoiceInput(
     } catch {}
     return { provider: '', models: {} };
   })();
+
   const provider = (userLLMPrefs.provider || 'deepseek') as 'deepseek' | 'gemini' | 'openai' | 'anthropic' | 'qwen';
   const voiceModel = (userLLMPrefs.models || {})[provider] || DEFAULT_MODELS[provider] || 'deepseek-chat';
 
@@ -284,8 +298,10 @@ async function processVoiceInput(
 
   const toolContext = {
     desktopRelay,
-    requestConfirmation,
+    llmGetters,
+    ...(operationMode === 'desktop_control' ? { requestConfirmation } : {}),
     isCancelled: () => pipelineAbort?.signal.aborted ?? false,
+    ...(opModeConfigV ? { toolPolicy: opModeConfigV.toolPolicy } : {}),
   };
   const ttsProvider = getTTSProvider();
   // Emotion-adaptive voice: map mood to speech parameters, preserve user's chosen voiceId

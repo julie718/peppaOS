@@ -183,6 +183,15 @@ function extractActionJSON(text: string): ComputerUseAction | null {
     return JSON.parse(cleaned);
   } catch {}
 
+  // Fix common vision-model JSON errors:
+  // "x": <num>, <num>  →  "x": <num>, "y": <num>  (model collapsed x,y into x value)
+  cleaned = cleaned.replace(/"x"\s*:\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,/g, '"x": $1, "y": $2,');
+
+  // Try parsing again after fix
+  try {
+    return JSON.parse(cleaned);
+  } catch {}
+
   // Extract first JSON object
   const match = cleaned.match(/\{[\s\S]*?\}/);
   if (match) {
@@ -239,9 +248,13 @@ export async function computerUseLoop(
   const actionHistory: string[] = [];
   let consecutiveErrors = 0;
 
-  // ── Enter desktop control mode: wallpaper (click-through) + cursor glow ──
-  try { await options.desktopRelay('desktop_set_wallpaper_mode', { enabled: true }); } catch {}
-  try { await options.desktopRelay('desktop_cursor_glow_show', {}); } catch {}
+  // ── Enter desktop control: show cursor glow so user sees where Lumi is clicking ──
+  try {
+    await options.desktopRelay('desktop_cursor_glow_show', {});
+    options.onProgress?.('光标光效已开启');
+  } catch (e: any) {
+    options.onProgress?.(`光标光效失败: ${e.message}`);
+  }
 
   try {
     for (let i = 0; i < maxIter; i++) {
@@ -322,10 +335,7 @@ export async function computerUseLoop(
 
   return `Reached maximum of ${maxIter} iterations. Last actions: ${actionHistory.slice(-5).join('; ') || 'none'}`;
   } finally {
-    // Restore desktop: hide cursor glow then exit wallpaper mode
     options.desktopRelay('desktop_cursor_glow_hide', {}).catch(() => {});
-    setTimeout(() => {
-      options.desktopRelay('desktop_set_wallpaper_mode', { enabled: false }).catch(() => {});
-    }, 300);
+    options.onProgress?.('光标光效已关闭');
   }
 }

@@ -21,9 +21,9 @@ async function computerUse(args: Record<string, any>, context?: any): Promise<st
     desktopRelay: context.desktopRelay,
     llmGetters: context.llmGetters,
     maxIterations: Math.min(maxIterations, 25), // hard cap at 25
-    onProgress: (step: string) => {
+    onProgress: context.onProgress || ((step: string) => {
       console.log(`[ComputerUse] ${step}`);
-    },
+    }),
     isCancelled: context.isCancelled,
   });
 }

@@ -67,7 +67,10 @@ export function initSocketRuntime({ io, jwtSecret, llm }: SocketContext) {
   const llmGetters = { getDeepSeek: llm.getDeepSeek, getGemini: llm.getGemini, getOpenAI: llm.getOpenAI, getAnthropic: llm.getAnthropic, getQwen: llm.getQwen, getArk: llm.getArk, getOllama: llm.getOllama, isOllamaAvailable: llm.isOllamaAvailable, getLmStudio: llm.getLmStudio, isLmStudioAvailable: llm.isLmStudioAvailable };
 
   io.on("connection", (socket) => {
-    console.log(`[Socket] Client connected: ${socket.id}`);
+    const uid = getUserIdFromSocket(socket, jwtSecret);
+    // Join user room so all this user's sockets (DesktopUI, AgentChatPage, etc.) share events
+    socket.join(`user:${uid}`);
+    console.log(`[Socket] Client connected: ${socket.id} (uid=${uid})`);
 
     const getUserId = (s: any) => getUserIdFromSocket(s, jwtSecret);
 

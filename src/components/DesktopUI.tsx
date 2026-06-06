@@ -46,6 +46,7 @@ import {
   Mic,
   Briefcase,
   Terminal as TerminalIcon,
+  MousePointer2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { GlassCard } from './SharedUI';
@@ -776,7 +777,7 @@ export function DesktopUI({
   const personalScale = useTransform(cameraZ, [0, -1000], [1, 0.4]);
   const personalOpacity = useTransform(cameraZ, [0, -400], [1, 0]);
   const { isTauri } = usePlatform();
-  const { selectedVoiceId, unreadCount, notifications, addNotification, orgConnection, workDomain, switchDomain } = useApp();
+  const { selectedVoiceId, unreadCount, notifications, addNotification, orgConnection, workDomain, switchDomain, operationMode, setOperationMode } = useApp();
 
   const [openWindows, setOpenWindows] = useState<string[]>(activeTab !== 'home' && activeTab !== 'knowledge' ? [activeTab] : []);
   const [minimizedWindows, setMinimizedWindows] = useState<string[]>([]);
@@ -1882,23 +1883,25 @@ export function DesktopUI({
                 >
                   {callState !== 'idle' ? <Mic size={20} className="animate-pulse" /> : <Mic size={20} />}
                 </button>
-                {/* Personality selector — always visible */}
-                <div className="flex items-center gap-1 mt-1">
-                  {['lumi', 'scholar_default', 'founder_default'].map(pid => (
+                {/* Operation Mode selector — pet mode */}
+                <div className="flex items-center gap-1.5 mt-1">
+                  {([
+                    { id: 'desktop_control' as const, label: '键鼠', icon: <MousePointer2 size={16} /> },
+                    { id: 'terminal' as const, label: '命令', icon: <TerminalIcon size={16} /> },
+                    { id: 'autonomous' as const, label: '自由', icon: <Zap size={16} /> },
+                  ]).map(m => (
                     <button
-                      key={pid}
-                      onClick={() => {
-                        setActivePersonality(pid);
-                        if (callState !== 'idle') switchPersonality(pid);
-                      }}
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${
-                        activePersonality === pid
-                          ? 'bg-celestial-saturn/20 text-celestial-saturn border border-celestial-saturn/30'
+                      key={m.id}
+                      onClick={() => setOperationMode(m.id)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold uppercase tracking-wider transition-all ${
+                        operationMode === m.id
+                          ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 shadow-sm shadow-cyan-500/10'
                           : 'bg-white/5 text-white/45 border border-white/5 hover:bg-white/10 hover:text-white/60'
                       }`}
-                      title={pid === 'lumi' ? '默认助手' : pid === 'scholar_default' ? '学术顾问' : '创始人顾问'}
+                      title={m.id === 'desktop_control' ? '键鼠模式：截图驱动桌面控制' : m.id === 'terminal' ? '命令行模式：终端命令操作' : '自由模式：后台自主执行'}
                     >
-                      {pid === 'lumi' ? 'Lumi' : pid === 'scholar_default' ? 'Scholar' : 'Founder'}
+                      {m.icon}
+                      {m.label}
                     </button>
                   ))}
                 </div>
@@ -1940,22 +1943,25 @@ export function DesktopUI({
                 diffused={diffused}
                 isLightMode={isLightMode}
               />
-              {/* Personality selector — sphere mode */}
-              <div className="flex items-center gap-1 mt-2 justify-center">
-                {['lumi', 'scholar_default', 'founder_default'].map(pid => (
+              {/* Operation Mode selector — sphere mode */}
+              <div className="flex items-center gap-1.5 mt-2 justify-center">
+                {([
+                  { id: 'desktop_control' as const, label: '键鼠', icon: <MousePointer2 size={12} /> },
+                  { id: 'terminal' as const, label: '命令', icon: <TerminalIcon size={12} /> },
+                  { id: 'autonomous' as const, label: '自由', icon: <Zap size={12} /> },
+                ]).map(m => (
                   <button
-                    key={pid}
-                    onClick={() => {
-                      setActivePersonality(pid);
-                      if (callState !== 'idle') switchPersonality(pid);
-                    }}
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${
-                      activePersonality === pid
-                        ? 'bg-celestial-saturn/20 text-celestial-saturn border border-celestial-saturn/30'
+                    key={m.id}
+                    onClick={() => setOperationMode(m.id)}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all ${
+                      operationMode === m.id
+                        ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
                         : 'bg-white/5 text-white/45 border border-white/5 hover:bg-white/10 hover:text-white/60'
                     }`}
+                    title={m.id === 'desktop_control' ? '键鼠模式：截图驱动桌面控制' : m.id === 'terminal' ? '命令行模式：终端命令操作' : '自由模式：后台自主执行'}
                   >
-                    {pid === 'lumi' ? 'Lumi' : pid === 'scholar_default' ? 'Scholar' : 'Founder'}
+                    {m.icon}
+                    {m.label}
                   </button>
                 ))}
               </div>

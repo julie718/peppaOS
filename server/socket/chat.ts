@@ -8,6 +8,7 @@ import { NormalizedMessage, makeLLMCall, StreamCallback } from "../llm/providers
 import { LLMUsage } from "../tools/types";
 import { toolRegistry } from "../tools/registry";
 import { runWithTools } from "../llm/adapter";
+import { getOperationModeConfig } from "../cognition/operation_modes";
 import { queryMemories, queryMemoriesVector, addMemory, addReminder, extractMemories } from "../memory";
 import { loadEmotionalState, saveEmotionalState, updateEmotionalState, updateEmotionalStateWithHIM, loadHIMState, saveHIMState, generateContextualGreeting, vectorMemoryBias } from "../personality/state";
 import { buildModeOverlay } from "../personality/engine";
@@ -222,6 +223,22 @@ export function registerChatHandler(
 
       socket.emit("agent:status", { status: "thinking", agentName: personality.name });
       console.log('[ChatHandler] emitted agent:status thinking');
+
+      // Read user's operation mode from DB
+      const operationMode = (() => {
+        try {
+          const db = readDB();
+          const setting = (db.settings || []).find((s: any) => s.key === `op_mode_${uid}`);
+          if (setting) return JSON.parse(setting.value).mode;
+        } catch {}
+        return 'desktop_control';
+      })();
+
+      // Inject operation mode prompt overlay
+      const opModeConfig = getOperationModeConfig(operationMode);
+      if (opModeConfig) {
+        effectiveSystemPrompt += '\n\n' + opModeConfig.promptOverlay;
+      }
 
       // Read user's LLM prefs from settings (synced from API Matrix)
       const userLLMPrefs = (() => {
@@ -499,7 +516,31 @@ export function registerChatHandler(
             maxIterations,
             llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
             onChunk,
-            { desktopRelay, isCancelled: () => abortController.signal.aborted, ...(isSanctuary ? { toolPolicy: { allowedTools: [], requireConfirmation: [], forbiddenTools: ['*'], maxIterations: 0 } } : {}) },
+            {
+              desktopRelay,
+              llmGetters,
+              isCancelled: () => abortController.signal.aborted,
+              onProgress: (step: string) => {
+                socket.emit("agent:chunk", { text: `[${step}]\n`, agentName: "Lumi" });
+              },
+              ...(isSanctuary
+                ? { toolPolicy: { allowedTools: [], requireConfirmation: [], forbiddenTools: ['*'], maxIterations: 0 } }
+                : (opModeConfig ? { toolPolicy: opModeConfig.toolPolicy } : {})
+              ),
+              ...(operationMode === 'desktop_control' ? {
+                requestConfirmation: async (toolName: string, args: Record<string, any>): Promise<boolean> => {
+                  return new Promise((resolve) => {
+                    const cid = crypto.randomUUID();
+                    const timeout = setTimeout(() => resolve(false), 30000);
+                    socket.once(`tool:confirm_result:${cid}`, (data: { allowed: boolean }) => {
+                      clearTimeout(timeout);
+                      resolve(data.allowed === true);
+                    });
+                    socket.emit('agent:confirm_tool', { correlationId: cid, name: toolName, arguments: args });
+                  });
+                }
+              } : {}),
+            },
           );
 
           responseText = result.text || '';
@@ -543,7 +584,12 @@ export function registerChatHandler(
                 1,
                 llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
                 undefined,
-                { desktopRelay, isCancelled: () => abortController.signal.aborted },
+                {
+                  desktopRelay,
+                  llmGetters,
+                  isCancelled: () => abortController.signal.aborted,
+                  ...(opModeConfig ? { toolPolicy: opModeConfig.toolPolicy } : {}),
+                },
               );
               responseText = fallback.text || '';
               llmWasCalled = true;

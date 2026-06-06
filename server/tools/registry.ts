@@ -141,8 +141,8 @@ export class ToolRegistry {
       console.log(`[Tool] Executing confirmation-level tool: ${name}`);
     }
 
-    // Wrap with 30s timeout to prevent hanging
-    const timeoutMs = 30000;
+    // Wrap with 30s timeout to prevent hanging (computer_use gets 180s — vision loop)
+    const timeoutMs = name === 'computer_use' ? 180_000 : 30_000;
     const result = await Promise.race([
       tool.handler(args, context),
       new Promise<string>((_, reject) =>

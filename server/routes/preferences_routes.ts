@@ -40,4 +40,42 @@ export function mountPreferencesRoutes(router: Router, _jwtSecret: string) {
       res.status(500).json({ error: e.message });
     }
   });
+
+  router.get("/preferences/operation_mode", requireAuth, (req, res) => {
+    try {
+      const uid = req.user!.uid;
+      const db = readDB();
+      const setting = (db.settings || []).find((s: any) => s.key === `op_mode_${uid}`);
+      if (setting) {
+        res.json(JSON.parse(setting.value));
+      } else {
+        res.json({ mode: 'desktop_control' });
+      }
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.put("/preferences/operation_mode", requireAuth, (req, res) => {
+    try {
+      const uid = req.user!.uid;
+      const { mode } = req.body || {};
+      if (!mode) return res.status(400).json({ error: 'mode is required' });
+      const db = readDB();
+      if (!db.settings) db.settings = [];
+      const key = `op_mode_${uid}`;
+      const value = JSON.stringify({ mode });
+      const existing = db.settings.findIndex((s: any) => s.key === key);
+      if (existing >= 0) {
+        db.settings[existing].value = value;
+      } else {
+        db.settings.push({ key, value });
+      }
+      writeDB(db);
+      broadcastPreferenceChange(uid, 'operation_mode', { mode });
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
 }
