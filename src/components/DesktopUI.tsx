@@ -856,15 +856,6 @@ export function DesktopUI({
   const [time, setTime] = useState(new Date());
   const [isWallpaperMode, setIsWallpaperMode] = useState(false);
   const [editMode, setEditMode] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(true); // Tauri starts fullscreen
-  useEffect(() => {
-    const check = () => {
-      setIsFullscreen(window.innerWidth >= screen.width - 10 && window.innerHeight >= screen.height - 10);
-    };
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, []);
   const [iconPositions, setIconPositions] = useState<Record<string, { x: number; y: number }>>(() => {
     try { return JSON.parse(localStorage.getItem('lumi_icon_positions') || '{}'); } catch { return {}; }
   });
@@ -1424,10 +1415,6 @@ export function DesktopUI({
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
         } : {}),
-        ...(isFullscreen ? {} : {
-          transform: 'scale(0.75)',
-          transformOrigin: 'center center',
-        }),
       }}
     >
       <input ref={wallpaperInputRef} type="file" accept="image/*" onChange={handleWallpaperUpload} className="hidden" />
