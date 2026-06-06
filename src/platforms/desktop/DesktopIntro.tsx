@@ -34,7 +34,7 @@ export function DesktopIntro({ t, onBack, onInitialize }: DesktopIntroProps) {
         </button>
         <div className="flex items-center gap-3 px-4 py-2 bg-celestial-saturn/10 border border-celestial-saturn/20 rounded-full">
            <div className="w-2 h-2 rounded-full bg-celestial-saturn animate-pulse" />
-           <span className="text-[10px] font-black text-celestial-saturn uppercase tracking-widest text-white/80">{t.lumiOSStableRelease || 'Lumi OS v2.4.1 Stable Release'}</span>
+           <span className="text-xs font-black text-celestial-saturn uppercase tracking-widest text-white/80">{t.lumiOSStableRelease || 'Lumi OS v2.4.1 Stable Release'}</span>
         </div>
       </div>
 
@@ -42,7 +42,7 @@ export function DesktopIntro({ t, onBack, onInitialize }: DesktopIntroProps) {
       <div className="grid lg:grid-cols-2 gap-16 items-center">
         <div className="space-y-8">
           <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] font-bold text-white/40 uppercase tracking-widest">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full text-xs font-bold text-white/40 uppercase tracking-widest">
               {t.highPerfWorkstationNode || 'High-Performance Workstation Node'}
             </div>
             <h1 className="text-6xl md:text-7xl font-black tracking-tighter leading-none italic uppercase">
@@ -61,25 +61,25 @@ export function DesktopIntro({ t, onBack, onInitialize }: DesktopIntroProps) {
                <Layout size={24} className="text-celestial-saturn group-hover:rotate-12 transition-transform" />
                <div className="text-left">
                   <div className="text-lg leading-none">{t.bootVirtualOS || 'BOOT VIRTUAL OS'}</div>
-                  <div className="text-[10px] opacity-60 tracking-wider">{t.browserDemoInstance || 'BROWSER DEMO INSTANCE'}</div>
+                  <div className="text-xs opacity-60 tracking-wider">{t.browserDemoInstance || 'BROWSER DEMO INSTANCE'}</div>
                </div>
              </button>
              <button className="px-10 py-6 bg-white/5 text-white font-black rounded-2xl border border-white/10 hover:bg-white/10 transition-all flex items-center justify-center gap-4">
                <Download size={24} className="text-white/40" />
                <div className="text-left">
                   <div className="text-lg leading-none">{t.downloadNative || 'DOWNLOAD NATIVE'}</div>
-                  <div className="text-[10px] opacity-40 tracking-wider">{t.stableReleaseLabel || 'STABLE V2.4.1 RELEASE'}</div>
+                  <div className="text-xs opacity-40 tracking-wider">{t.stableReleaseLabel || 'STABLE V2.4.1 RELEASE'}</div>
                </div>
              </button>
           </div>
           
           <div className="flex items-center gap-8 pt-4">
             <div className="flex flex-col">
-              <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">{t.accelerationLabel || 'Acceleration'}</span>
+              <span className="text-xs font-black text-white/20 uppercase tracking-widest">{t.accelerationLabel || 'Acceleration'}</span>
               <div className="flex gap-2 mt-2">
-                <div className="px-2 py-1 bg-white/5 border border-white/5 rounded text-[8px] font-bold text-white/40">NVIDIA CUDA</div>
-                <div className="px-2 py-1 bg-white/5 border border-white/5 rounded text-[8px] font-bold text-white/40">APPLE METAL</div>
-                <div className="px-2 py-1 bg-white/5 border border-white/5 rounded text-[8px] font-bold text-white/40">VULKAN</div>
+                <div className="px-2 py-1 bg-white/5 border border-white/5 rounded text-xs font-bold text-white/40">NVIDIA CUDA</div>
+                <div className="px-2 py-1 bg-white/5 border border-white/5 rounded text-xs font-bold text-white/40">APPLE METAL</div>
+                <div className="px-2 py-1 bg-white/5 border border-white/5 rounded text-xs font-bold text-white/40">VULKAN</div>
               </div>
             </div>
           </div>
@@ -89,7 +89,7 @@ export function DesktopIntro({ t, onBack, onInitialize }: DesktopIntroProps) {
            <div className="absolute inset-0 bg-gradient-to-br from-celestial-saturn/20 via-transparent to-transparent group-hover:opacity-100 transition-opacity" />
            <div className="absolute inset-0 flex items-center justify-center">
               <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,rgba(255,200,80,0.2)_0%,transparent_70%)]" />
-              <Laptop size={120} className="text-white/5 group-hover:scale-110 transition-transform duration-700" />
+              <Laptop size={120} className="text-white/25 group-hover:scale-110 transition-transform duration-700" />
               <div className="absolute inset-0 flex flex-col items-center justify-center p-12 space-y-6">
                  <div className="relative">
                    <Terminal size={64} className="text-celestial-saturn opacity-50 relative z-10" />
@@ -97,8 +97,8 @@ export function DesktopIntro({ t, onBack, onInitialize }: DesktopIntroProps) {
                  </div>
                  <div className="w-full max-w-sm space-y-3 bg-black/40 p-4 rounded-2xl border border-white/5 backdrop-blur-xl">
                     <div className="flex justify-between items-center px-1">
-                      <span className="text-[8px] font-black text-white/20 uppercase tracking-widest">{t.kernelLoadSequence || 'Kernel Load Sequence'}</span>
-                      <span className="text-[10px] font-bold text-celestial-saturn">{t.stableLabel || 'STABLE'}</span>
+                      <span className="text-xs font-black text-white/20 uppercase tracking-widest">{t.kernelLoadSequence || 'Kernel Load Sequence'}</span>
+                      <span className="text-xs font-bold text-celestial-saturn">{t.stableLabel || 'STABLE'}</span>
                     </div>
                     <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
                        <motion.div 
@@ -129,7 +129,7 @@ export function DesktopIntro({ t, onBack, onInitialize }: DesktopIntroProps) {
           
           <div className="grid md:grid-cols-2 gap-12">
             <div className="space-y-6">
-              <h4 className="text-[10px] font-black text-white/60 uppercase tracking-[0.3em] border-l-2 border-celestial-saturn pl-4">{t.standardBrowserEdition || 'Standard Browser Edition'}</h4>
+              <h4 className="text-xs font-black text-white/60 uppercase tracking-[0.3em] border-l-2 border-celestial-saturn pl-4">{t.standardBrowserEdition || 'Standard Browser Edition'}</h4>
               <ul className="space-y-4">
                 {[
                   t.browserItem1 || 'Cloud-dependent neural sync',
@@ -146,7 +146,7 @@ export function DesktopIntro({ t, onBack, onInitialize }: DesktopIntroProps) {
             </div>
             
             <div className="space-y-6">
-              <h4 className="text-[10px] font-black text-celestial-saturn uppercase tracking-[0.3em] border-l-2 border-celestial-saturn pl-4">{t.lumiNativeKernelNode || 'Lumi Native Kernel Node'}</h4>
+              <h4 className="text-xs font-black text-celestial-saturn uppercase tracking-[0.3em] border-l-2 border-celestial-saturn pl-4">{t.lumiNativeKernelNode || 'Lumi Native Kernel Node'}</h4>
               <ul className="space-y-4">
                 {[
                   t.kernelItem1 || 'Full Silicon-level local LLM execution',
@@ -196,7 +196,7 @@ export function DesktopIntro({ t, onBack, onInitialize }: DesktopIntroProps) {
             <GlassCard key={dl.platform} className="p-8 border-white/5 hover:border-celestial-saturn/30 transition-colors group">
               <div className="flex justify-between items-start mb-6">
                 <span className="text-4xl">{dl.icon}</span>
-                <span className="text-[10px] font-bold py-1 px-3 bg-white/5 rounded-full text-white/40 uppercase tracking-widest">{t.stableReleaseBadge || 'Stable Release'}</span>
+                <span className="text-xs font-bold py-1 px-3 bg-white/5 rounded-full text-white/40 uppercase tracking-widest">{t.stableReleaseBadge || 'Stable Release'}</span>
               </div>
               <div className="space-y-4">
                 <div>

@@ -620,7 +620,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
               variant="ghost"
               size="sm"
               onClick={() => setShowVoicePicker(!showVoicePicker)}
-              className="text-[10px] font-black uppercase tracking-widest text-white/40 flex items-center gap-2 hover:text-celestial-saturn transition-colors"
+              className="text-xs font-black uppercase tracking-widest text-white/40 flex items-center gap-2 hover:text-celestial-saturn transition-colors"
             >
               {voices.find(v => v.voiceId === selectedVoiceId)?.name || (t.selectVoice || 'Select Voice')}
               <ChevronDown size={12} />
@@ -642,7 +642,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                         setSelectedVoiceId(v.voiceId);
                         setShowVoicePicker(false);
                       }}
-                      className={`w-full text-left p-2 rounded-xl text-[10px] font-bold uppercase transition-all ${
+                      className={`w-full text-left p-2 rounded-xl text-xs font-bold uppercase transition-all ${
                         selectedVoiceId === v.voiceId ? 'bg-celestial-saturn text-black' : 'text-white/60 hover:bg-white/5 hover:text-white'
                       }`}
                     >
@@ -668,12 +668,12 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
             <h2 className="text-base md:text-xl font-bold tracking-tight truncate max-w-[120px] sm:max-w-none flex items-center gap-2">
               {agentName}
               {workDomain === 'work' && orgConnection?.connected && (
-                <span className="text-[8px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 font-medium uppercase tracking-wider">
+                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 font-medium uppercase tracking-wider">
                   {t.orgWorkDomain || 'Work'}
                 </span>
               )}
             </h2>
-            <p className="text-[8px] md:text-[10px] uppercase tracking-widest text-white/40 font-bold">{agentCategory}</p>
+            <p className="text-xs md:text-xs uppercase tracking-widest text-white/40 font-bold">{agentCategory}</p>
           </div>
         </div>
       </div>
@@ -696,10 +696,10 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
           <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
             {isLoadingConversations ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 size={20} className="animate-spin text-white/20" />
+                <Loader2 size={20} className="animate-spin text-white/45" />
               </div>
             ) : conversations.length === 0 ? (
-              <div className="text-center py-8 text-[10px] text-white/20 font-bold uppercase tracking-widest">
+              <div className="text-center py-8 text-xs text-white/45 font-bold uppercase tracking-widest">
                 {t.noConversations || 'No conversations yet'}
               </div>
             ) : (
@@ -716,11 +716,11 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                     <div className="text-xs font-bold text-white/70 truncate pr-6">
                       {conv.title || t.untitled || 'Untitled'}
                     </div>
-                    <div className="text-[10px] text-white/30 mt-0.5 truncate">
+                    <div className="text-xs text-white/55 mt-0.5 truncate">
                       {conv.summary || ''}
                     </div>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[9px] text-white/20">
+                      <span className="text-[12px] text-white/45">
                         {(() => {
                           if (!conv.lastActiveAt) return '';
                           const d = new Date(conv.lastActiveAt);
@@ -732,7 +732,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                         })()}
                       </span>
                       {conv.messageCount > 0 && (
-                        <span className="text-[9px] text-white/20">{conv.messageCount} {t.chatMsgs || 'msgs'}</span>
+                        <span className="text-[12px] text-white/45">{conv.messageCount} {t.chatMsgs || 'msgs'}</span>
                       )}
                     </div>
                   </button>
@@ -749,7 +749,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                         fetchConversations();
                       } catch {}
                     }}
-                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-red-500/20 text-white/20 hover:text-red-400"
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-red-500/20 text-white/45 hover:text-red-400"
                     title={t.chatCloseConv || 'Close conversation'}
                   >
                     <Trash2 size={12} />
@@ -765,7 +765,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
           <div className="p-4 md:p-6 border-b border-white/5 flex items-center justify-between bg-white/5">
             <div className="flex items-center gap-3">
               <div className={`w-2 h-2 rounded-full ${isSpeaking ? 'bg-celestial-nebula animate-ping' : 'bg-celestial-saturn animate-pulse'}`} />
-              <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-white/60">
+              <span className="text-xs md:text-xs font-bold uppercase tracking-widest text-white/60">
                 {activeConversation?.title || activeConversation?.summary?.slice(0, 30) || t.neuralLink || 'Neural Link'}
               </span>
               {isSpeaking && (
@@ -787,13 +787,13 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                   <div className="flex items-center gap-2">
                     <Button 
                       onClick={isPaused ? resume : pause}
-                      className="h-6 px-2 text-[8px] bg-white/10 text-white hover:bg-white/20 rounded-full border border-white/10 flex items-center gap-1"
+                      className="h-6 px-2 text-xs bg-white/10 text-white hover:bg-white/20 rounded-full border border-white/10 flex items-center gap-1"
                     >
                       {isPaused ? <Play size={10} /> : <Pause size={10} />}
                     </Button>
                     <Button 
                       onClick={stop}
-                      className="h-6 px-2 text-[8px] bg-red-500/20 text-red-500 hover:bg-red-500/40 rounded-full border border-red-500/20 flex items-center gap-1"
+                      className="h-6 px-2 text-xs bg-red-500/20 text-red-500 hover:bg-red-500/40 rounded-full border border-red-500/20 flex items-center gap-1"
                     >
                       <Square size={10} />
                     </Button>
@@ -804,10 +804,10 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
             <Button
               onClick={() => setShowInfoPanel(!showInfoPanel)}
               variant="ghost"
-              className={`h-7 px-2 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 rounded-full border transition-colors ${
+              className={`h-7 px-2 text-xs font-bold uppercase tracking-widest flex items-center gap-1 rounded-full border transition-colors ${
                 showInfoPanel
                   ? 'bg-white/10 text-white border-white/20'
-                  : 'text-white/20 hover:text-white/60 border-transparent hover:bg-white/5'
+                  : 'text-white/45 hover:text-white/60 border-transparent hover:bg-white/5'
               }`}
             >
               <Info size={12} />
@@ -832,7 +832,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                   </div>
                   <div>
                     <p className="text-xs font-bold text-amber-300 uppercase tracking-tight">{t.unfinishedConversation || 'Unfinished conversation'}</p>
-                    <p className="text-[10px] text-white/40 flex items-center gap-1">
+                    <p className="text-xs text-white/40 flex items-center gap-1">
                       <Clock size={10} />
                       {new Date(activeConversation.lastActiveAt).toLocaleString()}
                       {activeConversation.messageCount > 0 && (
@@ -844,14 +844,14 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                 <div className="flex items-center gap-2">
                   <Button
                     onClick={() => handleResumeConversation(activeConversation.id)}
-                    className="bg-amber-500 text-black font-bold text-[10px] px-3 py-1.5 rounded-xl hover:scale-105 transition-transform"
+                    className="bg-amber-500 text-black font-bold text-xs px-3 py-1.5 rounded-xl hover:scale-105 transition-transform"
                   >
                     {t.continueBtn || 'Continue'}
                   </Button>
                   <Button
                     onClick={handleNewConversation}
                     variant="ghost"
-                    className="text-white/20 hover:text-white/60 text-[10px] px-2"
+                    className="text-white/45 hover:text-white/60 text-xs px-2"
                   >
                     {t.newBtn || 'New'}
                   </Button>
@@ -861,7 +861,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
 
             {/* Active conversation indicator */}
             {activeConversation && !showResumePrompt && activeConversation.agentId === agentId && activeConversation.messageCount > 0 && (
-              <div className="flex items-center gap-2 text-[9px] text-white/20 font-bold uppercase tracking-widest">
+              <div className="flex items-center gap-2 text-[12px] text-white/45 font-bold uppercase tracking-widest">
                 <History size={10} />
                 <span>{activeConversation.messageCount} {t.messagesCount || 'messages'}</span>
                 <span>&middot;</span>
@@ -870,8 +870,8 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
             )}
             {isLoadingMessages ? (
               <div className="h-full flex flex-col items-center justify-center gap-3">
-                <Loader2 size={28} className="animate-spin text-white/20" />
-                <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">{t.loading || 'Loading...'}</span>
+                <Loader2 size={28} className="animate-spin text-white/45" />
+                <span className="text-xs text-white/45 font-bold uppercase tracking-widest">{t.loading || 'Loading...'}</span>
               </div>
             ) : messages.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-center space-y-8 px-4">
@@ -881,7 +881,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                 </div>
                 {visibleSuggestions.length > 0 && (
                   <div className="space-y-3 max-w-md w-full">
-                    <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-white/20 font-bold">
+                    <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-white/45 font-bold">
                       <Sparkles size={12} />
                       {t.tryThese || 'Try these'}
                     </div>
@@ -921,18 +921,18 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                         ) : (
                           <Loader2 size={14} className="animate-spin" />
                         )}
-                        <span className="font-bold uppercase tracking-widest text-[10px]">{msg.toolName}</span>
+                        <span className="font-bold uppercase tracking-widest text-xs">{msg.toolName}</span>
                       </div>
                       {msg.toolArgs && (
-                        <div className="text-[10px] opacity-50 truncate max-w-[200px]">
+                        <div className="text-xs opacity-50 truncate max-w-[200px]">
                           {JSON.stringify(msg.toolArgs).slice(0, 80)}
                         </div>
                       )}
                       {msg.toolResult && (
-                        <div className="text-[10px] text-green-400/70 mt-1 truncate max-w-[250px]">{msg.toolResult.slice(0, 150)}</div>
+                        <div className="text-xs text-green-400/70 mt-1 truncate max-w-[250px]">{msg.toolResult.slice(0, 150)}</div>
                       )}
                       {msg.toolError && (
-                        <div className="text-[10px] text-red-400/70 mt-1">{msg.toolError}</div>
+                        <div className="text-xs text-red-400/70 mt-1">{msg.toolError}</div>
                       )}
                     </div>
                   </motion.div>
@@ -970,8 +970,8 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                           <div className="flex items-center gap-3 px-3 py-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
                             <FileText size={16} className="text-emerald-400" />
                             <div className="flex-1 min-w-0">
-                              <span className="text-[11px] text-white/70 truncate block">{filePath.split(/[\\/]/).pop()}</span>
-                              <span className="text-[9px] text-white/30">{t.fileReady || 'File ready — click to copy path'}</span>
+                              <span className="text-xs text-white/70 truncate block">{filePath.split(/[\\/]/).pop()}</span>
+                              <span className="text-[12px] text-white/55">{t.fileReady || 'File ready — click to copy path'}</span>
                             </div>
                             <button onClick={() => handleCopyMessage(filePath, msg.id)}
                               className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
@@ -999,12 +999,12 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                         {copiedId === msg.id ? (
                           <Check size={12} className="text-green-400" />
                         ) : (
-                          <Copy size={12} className="text-white/30 hover:text-white/70" />
+                          <Copy size={12} className="text-white/55 hover:text-white/70" />
                         )}
                       </button>
                     )}
                   </div>
-                  <span className="text-[9px] uppercase tracking-widest opacity-30 mt-2 px-3">
+                  <span className="text-[12px] uppercase tracking-widest opacity-30 mt-2 px-3">
                     {msg.userName} • {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </motion.div>
@@ -1012,7 +1012,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
             </AnimatePresence>
             {isTyping && (
               <div className="flex flex-col gap-3">
-                <div className="flex gap-2 items-center text-celestial-saturn/40 text-[10px] font-bold uppercase tracking-widest">
+                <div className="flex gap-2 items-center text-celestial-saturn/40 text-xs font-bold uppercase tracking-widest">
                   <motion.div
                     animate={{ rotate: 360 }}
                     transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
@@ -1097,12 +1097,12 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold uppercase tracking-widest text-white/40">{t.activeCapabilities || 'Active Capabilities'}</h4>
               {isElectron && (
-                <div className="px-2 py-0.5 rounded-full bg-celestial-saturn/20 text-[8px] text-celestial-saturn font-black">NODE_NATIVE</div>
+                <div className="px-2 py-0.5 rounded-full bg-celestial-saturn/20 text-xs text-celestial-saturn font-black">NODE_NATIVE</div>
               )}
             </div>
             <div className="flex flex-wrap gap-2">
               {(agentMetadata.capabilities || [t.neuralCore || 'Neural Core', t.webMesh || 'Web Mesh']).map((cap, i) => (
-                <div key={i} className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/5 text-[10px] text-white/60 font-bold flex items-center gap-2">
+                <div key={i} className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/5 text-xs text-white/60 font-bold flex items-center gap-2">
                   <div className="w-1 h-1 rounded-full bg-celestial-saturn" />
                   {cap}
                 </div>
@@ -1124,7 +1124,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                 </div>
                 <div className="text-left">
                   <div className="text-sm font-bold">{t.textData || 'Text'}</div>
-                  <div className="text-[10px] opacity-40">PDF, TXT, DOCX</div>
+                  <div className="text-xs opacity-40">PDF, TXT, DOCX</div>
                 </div>
               </Button>
 
@@ -1139,7 +1139,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                 </div>
                 <div className="text-left">
                   <div className="text-sm font-bold">{t.voiceData || 'Voice'}</div>
-                  <div className="text-[10px] opacity-40">MP3, WAV, M4A</div>
+                  <div className="text-xs opacity-40">MP3, WAV, M4A</div>
                 </div>
               </Button>
 
@@ -1154,14 +1154,14 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                 </div>
                 <div className="text-left">
                   <div className="text-sm font-bold">{t.videoData || 'Video'}</div>
-                  <div className="text-[10px] opacity-40">MP4, MOV, AVI</div>
+                  <div className="text-xs opacity-40">MP4, MOV, AVI</div>
                 </div>
               </Button>
             </div>
 
             {isOptimizing && (
               <div className="space-y-2 pt-2">
-                <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest">
+                <div className="flex justify-between text-xs font-bold uppercase tracking-widest">
                   <span className="text-celestial-saturn animate-pulse">{t.optimizing || 'Optimizing...'}</span>
                   <span>{optimizationProgress}%</span>
                 </div>
@@ -1208,7 +1208,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
 
           {/* Bottom hint */}
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-            <span className="text-[9px] font-bold text-white/15 uppercase tracking-[0.15em] bg-black/30 px-4 py-1.5 rounded-full border border-white/[0.04]">
+            <span className="text-[12px] font-bold text-white/40 uppercase tracking-[0.15em] bg-black/30 px-4 py-1.5 rounded-full border border-white/[0.04]">
               {t.chatEscClose || 'ESC to close'} · {agentName} · {agentCategory}
             </span>
           </div>

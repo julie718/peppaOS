@@ -129,7 +129,7 @@ export function DesktopOnboarding({ isOpen, onFinish, t }: OnboardingProps) {
               </div>
 
               <div className="flex gap-2">
-                 <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em]">
+                 <div className="text-xs font-black text-white/45 uppercase tracking-[0.3em]">
                    {t.poweredByLumi || 'Powered by Lumi Neural Core v2.0'}
                  </div>
               </div>

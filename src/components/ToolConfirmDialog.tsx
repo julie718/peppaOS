@@ -75,7 +75,7 @@ export function ToolConfirmDialog({ socket, isWallpaperMode = false }: { socket:
               </div>
               <div>
                 <h3 className="text-sm font-black uppercase tracking-widest text-yellow-400">{t.toolAuthorization || 'Tool Authorization'}</h3>
-                <p className="text-[10px] text-white/30 mt-0.5">{t.toolExplicitPermission || 'This tool requires your explicit permission'}</p>
+                <p className="text-xs text-white/55 mt-0.5">{t.toolExplicitPermission || 'This tool requires your explicit permission'}</p>
               </div>
             </div>
 
@@ -86,14 +86,14 @@ export function ToolConfirmDialog({ socket, isWallpaperMode = false }: { socket:
                   <span className="text-xs font-bold text-white/80 font-mono">{current.name}</span>
                 </div>
                 {Object.keys(current.arguments).length > 0 && (
-                  <pre className="text-[10px] text-white/40 font-mono whitespace-pre-wrap break-all max-h-32 overflow-y-auto custom-scrollbar">
+                  <pre className="text-xs text-white/40 font-mono whitespace-pre-wrap break-all max-h-32 overflow-y-auto custom-scrollbar">
                     {JSON.stringify(current.arguments, null, 2)}
                   </pre>
                 )}
               </div>
 
               {pending.length > 1 && (
-                <p className="text-[10px] text-white/20 text-center">
+                <p className="text-xs text-white/45 text-center">
                   {pending.length - 1} {t.moreToolsWaiting || 'more tool waiting'}
                 </p>
               )}

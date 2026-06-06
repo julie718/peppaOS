@@ -74,7 +74,7 @@ export function OrgSettings() {
 
   if (loading) {
     return (
-      <div className="p-6 text-center text-white/30">
+      <div className="p-6 text-center text-white/55">
         <Loader2 size={24} className="mx-auto animate-spin" />
       </div>
     );
@@ -82,7 +82,7 @@ export function OrgSettings() {
 
   if (!org) {
     return (
-      <div className="p-6 text-center text-white/30">
+      <div className="p-6 text-center text-white/55">
         <Building2 size={32} className="mx-auto mb-2 opacity-30" />
         No organization found. Create one first.
       </div>
@@ -100,16 +100,16 @@ export function OrgSettings() {
       <div className="bg-white/5 border border-white/10 rounded-xl p-6 space-y-4">
         <h3 className="text-white font-medium">General</h3>
         <div>
-          <label className="text-white/30 text-xs block mb-1">Organization Name</label>
+          <label className="text-white/55 text-xs block mb-1">Organization Name</label>
           <input
             value={name}
             onChange={e => setName(e.target.value)}
-            className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/20 focus:outline-none focus:border-blue-500/40"
+            className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/45 focus:outline-none focus:border-blue-500/40"
           />
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-white/30 text-xs">Slug: {org.slug}</span>
-          <span className="text-white/20 text-xs">ID: {org.id.slice(0, 8)}...</span>
+          <span className="text-white/55 text-xs">Slug: {org.slug}</span>
+          <span className="text-white/45 text-xs">ID: {org.id.slice(0, 8)}...</span>
         </div>
         <Button
           onClick={handleSave}
@@ -129,7 +129,7 @@ export function OrgSettings() {
         </p>
         <div className="flex items-end gap-3">
           <div>
-            <label className="text-white/30 text-xs block mb-1">Default Role</label>
+            <label className="text-white/55 text-xs block mb-1">Default Role</label>
             <select
               value={invitationRole}
               onChange={e => setInvitationRole(e.target.value)}
@@ -157,7 +157,7 @@ export function OrgSettings() {
             className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 flex items-center justify-between"
           >
             <div>
-              <p className="text-white/30 text-xs mb-1">Invitation Code</p>
+              <p className="text-white/55 text-xs mb-1">Invitation Code</p>
               <p className="text-2xl font-mono font-bold text-green-400 tracking-[0.2em]">
                 {invitationCode}
               </p>
@@ -178,7 +178,7 @@ export function OrgSettings() {
         <h3 className="text-red-400 font-medium flex items-center gap-2">
           <Trash2 size={16} /> Danger Zone
         </h3>
-        <p className="text-white/30 text-xs">
+        <p className="text-white/55 text-xs">
           Deleting your organization is irreversible. All KB articles, templates, and member data will be permanently removed.
         </p>
         <Button

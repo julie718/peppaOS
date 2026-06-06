@@ -99,24 +99,24 @@ export function ExecutionStream({ entries }: { entries: ExecutionEntry[] }) {
               }`}>
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-cyan-400/80">{getToolIcon(entry.name)}</span>
-                  <span className="text-[11px] font-black uppercase tracking-widest text-white/80">
+                  <span className="text-xs font-black uppercase tracking-widest text-white/80">
                     {entry.name.replace(/_/g, ' ')}
                   </span>
-                  <span className="text-[9px] font-mono text-white/20">
+                  <span className="text-[12px] font-mono text-white/45">
                     {new Date(entry.timestamp).toLocaleTimeString()}
                   </span>
                 </div>
 
                 {/* Arguments */}
                 {entry.arguments && Object.keys(entry.arguments).length > 0 && (
-                  <div className="text-[10px] font-mono text-white/40 truncate mb-1 pl-7">
+                  <div className="text-xs font-mono text-white/40 truncate mb-1 pl-7">
                     {formatArgs(entry.arguments)}
                   </div>
                 )}
 
                 {/* Result */}
                 {(entry.result || entry.error) && (
-                  <div className={`text-[10px] font-mono pl-7 truncate ${
+                  <div className={`text-xs font-mono pl-7 truncate ${
                     entry.error ? 'text-red-400/80' : 'text-emerald-400/80'
                   }`}>
                     {entry.error ? entry.error : formatResult(entry.result)}

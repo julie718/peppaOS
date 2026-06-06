@@ -81,7 +81,7 @@ export function JoinUs({ t }: { t: any }) {
             <Sprout size={20} className="mr-2" />
             {t.genesisSeedTitle}
           </Badge>
-          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-celestial-saturn/60 font-bold">
+          <div className="flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-celestial-saturn/60 font-bold">
             <span className="w-1.5 h-1.5 rounded-full bg-celestial-saturn animate-pulse" />
             {t.phaseEcosystemGenesis || 'Phase 01: Ecosystem Genesis'}
           </div>
@@ -168,7 +168,7 @@ export function JoinUs({ t }: { t: any }) {
         <div className="grid lg:grid-cols-3 gap-8">
           <GlassCard className="lg:col-span-2 p-10 rounded-3xl border-l-4 border-celestial-saturn relative overflow-hidden">
             <div className="absolute top-0 right-0 p-4">
-              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-celestial-saturn/10 border border-celestial-saturn/20 text-[10px] font-bold text-celestial-saturn uppercase tracking-widest">
+              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-celestial-saturn/10 border border-celestial-saturn/20 text-xs font-bold text-celestial-saturn uppercase tracking-widest">
                 <Zap size={10} />
                 {t.activeNode || 'Active Node'}
               </div>
@@ -184,7 +184,7 @@ export function JoinUs({ t }: { t: any }) {
               
               <div className="grid sm:grid-cols-2 gap-8">
                 <div className="space-y-4">
-                  <p className="text-[10px] uppercase tracking-widest text-white/40 font-bold">{t.rewardProtocol || 'Reward Protocol'}</p>
+                  <p className="text-xs uppercase tracking-widest text-white/40 font-bold">{t.rewardProtocol || 'Reward Protocol'}</p>
                   <div className="p-6 rounded-2xl bg-white/5 border border-white/10 space-y-2">
                     <div className="flex items-center gap-2 text-celestial-saturn font-bold text-2xl">
                       <Sparkles size={24} />
@@ -194,7 +194,7 @@ export function JoinUs({ t }: { t: any }) {
                   </div>
                 </div>
                 <div className="space-y-4">
-                  <p className="text-[10px] uppercase tracking-widest text-white/40 font-bold">{t.globalMeshStatus || 'Global Mesh Status'}</p>
+                  <p className="text-xs uppercase tracking-widest text-white/40 font-bold">{t.globalMeshStatus || 'Global Mesh Status'}</p>
                   <div className="p-6 rounded-2xl bg-white/5 border border-white/10 space-y-2">
                     <div className="text-white font-bold text-2xl flex items-center gap-2">
                       <Globe size={24} className="text-celestial-glow" />
@@ -236,7 +236,7 @@ export function JoinUs({ t }: { t: any }) {
               <h3 className="text-xl font-bold tracking-tight">{t.nodeSimulator || 'Node Simulator'}</h3>
               <div className="space-y-4">
                 <div className="p-4 rounded-xl bg-black/40 border border-white/5 space-y-3">
-                  <div className="flex justify-between text-[10px] uppercase tracking-widest font-bold text-white/40">
+                  <div className="flex justify-between text-xs uppercase tracking-widest font-bold text-white/40">
                     <span>{t.syncRate || 'Sync Rate'}</span>
                     <span className="text-celestial-saturn">98.2%</span>
                   </div>
@@ -249,7 +249,7 @@ export function JoinUs({ t }: { t: any }) {
                   </div>
                 </div>
                 <div className="p-4 rounded-xl bg-black/40 border border-white/5 space-y-3">
-                  <div className="flex justify-between text-[10px] uppercase tracking-widest font-bold text-white/40">
+                  <div className="flex justify-between text-xs uppercase tracking-widest font-bold text-white/40">
                     <span>{t.soulCreditsPerDay || 'Soul Credits / Day'}</span>
                     <span className="text-celestial-saturn">+12.5 SC</span>
                   </div>
@@ -459,7 +459,7 @@ function ContributionTypeCard({ icon, title, desc }: { icon: React.ReactNode; ti
         {icon}
       </div>
       <h4 className="font-bold text-sm">{title}</h4>
-      <p className="text-[10px] text-white/40 leading-tight">{desc}</p>
+      <p className="text-xs text-white/40 leading-tight">{desc}</p>
     </div>
   );
 }
@@ -531,7 +531,7 @@ function EmailButton({ adminEmail, setAdminEmail, onUpdate, userRole, t }: { adm
             >
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <p className="text-[10px] uppercase tracking-widest text-white/40 font-bold">{t.directContact || 'Direct Contact'}</p>
+                  <p className="text-xs uppercase tracking-widest text-white/40 font-bold">{t.directContact || 'Direct Contact'}</p>
                   <a href="mailto:3565286431@qq.com" className="block text-sm text-white/80 hover:text-celestial-saturn transition-colors truncate">
                     3565286431@qq.com
                   </a>
@@ -543,9 +543,9 @@ function EmailButton({ adminEmail, setAdminEmail, onUpdate, userRole, t }: { adm
                 {userRole === 'admin' && (
                   <div className="pt-4 border-t border-white/10 space-y-3">
                     <div className="flex items-center justify-between">
-                      <p className="text-[10px] uppercase tracking-widest text-celestial-saturn font-bold">{t.adminConfig || 'Admin Config'}</p>
+                      <p className="text-xs uppercase tracking-widest text-celestial-saturn font-bold">{t.adminConfig || 'Admin Config'}</p>
                       {!isEditing && (
-                        <button onClick={() => setIsEditing(true)} className="text-[10px] text-white/40 hover:text-white underline">{t.edit || 'Edit'}</button>
+                        <button onClick={() => setIsEditing(true)} className="text-xs text-white/40 hover:text-white underline">{t.edit || 'Edit'}</button>
                       )}
                     </div>
                     
@@ -560,13 +560,13 @@ function EmailButton({ adminEmail, setAdminEmail, onUpdate, userRole, t }: { adm
                         <div className="flex gap-2">
                           <button
                             onClick={() => { onUpdate(); setIsEditing(false); }}
-                            className="flex-1 bg-celestial-saturn text-black text-[10px] font-bold py-1 rounded"
+                            className="flex-1 bg-celestial-saturn text-black text-xs font-bold py-1 rounded"
                           >
                             {t.save || 'Save'}
                           </button>
                           <button
                             onClick={() => setIsEditing(false)}
-                            className="flex-1 bg-white/5 text-white text-[10px] py-1 rounded"
+                            className="flex-1 bg-white/5 text-white text-xs py-1 rounded"
                           >
                             {t.cancel || 'Cancel'}
                           </button>

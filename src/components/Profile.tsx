@@ -88,7 +88,7 @@ export function Profile({ t }: { t: any }) {
                 <Zap size={32} fill="currentColor" />
                 {user.balance || 0}
               </div>
-              <div className="text-[10px] text-white/20">{t.earnCredits || 'Earn by Contributing Node Power'}</div>
+              <div className="text-xs text-white/45">{t.earnCredits || 'Earn by Contributing Node Power'}</div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Button className="rounded-xl bg-white/5 border border-white/10 text-xs h-10">{t.withdraw || 'Withdraw'}</Button>
@@ -122,7 +122,7 @@ export function Profile({ t }: { t: any }) {
           </h3>
           <form onSubmit={handlePasswordChange} className="space-y-4">
             <div className="space-y-2">
-              <label className="text-[10px] uppercase tracking-widest font-bold text-white/40">{t.currentPassword}</label>
+              <label className="text-xs uppercase tracking-widest font-bold text-white/40">{t.currentPassword}</label>
               <Input 
                 type="password" 
                 value={passwords.current}
@@ -132,7 +132,7 @@ export function Profile({ t }: { t: any }) {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] uppercase tracking-widest font-bold text-white/40">{t.newPassword}</label>
+              <label className="text-xs uppercase tracking-widest font-bold text-white/40">{t.newPassword}</label>
               <Input 
                 type="password" 
                 value={passwords.next}
@@ -172,23 +172,23 @@ export function Profile({ t }: { t: any }) {
                 <Activity size={20} className="text-green-500" />
                 {t.healthStatus || 'System Health'}
               </h3>
-              <div className="text-[10px] font-mono text-white/40">{health.timestamp}</div>
+              <div className="text-xs font-mono text-white/40">{health.timestamp}</div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
-                <div className="text-[10px] text-white/40 uppercase font-bold mb-1">{t.status || 'Status'}</div>
+                <div className="text-xs text-white/40 uppercase font-bold mb-1">{t.status || 'Status'}</div>
                 <div className="text-green-500 font-bold uppercase tracking-widest text-xs">{t.operational || 'Operational'}</div>
               </div>
               <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
-                <div className="text-[10px] text-white/40 uppercase font-bold mb-1">{t.users || 'Users'}</div>
+                <div className="text-xs text-white/40 uppercase font-bold mb-1">{t.users || 'Users'}</div>
                 <div className="text-white font-bold text-xs">{health.database?.users}</div>
               </div>
               <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
-                <div className="text-[10px] text-white/40 uppercase font-bold mb-1">{t.agents || 'Agents'}</div>
+                <div className="text-xs text-white/40 uppercase font-bold mb-1">{t.agents || 'Agents'}</div>
                 <div className="text-white font-bold text-xs">{health.database?.agents}</div>
               </div>
               <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
-                <div className="text-[10px] text-white/40 uppercase font-bold mb-1">{t.latency || 'Latency'}</div>
+                <div className="text-xs text-white/40 uppercase font-bold mb-1">{t.latency || 'Latency'}</div>
                 <div className="text-celestial-saturn font-bold text-xs">12ms</div>
               </div>
             </div>
@@ -222,13 +222,13 @@ function SubscriptionSection({ t }: { t: any }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
         <div>
-          <span className="text-[10px] font-black uppercase tracking-widest text-white/40">{t.currentPlan || 'Current Plan'}</span>
+          <span className="text-xs font-black uppercase tracking-widest text-white/40">{t.currentPlan || 'Current Plan'}</span>
           <div className={`text-lg font-bold ${planColor}`}>{planLabel}</div>
         </div>
         <Crown size={28} className="text-amber-400/40" />
       </div>
       <div className="space-y-2">
-        <div className="text-[10px] font-black uppercase tracking-widest text-white/30">{t.monthlyUsage || 'Monthly Token Usage'}</div>
+        <div className="text-xs font-black uppercase tracking-widest text-white/55">{t.monthlyUsage || 'Monthly Token Usage'}</div>
         <div className="flex items-center gap-3">
           <div className="flex-1 h-3 bg-white/5 rounded-full overflow-hidden">
             <motion.div
@@ -239,13 +239,13 @@ function SubscriptionSection({ t }: { t: any }) {
           </div>
           <span className="text-sm font-mono font-bold text-white/60">{pct}%</span>
         </div>
-        <div className="flex justify-between text-[11px] text-white/40">
+        <div className="flex justify-between text-xs text-white/40">
           <span>{used.toLocaleString()} / {cap.toLocaleString()} tokens</span>
           <span>{t.today || 'Today'}: {todayTotal.toLocaleString()}</span>
         </div>
       </div>
       {sub?.planId === 'free' && (
-        <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl text-[11px] text-amber-300/60 flex items-center gap-2">
+        <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl text-xs text-amber-300/60 flex items-center gap-2">
           <TrendingUp size={14} />
           {t.upgradeHint || 'Upgrade to unlock higher token caps and premium features.'}
         </div>
@@ -256,7 +256,7 @@ function SubscriptionSection({ t }: { t: any }) {
 
 function Badge({ icon, label, color }: { icon: React.ReactNode; label: string; color: string }) {
   return (
-    <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${color}`}>
+    <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest ${color}`}>
       {icon}
       {label}
     </div>
@@ -272,10 +272,10 @@ function AgentItem({ name, type, status }: { name: string; type: string; status:
         </div>
         <div className="space-y-0.5">
           <div className="font-bold text-sm">{name}</div>
-          <div className="text-[10px] text-white/40 uppercase tracking-widest">{type}</div>
+          <div className="text-xs text-white/40 uppercase tracking-widest">{type}</div>
         </div>
       </div>
-      <div className={`text-[10px] font-bold uppercase tracking-widest ${status === 'Online' ? 'text-green-500' : status === 'Standby' ? 'text-celestial-saturn' : 'text-white/20'}`}>
+      <div className={`text-xs font-bold uppercase tracking-widest ${status === 'Online' ? 'text-green-500' : status === 'Standby' ? 'text-celestial-saturn' : 'text-white/45'}`}>
         {status}
       </div>
     </div>

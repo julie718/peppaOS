@@ -164,7 +164,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center bg-zinc-950/60">
-        <Loader2 size={24} className="animate-spin text-white/30" />
+        <Loader2 size={24} className="animate-spin text-white/55" />
       </div>
     );
   }
@@ -190,7 +190,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
           <div>
             <h2 className="text-sm font-black text-white/90 uppercase tracking-wider">{t.personalityEvolution || 'Personality Evolution'}</h2>
             {data && (
-              <p className="text-[10px] text-white/30 font-mono">
+              <p className="text-xs text-white/55 font-mono">
                 v{data.version} &middot; {evolutionSteps.length} step{evolutionSteps.length !== 1 ? 's' : ''}
               </p>
             )}
@@ -199,7 +199,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
         <button
           onClick={triggerEvolution}
           disabled={evolving}
-          className="flex items-center gap-2 px-4 py-2 bg-fuchsia-500/20 border border-fuchsia-500/30 rounded-xl text-[10px] font-black uppercase text-fuchsia-400 hover:bg-fuchsia-500/30 disabled:opacity-30 transition-all"
+          className="flex items-center gap-2 px-4 py-2 bg-fuchsia-500/20 border border-fuchsia-500/30 rounded-xl text-xs font-black uppercase text-fuchsia-400 hover:bg-fuchsia-500/30 disabled:opacity-30 transition-all"
         >
           {evolving ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
           {t.evolve || 'Evolve'}
@@ -207,7 +207,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
       </div>
 
       {!hasHistory ? (
-        <div className="flex flex-col items-center justify-center h-64 gap-4 text-white/20">
+        <div className="flex flex-col items-center justify-center h-64 gap-4 text-white/45">
           <TrendingUp size={48} />
           <p className="text-xs">{t.noEvolutionHistory || "No evolution history yet. Lumi's personality grows with you."}</p>
         </div>
@@ -295,7 +295,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
               })}
             </svg>
             {selected && (
-              <p className="text-[9px] text-white/30 text-center mt-2 italic max-w-[340px]">
+              <p className="text-[12px] text-white/55 text-center mt-2 italic max-w-[340px]">
                 {selected.narrative}
               </p>
             )}
@@ -306,20 +306,20 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
             {/* Timeline */}
             <div className="p-4 border-b border-white/5 overflow-x-auto">
               <div className="flex gap-2 items-center min-w-max">
-                <Clock size={12} className="text-white/20 flex-shrink-0" />
+                <Clock size={12} className="text-white/45 flex-shrink-0" />
                 {evolutionSteps.map((step, idx) => (
                   <button
                     key={step.version}
                     onClick={() => setSelectedStep(idx)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] font-mono transition-all flex-shrink-0 ${
+                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-mono transition-all flex-shrink-0 ${
                       idx === selectedStep
                         ? 'bg-fuchsia-500/20 border border-fuchsia-500/30 text-fuchsia-300'
                         : 'bg-white/5 border border-white/5 text-white/40 hover:bg-white/10'
                     }`}
                   >
                     <span className="font-black">v{step.version}</span>
-                    <span className="text-[8px] opacity-50">{step.timestamp.slice(0, 10)}</span>
-                    <span className={`text-[7px] uppercase px-1.5 py-0.5 rounded-full ${
+                    <span className="text-xs opacity-50">{step.timestamp.slice(0, 10)}</span>
+                    <span className={`text-xs uppercase px-1.5 py-0.5 rounded-full ${
                       step.trigger === 'manual' ? 'bg-amber-500/20 text-amber-400' :
                       step.trigger === 'milestone' ? 'bg-emerald-500/20 text-emerald-400' :
                       'bg-blue-500/20 text-blue-400'
@@ -336,31 +336,31 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
                   {/* Owner Profile (if available) */}
                   {selected.ownerProfile && (
                     <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-2">
-                      <h3 className="text-[10px] font-black text-white/30 uppercase tracking-wider flex items-center gap-2">
+                      <h3 className="text-xs font-black text-white/55 uppercase tracking-wider flex items-center gap-2">
                         <Target size={12} /> {t.ownerProfile || 'Owner Profile'}
                       </h3>
-                      <div className="grid grid-cols-2 gap-2 text-[10px]">
+                      <div className="grid grid-cols-2 gap-2 text-xs">
                         <div>
-                          <span className="text-white/20">{t.dominantTone || 'Dominant Tone: '}</span>
+                          <span className="text-white/45">{t.dominantTone || 'Dominant Tone: '}</span>
                           <span className="text-white/60">{selected.ownerProfile.dominantTone}</span>
                         </div>
                         <div>
-                          <span className="text-white/20">{t.formalityLabel || 'Formality: '}</span>
+                          <span className="text-white/45">{t.formalityLabel || 'Formality: '}</span>
                           <span className="text-white/60">{selected.ownerProfile.formalityLevel.toFixed(1)}</span>
                         </div>
                         <div>
-                          <span className="text-white/20">{t.expressiveness || 'Expressiveness: '}</span>
+                          <span className="text-white/45">{t.expressiveness || 'Expressiveness: '}</span>
                           <span className="text-white/60">{selected.ownerProfile.emotionalExpressiveness.toFixed(1)}</span>
                         </div>
                         <div>
-                          <span className="text-white/20">{t.memoriesAnalyzed || 'Memories Analyzed: '}</span>
+                          <span className="text-white/45">{t.memoriesAnalyzed || 'Memories Analyzed: '}</span>
                           <span className="text-white/60">{selected.ownerProfile.memoryCount}</span>
                         </div>
                       </div>
                       {selected.ownerProfile.interestClusters?.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1">
                           {selected.ownerProfile.interestClusters.map(c => (
-                            <span key={c} className="px-2 py-0.5 bg-fuchsia-500/10 border border-fuchsia-500/20 rounded-full text-[8px] text-fuchsia-300">{c}</span>
+                            <span key={c} className="px-2 py-0.5 bg-fuchsia-500/10 border border-fuchsia-500/20 rounded-full text-xs text-fuchsia-300">{c}</span>
                           ))}
                         </div>
                       )}
@@ -368,7 +368,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
                   )}
 
                   {/* Mutations */}
-                  <h3 className="text-[10px] font-black text-white/30 uppercase tracking-wider flex items-center gap-2">
+                  <h3 className="text-xs font-black text-white/55 uppercase tracking-wider flex items-center gap-2">
                     <Sparkles size={12} /> {t.mutations || 'Mutations'}
                   </h3>
                   {selected.mutations.map((mut, mi) => (
@@ -380,22 +380,22 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
                       className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-2"
                     >
                       <div className="flex items-center gap-2">
-                        <code className="text-[9px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">
+                        <code className="text-[12px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">
                           {mut.field}
                         </code>
-                        <ChevronRight size={10} className="text-white/10" />
+                        <ChevronRight size={10} className="text-white/35" />
                       </div>
-                      <div className="flex items-center gap-3 text-[10px] font-mono">
+                      <div className="flex items-center gap-3 text-xs font-mono">
                         <span className="text-red-400/60 line-through">{typeof mut.from === 'number' ? (mut.from as number).toFixed(2) : String(mut.from)}</span>
-                        <span className="text-white/10">&rarr;</span>
+                        <span className="text-white/35">&rarr;</span>
                         <span className="text-emerald-400">{typeof mut.to === 'number' ? (mut.to as number).toFixed(2) : String(mut.to)}</span>
                       </div>
-                      <p className="text-[9px] text-white/30 italic">{mut.reason}</p>
+                      <p className="text-[12px] text-white/55 italic">{mut.reason}</p>
                     </motion.div>
                   ))}
                 </>
               ) : (
-                <div className="flex items-center justify-center h-full text-white/10 text-xs">
+                <div className="flex items-center justify-center h-full text-white/35 text-xs">
                   {t.selectEvolutionStep || 'Select an evolution step to view details'}
                 </div>
               )}
@@ -406,7 +406,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
 
       {/* Config bar */}
       {data && (
-        <div className="border-t border-white/5 px-5 py-3 flex items-center gap-6 text-[9px] text-white/20 font-mono">
+        <div className="border-t border-white/5 px-5 py-3 flex items-center gap-6 text-[12px] text-white/45 font-mono">
           <span>{t.plasticity || 'Plasticity:'} <span className="text-white/40">{data.evolutionConfig.plasticity.toFixed(1)}</span></span>
           <span>{t.cooldown || 'Cooldown:'} <span className="text-white/40">{(data.evolutionConfig.cooldownMs / 86400000).toFixed(0)}d</span></span>
           <span>{t.maxMutations || 'Max Mutations:'} <span className="text-white/40">{data.evolutionConfig.maxMutationsPerStep}</span></span>

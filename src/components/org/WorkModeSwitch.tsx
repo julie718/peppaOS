@@ -37,7 +37,7 @@ export function WorkModeSwitch({ domain, onToggle, connected }: Props) {
         {isWork ? 'Work' : 'Personal'}
       </span>
       {!connected && (
-        <span className="relative z-10 text-[10px] text-amber-400 ml-1">{t.orgConnectionOffline}</span>
+        <span className="relative z-10 text-xs text-amber-400 ml-1">{t.orgConnectionOffline}</span>
       )}
     </motion.button>
   );

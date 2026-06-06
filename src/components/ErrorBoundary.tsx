@@ -58,7 +58,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
             </div>
             <div className="space-y-1">
               <h3 className="text-sm font-black uppercase tracking-widest text-white/60">{t.errorSignalInterrupted || 'Signal Interrupted'}</h3>
-              <p className="text-[10px] text-white/20 font-mono uppercase tracking-widest">{t.errorRenderFailure || 'Component render failure'}</p>
+              <p className="text-xs text-white/45 font-mono uppercase tracking-widest">{t.errorRenderFailure || 'Component render failure'}</p>
             </div>
             <p className="text-xs text-white/40 font-mono bg-white/5 rounded-xl p-3 max-h-20 overflow-auto">
               {this.state.error?.message?.slice(0, 120) || t.errorUnknown || 'Unknown error'}

@@ -252,7 +252,7 @@ export function UnifiedAgent({ t, user, onEnterSanctuary }: { t: any; user: any;
             <div className="flex gap-2">
               <Button 
                 onClick={toggleVision}
-                className={`rounded-full px-3 h-7 text-[9px] font-bold uppercase tracking-widest ${
+                className={`rounded-full px-3 h-7 text-[12px] font-bold uppercase tracking-widest ${
                   isVisionActive ? 'bg-celestial-saturn text-black' : 'bg-white/5 text-white/40'
                 }`}
               >
@@ -260,7 +260,7 @@ export function UnifiedAgent({ t, user, onEnterSanctuary }: { t: any; user: any;
               </Button>
               <Button 
                 onClick={() => setIsPrivateMode(!isPrivateMode)}
-                className={`rounded-full px-3 h-7 text-[9px] font-bold uppercase tracking-widest ${
+                className={`rounded-full px-3 h-7 text-[12px] font-bold uppercase tracking-widest ${
                   isPrivateMode ? 'bg-celestial-saturn text-black' : 'bg-white/5 text-white/40'
                 }`}
               >
@@ -273,11 +273,11 @@ export function UnifiedAgent({ t, user, onEnterSanctuary }: { t: any; user: any;
             <div className="flex items-center justify-between p-3 bg-white/5 rounded-2xl border border-white/5">
               <div className="flex items-center gap-3">
                 <div className={`w-2 h-2 rounded-full status-pulse ${isPrivateMode ? 'bg-celestial-saturn' : 'bg-celestial-glow'}`} />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-white/60">
+                <span className="text-xs font-bold uppercase tracking-widest text-white/60">
                   {isPrivateMode ? 'Local NPU Active' : 'Mesh Synced'}
                 </span>
               </div>
-              <span className="text-[9px] font-mono text-white/20">v2.0-Alpha</span>
+              <span className="text-[12px] font-mono text-white/45">v2.0-Alpha</span>
             </div>
 
             <div className="flex flex-wrap gap-2 min-h-[32px]">
@@ -287,14 +287,14 @@ export function UnifiedAgent({ t, user, onEnterSanctuary }: { t: any; user: any;
                     key={i}
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="px-2 py-1 bg-white/5 border border-white/10 rounded-lg text-[10px] font-medium flex items-center gap-2"
+                    className="px-2 py-1 bg-white/5 border border-white/10 rounded-lg text-xs font-medium flex items-center gap-2"
                   >
                     <div className="w-1 h-1 rounded-full bg-celestial-saturn" />
                     {obj}
                   </motion.div>
                 ))
               ) : (
-                <p className="text-[10px] text-white/20 italic">Edge sensors on standby...</p>
+                <p className="text-xs text-white/45 italic">Edge sensors on standby...</p>
               )}
             </div>
           </div>
@@ -310,7 +310,7 @@ export function UnifiedAgent({ t, user, onEnterSanctuary }: { t: any; user: any;
             {user?.role === 'admin' && (
               <Button 
                 onClick={() => isFounderEditing ? updateFounderVision() : setIsFounderEditing(true)}
-                className="rounded-full px-4 h-8 text-[10px] font-bold uppercase tracking-widest bg-white/5 text-white/40 hover:bg-white/10"
+                className="rounded-full px-4 h-8 text-xs font-bold uppercase tracking-widest bg-white/5 text-white/40 hover:bg-white/10"
               >
                 {isFounderEditing ? t.updateVision : 'Edit Vision'}
               </Button>
@@ -385,14 +385,14 @@ Lumi Core Agent
                 {isSpeaking && (
                   <Button 
                     onClick={stop}
-                    className="h-6 px-2 text-[8px] bg-red-500/20 text-red-500 hover:bg-red-500/40 rounded-full border border-red-500/20"
+                    className="h-6 px-2 text-xs bg-red-500/20 text-red-500 hover:bg-red-500/40 rounded-full border border-red-500/20"
                   >
                     {t.stopSpeaking || 'STOP'}
                   </Button>
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <div className="text-[10px] text-white/40 font-mono uppercase">
+                <div className="text-xs text-white/40 font-mono uppercase">
                   {t.founderMode || 'Founder Mode'}
                 </div>
               </div>
@@ -423,14 +423,14 @@ Lumi Core Agent
                     }`}>
                       {msg.text}
                     </div>
-                    <span className="text-[9px] uppercase tracking-tighter opacity-30 mt-1 px-2">
+                    <span className="text-[12px] uppercase tracking-tighter opacity-30 mt-1 px-2">
                       {msg.userName} • {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </motion.div>
                 ))}
               </AnimatePresence>
               {isTyping && (
-                <div className="flex gap-1 items-center text-celestial-saturn/40 text-[10px]">
+                <div className="flex gap-1 items-center text-celestial-saturn/40 text-xs">
                   <Loader2 size={12} className="animate-spin" />
                   Agent is thinking...
                 </div>
@@ -471,7 +471,7 @@ function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label:
         {icon}
       </div>
       <div>
-        <div className="text-[10px] font-bold uppercase tracking-widest text-white/30">{label}</div>
+        <div className="text-xs font-bold uppercase tracking-widest text-white/55">{label}</div>
         <div className="text-lg font-bold">{value}</div>
       </div>
     </GlassCard>

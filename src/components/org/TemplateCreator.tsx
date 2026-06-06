@@ -84,13 +84,13 @@ export function TemplateCreator() {
           value={name}
           onChange={e => setName(e.target.value)}
           placeholder={t.templateName || 'Template name'}
-          className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/20 focus:outline-none focus:border-purple-500/40"
+          className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/45 focus:outline-none focus:border-purple-500/40"
         />
         <input
           value={icon}
           onChange={e => setIcon(e.target.value)}
           placeholder={t.iconLabel || 'Icon'}
-          className="w-20 px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/20 focus:outline-none text-center"
+          className="w-20 px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/45 focus:outline-none text-center"
         />
       </div>
 
@@ -98,7 +98,7 @@ export function TemplateCreator() {
         value={description}
         onChange={e => setDescription(e.target.value)}
         placeholder={t.briefDescription || 'Brief description of what this agent does...'}
-        className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/20 focus:outline-none focus:border-purple-500/40"
+        className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/45 focus:outline-none focus:border-purple-500/40"
       />
 
       <select
@@ -117,11 +117,11 @@ export function TemplateCreator() {
       </select>
 
       <div>
-        <p className="text-white/30 text-xs mb-2">{t.agentConfigJSON || 'Agent Configuration (JSON)'}</p>
+        <p className="text-white/55 text-xs mb-2">{t.agentConfigJSON || 'Agent Configuration (JSON)'}</p>
         <textarea
           value={configStr}
           onChange={e => setConfigStr(e.target.value)}
-          className="w-full h-48 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-xs placeholder:text-white/20 focus:outline-none focus:border-purple-500/40 resize-y font-mono"
+          className="w-full h-48 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-xs placeholder:text-white/45 focus:outline-none focus:border-purple-500/40 resize-y font-mono"
         />
       </div>
 

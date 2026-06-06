@@ -252,8 +252,8 @@ export function Sanctuary({ agent, isOpen, onClose }: { agent: SanctuaryAgent | 
               <div className="text-center">
                 <h2 className="text-sm font-black text-white/80 tracking-tight">{agentName}</h2>
                 <div className="flex items-center gap-2">
-                  <span className={`text-[9px] font-bold uppercase tracking-wider ${meta.color}`}>{meta.label}</span>
-                  <span className="text-[8px] text-white/15 font-mono">{t_s.sanctuaryLabel || 'sanctuary'}</span>
+                  <span className={`text-[12px] font-bold uppercase tracking-wider ${meta.color}`}>{meta.label}</span>
+                  <span className="text-xs text-white/40 font-mono">{t_s.sanctuaryLabel || 'sanctuary'}</span>
                 </div>
               </div>
             </div>
@@ -276,7 +276,7 @@ export function Sanctuary({ agent, isOpen, onClose }: { agent: SanctuaryAgent | 
                     <p className="text-xs text-amber-300/70 leading-relaxed">
                       这是从记忆中蒸馏出的模拟，不是那个人本身。ta 的回应源自数据中的模式提取，可能包含推测成分。请带着温和与觉察进入这个空间。
                     </p>
-                    <div className="flex items-center gap-3 mt-2 text-[9px] text-white/20 font-mono">
+                    <div className="flex items-center gap-3 mt-2 text-[12px] text-white/45 font-mono">
                       <span>证据分级：<span className="text-emerald-400/60">原话</span>/<span className="text-blue-400/60">事实</span>/<span className="text-amber-400/60">推测</span></span>
                       {agent.isFrozen !== false && <span>· 演化冻结</span>}
                       <span>· 工具禁用</span>
@@ -284,7 +284,7 @@ export function Sanctuary({ agent, isOpen, onClose }: { agent: SanctuaryAgent | 
                   </div>
                   <button
                     onClick={() => setShowGuardrail(false)}
-                    className="text-white/15 hover:text-white/40 transition-colors text-[10px] font-bold uppercase tracking-wider flex-shrink-0 mt-0.5"
+                    className="text-white/40 hover:text-white/40 transition-colors text-xs font-bold uppercase tracking-wider flex-shrink-0 mt-0.5"
                   >
                     知道了
                   </button>
@@ -302,7 +302,7 @@ export function Sanctuary({ agent, isOpen, onClose }: { agent: SanctuaryAgent | 
                 exit={{ opacity: 0, y: -10 }}
                 className="relative z-10 px-6"
               >
-                <div className="max-w-2xl mx-auto p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-[10px] text-rose-300/70 flex items-center gap-2">
+                <div className="max-w-2xl mx-auto p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs text-rose-300/70 flex items-center gap-2">
                   <AlertTriangle size={12} />
                   {dependencyWarning}
                 </div>
@@ -321,7 +321,7 @@ export function Sanctuary({ agent, isOpen, onClose }: { agent: SanctuaryAgent | 
                   <Castle size={48} className={meta.color.replace('text-', 'text-')} />
                   <div>
                     <p className="text-sm font-medium text-white/60">这是属于 "{agentName}" 的领地</p>
-                    <p className="text-[10px] text-white/20 mt-1">ta 在这里，也只在这里。开始对话吧。</p>
+                    <p className="text-xs text-white/45 mt-1">ta 在这里，也只在这里。开始对话吧。</p>
                   </div>
                 </div>
               )}
@@ -341,7 +341,7 @@ export function Sanctuary({ agent, isOpen, onClose }: { agent: SanctuaryAgent | 
                     }`}>
                       <span className="whitespace-pre-wrap">{msg.text}</span>
                     </div>
-                    <span className="text-[8px] uppercase tracking-wider opacity-20 mt-1.5 px-2 font-mono">
+                    <span className="text-xs uppercase tracking-wider opacity-20 mt-1.5 px-2 font-mono">
                       {msg.userName} · {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </motion.div>
@@ -360,7 +360,7 @@ export function Sanctuary({ agent, isOpen, onClose }: { agent: SanctuaryAgent | 
                       />
                     ))}
                   </div>
-                  <span className="text-[9px] text-white/15 font-mono">ta 在思考...</span>
+                  <span className="text-[12px] text-white/40 font-mono">ta 在思考...</span>
                 </div>
               )}
             </div>
@@ -373,7 +373,7 @@ export function Sanctuary({ agent, isOpen, onClose }: { agent: SanctuaryAgent | 
                 value={newMessage}
                 onChange={e => setNewMessage(e.target.value)}
                 placeholder={`和 ${agentName} 说点什么...`}
-                className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white/80 placeholder:text-white/15 focus:outline-none focus:border-fuchsia-500/20 transition-colors"
+                className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white/80 placeholder:text-white/40 focus:outline-none focus:border-fuchsia-500/20 transition-colors"
                 autoFocus
               />
               <button
@@ -385,7 +385,7 @@ export function Sanctuary({ agent, isOpen, onClose }: { agent: SanctuaryAgent | 
               </button>
             </form>
             <div className="max-w-3xl mx-auto mt-2 text-center">
-              <span className="text-[8px] text-white/10 font-mono">ESC 离开领地 · 无工具 · 无通知 · 记忆私有</span>
+              <span className="text-xs text-white/35 font-mono">ESC 离开领地 · 无工具 · 无通知 · 记忆私有</span>
             </div>
           </div>
         </motion.div>

@@ -135,7 +135,7 @@ export const TokenDashboard: React.FC = () => {
           </div>
           <div>
             <h2 className="text-sm font-black tracking-tight">Token Usage</h2>
-            <p className="text-[10px] text-white/25 font-medium">LLM API consumption</p>
+            <p className="text-xs text-white/50 font-medium">LLM API consumption</p>
           </div>
         </div>
         <div className="flex items-center gap-1.5 bg-white/5 rounded-xl p-1">
@@ -143,14 +143,14 @@ export const TokenDashboard: React.FC = () => {
             <button
               key={d}
               onClick={() => setDays(d)}
-              className={`px-3 py-1 rounded-lg text-[10px] font-bold tracking-wider transition-all ${
-                days === d ? 'bg-white/15 text-white' : 'text-white/30 hover:text-white/50'
+              className={`px-3 py-1 rounded-lg text-xs font-bold tracking-wider transition-all ${
+                days === d ? 'bg-white/15 text-white' : 'text-white/55 hover:text-white/50'
               }`}
             >
               {d}天
             </button>
           ))}
-          <button onClick={fetchUsage} className="p-1.5 rounded-lg hover:bg-white/5 text-white/30 hover:text-white/60 transition-all">
+          <button onClick={fetchUsage} className="p-1.5 rounded-lg hover:bg-white/5 text-white/55 hover:text-white/60 transition-all">
             <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
           </button>
         </div>
@@ -158,7 +158,7 @@ export const TokenDashboard: React.FC = () => {
 
       {loading && !data ? (
         <div className="flex-1 flex items-center justify-center">
-          <RefreshCw size={20} className="text-white/20 animate-spin" />
+          <RefreshCw size={20} className="text-white/45 animate-spin" />
         </div>
       ) : error && !data ? (
         <div className="flex-1 flex items-center justify-center">
@@ -172,24 +172,24 @@ export const TokenDashboard: React.FC = () => {
             <GlassCard className="p-4 rounded-2xl border-white/5 bg-white/[0.03]">
               <div className="flex items-center gap-2 mb-2">
                 <TrendingUp size={13} className="text-amber-400/70" />
-                <span className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Total Tokens</span>
+                <span className="text-[12px] font-bold text-white/50 uppercase tracking-wider">Total Tokens</span>
               </div>
               <div className="text-2xl font-black tracking-tight">{formatTokens(data?.grandTotal || 0)}</div>
-              <div className="text-[10px] text-white/20 mt-0.5">{formatNumber(data?.recordCount || 0)} API calls</div>
+              <div className="text-xs text-white/45 mt-0.5">{formatNumber(data?.recordCount || 0)} API calls</div>
             </GlassCard>
 
             {/* Quota */}
             <GlassCard className="p-4 rounded-2xl border-white/5 bg-white/[0.03]">
               <div className="flex items-center gap-2 mb-2">
-                <AlertTriangle size={13} className={quotaPct >= 80 ? 'text-amber-400' : 'text-white/25'} />
-                <span className="text-[9px] font-bold text-white/25 uppercase tracking-wider">
+                <AlertTriangle size={13} className={quotaPct >= 80 ? 'text-amber-400' : 'text-white/50'} />
+                <span className="text-[12px] font-bold text-white/50 uppercase tracking-wider">
                   Quota · {quota?.plan || 'Free'}
                 </span>
               </div>
               {quota ? (
                 <>
                   <div className="text-lg font-black tracking-tight">
-                    {formatTokens(quota.remaining)} <span className="text-[10px] text-white/20 font-normal">left</span>
+                    {formatTokens(quota.remaining)} <span className="text-xs text-white/45 font-normal">left</span>
                   </div>
                   <div className="mt-2 h-1.5 rounded-full bg-white/5 overflow-hidden">
                     <motion.div
@@ -199,23 +199,23 @@ export const TokenDashboard: React.FC = () => {
                       className={`h-full rounded-full ${barColor}`}
                     />
                   </div>
-                  <div className="text-[9px] text-white/20 mt-1">
+                  <div className="text-[12px] text-white/45 mt-1">
                     {formatTokens(quota.used)} / {formatTokens(quota.cap)} · {quotaPct}%
                   </div>
                 </>
               ) : (
-                <div className="text-sm text-white/20">No subscription data</div>
+                <div className="text-sm text-white/45">No subscription data</div>
               )}
             </GlassCard>
           </div>
 
           {/* Providers + Ring */}
           <GlassCard className="p-4 rounded-2xl border-white/5 bg-white/[0.03]">
-            <h3 className="text-[9px] font-bold text-white/20 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <h3 className="text-[12px] font-bold text-white/45 uppercase tracking-wider mb-3 flex items-center gap-1.5">
               <Layers size={10} /> Providers
             </h3>
             {providers.length === 0 ? (
-              <p className="text-white/20 text-xs py-6 text-center">No usage data yet.</p>
+              <p className="text-white/45 text-xs py-6 text-center">No usage data yet.</p>
             ) : (
               <div className="flex items-center gap-5">
                 {/* Ring */}
@@ -239,7 +239,7 @@ export const TokenDashboard: React.FC = () => {
                   <text x="55" y="52" textAnchor="middle" className="text-[15px] font-black" fill="white">
                     {formatTokens(total)}
                   </text>
-                  <text x="55" y="66" textAnchor="middle" className="text-[8px] font-bold" fill="rgba(255,255,255,0.2)">
+                  <text x="55" y="66" textAnchor="middle" className="text-xs font-bold" fill="rgba(255,255,255,0.2)">
                     TOTAL
                   </text>
                 </svg>
@@ -253,10 +253,10 @@ export const TokenDashboard: React.FC = () => {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1.5">
                             <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: PROVIDER_COLORS[provider] || '#666' }} />
-                            <span className="text-[10px] font-bold text-white/60">{PROVIDER_LABELS[provider] || provider}</span>
+                            <span className="text-xs font-bold text-white/60">{PROVIDER_LABELS[provider] || provider}</span>
                           </div>
-                          <span className="text-[10px] font-mono text-white/40">
-                            {formatTokens(stats.totalTokens)} <span className="text-white/15">· {stats.calls} calls</span>
+                          <span className="text-xs font-mono text-white/40">
+                            {formatTokens(stats.totalTokens)} <span className="text-white/40">· {stats.calls} calls</span>
                           </span>
                         </div>
                         <div className="h-1 rounded-full bg-white/5 overflow-hidden">
@@ -275,11 +275,11 @@ export const TokenDashboard: React.FC = () => {
 
           {/* Daily chart */}
           <GlassCard className="flex-1 p-4 rounded-2xl border-white/5 bg-white/[0.03] flex flex-col">
-            <h3 className="text-[9px] font-bold text-white/20 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <h3 className="text-[12px] font-bold text-white/45 uppercase tracking-wider mb-3 flex items-center gap-1.5">
               <Clock size={10} /> Daily Trend
             </h3>
             {!data?.daily || data.daily.length === 0 ? (
-              <p className="text-white/20 text-xs py-6 text-center">No daily data yet.</p>
+              <p className="text-white/45 text-xs py-6 text-center">No daily data yet.</p>
             ) : (
               <div className="flex-1 flex flex-col justify-end">
                 <div className="flex items-end gap-[2px] flex-1">
@@ -293,11 +293,11 @@ export const TokenDashboard: React.FC = () => {
                         transition={{ delay: i * 0.005, type: 'spring', stiffness: 300, damping: 20 }}
                         className="flex-1 rounded-t-[3px] bg-amber-500/30 hover:bg-amber-400/60 transition-colors min-h-[3px] relative group cursor-pointer"
                       >
-                        <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-black/90 border border-white/10 rounded-md text-[9px] font-mono text-white/70 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-10">
+                        <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-black/90 border border-white/10 rounded-md text-[12px] font-mono text-white/70 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-10">
                           {formatTokens(d.totalTokens)}
                         </div>
                         {/* Date label on x-axis */}
-                        <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 text-[7px] text-white/15 opacity-0 group-hover:opacity-100 whitespace-nowrap transition-opacity">
+                        <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 text-xs text-white/40 opacity-0 group-hover:opacity-100 whitespace-nowrap transition-opacity">
                           {d.date.slice(5)}
                         </div>
                       </motion.div>
@@ -305,7 +305,7 @@ export const TokenDashboard: React.FC = () => {
                   })}
                 </div>
                 {/* X-axis: first/last date labels */}
-                <div className="flex justify-between mt-5 text-[8px] text-white/15 font-mono">
+                <div className="flex justify-between mt-5 text-xs text-white/40 font-mono">
                   <span>{data.daily[0]?.date?.slice(5)}</span>
                   <span>{data.daily[data.daily.length - 1]?.date?.slice(5)}</span>
                 </div>

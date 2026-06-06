@@ -82,14 +82,14 @@ export function KnowledgeBaseBrowser() {
 
       {/* Search */}
       <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/55" />
         <input
           value={searchQuery}
           onChange={e => handleSearchInput(e.target.value)}
           placeholder="Search knowledge base..."
-          className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder:text-white/20 focus:outline-none focus:border-blue-500/40"
+          className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder:text-white/45 focus:outline-none focus:border-blue-500/40"
         />
-        {searching && <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-white/30" />}
+        {searching && <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-white/55" />}
       </div>
 
       {/* Search results */}
@@ -101,7 +101,7 @@ export function KnowledgeBaseBrowser() {
             exit={{ opacity: 0 }}
             className="bg-white/5 border border-blue-500/20 rounded-xl p-4 space-y-2"
           >
-            <p className="text-white/30 text-xs font-medium">Semantic Search Results</p>
+            <p className="text-white/55 text-xs font-medium">Semantic Search Results</p>
             {searchResults.map((r, i) => (
               <button
                 key={`${r.articleId}-${i}`}
@@ -115,7 +115,7 @@ export function KnowledgeBaseBrowser() {
                   {r.title}
                 </p>
                 <p className="text-white/40 text-xs mt-1 line-clamp-2">{r.chunk}</p>
-                <p className="text-white/20 text-[10px] mt-1">Score: {r.score.toFixed(2)}</p>
+                <p className="text-white/45 text-xs mt-1">Score: {r.score.toFixed(2)}</p>
               </button>
             ))}
           </motion.div>
@@ -125,12 +125,12 @@ export function KnowledgeBaseBrowser() {
       {/* Article list */}
       <div className="flex-1 overflow-y-auto space-y-2">
         {loading ? (
-          <div className="text-center py-12 text-white/30">
+          <div className="text-center py-12 text-white/55">
             <Loader2 size={24} className="mx-auto animate-spin mb-2" />
             Loading articles...
           </div>
         ) : articles.length === 0 ? (
-          <div className="text-center py-12 text-white/30">
+          <div className="text-center py-12 text-white/55">
             <BookOpen size={32} className="mx-auto mb-2 opacity-30" />
             No articles yet
           </div>
@@ -150,14 +150,14 @@ export function KnowledgeBaseBrowser() {
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
                   <p className="text-white text-sm font-medium truncate">{article.title}</p>
-                  <p className="text-white/30 text-xs mt-1 line-clamp-1">{article.content}</p>
+                  <p className="text-white/55 text-xs mt-1 line-clamp-1">{article.content}</p>
                 </div>
-                <ChevronRight size={14} className="text-white/20 mt-1 ml-2 flex-shrink-0" />
+                <ChevronRight size={14} className="text-white/45 mt-1 ml-2 flex-shrink-0" />
               </div>
               <div className="flex items-center gap-2 mt-2">
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-white/40">{article.category}</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-white/5 text-white/40">{article.category}</span>
                 {parseTags(article.tags).slice(0, 3).map((tag) => (
-                  <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-white/30 flex items-center gap-1">
+                  <span key={tag} className="text-xs px-2 py-0.5 rounded-full bg-white/5 text-white/55 flex items-center gap-1">
                     <Tag size={10} /> {tag}
                   </span>
                 ))}
@@ -185,7 +185,7 @@ export function KnowledgeBaseBrowser() {
             <h3 className="text-lg font-bold text-white mb-2">{selectedArticle.title}</h3>
             <div className="flex items-center gap-2 mb-4">
               <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400">{selectedArticle.category}</span>
-              <span className="text-xs text-white/20"><Clock size={12} className="inline mr-1" />{new Date(selectedArticle.createdAt).toLocaleDateString()}</span>
+              <span className="text-xs text-white/45"><Clock size={12} className="inline mr-1" />{new Date(selectedArticle.createdAt).toLocaleDateString()}</span>
             </div>
             <div className="prose prose-invert text-white/70 text-sm whitespace-pre-wrap leading-relaxed">
               {selectedArticle.content}

@@ -203,7 +203,7 @@ function ProductCard({ icon, title, price, desc, specs, t, onClick }: { icon: Re
           <p className="text-sm text-white/40 leading-relaxed">{desc}</p>
         </div>
         <div className="space-y-3">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-white/20">{t.specifications}</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-white/45">{t.specifications}</p>
           <ul className="space-y-2">
             {specs.map((spec, i) => (
               <li key={i} className="flex items-center gap-2 text-xs text-white/60">

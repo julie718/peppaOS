@@ -542,7 +542,7 @@ export function LocalAgentSphere({
               {callState !== 'idle' && (
                 <div className="flex items-center gap-2 mt-1">
                   <Clock size={10} className="text-white/40" />
-                  <span className="text-[10px] text-white/40 tabular-nums">
+                  <span className="text-xs text-white/40 tabular-nums">
                     {String(Math.floor(elapsedSeconds / 60)).padStart(2, '0')}:{String(elapsedSeconds % 60).padStart(2, '0')}
                   </span>
                   {connectionQuality === 'good' && <Wifi size={10} className="text-emerald-400" />}

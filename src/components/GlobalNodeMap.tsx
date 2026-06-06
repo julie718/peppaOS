@@ -72,18 +72,18 @@ export function GlobalNodeMap({ variant = 'default', nodeCount }: { variant?: 'd
       {variant === 'default' && (
         <>
           <div className="absolute top-8 left-8 space-y-1">
-            <div className="text-[10px] font-black text-white/40 uppercase tracking-widest leading-none mb-1">{t.deviceMesh || 'Device Mesh'}</div>
+            <div className="text-xs font-black text-white/40 uppercase tracking-widest leading-none mb-1">{t.deviceMesh || 'Device Mesh'}</div>
             <div className="text-xl font-black text-white italic">{nodeCount ?? 1} {t.devicesOnline || 'DEVICE ONLINE'}</div>
           </div>
 
           <div className="absolute bottom-8 right-8 flex gap-4">
             <div className="flex items-center gap-2">
                <div className="w-1.5 h-1.5 rounded-full bg-celestial-saturn animate-pulse" />
-               <span className="text-[8px] font-black text-white/40 uppercase tracking-widest">{t.shardClusterAlpha || 'Shard Cluster Alpha'}</span>
+               <span className="text-xs font-black text-white/40 uppercase tracking-widest">{t.shardClusterAlpha || 'Shard Cluster Alpha'}</span>
             </div>
             <div className="flex items-center gap-2">
                <div className="w-1.5 h-1.5 rounded-full bg-white/20" />
-               <span className="text-[8px] font-black text-white/40 uppercase tracking-widest">{t.meshBridgeV4 || 'Mesh Bridge v4'}</span>
+               <span className="text-xs font-black text-white/40 uppercase tracking-widest">{t.meshBridgeV4 || 'Mesh Bridge v4'}</span>
             </div>
           </div>
         </>

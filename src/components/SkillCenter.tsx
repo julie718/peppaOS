@@ -283,10 +283,10 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
           <h3 className="text-xl font-bold uppercase tracking-tighter text-white/90">{t.skillCenter || 'Skill Center'}</h3>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-white/20 font-mono">{sortedMarket.length} {t.available || 'available'}</span>
+          <span className="text-xs text-white/45 font-mono">{sortedMarket.length} {t.available || 'available'}</span>
           <button
             onClick={() => { fetchMarketplace(); fetchInstalled(); }}
-            className="p-2 rounded-lg hover:bg-white/5 text-white/30 hover:text-white/60 transition-all"
+            className="p-2 rounded-lg hover:bg-white/5 text-white/55 hover:text-white/60 transition-all"
           >
             <RefreshCw size={14} />
           </button>
@@ -303,16 +303,16 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-[11px] font-bold transition-all ${
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
               activeTab === tab.id
                 ? 'bg-white/10 text-white'
-                : 'text-white/30 hover:text-white/50'
+                : 'text-white/55 hover:text-white/50'
             }`}
           >
             {tab.icon}
             {tab.label}
             {tab.id === 'installed' && installedSkills.length > 0 && (
-              <span className="text-[10px] px-1.5 py-0.5 bg-white/10 rounded-full text-white/40">{installedSkills.length}</span>
+              <span className="text-xs px-1.5 py-0.5 bg-white/10 rounded-full text-white/40">{installedSkills.length}</span>
             )}
           </button>
         ))}
@@ -345,7 +345,7 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
                           </div>
                           <div>
                             <h3 className="text-lg font-black text-white tracking-tight">{skill.name}</h3>
-                            <span className="text-[10px] text-white/30 font-mono uppercase tracking-widest">{t.flagshipSkill || 'Flagship Skill'}</span>
+                            <span className="text-xs text-white/55 font-mono uppercase tracking-widest">{t.flagshipSkill || 'Flagship Skill'}</span>
                           </div>
                         </div>
                         <p className="text-sm text-white/50 leading-relaxed">{skill.desc}</p>
@@ -356,13 +356,13 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
                               if (skillData && !skillData.installed) handleInstall(skillData);
                             }}
                             disabled={isInstalled || isInstalling}
-                            className={`text-[11px] font-bold px-5 py-2.5 h-auto rounded-xl transition-all ${
+                            className={`text-xs font-bold px-5 py-2.5 h-auto rounded-xl transition-all ${
                               isInstalled ? 'bg-green-500/20 text-green-400' : 'bg-white text-black hover:scale-105'
                             }`}
                           >
                             {isInstalled ? <><CheckCircle size={14} className="mr-1" /> {t.installedStatus || 'Installed'}</> : isInstalling ? <><RefreshCw size={14} className="mr-1 animate-spin" /> {t.installingStatus || 'Installing...'}</> : <><Download size={14} className="mr-1" /> {t.installBtn || 'Install'}</>}
                           </Button>
-                          <span className="text-[10px] text-white/20 font-mono">{t.tryPrompt || 'Try: '}"{skill.prompt.slice(0, 40)}..."</span>
+                          <span className="text-xs text-white/45 font-mono">{t.tryPrompt || 'Try: '}"{skill.prompt.slice(0, 40)}..."</span>
                         </div>
                       </div>
                     </motion.div>
@@ -387,7 +387,7 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-bold text-white/80 text-sm">{skill.name}</h4>
-                        <p className="text-[10px] text-white/30 leading-relaxed line-clamp-1">{skill.prompt}</p>
+                        <p className="text-xs text-white/55 leading-relaxed line-clamp-1">{skill.prompt}</p>
                       </div>
                       <Button
                         onClick={() => {
@@ -395,7 +395,7 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
                           if (skillData && !skillData.installed) handleInstall(skillData);
                         }}
                         disabled={isInstalled || isInstalling}
-                        className={`text-[10px] font-bold px-3 py-1.5 h-auto rounded-lg shrink-0 transition-all ${
+                        className={`text-xs font-bold px-3 py-1.5 h-auto rounded-lg shrink-0 transition-all ${
                           isInstalled ? 'bg-green-500/20 text-green-400' : 'bg-white/10 text-white/60 hover:bg-white/20'
                         }`}
                       >
@@ -414,14 +414,14 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
             {/* Filters row */}
             <div className="flex items-center gap-3 flex-wrap">
               <div className="relative flex-1 min-w-[200px]">
-                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20" />
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/45" />
                 <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={t.searchSkills || 'Search skills...'} className="w-full pl-9 bg-white/5 border-white/10 rounded-xl py-2 text-xs" />
               </div>
               {/* Category filter */}
               <div className="flex items-center gap-1.5 flex-wrap">
                 <button
                   onClick={() => setActiveCategory('')}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${!activeCategory ? 'bg-white/10 text-white' : 'bg-white/5 text-white/30 hover:text-white/50'}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${!activeCategory ? 'bg-white/10 text-white' : 'bg-white/5 text-white/55 hover:text-white/50'}`}
                 >
                   {t.allCategories || 'All'}
                 </button>
@@ -429,7 +429,7 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
                   <button
                     key={cat}
                     onClick={() => setActiveCategory(activeCategory === cat ? '' : cat)}
-                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${activeCategory === cat ? 'bg-celestial-saturn/20 text-celestial-saturn' : 'bg-white/5 text-white/30 hover:text-white/50'}`}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeCategory === cat ? 'bg-celestial-saturn/20 text-celestial-saturn' : 'bg-white/5 text-white/55 hover:text-white/50'}`}
                   >
                     {cat}
                   </button>
@@ -437,12 +437,12 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
               </div>
               {/* Sort */}
               <div className="flex items-center gap-1.5">
-                <span className="text-[9px] text-white/20">{t.sortBy || 'Sort'}:</span>
+                <span className="text-[12px] text-white/45">{t.sortBy || 'Sort'}:</span>
                 {(['downloads', 'rating', 'newest'] as SortKey[]).map(k => (
                   <button
                     key={k}
                     onClick={() => setSortKey(k)}
-                    className={`px-2 py-1 rounded-md text-[9px] font-bold transition-all ${sortKey === k ? 'bg-white/10 text-white' : 'text-white/20 hover:text-white/40'}`}
+                    className={`px-2 py-1 rounded-md text-[12px] font-bold transition-all ${sortKey === k ? 'bg-white/10 text-white' : 'text-white/45 hover:text-white/40'}`}
                   >
                     {(t as any)[k] || k}
                   </button>
@@ -463,27 +463,27 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
                     {/* Header */}
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${ICON_CLASSES[skill.icon] || 'bg-white/5 text-white/30 border-white/10'}`}>
+                        <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${ICON_CLASSES[skill.icon] || 'bg-white/5 text-white/55 border-white/10'}`}>
                           {ICON_COMPONENTS[skill.icon] || <Zap size={18} />}
                         </div>
                         <div className="min-w-0">
                           <h4 className="font-bold text-white/90 text-sm">{skill.name}</h4>
-                          <span className="text-[10px] text-white/30 font-mono">{t.version || 'v'} {skill.version || '1.0'} &middot; {skill.toolCount || 1} {t.toolsCount || 'tools'}</span>
+                          <span className="text-xs text-white/55 font-mono">{t.version || 'v'} {skill.version || '1.0'} &middot; {skill.toolCount || 1} {t.toolsCount || 'tools'}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
                         {skill.requiresApiKey && (
-                          <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 rounded-full text-[8px] font-bold uppercase text-amber-400" title={(t.requiresApiKey || 'Requires') + ' ' + skill.apiKeyEnv + ' API key'}>
+                          <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 rounded-full text-xs font-bold uppercase text-amber-400" title={(t.requiresApiKey || 'Requires') + ' ' + skill.apiKeyEnv + ' API key'}>
                             <Key size={8} /> API
                           </span>
                         )}
                         {skill.requiresSetup && (
-                          <span className="flex items-center gap-1 px-2 py-0.5 bg-purple-500/10 rounded-full text-[8px] font-bold uppercase text-purple-400" title={skill.setupNote || (t.setupRequired || 'Requires manual setup')}>
+                          <span className="flex items-center gap-1 px-2 py-0.5 bg-purple-500/10 rounded-full text-xs font-bold uppercase text-purple-400" title={skill.setupNote || (t.setupRequired || 'Requires manual setup')}>
                             <Wrench size={8} /> Setup
                           </span>
                         )}
                         {skill.installed && (
-                          <span className="flex items-center gap-1 px-2 py-1 bg-green-500/10 rounded-full text-[9px] font-bold uppercase text-green-400">
+                          <span className="flex items-center gap-1 px-2 py-1 bg-green-500/10 rounded-full text-[12px] font-bold uppercase text-green-400">
                             <CheckCircle size={10} /> {t.installedStatus || 'Installed'}
                           </span>
                         )}
@@ -495,12 +495,12 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
                     {/* Setup note */}
                     {skill.requiresSetup && skill.setupNote && (
                       <div className="mb-3 p-2 bg-purple-500/5 border border-purple-500/10 rounded-xl">
-                        <p className="text-[9px] text-purple-300/70 leading-relaxed">{skill.setupNote}</p>
+                        <p className="text-[12px] text-purple-300/70 leading-relaxed">{skill.setupNote}</p>
                       </div>
                     )}
                     {skill.requiresApiKey && skill.apiKeyUrl && (
                       <div className="mb-3 p-2 bg-amber-500/5 border border-amber-500/10 rounded-xl">
-                        <p className="text-[9px] text-amber-300/70 leading-relaxed">
+                        <p className="text-[12px] text-amber-300/70 leading-relaxed">
                           Requires <strong>{skill.apiKeyEnv}</strong> — <a href={skill.apiKeyUrl} target="_blank" rel="noopener" className="underline hover:text-amber-200">{t.getApiKey || 'get API key'}</a>
                         </p>
                       </div>
@@ -508,26 +508,26 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
 
                     {/* Tags */}
                     <div className="flex items-center gap-2 flex-wrap mb-4">
-                      <span className="flex items-center gap-1 px-2 py-0.5 bg-white/5 rounded-full text-[9px] text-white/30">
+                      <span className="flex items-center gap-1 px-2 py-0.5 bg-white/5 rounded-full text-[12px] text-white/55">
                         <Tag size={8} /> {skill.category}
                       </span>
-                      <span className="text-[9px] text-white/20">{skill.author}</span>
+                      <span className="text-[12px] text-white/45">{skill.author}</span>
                     </div>
 
                     {/* Footer */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
-                        <span className="flex items-center gap-1 text-[10px] text-white/20">
+                        <span className="flex items-center gap-1 text-xs text-white/45">
                           <Download size={10} /> {skill.downloads.toLocaleString()}
                         </span>
-                        <span className="flex items-center gap-1 text-[10px] text-white/20">
+                        <span className="flex items-center gap-1 text-xs text-white/45">
                           <Star size={10} className="text-amber-400" fill="currentColor" /> {skill.rating > 0 ? skill.rating.toFixed(1) : '--'}
                         </span>
                       </div>
                       <Button
                         onClick={() => handleInstall(skill)}
                         disabled={skill.installed || installing === skill.id}
-                        className={`text-[10px] font-bold px-3 py-1.5 h-auto rounded-xl transition-all ${
+                        className={`text-xs font-bold px-3 py-1.5 h-auto rounded-xl transition-all ${
                           skill.installed
                             ? 'bg-green-500/20 text-green-400 cursor-default'
                             : installing === skill.id
@@ -550,16 +550,16 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
             </div>
             {sortedMarket.length === 0 && (
               <div className="p-16 bg-white/5 rounded-[2rem] border border-white/5 text-center">
-                <ShoppingBag size={40} className="text-white/20 mx-auto mb-4" />
+                <ShoppingBag size={40} className="text-white/45 mx-auto mb-4" />
                 <p className="text-white/40 font-bold uppercase tracking-widest text-sm">{t.noSkillsFound || 'No skills found'}</p>
-                <p className="text-white/20 text-xs mt-2">{search || activeCategory ? (t.skillNoResultsFilter || 'No results. Try different filters.') : (t.skillCheckBack || 'Check back soon or generate your own.')}</p>
+                <p className="text-white/45 text-xs mt-2">{search || activeCategory ? (t.skillNoResultsFilter || 'No results. Try different filters.') : (t.skillCheckBack || 'Check back soon or generate your own.')}</p>
               </div>
             )}
 
             {/* External search results: npm + GitHub */}
             <AnimatePresence>
               {searchingExternal && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2 text-xs text-white/20 py-2">
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2 text-xs text-white/45 py-2">
                   <RefreshCw size={12} className="animate-spin" /> Searching npm & GitHub...
                 </motion.div>
               )}
@@ -568,8 +568,8 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
               {npmResults.length > 0 && (
                 <motion.div key="npm-section" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-2">
                   <div className="flex items-center gap-2 px-1">
-                    <span className="text-[10px] font-bold uppercase text-red-400 tracking-wider">npm Registry</span>
-                    <span className="text-[9px] text-white/20 font-mono">{npmResults.length} found</span>
+                    <span className="text-xs font-bold uppercase text-red-400 tracking-wider">npm Registry</span>
+                    <span className="text-[12px] text-white/45 font-mono">{npmResults.length} found</span>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {npmResults.map(skill => {
@@ -582,12 +582,12 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
                           </div>
                           <div className="flex-1 min-w-0">
                             <h5 className="text-xs font-bold text-white/80 truncate">{skill.name}</h5>
-                            <p className="text-[10px] text-white/30 line-clamp-1">{skill.description || skill.version || ''}</p>
+                            <p className="text-xs text-white/55 line-clamp-1">{skill.description || skill.version || ''}</p>
                           </div>
                           <Button
                             onClick={() => handleInstall(skill)}
                             disabled={isInstalling}
-                            className="text-[10px] font-bold px-3 py-1.5 h-auto rounded-lg shrink-0 bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
+                            className="text-xs font-bold px-3 py-1.5 h-auto rounded-lg shrink-0 bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
                           >
                             {isInstalling ? <RefreshCw size={11} className="animate-spin" /> : t.installBtn || 'Install'}
                           </Button>
@@ -603,8 +603,8 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
                 <motion.div key="github-section" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-2">
                   <div className="flex items-center gap-2 px-1">
                     <Globe size={11} className="text-purple-400" />
-                    <span className="text-[10px] font-bold uppercase text-purple-400 tracking-wider">GitHub</span>
-                    <span className="text-[9px] text-white/20 font-mono">{githubResults.length} repos</span>
+                    <span className="text-xs font-bold uppercase text-purple-400 tracking-wider">GitHub</span>
+                    <span className="text-[12px] text-white/45 font-mono">{githubResults.length} repos</span>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {githubResults.map(repo => {
@@ -617,14 +617,14 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
                           </div>
                           <div className="flex-1 min-w-0">
                             <h5 className="text-xs font-bold text-white/80 truncate">{repo.name}</h5>
-                            <p className="text-[10px] text-white/30 line-clamp-1">
+                            <p className="text-xs text-white/55 line-clamp-1">
                               {repo.stars ? `★ ${repo.stars} · ` : ''}{repo.description || repo.language || ''}
                             </p>
                           </div>
                           <Button
                             onClick={() => handleInstall(repo)}
                             disabled={isInstalling}
-                            className="text-[10px] font-bold px-3 py-1.5 h-auto rounded-lg shrink-0 bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all"
+                            className="text-xs font-bold px-3 py-1.5 h-auto rounded-lg shrink-0 bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all"
                           >
                             {isInstalling ? <RefreshCw size={11} className="animate-spin" /> : t.installBtn || 'Install'}
                           </Button>
@@ -646,9 +646,9 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
               </div>
             ) : installedSkills.length === 0 ? (
               <div className="p-16 bg-white/5 rounded-[2rem] border border-white/5 text-center">
-                <Wrench size={40} className="text-white/20 mx-auto mb-4" />
+                <Wrench size={40} className="text-white/45 mx-auto mb-4" />
                 <p className="text-white/40 font-bold uppercase tracking-widest text-sm">{t.noSkillsInstalled || 'No skills installed'}</p>
-                <p className="text-white/20 text-xs mt-2">{t.skillBrowseMarketplace || 'Browse the marketplace or generate one.'}</p>
+                <p className="text-white/45 text-xs mt-2">{t.skillBrowseMarketplace || 'Browse the marketplace or generate one.'}</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -664,23 +664,23 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex-1 min-w-0">
                           <h4 className="font-bold text-white/90 text-sm">{skill.name}</h4>
-                          <span className="text-[10px] text-white/30 font-mono">{skill.toolCount} {t.toolsCount || 'tools'}{skill.installedAt ? ` · ${new Date(skill.installedAt).toLocaleDateString()}` : ''}</span>
+                          <span className="text-xs text-white/55 font-mono">{skill.toolCount} {t.toolsCount || 'tools'}{skill.installedAt ? ` · ${new Date(skill.installedAt).toLocaleDateString()}` : ''}</span>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
                           <button onClick={() => handleToggle(skill.name, !skill.enabled)}
-                            className={`p-2 rounded-lg transition-colors ${skill.enabled ? 'text-green-400 hover:bg-green-500/10' : 'text-white/20 hover:bg-white/5'}`}
+                            className={`p-2 rounded-lg transition-colors ${skill.enabled ? 'text-green-400 hover:bg-green-500/10' : 'text-white/45 hover:bg-white/5'}`}
                             title={skill.enabled ? (t.skillDisableBtn || 'Disable') : (t.skillEnableBtn || 'Enable')}
                           >
                             {skill.enabled ? <Power size={13} /> : <PowerOff size={13} />}
                           </button>
                           <button onClick={() => handlePublish(skill.name)}
-                            className="p-2 hover:bg-violet-500/10 rounded-lg text-white/20 hover:text-violet-400 transition-colors"
+                            className="p-2 hover:bg-violet-500/10 rounded-lg text-white/45 hover:text-violet-400 transition-colors"
                             title={t.publishBtn || 'Publish'}
                           >
                             <Upload size={13} />
                           </button>
                           <button onClick={() => handleUninstall(skill.name)}
-                            className="p-2 hover:bg-red-500/10 rounded-lg text-white/20 hover:text-red-400 transition-colors"
+                            className="p-2 hover:bg-red-500/10 rounded-lg text-white/45 hover:text-red-400 transition-colors"
                             title={t.uninstallBtn || 'Uninstall'}
                           >
                             <Trash2 size={13} />
@@ -693,12 +693,12 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
                       {/* Tags */}
                       <div className="flex items-center gap-2 flex-wrap">
                         {skill.autoGenerated && (
-                          <span className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 rounded-full text-[9px] text-emerald-400 font-bold">{t.autoGenerated || 'Auto'}</span>
+                          <span className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 rounded-full text-[12px] text-emerald-400 font-bold">{t.autoGenerated || 'Auto'}</span>
                         )}
                         {skill.connected && (
-                          <span className="flex items-center gap-1 px-2 py-0.5 bg-green-500/10 rounded-full text-[9px] text-green-400 font-bold">{t.connected || 'Connected'}</span>
+                          <span className="flex items-center gap-1 px-2 py-0.5 bg-green-500/10 rounded-full text-[12px] text-green-400 font-bold">{t.connected || 'Connected'}</span>
                         )}
-                        <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold ${skill.enabled ? 'bg-green-500/10 text-green-400' : 'bg-white/5 text-white/20'}`}>
+                        <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[12px] font-bold ${skill.enabled ? 'bg-green-500/10 text-green-400' : 'bg-white/5 text-white/45'}`}>
                           {skill.enabled ? (t.enabled || 'Enabled') : (t.disabled || 'Disabled')}
                         </span>
                       </div>
@@ -717,7 +717,7 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
                 <Sparkles className="text-celestial-saturn" size={18} />
                 <h4 className="text-sm font-bold uppercase tracking-tight text-white">{t.generateNewSkill || 'Generate a New Skill'}</h4>
               </div>
-              <p className="text-[11px] text-white/30 leading-relaxed">
+              <p className="text-xs text-white/55 leading-relaxed">
                 {t.skillGenerateDesc || 'Describe what the skill should do. Lumi generates a complete MCP server package.'}
               </p>
               <div className="flex gap-2">
@@ -732,7 +732,7 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
               </div>
               <div className="flex gap-2 flex-wrap">
                 {SAMPLE_PROMPTS.map(ex => (
-                  <button key={ex} onClick={() => setGenDescription(ex)} className="text-[9px] px-2 py-1 rounded-lg bg-white/5 border border-white/5 text-white/30 hover:text-white/50 hover:border-white/10 transition-colors">
+                  <button key={ex} onClick={() => setGenDescription(ex)} className="text-[12px] px-2 py-1 rounded-lg bg-white/5 border border-white/5 text-white/55 hover:text-white/50 hover:border-white/10 transition-colors">
                     {ex}
                   </button>
                 ))}

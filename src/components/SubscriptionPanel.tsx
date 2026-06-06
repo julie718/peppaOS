@@ -76,7 +76,7 @@ export function SubscriptionPanel({ t }: { t: any }) {
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <Loader2 size={24} className="animate-spin text-white/20" />
+        <Loader2 size={24} className="animate-spin text-white/45" />
       </div>
     );
   }
@@ -85,7 +85,7 @@ export function SubscriptionPanel({ t }: { t: any }) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-3">
         <p className="text-red-400 text-sm">{error}</p>
-        <button onClick={() => { setError(null); setLoading(true); window.location.reload(); }} className="text-[10px] text-white/40 hover:text-white/60 underline">Retry</button>
+        <button onClick={() => { setError(null); setLoading(true); window.location.reload(); }} className="text-xs text-white/40 hover:text-white/60 underline">Retry</button>
       </div>
     );
   }
@@ -93,8 +93,8 @@ export function SubscriptionPanel({ t }: { t: any }) {
   if (!status && plans.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-3">
-        <p className="text-white/30 text-sm">No subscription data available.</p>
-        <p className="text-white/20 text-[10px]">Check that the server is running on port 3000.</p>
+        <p className="text-white/55 text-sm">No subscription data available.</p>
+        <p className="text-white/45 text-xs">Check that the server is running on port 3000.</p>
       </div>
     );
   }
@@ -114,8 +114,8 @@ export function SubscriptionPanel({ t }: { t: any }) {
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-all ${
-                tab === t ? 'bg-white/10 text-white' : 'text-white/30'
+              className={`px-3 py-1 rounded-md text-xs font-bold uppercase transition-all ${
+                tab === t ? 'bg-white/10 text-white' : 'text-white/55'
               }`}
             >
               {t === 'status' ? 'Status' : 'Plans'}
@@ -130,24 +130,24 @@ export function SubscriptionPanel({ t }: { t: any }) {
           <div className={`p-6 rounded-3xl border ${COLORS[currentPlan.tier] || COLORS.free}`}>
             <div className="flex justify-between items-start mb-4">
               <div>
-                <span className={`text-[10px] font-black uppercase tracking-widest ${ACCENTS[currentPlan.tier] || ACCENTS.free}`}>
+                <span className={`text-xs font-black uppercase tracking-widest ${ACCENTS[currentPlan.tier] || ACCENTS.free}`}>
                   {currentPlan.tier}
                 </span>
                 <h3 className="text-2xl font-black tracking-tight mt-1">{currentPlan.name}</h3>
               </div>
               {currentPlan.priceCNY > 0 && (
-                <span className="text-lg font-black">¥{currentPlan.priceCNY}<span className="text-[10px] font-normal text-white/30">/mo</span></span>
+                <span className="text-lg font-black">¥{currentPlan.priceCNY}<span className="text-xs font-normal text-white/55">/mo</span></span>
               )}
               {currentPlan.priceCNY === 0 && (
-                <span className="text-sm font-bold text-white/30">Free</span>
+                <span className="text-sm font-bold text-white/55">Free</span>
               )}
             </div>
 
-            <p className="text-[10px] text-white/40 mb-6">{currentPlan.description}</p>
+            <p className="text-xs text-white/40 mb-6">{currentPlan.description}</p>
 
             {/* Token usage bar */}
             <div className="space-y-2">
-              <div className="flex justify-between text-[10px]">
+              <div className="flex justify-between text-xs">
                 <span className="text-white/40 font-bold uppercase tracking-widest">Tokens</span>
                 <span className="text-white/60 font-mono">{fmtTokens(currentUsage?.used || 0)} / {fmtTokens(currentUsage?.cap || 0)}</span>
               </div>
@@ -158,7 +158,7 @@ export function SubscriptionPanel({ t }: { t: any }) {
                   className={`h-full rounded-full ${pct > 90 ? 'bg-red-500' : pct > 60 ? 'bg-amber-500' : 'bg-celestial-saturn'}`}
                 />
               </div>
-              <div className="flex justify-between text-[8px] text-white/20">
+              <div className="flex justify-between text-xs text-white/45">
                 <span>{pct}% used</span>
                 <span>{fmtTokens(currentUsage?.remaining || 0)} remaining</span>
               </div>
@@ -174,7 +174,7 @@ export function SubscriptionPanel({ t }: { t: any }) {
               { label: 'Status', value: status?.subscription?.status || 'active' },
             ].map((f, i) => (
               <div key={i} className="p-3 bg-white/5 rounded-xl">
-                <div className="text-[8px] font-bold text-white/20 uppercase">{f.label}</div>
+                <div className="text-xs font-bold text-white/45 uppercase">{f.label}</div>
                 <div className="text-xs font-bold text-white/70 mt-0.5">{f.value}</div>
               </div>
             ))}
@@ -193,34 +193,34 @@ export function SubscriptionPanel({ t }: { t: any }) {
               >
                 <div className="flex justify-between items-start mb-3">
                   <div>
-                    <span className={`text-[9px] font-black uppercase tracking-widest ${ACCENTS[plan.tier] || ACCENTS.free}`}>
+                    <span className={`text-[12px] font-black uppercase tracking-widest ${ACCENTS[plan.tier] || ACCENTS.free}`}>
                       {plan.tier}
                     </span>
                     <h4 className="text-sm font-bold mt-0.5">{plan.name}</h4>
                   </div>
                   <div className="text-right">
                     {plan.priceCNY > 0 ? (
-                      <span className="text-sm font-black">¥{plan.priceCNY}<span className="text-[9px] font-normal text-white/30">/mo</span></span>
+                      <span className="text-sm font-black">¥{plan.priceCNY}<span className="text-[12px] font-normal text-white/55">/mo</span></span>
                     ) : (
-                      <span className="text-[10px] font-bold text-white/30">Free</span>
+                      <span className="text-xs font-bold text-white/55">Free</span>
                     )}
                   </div>
                 </div>
 
-                <p className="text-[10px] text-white/30 mb-3">{plan.description}</p>
+                <p className="text-xs text-white/55 mb-3">{plan.description}</p>
 
                 <div className="flex flex-wrap gap-1 mb-3">
                   {plan.llmProviders.map(p => (
-                    <span key={p} className="text-[8px] px-1.5 py-0.5 rounded bg-white/5 text-white/40 font-bold uppercase">{p}</span>
+                    <span key={p} className="text-xs px-1.5 py-0.5 rounded bg-white/5 text-white/40 font-bold uppercase">{p}</span>
                   ))}
                 </div>
 
                 {isCurrent ? (
-                  <span className="text-[9px] font-bold text-celestial-saturn uppercase tracking-widest">Current Plan</span>
+                  <span className="text-[12px] font-bold text-celestial-saturn uppercase tracking-widest">Current Plan</span>
                 ) : (
                   <button
                     onClick={() => toast.info(t.contactAdminUpgrade || 'Contact admin to upgrade: maoxiansheng946@github')}
-                    className="text-[9px] font-bold text-white/30 hover:text-white/60 uppercase tracking-widest transition-colors"
+                    className="text-[12px] font-bold text-white/55 hover:text-white/60 uppercase tracking-widest transition-colors"
                   >
                     Upgrade →
                   </button>

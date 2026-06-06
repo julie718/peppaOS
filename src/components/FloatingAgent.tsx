@@ -130,7 +130,7 @@ export function FloatingAgent({ t }: { t: any }) {
                   </div>
                   <div>
                     <div className="text-base font-bold tracking-tight">{t.userManual || 'User Manual'}</div>
-                    <div className="text-[10px] text-celestial-saturn flex items-center gap-1 font-bold uppercase tracking-widest">
+                    <div className="text-xs text-celestial-saturn flex items-center gap-1 font-bold uppercase tracking-widest">
                       <span className="w-1.5 h-1.5 rounded-full bg-celestial-saturn animate-pulse" />
                       {t.manualAssistant || 'Manual Assistant'}
                     </div>
@@ -172,7 +172,7 @@ export function FloatingAgent({ t }: { t: any }) {
                     animate={{ opacity: 1 }}
                     className="space-y-3 pt-2"
                   >
-                    <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-white/30 font-bold px-1">
+                    <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-white/55 font-bold px-1">
                       <HelpCircle size={12} />
                       {t.quickGuide}
                     </div>
@@ -233,7 +233,7 @@ export function FloatingAgent({ t }: { t: any }) {
                     <button 
                       type="submit" 
                       disabled={isLoading || !input.trim()}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-celestial-saturn disabled:text-white/20 transition-colors"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-celestial-saturn disabled:text-white/45 transition-colors"
                     >
                       <Send size={18} />
                     </button>
@@ -254,7 +254,7 @@ export function FloatingAgent({ t }: { t: any }) {
         <div className="absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
         {isOpen ? <X size={28} /> : <HelpCircle size={28} />}
         {!isOpen && (
-          <div className="absolute -top-1 -right-1 w-5 h-5 bg-celestial-mars rounded-full border-2 border-celestial-deep animate-bounce flex items-center justify-center text-[10px] font-bold text-white">
+          <div className="absolute -top-1 -right-1 w-5 h-5 bg-celestial-mars rounded-full border-2 border-celestial-deep animate-bounce flex items-center justify-center text-xs font-bold text-white">
             1
           </div>
         )}

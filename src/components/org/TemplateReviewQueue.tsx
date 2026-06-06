@@ -64,9 +64,9 @@ export function TemplateReviewQueue() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-white/30"><Loader2 size={24} className="mx-auto animate-spin" /></div>
+        <div className="text-center py-12 text-white/55"><Loader2 size={24} className="mx-auto animate-spin" /></div>
       ) : queue.length === 0 ? (
-        <div className="text-center py-12 text-white/30">
+        <div className="text-center py-12 text-white/55">
           <CheckCircle size={32} className="mx-auto mb-2 text-green-400/50" />
           {t.allTemplatesReviewed || 'All templates have been reviewed!'}
         </div>
@@ -86,9 +86,9 @@ export function TemplateReviewQueue() {
                   <h3 className="text-white font-medium">{template.name}</h3>
                   <p className="text-white/40 text-xs mt-1">{template.description}</p>
                   <div className="flex items-center gap-2 mt-2">
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400">{template.category}</span>
-                    <span className="text-[10px] text-white/30">v{template.version}</span>
-                    <span className="text-[10px] text-white/20">{new Date(template.createdAt).toLocaleDateString()}</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400">{template.category}</span>
+                    <span className="text-xs text-white/55">v{template.version}</span>
+                    <span className="text-xs text-white/45">{new Date(template.createdAt).toLocaleDateString()}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 ml-4">
@@ -98,7 +98,7 @@ export function TemplateReviewQueue() {
                         value={comment}
                         onChange={e => setComment(e.target.value)}
                         placeholder={t.reviewComment || 'Review comment...'}
-                        className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-white text-xs placeholder:text-white/20 focus:outline-none"
+                        className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-white text-xs placeholder:text-white/45 focus:outline-none"
                       />
                       <Button
                         onClick={() => handleAction(template.id, 'approve')}

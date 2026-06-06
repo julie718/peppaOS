@@ -73,7 +73,7 @@ export function TimelineTransitionController({
     >
       <div className="flex items-center gap-3 bg-black/40 backdrop-blur-xl border border-white/[0.08] rounded-2xl px-4 py-2.5">
         <Clock size={13} className="text-amber-400/60 shrink-0" />
-        <span className="text-[9px] font-bold text-white/30 uppercase tracking-widest shrink-0">
+        <span className="text-[12px] font-bold text-white/55 uppercase tracking-widest shrink-0">
           {formatDate(earliestDate)}
         </span>
 
@@ -102,7 +102,7 @@ export function TimelineTransitionController({
             [&::-webkit-slider-thumb]:cursor-grab"
         />
 
-        <span className="text-[9px] font-bold text-amber-400/60 uppercase tracking-widest shrink-0">
+        <span className="text-[12px] font-bold text-amber-400/60 uppercase tracking-widest shrink-0">
           {timeline.before ? formatDate(timeline.before) : 'Now'}
         </span>
 
@@ -132,7 +132,7 @@ export function TimelineTransitionController({
               playing: false,
             });
           }}
-          className="p-1.5 hover:bg-white/10 rounded-lg text-white/30 hover:text-white/60 transition-colors"
+          className="p-1.5 hover:bg-white/10 rounded-lg text-white/55 hover:text-white/60 transition-colors"
         >
           <SkipBack size={13} />
         </button>
@@ -145,7 +145,7 @@ export function TimelineTransitionController({
               playing: false,
             });
           }}
-          className="p-1.5 hover:bg-white/10 rounded-lg text-white/30 hover:text-white/60 transition-colors"
+          className="p-1.5 hover:bg-white/10 rounded-lg text-white/55 hover:text-white/60 transition-colors"
         >
           <SkipForward size={13} />
         </button>

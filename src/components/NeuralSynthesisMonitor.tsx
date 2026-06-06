@@ -37,7 +37,7 @@ function fmtTokens(n: number) {
 }
 
 function latencyColor(ms: number) {
-  if (ms <= 0) return 'text-white/20';
+  if (ms <= 0) return 'text-white/45';
   if (ms < 500) return 'text-green-400';
   if (ms < 2000) return 'text-amber-400';
   return 'text-red-400';
@@ -59,9 +59,9 @@ function Sparkline({ data, width, height, color, label, value }: {
   if (data.length < 2) {
     return (
       <div className="flex items-center gap-3">
-        <span className="text-[9px] font-bold text-white/30 w-8 shrink-0">{label}</span>
+        <span className="text-[12px] font-bold text-white/55 w-8 shrink-0">{label}</span>
         <div className="flex-1 h-[36px] bg-white/[0.03] rounded-lg animate-pulse" />
-        <span className="text-[10px] font-mono text-white/20 w-14 text-right">{value}</span>
+        <span className="text-xs font-mono text-white/45 w-14 text-right">{value}</span>
       </div>
     );
   }
@@ -77,12 +77,12 @@ function Sparkline({ data, width, height, color, label, value }: {
 
   return (
     <div className="flex items-center gap-3">
-      <span className="text-[9px] font-bold text-white/30 w-8 shrink-0">{label}</span>
+      <span className="text-[12px] font-bold text-white/55 w-8 shrink-0">{label}</span>
       <svg width={width} height={height} className="shrink-0 overflow-visible">
         <polygon points={areaPts} fill={color} opacity={0.12} />
         <polyline points={pts} fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      <span className="text-[10px] font-mono text-white/60 w-14 text-right">{value}</span>
+      <span className="text-xs font-mono text-white/60 w-14 text-right">{value}</span>
     </div>
   );
 }
@@ -223,12 +223,12 @@ export function NeuralSynthesisMonitor({ t, onOpenTokens }: { t?: any; onOpenTok
     <GlassCard className="p-5 rounded-[2.5rem] space-y-5 border-white/5 bg-black/30 backdrop-blur-3xl">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h4 className="text-[10px] font-black uppercase tracking-widest text-white/30 flex items-center gap-2">
+        <h4 className="text-xs font-black uppercase tracking-widest text-white/55 flex items-center gap-2">
           <Activity size={12} /> {t?.neuralSynthesis || 'Neural Synthesis'}
         </h4>
         <div className="flex items-center gap-2">
           {health && (
-            <span className={`text-[9px] font-bold ${health.color}`}>
+            <span className={`text-[12px] font-bold ${health.color}`}>
               {healthScore}/{health.label}
             </span>
           )}
@@ -242,7 +242,7 @@ export function NeuralSynthesisMonitor({ t, onOpenTokens }: { t?: any; onOpenTok
 
       {/* Section 1: System Resources */}
       <div className="space-y-2">
-        <h5 className="text-[8px] font-bold uppercase tracking-wider text-white/15 flex items-center gap-1.5">
+        <h5 className="text-xs font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
           <Cpu size={10} /> System Resources
         </h5>
         <div className="space-y-1.5">
@@ -254,27 +254,27 @@ export function NeuralSynthesisMonitor({ t, onOpenTokens }: { t?: any; onOpenTok
 
       {/* Section 2: AI Inference */}
       <div className="space-y-2 cursor-pointer" onClick={onOpenTokens}>
-        <h5 className="text-[8px] font-bold uppercase tracking-wider text-white/15 flex items-center gap-1.5">
+        <h5 className="text-xs font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
           <BrainCircuit size={10} /> AI Inference
         </h5>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <div className="text-[8px] text-white/20 font-medium mb-0.5">Model</div>
-            <div className="text-[10px] font-mono text-white/60 truncate flex items-center gap-1.5">
+            <div className="text-xs text-white/45 font-medium mb-0.5">Model</div>
+            <div className="text-xs font-mono text-white/60 truncate flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block shrink-0" />
               {modelLabel}
             </div>
           </div>
           <div>
-            <div className="text-[8px] text-white/20 font-medium mb-0.5">Speed</div>
-            <div className="text-[10px] font-mono text-white/50">{tokenSpeedFmt}</div>
+            <div className="text-xs text-white/45 font-medium mb-0.5">Speed</div>
+            <div className="text-xs font-mono text-white/50">{tokenSpeedFmt}</div>
           </div>
           <div>
-            <div className="text-[8px] text-white/20 font-medium mb-0.5">Today</div>
-            <div className="text-[10px] font-mono text-white/50">{todayTokens}</div>
+            <div className="text-xs text-white/45 font-medium mb-0.5">Today</div>
+            <div className="text-xs font-mono text-white/50">{todayTokens}</div>
           </div>
           <div>
-            <div className="text-[8px] text-white/20 font-medium mb-0.5">Month Cap</div>
+            <div className="text-xs text-white/45 font-medium mb-0.5">Month Cap</div>
             <div className="flex items-center gap-1.5">
               <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
                 <motion.div
@@ -283,7 +283,7 @@ export function NeuralSynthesisMonitor({ t, onOpenTokens }: { t?: any; onOpenTok
                   className={`h-full rounded-full ${capPct > 90 ? 'bg-red-500' : capPct > 70 ? 'bg-amber-500' : 'bg-cyan-400'}`}
                 />
               </div>
-              <span className="text-[9px] font-mono text-white/30">{capPct}%</span>
+              <span className="text-[12px] font-mono text-white/55">{capPct}%</span>
             </div>
           </div>
         </div>
@@ -291,19 +291,19 @@ export function NeuralSynthesisMonitor({ t, onOpenTokens }: { t?: any; onOpenTok
 
       {/* Section 3: Latency */}
       <div className="space-y-2">
-        <h5 className="text-[8px] font-bold uppercase tracking-wider text-white/15 flex items-center gap-1.5">
+        <h5 className="text-xs font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
           <Clock size={10} /> Latency
         </h5>
-        <div className="flex gap-3 text-[9px]">
+        <div className="flex gap-3 text-[12px]">
           {(['llm', 'tts', 'stt'] as const).map(k => {
             const d = latency?.[k];
             return (
               <div key={k} className="flex-1">
-                <div className="text-white/20 font-bold uppercase mb-0.5">{k.toUpperCase()}</div>
+                <div className="text-white/45 font-bold uppercase mb-0.5">{k.toUpperCase()}</div>
                 <div className={`font-mono ${latencyColor(d?.lastMs ?? 0)}`}>
                   {d && d.lastMs > 0 ? `${d.lastMs}ms` : '--'}
                 </div>
-                <div className="text-[8px] text-white/15">
+                <div className="text-xs text-white/40">
                   avg {d && d.avgMs > 0 ? `${d.avgMs}ms` : '--'}
                 </div>
               </div>
@@ -315,26 +315,26 @@ export function NeuralSynthesisMonitor({ t, onOpenTokens }: { t?: any; onOpenTok
       {/* Section 4: Sensors + Health */}
       {liveStats && (
         <div className="space-y-2">
-          <h5 className="text-[8px] font-bold uppercase tracking-wider text-white/15 flex items-center gap-1.5">
+          <h5 className="text-xs font-bold uppercase tracking-wider text-white/40 flex items-center gap-1.5">
             <Thermometer size={10} /> Sensors
           </h5>
           <div className="flex items-center gap-2 flex-wrap">
             {liveStats.temperatures.length > 0 ? (
               liveStats.temperatures.slice(0, 4).map((t, i) => (
-                <span key={i} className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-white/5 text-white/50">
+                <span key={i} className="text-[12px] font-mono px-2 py-0.5 rounded-full bg-white/5 text-white/50">
                   {t.label.slice(0, 12)} {Math.round(t.celsius)}°C
                 </span>
               ))
             ) : (
-              <span className="text-[9px] text-white/20">{t?.noSensorData || 'No sensor data'}</span>
+              <span className="text-[12px] text-white/45">{t?.noSensorData || 'No sensor data'}</span>
             )}
             {liveStats.fan_speed_rpm != null && (
-              <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-white/5 text-white/50">
+              <span className="text-[12px] font-mono px-2 py-0.5 rounded-full bg-white/5 text-white/50">
                 Fan {liveStats.fan_speed_rpm}rpm
               </span>
             )}
             {health && (
-              <span className={`text-[9px] font-bold ml-auto ${health.color}`}>
+              <span className={`text-[12px] font-bold ml-auto ${health.color}`}>
                 {healthScore}/100
               </span>
             )}

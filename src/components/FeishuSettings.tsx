@@ -59,7 +59,7 @@ export function FeishuSettings({ t }: { t?: any }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="text-[10px] font-black uppercase tracking-widest text-white/20">加载中...</div>
+        <div className="text-xs font-black uppercase tracking-widest text-white/45">加载中...</div>
       </div>
     );
   }
@@ -73,33 +73,33 @@ export function FeishuSettings({ t }: { t?: any }) {
           <div className="text-sm font-bold text-white">
             {configured ? '飞书已连接' : '飞书未配置'}
           </div>
-          <div className="text-[10px] text-white/40 uppercase tracking-widest">
+          <div className="text-xs text-white/40 uppercase tracking-widest">
             {configured ? `App ID: ${appIdMasked}` : '请输入 App ID 和 App Secret'}
           </div>
         </div>
         {configured ? (
           <CheckCircle size={16} className="text-green-500 ml-auto" />
         ) : (
-          <AlertCircle size={16} className="text-white/20 ml-auto" />
+          <AlertCircle size={16} className="text-white/45 ml-auto" />
         )}
       </div>
 
       {/* Config Form */}
       <div className="space-y-4">
         <div>
-          <label className="text-[10px] font-black uppercase tracking-widest text-white/50 block mb-2">
+          <label className="text-xs font-black uppercase tracking-widest text-white/50 block mb-2">
             <Key size={12} className="inline mr-1" /> App ID
           </label>
           <Input
             value={appId}
             onChange={e => setAppId(e.target.value)}
             placeholder="cli_xxxxxxxxxxxxxxxx"
-            className="bg-white/5 border-white/10 text-white text-xs h-10 font-mono placeholder:text-white/20"
+            className="bg-white/5 border-white/10 text-white text-xs h-10 font-mono placeholder:text-white/45"
           />
         </div>
 
         <div>
-          <label className="text-[10px] font-black uppercase tracking-widest text-white/50 block mb-2">
+          <label className="text-xs font-black uppercase tracking-widest text-white/50 block mb-2">
             <Key size={12} className="inline mr-1" /> App Secret
           </label>
           <div className="relative">
@@ -108,11 +108,11 @@ export function FeishuSettings({ t }: { t?: any }) {
               value={appSecret}
               onChange={e => setAppSecret(e.target.value)}
               placeholder={configured ? '留空则保持现有密钥不变' : '输入 App Secret'}
-              className="bg-white/5 border-white/10 text-white text-xs h-10 font-mono placeholder:text-white/20 pr-12"
+              className="bg-white/5 border-white/10 text-white text-xs h-10 font-mono placeholder:text-white/45 pr-12"
             />
             <button
               onClick={() => setShowSecret(!showSecret)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black uppercase tracking-widest text-white/30 hover:text-white/60"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] font-black uppercase tracking-widest text-white/55 hover:text-white/60"
             >
               {showSecret ? '隐藏' : '显示'}
             </button>
@@ -135,7 +135,7 @@ export function FeishuSettings({ t }: { t?: any }) {
           <MessagesSquare size={14} />
           飞书机器人接入指南
         </div>
-        <div className="space-y-2 text-[10px] text-white/40 leading-relaxed">
+        <div className="space-y-2 text-xs text-white/40 leading-relaxed">
           <p>1. 前往 <a href="https://open.feishu.cn/app" target="_blank" rel="noopener noreferrer" className="text-celestial-saturn underline inline-flex items-center gap-0.5">飞书开放平台<ExternalLink size={10} /></a> 创建应用</p>
           <p>2. 左侧菜单「应用能力」→ 启用「机器人」</p>
           <p>3. 左侧菜单「凭证与基础信息」→ 复制 App ID 和 App Secret</p>
@@ -148,7 +148,7 @@ export function FeishuSettings({ t }: { t?: any }) {
           href="https://open.feishu.cn/app"
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-celestial-saturn hover:underline mt-2"
+          className="inline-flex items-center gap-1 text-xs font-black uppercase tracking-widest text-celestial-saturn hover:underline mt-2"
         >
           打开飞书开放平台 <ExternalLink size={10} />
         </a>

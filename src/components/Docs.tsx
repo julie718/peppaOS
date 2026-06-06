@@ -176,7 +176,7 @@ export function Docs({ t }: { t: any }) {
                     <span className="text-xs font-bold uppercase tracking-tighter">{t.brainNode || 'Brain Node'}</span>
                   </div>
                   <div className="flex-1 h-px bg-gradient-to-r from-celestial-saturn via-white/20 to-celestial-nebula hidden md:block min-w-[100px]" />
-                  <div className="px-4 py-2 rounded-full border border-white/10 bg-white/5 text-[10px] font-mono">
+                  <div className="px-4 py-2 rounded-full border border-white/10 bg-white/5 text-xs font-mono">
                     AES-256-GCM / P2P Mesh
                   </div>
                   <div className="flex-1 h-px bg-gradient-to-r from-celestial-nebula via-white/20 to-celestial-saturn hidden md:block min-w-[100px]" />

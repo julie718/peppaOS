@@ -81,7 +81,7 @@ function EvidenceBadge({ grade }: { grade: 'verbatim' | 'artifact' | 'impression
     impression: { bg: 'bg-amber-500/10', border: 'border-amber-500/20', text: 'text-amber-400', label: '推测' },
   };
   const c = config[grade] || config.impression;
-  return <span className={`text-[8px] font-bold uppercase px-2 py-0.5 rounded-full border ${c.bg} ${c.border} ${c.text}`}>{c.label}</span>;
+  return <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-full border ${c.bg} ${c.border} ${c.text}`}>{c.label}</span>;
 }
 
 export function MemoryAvatarLab({ t, onEnterSanctuary }: { t: any; onEnterSanctuary?: (agent: any) => void }) {
@@ -236,14 +236,14 @@ export function MemoryAvatarLab({ t, onEnterSanctuary }: { t: any; onEnterSanctu
           <Castle size={18} className="text-fuchsia-400" />
           <div>
             <h2 className="text-sm font-black text-white/90 uppercase tracking-wider">智能体生成实验室</h2>
-            <p className="text-[10px] text-white/30 font-mono">{t?.memoryAvatarLab || 'Memory Avatar Lab'}</p>
+            <p className="text-xs text-white/55 font-mono">{t?.memoryAvatarLab || 'Memory Avatar Lab'}</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
           {steps.map((step, i) => (
             <div key={step.id} className="flex items-center gap-1">
               {i > 0 && <div className="w-6 h-px bg-white/10" />}
-              <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${currentStep >= step.id ? 'bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/30' : 'bg-white/5 text-white/20 border border-white/5'}`}>
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${currentStep >= step.id ? 'bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/30' : 'bg-white/5 text-white/45 border border-white/5'}`}>
                 {step.icon}
               </div>
             </div>
@@ -257,13 +257,13 @@ export function MemoryAvatarLab({ t, onEnterSanctuary }: { t: any; onEnterSanctu
           {/* Step 1: Upload */}
           {currentStep === 1 && (
             <motion.div key="s1" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="max-w-2xl mx-auto space-y-6">
-              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-[11px] text-amber-300/80 leading-relaxed">
+              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-xs text-amber-300/80 leading-relaxed">
                 <AlertTriangle size={14} className="inline mr-2" />
                 这是从数据中蒸馏出的记忆化身，不是那个人本身。请确认您有权使用这些数据，且用途符合伦理。
               </div>
 
               <div className="space-y-3">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-white/30">聊天记录文件</label>
+                <label className="text-xs font-bold uppercase tracking-wider text-white/55">聊天记录文件</label>
                 <input ref={fileInputRef} type="file" accept=".txt,.json,.csv" onChange={handleFileLoad} className="hidden" />
                 <div
                   onClick={() => fileInputRef.current?.click()}
@@ -273,14 +273,14 @@ export function MemoryAvatarLab({ t, onEnterSanctuary }: { t: any; onEnterSanctu
                     <>
                       <FileText size={36} className="text-fuchsia-400" />
                       <span className="text-sm text-white/60 font-medium">{fileName}</span>
-                      <span className="text-[10px] text-white/20">{chatLog.split('\n').filter(l => l.trim()).length} lines loaded</span>
+                      <span className="text-xs text-white/45">{chatLog.split('\n').filter(l => l.trim()).length} lines loaded</span>
                     </>
                   ) : (
                     <>
-                      <Upload size={36} className="text-white/15" />
+                      <Upload size={36} className="text-white/40" />
                       <div className="text-center space-y-1">
                         <p className="text-sm text-white/40">上传聊天记录导出文件</p>
-                        <p className="text-[10px] text-white/15">支持微信、QQ导出 .txt，纯文本</p>
+                        <p className="text-xs text-white/40">支持微信、QQ导出 .txt，纯文本</p>
                       </div>
                     </>
                   )}
@@ -290,7 +290,7 @@ export function MemoryAvatarLab({ t, onEnterSanctuary }: { t: any; onEnterSanctu
                     <button
                       key={f}
                       onClick={() => setFormat(f)}
-                      className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${format === f ? 'bg-fuchsia-500/20 border border-fuchsia-500/30 text-fuchsia-400' : 'bg-white/5 border border-white/5 text-white/30 hover:bg-white/10'}`}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all ${format === f ? 'bg-fuchsia-500/20 border border-fuchsia-500/30 text-fuchsia-400' : 'bg-white/5 border border-white/5 text-white/55 hover:bg-white/10'}`}
                     >
                       {f === 'wechat' ? '微信' : f === 'qq' ? 'QQ' : 'Plain'}
                     </button>
@@ -300,7 +300,7 @@ export function MemoryAvatarLab({ t, onEnterSanctuary }: { t: any; onEnterSanctu
 
               {/* Audio upload for voice recording */}
               <div className="space-y-3">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-white/30">语音记录（可选）</label>
+                <label className="text-xs font-bold uppercase tracking-wider text-white/55">语音记录（可选）</label>
                 <input ref={audioInputRef} type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac" onChange={handleAudioUpload} className="hidden" />
                 <div
                   onClick={() => audioInputRef.current?.click()}
@@ -317,16 +317,16 @@ export function MemoryAvatarLab({ t, onEnterSanctuary }: { t: any; onEnterSanctu
                         <>
                           <Headphones size={28} className="text-fuchsia-400" />
                           <span className="text-xs text-white/50">{audioFile.name}</span>
-                          <span className="text-[10px] text-white/20">已转录 — 语音特征将纳入人格分析</span>
+                          <span className="text-xs text-white/45">已转录 — 语音特征将纳入人格分析</span>
                         </>
                       )}
                     </>
                   ) : (
                     <>
-                      <Mic size={28} className="text-white/15" />
+                      <Mic size={28} className="text-white/40" />
                       <div className="text-center space-y-1">
-                        <p className="text-xs text-white/30">上传语音录音</p>
-                        <p className="text-[9px] text-white/12">MP3 / WAV / OGG — 用于分析语气和口头禅</p>
+                        <p className="text-xs text-white/55">上传语音录音</p>
+                        <p className="text-[12px] text-white/35">MP3 / WAV / OGG — 用于分析语气和口头禅</p>
                       </div>
                     </>
                   )}
@@ -334,16 +334,16 @@ export function MemoryAvatarLab({ t, onEnterSanctuary }: { t: any; onEnterSanctu
               </div>
 
               <div className="space-y-3">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-white/30">关系类型</label>
+                <label className="text-xs font-bold uppercase tracking-wider text-white/55">关系类型</label>
                 <div className="grid grid-cols-5 gap-2">
                   {RELATIONSHIP_TYPES.map(rel => (
                     <button
                       key={rel.id}
                       onClick={() => setRelationshipType(rel.id)}
-                      className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all ${relationshipType === rel.id ? 'bg-fuchsia-500/10 border-fuchsia-500/30 text-fuchsia-400' : 'bg-white/5 border-white/5 text-white/30 hover:bg-white/10'}`}
+                      className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all ${relationshipType === rel.id ? 'bg-fuchsia-500/10 border-fuchsia-500/30 text-fuchsia-400' : 'bg-white/5 border-white/5 text-white/55 hover:bg-white/10'}`}
                     >
                       {rel.icon}
-                      <span className="text-[9px] font-bold">{rel.label}</span>
+                      <span className="text-[12px] font-bold">{rel.label}</span>
                     </button>
                   ))}
                 </div>
@@ -370,10 +370,10 @@ export function MemoryAvatarLab({ t, onEnterSanctuary }: { t: any; onEnterSanctu
               <div className="p-6 bg-white/5 border border-white/10 rounded-2xl space-y-3">
                 <div className="flex items-center gap-2">
                   <Eye size={14} className="text-fuchsia-400" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-white/30">蒸馏结果 — {distillResult.inferredName}</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-white/55">蒸馏结果 — {distillResult.inferredName}</span>
                 </div>
                 <p className="text-sm text-white/60 leading-relaxed italic">"{distillResult.narrative}"</p>
-                <div className="flex gap-3 text-[10px] text-white/30 font-mono">
+                <div className="flex gap-3 text-xs text-white/55 font-mono">
                   <span>{distillResult.summary.messageCount} 条消息</span>
                   <span>{distillResult.seedMemories.length} 条记忆</span>
                   <span>{distillResult.relationshipType}</span>
@@ -383,17 +383,17 @@ export function MemoryAvatarLab({ t, onEnterSanctuary }: { t: any; onEnterSanctu
 
               {/* Radar */}
               <div className="p-6 bg-white/5 border border-white/10 rounded-2xl">
-                <h3 className="text-[10px] font-bold uppercase tracking-wider text-white/30 mb-3">8 维人格向量</h3>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-white/55 mb-3">8 维人格向量</h3>
                 <MiniRadar cognitiveStyle={distillResult.summary.cognitiveStyle} socialStyle={distillResult.summary.socialStyle} />
               </div>
 
               {/* Common phrases */}
               {distillResult.summary.topPhrases && distillResult.summary.topPhrases.length > 0 && (
                 <div className="p-4 bg-white/5 border border-white/10 rounded-2xl space-y-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-white/30">常用表达</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-white/55">常用表达</span>
                   <div className="flex flex-wrap gap-2">
                     {distillResult.summary.topPhrases.map((p, i) => (
-                      <span key={i} className="px-3 py-1 bg-fuchsia-500/10 border border-fuchsia-500/20 rounded-full text-[10px] text-fuchsia-300">{p}</span>
+                      <span key={i} className="px-3 py-1 bg-fuchsia-500/10 border border-fuchsia-500/20 rounded-full text-xs text-fuchsia-300">{p}</span>
                     ))}
                   </div>
                 </div>
@@ -401,16 +401,16 @@ export function MemoryAvatarLab({ t, onEnterSanctuary }: { t: any; onEnterSanctu
 
               {/* Seed Memories with Evidence */}
               <div className="p-4 bg-white/5 border border-white/10 rounded-2xl space-y-3">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-white/30">种子记忆 ({distillResult.seedMemories.length})</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-white/55">种子记忆 ({distillResult.seedMemories.length})</span>
                 <div className="space-y-2 max-h-64 overflow-auto">
                   {distillResult.seedMemories.slice(0, 10).map((mem, i) => (
                     <div key={i} className="flex items-start gap-3 p-3 bg-white/[0.02] rounded-xl border border-white/5">
                       <EvidenceBadge grade={mem.evidenceGrade} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-[11px] text-white/50 leading-relaxed">{mem.content}</p>
-                        <span className="text-[9px] text-white/15 font-mono">{mem.keywords?.join(', ')}</span>
+                        <p className="text-xs text-white/50 leading-relaxed">{mem.content}</p>
+                        <span className="text-[12px] text-white/40 font-mono">{mem.keywords?.join(', ')}</span>
                       </div>
-                      <span className="text-[9px] text-white/15 font-mono">{Math.round(mem.confidence * 100)}%</span>
+                      <span className="text-[12px] text-white/40 font-mono">{Math.round(mem.confidence * 100)}%</span>
                     </div>
                   ))}
                 </div>
@@ -418,14 +418,14 @@ export function MemoryAvatarLab({ t, onEnterSanctuary }: { t: any; onEnterSanctu
 
               {/* Sanctuary config */}
               <div className="p-4 bg-white/5 border border-white/10 rounded-2xl space-y-3">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-white/30">领地配置</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-white/55">领地配置</span>
                 <input
                   value={sanctuaryName}
                   onChange={(e) => setSanctuaryName(e.target.value)}
                   placeholder="领地名称..."
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white/80 placeholder:text-white/15 focus:outline-none focus:border-fuchsia-500/30"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white/80 placeholder:text-white/40 focus:outline-none focus:border-fuchsia-500/30"
                 />
-                <div className="text-[9px] text-white/20 font-mono space-y-1">
+                <div className="text-[12px] text-white/45 font-mono space-y-1">
                   <p>• 工具权限：无（仅对话）</p>
                   <p>• 记忆隔离：私有（不共享）</p>
                   <p>• 演化：冻结（不自动变化）</p>

@@ -349,11 +349,11 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
         <div className="flex-1 overflow-y-auto scrollbar-thin">
           {!loaded && (
             <div className="flex justify-center py-8">
-              <Loader2 size={16} className="animate-spin text-white/20" />
+              <Loader2 size={16} className="animate-spin text-white/45" />
             </div>
           )}
           {loaded && conversations.length === 0 && (
-            <div className="text-center text-white/20 text-[11px] py-8 px-4">
+            <div className="text-center text-white/45 text-xs py-8 px-4">
               {t?.noConversations || 'No conversations yet'}
             </div>
           )}
@@ -368,24 +368,24 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-medium text-white/80 truncate max-w-[120px]">
+                <span className="text-xs font-medium text-white/80 truncate max-w-[120px]">
                   {conv.title || (t?.untitled || 'Untitled')}
                 </span>
-                <span className="text-[9px] text-white/30 flex-shrink-0 ml-1">
+                <span className="text-[12px] text-white/55 flex-shrink-0 ml-1">
                   {formatDate(conv.lastActiveAt)}
                 </span>
               </div>
               <div className="flex items-center justify-between mt-0.5">
-                <span className="text-[10px] text-white/30 truncate max-w-[120px]">
+                <span className="text-xs text-white/55 truncate max-w-[120px]">
                   {conv.preview || ''}
                 </span>
                 <div className="flex items-center gap-1">
                   {conv.messageCount > 0 && (
-                    <span className="text-[9px] text-white/20">{conv.messageCount}</span>
+                    <span className="text-[12px] text-white/45">{conv.messageCount}</span>
                   )}
                   <span
                     onClick={(e) => handleCloseConversation(conv.id, e)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-red-500/20 text-white/20 hover:text-red-400"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-red-500/20 text-white/45 hover:text-red-400"
                     title={t?.closeConversation || 'Close conversation'}
                   >
                     <Trash2 size={10} />
@@ -416,17 +416,17 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
           className="flex-1 overflow-y-auto px-3 py-2 space-y-1 text-xs scrollbar-thin"
         >
           {messages.length === 0 && !isTyping && (
-            <div className="text-center text-white/30 py-8 space-y-6">
+            <div className="text-center text-white/55 py-8 space-y-6">
               <div className="space-y-2">
                 <MessageSquare size={24} className="mx-auto opacity-50" />
-                <p className="text-[11px]">{activeConvId ? (t?.chatPanelEmpty || 'Type a message or use voice to start') : (t?.newConversationHint || 'Start a new conversation')}</p>
+                <p className="text-xs">{activeConvId ? (t?.chatPanelEmpty || 'Type a message or use voice to start') : (t?.newConversationHint || 'Start a new conversation')}</p>
               </div>
               <div className="grid gap-1.5 px-2">
                 {visibleSuggestions.map((s, i) => (
                   <button
                     key={i}
                     onClick={() => handleSend(s.prompt)}
-                    className="flex items-center justify-between p-2.5 rounded-xl bg-white/5 border border-white/5 text-[10px] text-white/40 hover:text-celestial-saturn hover:border-celestial-saturn/20 hover:bg-celestial-saturn/5 transition-all text-left group"
+                    className="flex items-center justify-between p-2.5 rounded-xl bg-white/5 border border-white/5 text-xs text-white/40 hover:text-celestial-saturn hover:border-celestial-saturn/20 hover:bg-celestial-saturn/5 transition-all text-left group"
                   >
                     <span>{s.label}</span>
                     <ChevronRight size={11} className="opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -448,11 +448,11 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
                   <div className="flex justify-end group">
                     <div className="max-w-[80%] bg-celestial-glow/20 border border-celestial-glow/30 rounded-lg px-3 py-1.5 relative">
                       <p className="text-white/90 whitespace-pre-wrap">{msg.content}</p>
-                      {showTime && <span className="text-white/30 text-[10px]">{formatTime(msg.timestamp)}</span>}
+                      {showTime && <span className="text-white/55 text-xs">{formatTime(msg.timestamp)}</span>}
                       {msg.content && (
                         <button
                           onClick={() => handleCopyMessage(msg.content!, msg.id)}
-                          className="absolute -left-6 top-1 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-white/20 hover:text-white/60"
+                          className="absolute -left-6 top-1 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-white/45 hover:text-white/60"
                         >
                           {copiedId === msg.id ? <Check size={10} className="text-green-400" /> : <Copy size={10} />}
                         </button>
@@ -464,11 +464,11 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
                 {msg.type === 'user-voice' && (
                   <div className="flex justify-end group">
                     <div className="max-w-[80%] bg-purple-500/20 border border-purple-500/30 rounded-lg px-3 py-1.5 relative">
-                      <div className="flex items-center gap-1 text-purple-300/60 text-[10px] mb-0.5">
+                      <div className="flex items-center gap-1 text-purple-300/60 text-xs mb-0.5">
                         <Mic size={10} /> {t?.voice || 'voice'}
                       </div>
                       <p className="text-white/90 whitespace-pre-wrap">{msg.content}</p>
-                      {showTime && <span className="text-white/30 text-[10px]">{formatTime(msg.timestamp)}</span>}
+                      {showTime && <span className="text-white/55 text-xs">{formatTime(msg.timestamp)}</span>}
                     </div>
                   </div>
                 )}
@@ -477,11 +477,11 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
                   <div className="flex justify-start group">
                     <div className="max-w-[85%] bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 relative">
                       <p className="text-white/80 whitespace-pre-wrap">{msg.content}</p>
-                      {showTime && <span className="text-white/30 text-[10px]">{formatTime(msg.timestamp)}</span>}
+                      {showTime && <span className="text-white/55 text-xs">{formatTime(msg.timestamp)}</span>}
                       {msg.content && (
                         <button
                           onClick={() => handleCopyMessage(msg.content!, msg.id)}
-                          className="absolute -right-6 top-1 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-white/20 hover:text-white/60"
+                          className="absolute -right-6 top-1 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-white/45 hover:text-white/60"
                         >
                           {copiedId === msg.id ? <Check size={10} className="text-green-400" /> : <Copy size={10} />}
                         </button>
@@ -492,7 +492,7 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
 
                 {msg.type === 'tool' && (
                   <div className="flex justify-start">
-                    <div className={`max-w-[85%] border rounded-lg px-2.5 py-1.5 text-[11px] ${
+                    <div className={`max-w-[85%] border rounded-lg px-2.5 py-1.5 text-xs ${
                       msg.status === 'running' ? 'border-yellow-500/30 bg-yellow-500/5' :
                       msg.status === 'error' ? 'border-red-500/30 bg-red-500/5' :
                       'border-green-500/20 bg-green-500/5'
@@ -549,7 +549,7 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
                 </div>
                 <button
                   onClick={handleCancelTask}
-                  className="text-[10px] text-red-400/60 hover:text-red-400 font-bold uppercase tracking-wider flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-red-500/10 transition-colors"
+                  className="text-xs text-red-400/60 hover:text-red-400 font-bold uppercase tracking-wider flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-red-500/10 transition-colors"
                   title={t?.cancelTask || 'Cancel task'}
                 >
                   <Square size={10} />
@@ -568,14 +568,14 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
               <button
                 key={i}
                 onClick={() => { setInput(s.prompt); inputRef.current?.focus(); }}
-                className="px-2 py-0.5 rounded-md bg-white/5 border border-white/5 text-[10px] text-white/30 hover:text-white/60 hover:border-white/10 hover:bg-white/10 transition-all"
+                className="px-2 py-0.5 rounded-md bg-white/5 border border-white/5 text-xs text-white/55 hover:text-white/60 hover:border-white/10 hover:bg-white/10 transition-all"
               >
                 {s.label}
               </button>
             ))}
           </div>
           {isVoiceActive && transcript && (
-            <div className="text-[10px] text-purple-300/50 mb-1 flex items-center gap-1">
+            <div className="text-xs text-purple-300/50 mb-1 flex items-center gap-1">
               <Mic size={10} className="text-purple-400 animate-pulse" />
               {transcript}
             </div>

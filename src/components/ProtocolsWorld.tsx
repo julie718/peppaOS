@@ -57,7 +57,7 @@ export function ProtocolsWorld({ t }: { t: any }) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Protocol Sidebar */}
         <div className="space-y-4">
-          <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-4">{t.integrityStream || 'Integrity Stream'}</div>
+          <div className="text-xs font-black text-white/45 uppercase tracking-[0.3em] mb-4">{t.integrityStream || 'Integrity Stream'}</div>
           {PROTOCOLS.map(p => (
             <button
               key={p.id}
@@ -69,7 +69,7 @@ export function ProtocolsWorld({ t }: { t: any }) {
               }`}
             >
               <div className="flex justify-between items-center relative z-10">
-                <span className="text-[10px] font-black">{p.id}</span>
+                <span className="text-xs font-black">{p.id}</span>
                 {p.status === (t.locked || 'LOCKED') ? <Lock size={12} /> : <Unlock size={12} />}
               </div>
               <div className="mt-2 text-xs font-bold relative z-10">{p.title}</div>
@@ -92,16 +92,16 @@ export function ProtocolsWorld({ t }: { t: any }) {
                 <div className="space-y-1">
                   <h3 className="text-2xl font-black tracking-tighter text-purple-400">{activeProtocol.title}</h3>
                   <div className="flex gap-4">
-                    <span className="text-[10px] font-bold text-white/30 uppercase flex items-center gap-1">
+                    <span className="text-xs font-bold text-white/55 uppercase flex items-center gap-1">
                       <Shield size={10} /> {activeProtocol.status}
                     </span>
-                    <span className="text-[10px] font-bold text-white/30 uppercase flex items-center gap-1">
+                    <span className="text-xs font-bold text-white/55 uppercase flex items-center gap-1">
                       <Database size={10} /> {t.fragmentTypeLumina || 'FRAGMENT_TYPE_LUMINA'}
                     </span>
                   </div>
                 </div>
                 {activeProtocol.status !== (t.locked || 'LOCKED') && (
-                  <div className="px-3 py-1 bg-purple-500/20 rounded-full border border-purple-500/40 text-[10px] font-black text-purple-400">
+                  <div className="px-3 py-1 bg-purple-500/20 rounded-full border border-purple-500/40 text-xs font-black text-purple-400">
                     {Math.floor(decryptionProgress)}% {t.synced || 'SYNCED'}
                   </div>
                 )}
@@ -142,10 +142,10 @@ export function ProtocolsWorld({ t }: { t: any }) {
                   { label: t.auth || 'Auth', val: t.verified || 'Verified', icon: Search }
                 ].map((item, i) => (
                   <div key={i} className="p-4 bg-white/5 rounded-xl border border-white/10">
-                    <div className="text-[8px] font-black text-white/20 uppercase tracking-widest mb-1 flex items-center gap-2">
+                    <div className="text-xs font-black text-white/45 uppercase tracking-widest mb-1 flex items-center gap-2">
                        <item.icon size={10} /> {item.label}
                     </div>
-                    <div className="text-[10px] font-bold text-white/80">{item.val}</div>
+                    <div className="text-xs font-bold text-white/80">{item.val}</div>
                   </div>
                 ))}
               </div>
@@ -155,7 +155,7 @@ export function ProtocolsWorld({ t }: { t: any }) {
       </div>
 
       <div className="p-8 border border-white/10 rounded-2xl bg-white/5 text-center">
-        <p className="text-[10px] font-bold text-white/30 uppercase tracking-[0.4em]">
+        <p className="text-xs font-bold text-white/55 uppercase tracking-[0.4em]">
           {t.distributedSystemDesc || 'Lumi is a distributed system. Your participation sustains the universe.'}
         </p>
       </div>

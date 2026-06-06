@@ -151,7 +151,7 @@ export function BranchDashboard() {
       </div>
 
       {stats.lastSync && (
-        <div className="flex items-center gap-2 text-white/20 text-xs">
+        <div className="flex items-center gap-2 text-white/45 text-xs">
           <Clock size={12} />
           <span>Last synced: {new Date(stats.lastSync).toLocaleString()}</span>
         </div>
@@ -173,9 +173,9 @@ function QuickAction({ icon, label, desc, color, onClick }: {
       <span className="text-white/50">{icon}</span>
       <div>
         <span className="text-white text-sm font-medium">{label}</span>
-        <p className="text-white/30 text-xs">{desc}</p>
+        <p className="text-white/55 text-xs">{desc}</p>
       </div>
-      <ArrowRight size={14} className="text-white/20 ml-auto" />
+      <ArrowRight size={14} className="text-white/45 ml-auto" />
     </motion.button>
   );
 }

@@ -58,7 +58,7 @@ export function PulseCounter({ label, value, colorClass = "text-celestial-saturn
       <div className={cn("text-xl md:text-3xl font-black tracking-tighter tabular-nums", colorClass)}>
         {value}
       </div>
-      <div className="text-[7px] md:text-[9px] uppercase tracking-[0.2em] md:tracking-[0.3em] text-white/20 font-bold text-center">
+      <div className="text-xs md:text-[12px] uppercase tracking-[0.2em] md:tracking-[0.3em] text-white/45 font-bold text-center">
         {label}
       </div>
       <motion.div 

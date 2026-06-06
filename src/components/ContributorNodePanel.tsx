@@ -33,7 +33,7 @@ className="w-72"
             <span className="text-xs font-black text-white/70">{t?.activeNode || 'Active Node'}</span>
           </div>
           <motion.div animate={{ rotate: isExpanded ? 90 : 0 }} transition={{ duration: 0.2 }}>
-            <ChevronRight size={14} className="text-white/30 group-hover:text-white/60" />
+            <ChevronRight size={14} className="text-white/55 group-hover:text-white/60" />
           </motion.div>
         </button>
 
@@ -41,22 +41,22 @@ className="w-72"
         <div className="flex items-center justify-between px-1">
           <div className="text-center">
             <div className="text-sm font-black text-celestial-saturn">98.2%</div>
-            <div className="text-[7px] text-white/20 font-bold uppercase">Sync</div>
+            <div className="text-xs text-white/45 font-bold uppercase">Sync</div>
           </div>
           <div className="w-px h-6 bg-white/5" />
           <div className="text-center">
             <div className="text-sm font-black text-amber-400">+{creditsPerDay}</div>
-            <div className="text-[7px] text-white/20 font-bold uppercase">SC/Day</div>
+            <div className="text-xs text-white/45 font-bold uppercase">SC/Day</div>
           </div>
           <div className="w-px h-6 bg-white/5" />
           <div className="text-center">
             <div className="text-sm font-black text-white/50">14.2K</div>
-            <div className="text-[7px] text-white/20 font-bold uppercase">Nodes</div>
+            <div className="text-xs text-white/45 font-bold uppercase">Nodes</div>
           </div>
           <div className="w-px h-6 bg-white/5" />
           <div className="text-center">
             <div className="text-sm font-black text-white/50">82</div>
-            <div className="text-[7px] text-white/20 font-bold uppercase">{t?.countries || 'Countries'}</div>
+            <div className="text-xs text-white/45 font-bold uppercase">{t?.countries || 'Countries'}</div>
           </div>
         </div>
 
@@ -70,22 +70,22 @@ className="w-72"
               transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
               className="overflow-hidden space-y-3"
             >
-              <p className="text-[9px] text-white/25 leading-relaxed border-t border-white/5 pt-3">
+              <p className="text-[12px] text-white/50 leading-relaxed border-t border-white/5 pt-3">
                 {t?.contributorDesc || '即便不是全职架构师，您也可以通过贡献本地算力或参与伦理讨论，成为生态的一部分。'}
               </p>
 
               <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5">
-                <h4 className="text-[8px] font-black uppercase tracking-widest text-white/20 flex items-center gap-1 mb-1">
+                <h4 className="text-xs font-black uppercase tracking-widest text-white/45 flex items-center gap-1 mb-1">
                   <Zap size={9} className="text-amber-400" />
                   {t?.rewardProtocol || 'Reward Protocol'}
                 </h4>
-                <div className="text-[10px] font-bold text-amber-400/80">
+                <div className="text-xs font-bold text-amber-400/80">
                   {t?.scDescription || 'Soul Credits minted based on uptime and compute quality.'}
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <h4 className="text-[8px] font-black uppercase tracking-widest text-white/20">
+                <h4 className="text-xs font-black uppercase tracking-widest text-white/45">
                   {t?.contributionTypes || 'Contribution Types'}
                 </h4>
                 <div className="grid grid-cols-2 gap-1.5">
@@ -96,8 +96,8 @@ className="w-72"
                     >
                       <ct.icon size={14} className={ct.color} />
                       <div>
-                        <div className="text-[8px] font-bold text-white/40">{ct.label}</div>
-                        <div className="text-[7px] text-white/15">{ct.desc}</div>
+                        <div className="text-xs font-bold text-white/40">{ct.label}</div>
+                        <div className="text-xs text-white/40">{ct.desc}</div>
                       </div>
                     </div>
                   ))}
@@ -105,7 +105,7 @@ className="w-72"
               </div>
 
               <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5">
-                <h4 className="text-[8px] font-black uppercase tracking-widest text-white/20 mb-2">
+                <h4 className="text-xs font-black uppercase tracking-widest text-white/45 mb-2">
                   {t?.nodeSimulator || 'Node Simulator'}
                 </h4>
                 <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden mb-2">
@@ -116,7 +116,7 @@ className="w-72"
                     className="h-full bg-gradient-to-r from-cyan-400 to-celestial-saturn rounded-full"
                   />
                 </div>
-                <div className="text-[8px] text-white/20">
+                <div className="text-xs text-white/45">
                   {t?.nodeSimulatorDesc || 'Estimate your contribution based on your hardware profile and network latency.'}
                 </div>
               </div>

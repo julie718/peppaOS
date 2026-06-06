@@ -138,7 +138,7 @@ export function HolographicOverlay({ socket }: { socket: any }) {
                       }}
                     >
                       <div className="flex items-center justify-between mb-3">
-                        <span className="text-[8px] font-black uppercase tracking-[0.3em] text-white/30">
+                        <span className="text-xs font-black uppercase tracking-[0.3em] text-white/55">
                           Lumi Holographic
                         </span>
                         <button
@@ -160,7 +160,7 @@ export function HolographicOverlay({ socket }: { socket: any }) {
                             <button
                               key={action.id}
                               onClick={() => socket?.emit(action.event, { actionId: action.id })}
-                              className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-[10px] font-bold text-white/80 transition-all border border-white/10"
+                              className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold text-white/80 transition-all border border-white/10"
                             >
                               {action.label}
                             </button>

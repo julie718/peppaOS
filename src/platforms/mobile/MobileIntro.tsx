@@ -34,7 +34,7 @@ export function MobileIntro({ t, onBack, onPreview }: MobileIntroProps) {
         </button>
         <div className="flex items-center gap-3 px-4 py-2 bg-celestial-nebula/10 border border-celestial-nebula/20 rounded-full">
            <div className="w-2 h-2 rounded-full bg-celestial-nebula animate-pulse" />
-           <span className="text-[10px] font-black text-celestial-nebula uppercase tracking-widest text-white/80">{t.lumiMobileSyncActive || 'Lumi Mobile Sync v1.2.0 Active'}</span>
+           <span className="text-xs font-black text-celestial-nebula uppercase tracking-widest text-white/80">{t.lumiMobileSyncActive || 'Lumi Mobile Sync v1.2.0 Active'}</span>
         </div>
       </div>
 
@@ -42,7 +42,7 @@ export function MobileIntro({ t, onBack, onPreview }: MobileIntroProps) {
       <div className="grid lg:grid-cols-2 gap-16 items-center">
         <div className="space-y-8">
           <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-celestial-nebula/10 border border-celestial-nebula/20 rounded-full text-[10px] font-black text-celestial-nebula uppercase tracking-widest">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-celestial-nebula/10 border border-celestial-nebula/20 rounded-full text-xs font-black text-celestial-nebula uppercase tracking-widest">
               {t.portableNeuralGateway || 'Portable Neural Gateway'}
             </div>
             <h1 className="text-6xl md:text-7xl font-black tracking-tighter leading-none italic uppercase">
@@ -61,7 +61,7 @@ export function MobileIntro({ t, onBack, onPreview }: MobileIntroProps) {
                <PhoneIcon size={24} className="text-white group-hover:rotate-12 transition-transform" />
                <div className="text-left">
                   <div className="text-lg leading-none">{t.launchMobileHub || 'LAUNCH MOBILE HUB'}</div>
-                  <div className="text-[10px] opacity-80 tracking-wider uppercase">{t.betaPreview || 'BETA PREVIEW'}</div>
+                  <div className="text-xs opacity-80 tracking-wider uppercase">{t.betaPreview || 'BETA PREVIEW'}</div>
                </div>
              </button>
           </div>
@@ -69,7 +69,7 @@ export function MobileIntro({ t, onBack, onPreview }: MobileIntroProps) {
           <div className="grid grid-cols-2 gap-4 max-w-sm">
              <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-2">
                 <div className="flex justify-between items-center">
-                   <span className="text-[8px] font-black text-white/30 uppercase">{t.cameraStream || 'Camera Stream'}</span>
+                   <span className="text-xs font-black text-white/30 uppercase">{t.cameraStream || 'Camera Stream'}</span>
                    <div className="w-1 h-1 rounded-full bg-green-500 animate-pulse" />
                 </div>
                 <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
@@ -78,8 +78,8 @@ export function MobileIntro({ t, onBack, onPreview }: MobileIntroProps) {
              </div>
              <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-2">
                 <div className="flex justify-between items-center">
-                   <span className="text-[8px] font-black text-white/30 uppercase">{t.sensors || 'Sensors'}</span>
-                   <span className="text-[8px] font-bold text-celestial-nebula font-mono">{t.activeStatusCap || 'ACTIVE'}</span>
+                   <span className="text-xs font-black text-white/30 uppercase">{t.sensors || 'Sensors'}</span>
+                   <span className="text-xs font-bold text-celestial-nebula font-mono">{t.activeStatusCap || 'ACTIVE'}</span>
                 </div>
                 <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
                    <div className="h-full bg-white/20 w-1/2" />
@@ -136,19 +136,19 @@ export function MobileIntro({ t, onBack, onPreview }: MobileIntroProps) {
 
                  <div className="space-y-1 relative z-10">
                     <div className="text-3xl font-black tracking-tighter italic">{t.mobileHub || 'MOBILE HUB'}</div>
-                    <div className="text-[9px] text-celestial-nebula font-black uppercase tracking-[0.4em] mb-4">{t.realtimeSensorySharding || 'Real-time Sensory Sharding'}</div>
+                    <div className="text-[12px] text-celestial-nebula font-black uppercase tracking-[0.4em] mb-4">{t.realtimeSensorySharding || 'Real-time Sensory Sharding'}</div>
                  </div>
 
                  <div className="w-full space-y-4 relative z-10">
                     <div className="bg-white/5 p-4 rounded-2xl border border-white/5 flex flex-col gap-2">
-                       <div className="flex justify-between items-center text-[8px] font-black text-white/30 uppercase">
+                       <div className="flex justify-between items-center text-xs font-black text-white/30 uppercase">
                           <span>{t.environmentMetadata || 'Environment Metadata'}</span>
                           <span className="text-celestial-nebula">{t.capturing || 'Capturing...'}</span>
                        </div>
                        <motion.div 
                          animate={{ opacity: [0.3, 1, 0.3] }}
                          transition={{ duration: 1.5, repeat: Infinity }}
-                         className="font-mono text-[10px] text-white/60 text-left"
+                         className="font-mono text-xs text-white/60 text-left"
                        >
                          SYNCING_BIO_METRIC_01... <br/>
                          GPS_SHARD_ACTIVE_12.4
@@ -157,7 +157,7 @@ export function MobileIntro({ t, onBack, onPreview }: MobileIntroProps) {
 
                     {[1, 2].map(i => (
                       <div key={i} className="flex flex-col gap-2">
-                        <div className="flex justify-between text-[8px] font-black text-white/20 uppercase tracking-widest">
+                        <div className="flex justify-between text-xs font-black text-white/20 uppercase tracking-widest">
                            <span>Mesh Peer Nexus_0{i}</span>
                            <span>{t.meshOnline || 'ONLINE'}</span>
                         </div>
@@ -193,7 +193,7 @@ export function MobileIntro({ t, onBack, onPreview }: MobileIntroProps) {
             <GlassCard key={dl.platform} className="p-8 border-white/5 hover:border-celestial-nebula/30 transition-colors group">
               <div className="flex justify-between items-start mb-6">
                 <span className="text-4xl">{dl.icon}</span>
-                <span className="text-[10px] font-bold py-1 px-3 bg-white/5 rounded-full text-white/40 uppercase tracking-widest">{t.releasedBadge || 'Released'}</span>
+                <span className="text-xs font-bold py-1 px-3 bg-white/5 rounded-full text-white/40 uppercase tracking-widest">{t.releasedBadge || 'Released'}</span>
               </div>
               <div className="space-y-4">
                 <div>

@@ -89,9 +89,9 @@ export function RemoteMCPSettings({ t }: { t?: any }) {
 
       {devices.length === 0 || (!editing && devices.length === 0) ? (
         <div className="p-10 bg-white/5 rounded-[2rem] border border-white/5 text-center">
-          <Satellite size={32} className="text-white/20 mx-auto mb-4" />
+          <Satellite size={32} className="text-white/45 mx-auto mb-4" />
           <p className="text-white/40 font-bold uppercase tracking-widest text-sm">{t.noRemoteDevices || 'No remote devices configured'}</p>
-          <p className="text-white/20 text-xs mt-2">{t.addRemoteDeviceHint || 'Add a device to let it call Lumi tools via MCP'}</p>
+          <p className="text-white/45 text-xs mt-2">{t.addRemoteDeviceHint || 'Add a device to let it call Lumi tools via MCP'}</p>
           <Button onClick={addRow} className="mt-6 bg-celestial-saturn text-black rounded-full px-6 py-3 font-bold text-sm hover:scale-105 transition-transform">
             <Plus size={16} className="mr-1" /> {t.addDevice || 'Add Device'}
           </Button>
@@ -129,12 +129,12 @@ export function RemoteMCPSettings({ t }: { t?: any }) {
                     />
                   ) : (
                     <div className="flex items-center gap-2">
-                      <p className="text-[10px] text-white/30 font-mono truncate max-w-md">{device.url}</p>
+                      <p className="text-xs text-white/55 font-mono truncate max-w-md">{device.url}</p>
                       <a
                         href={device.url.replace(/^ws(s?):\/\//, 'http$1://')}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-white/20 hover:text-white/60 flex-shrink-0"
+                        className="text-white/45 hover:text-white/60 flex-shrink-0"
                       >
                         <ExternalLink size={12} />
                       </a>
@@ -144,7 +144,7 @@ export function RemoteMCPSettings({ t }: { t?: any }) {
 
                 <Button
                   onClick={() => removeRow(i)}
-                  className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-[10px] font-bold uppercase tracking-widest px-3 h-9 rounded-xl flex-shrink-0"
+                  className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs font-bold uppercase tracking-widest px-3 h-9 rounded-xl flex-shrink-0"
                 >
                   <Trash2 size={14} />
                 </Button>
@@ -155,7 +155,7 @@ export function RemoteMCPSettings({ t }: { t?: any }) {
           <div className="flex items-center gap-3">
             <Button
               onClick={addRow}
-              className="bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-black uppercase tracking-widest px-4 h-9 rounded-xl"
+              className="bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-black uppercase tracking-widest px-4 h-9 rounded-xl"
             >
               <Plus size={14} className="mr-1" /> {t.addDevice || 'Add Device'}
             </Button>
@@ -176,7 +176,7 @@ export function RemoteMCPSettings({ t }: { t?: any }) {
           <Satellite className="text-celestial-saturn" size={18} />
           <h4 className="text-sm font-bold uppercase tracking-tight text-white">{t.howItWorks || 'How It Works'}</h4>
         </div>
-        <p className="text-[11px] text-white/30 leading-relaxed">
+        <p className="text-xs text-white/55 leading-relaxed">
           {t.remoteMCPHowItWorks || 'Remote devices connect as MCP clients to Lumi\'s MCP server via WebSocket. Lumi initiates the WebSocket connection, the device sends an MCP initialize request, and Lumi responds as the server — exposing tools like lumi_chat, lumi_memory_search, and lumi_tool_execute that the device can invoke via voice or other input.'}
         </p>
       </div>

@@ -74,7 +74,7 @@ export function WeChatSettings({ t }: { t?: any }) {
             <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
             <span className="text-xs font-bold text-green-400">{t?.connected || 'Connected'}</span>
           </div>
-          <p className="text-[10px] text-white/40">{t?.wechatConnected || 'Lumi is listening on WeChat.'}</p>
+          <p className="text-xs text-white/40">{t?.wechatConnected || 'Lumi is listening on WeChat.'}</p>
           <button
             onClick={async () => {
               try {
@@ -82,19 +82,19 @@ export function WeChatSettings({ t }: { t?: any }) {
               } catch {}
               setStatus(null); setStep('idle'); setQrCode(null); setQrId(null);
             }}
-            className="w-full px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-bold hover:bg-red-500/20 transition-all"
+            className="w-full px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold hover:bg-red-500/20 transition-all"
           >
             {t?.reconnect || 'Reconnect'}
           </button>
         </div>
       ) : (
         <div className="space-y-3">
-          <p className="text-[11px] text-white/40">{t?.wechatSetupHelp || 'Scan the QR code with WeChat to connect your personal account.'}</p>
+          <p className="text-xs text-white/40">{t?.wechatSetupHelp || 'Scan the QR code with WeChat to connect your personal account.'}</p>
 
           {qrCode && (
             <div className="flex flex-col items-center gap-3 p-4 bg-white/5 rounded-2xl border border-white/10">
               <img src={qrCode} alt="WeChat QR" className="w-48 h-48 rounded-xl" />
-              <span className="text-[10px] text-white/30">
+              <span className="text-xs text-white/55">
                 {step === 'scanning' ? (t?.scanning || 'Waiting for scan...') : (t?.scanQR || 'Scan with WeChat')}
               </span>
             </div>

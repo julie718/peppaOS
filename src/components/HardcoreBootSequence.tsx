@@ -70,7 +70,7 @@ export function HardcoreBootSequence({ onComplete, t }: { onComplete: () => void
       initial={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 1 }}
-      className="fixed inset-0 z-[9999] bg-black p-8 font-mono text-[10px] md:text-xs leading-relaxed overflow-hidden"
+      className="fixed inset-0 z-[9999] bg-black p-8 font-mono text-xs md:text-xs leading-relaxed overflow-hidden"
     >
       {/* Background Matrix/Grid Effect */}
       <div className="absolute inset-0 opacity-10 bg-[linear-gradient(rgba(0,255,100,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,100,0.05)_1px,transparent_1px)] bg-[size:20px_20px]" />
@@ -97,7 +97,7 @@ export function HardcoreBootSequence({ onComplete, t }: { onComplete: () => void
               animate={{ opacity: 1, x: 0 }}
               className="flex gap-4"
             >
-              <span className="text-white/20 whitespace-nowrap">[{log.timestamp}]</span>
+              <span className="text-white/45 whitespace-nowrap">[{log.timestamp}]</span>
               <span className={
                 log.type === 'success' ? 'text-[#00ff41]' : 
                 log.type === 'warning' ? 'text-yellow-500' :
@@ -119,7 +119,7 @@ export function HardcoreBootSequence({ onComplete, t }: { onComplete: () => void
         <div className="space-y-4 pt-8 border-t border-white/10">
            <div className="flex justify-between items-end">
               <div className="space-y-2">
-                 <div className="text-[10px] uppercase tracking-widest text-[#00ff41]">{t?.bootProgress || 'Boot Progress:'} {Math.floor(progress)}%</div>
+                 <div className="text-xs uppercase tracking-widest text-[#00ff41]">{t?.bootProgress || 'Boot Progress:'} {Math.floor(progress)}%</div>
                  <div className="w-64 h-1 bg-white/5 rounded-full overflow-hidden">
                     <motion.div 
                       animate={{ width: `${progress}%` }}
@@ -128,8 +128,8 @@ export function HardcoreBootSequence({ onComplete, t }: { onComplete: () => void
                  </div>
               </div>
               <div className="text-right space-y-1">
-                 <div className="text-[8px] text-white/20 uppercase">{t?.bootCoreTemp || 'Core Temperature: 34°C'}</div>
-                 <div className="text-[8px] text-white/20 uppercase">{t?.bootMeshConn || 'Mesh Connectivity: 100%'}</div>
+                 <div className="text-xs text-white/45 uppercase">{t?.bootCoreTemp || 'Core Temperature: 34°C'}</div>
+                 <div className="text-xs text-white/45 uppercase">{t?.bootMeshConn || 'Mesh Connectivity: 100%'}</div>
               </div>
            </div>
         </div>

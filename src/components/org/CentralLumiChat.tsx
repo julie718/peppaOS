@@ -84,7 +84,7 @@ export function CentralLumiChat() {
         </div>
         <div>
           <h2 className="text-lg font-bold text-white">{t.orgChat}</h2>
-          <p className="text-white/30 text-xs">Organizational AI — ask about policies, culture, and knowledge</p>
+          <p className="text-white/55 text-xs">Organizational AI — ask about policies, culture, and knowledge</p>
         </div>
       </div>
 
@@ -112,7 +112,7 @@ export function CentralLumiChat() {
                 : 'bg-white/5 border border-white/10 text-white/80'
             }`}>
               <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-              <span className="text-[10px] text-white/20 mt-1 block">
+              <span className="text-xs text-white/45 mt-1 block">
                 {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
@@ -139,7 +139,7 @@ export function CentralLumiChat() {
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSend()}
             placeholder="Ask about company policies, knowledge base..."
-            className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder:text-white/20 focus:outline-none focus:border-blue-500/40"
+            className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder:text-white/45 focus:outline-none focus:border-blue-500/40"
           />
           <button
             onClick={handleSend}

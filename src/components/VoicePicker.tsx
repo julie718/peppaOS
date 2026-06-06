@@ -108,7 +108,7 @@ export function VoicePicker({ t, direction = 'up', refreshTrigger = 0 }: { t: an
             {/* Search */}
             <div className="p-3 border-b border-white/5">
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5">
-                <Search size={14} className="text-white/30" />
+                <Search size={14} className="text-white/55" />
                 <input
                   className="bg-transparent text-white/80 text-sm placeholder-white/30 outline-none flex-1"
                   placeholder={t.searchVoices || 'Search voices...'}
@@ -144,11 +144,11 @@ export function VoicePicker({ t, direction = 'up', refreshTrigger = 0 }: { t: an
             {/* Voice list */}
             <div className="flex-1 overflow-y-auto">
               {loadingVoices ? (
-                <div className="flex items-center justify-center py-8 text-white/30 text-sm">
+                <div className="flex items-center justify-center py-8 text-white/55 text-sm">
                   <Loader2 size={16} className="animate-spin mr-2" /> Loading...
                 </div>
               ) : filtered.length === 0 ? (
-                <div className="flex items-center justify-center py-8 text-white/30 text-sm">
+                <div className="flex items-center justify-center py-8 text-white/55 text-sm">
                   {t.voiceNoVoicesFound || 'No voices found'}
                 </div>
               ) : (
@@ -166,7 +166,7 @@ export function VoicePicker({ t, direction = 'up', refreshTrigger = 0 }: { t: an
                     <button
                       onClick={e => { e.stopPropagation(); toggleFavoriteVoice(voice.voiceId); }}
                       className={`flex-shrink-0 transition-colors ${
-                        favoriteVoices.includes(voice.voiceId) ? 'text-amber-400' : 'text-white/20 hover:text-amber-400/60'
+                        favoriteVoices.includes(voice.voiceId) ? 'text-amber-400' : 'text-white/45 hover:text-amber-400/60'
                       }`}
                     >
                       <Star size={14} fill={favoriteVoices.includes(voice.voiceId) ? 'currentColor' : 'none'} />
@@ -175,7 +175,7 @@ export function VoicePicker({ t, direction = 'up', refreshTrigger = 0 }: { t: an
                     {/* Voice info */}
                     <div className="flex-1 min-w-0">
                       <div className="text-sm truncate">{voice.name}</div>
-                      <div className="flex items-center gap-1 text-[10px] text-white/30">
+                      <div className="flex items-center gap-1 text-xs text-white/55">
                         {voice.language && <span>{voice.language}</span>}
                         {voice.category && <span className="opacity-50">· {voice.category}</span>}
                       </div>
@@ -187,7 +187,7 @@ export function VoicePicker({ t, direction = 'up', refreshTrigger = 0 }: { t: an
                       className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
                         playingId === voice.voiceId
                           ? 'bg-white/10 text-white'
-                          : 'text-white/20 hover:text-white/60 hover:bg-white/10 opacity-0 group-hover:opacity-100'
+                          : 'text-white/45 hover:text-white/60 hover:bg-white/10 opacity-0 group-hover:opacity-100'
                       }`}
                     >
                       {playingId === voice.voiceId ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}

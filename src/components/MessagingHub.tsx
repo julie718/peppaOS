@@ -13,7 +13,7 @@ export function MessagingHub({ t }: { t?: any }) {
       <div className="flex gap-2 p-1 bg-white/5 rounded-xl border border-white/5">
         <button
           onClick={() => setTab('wechat')}
-          className={`flex-1 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${
+          className={`flex-1 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all ${
             tab === 'wechat' ? 'bg-green-500 text-white' : 'text-white/40 hover:text-white'
           }`}
         >
@@ -22,7 +22,7 @@ export function MessagingHub({ t }: { t?: any }) {
         </button>
         <button
           onClick={() => setTab('wecom')}
-          className={`flex-1 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${
+          className={`flex-1 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all ${
             tab === 'wecom' ? 'bg-celestial-saturn text-black' : 'text-white/40 hover:text-white'
           }`}
         >
@@ -31,7 +31,7 @@ export function MessagingHub({ t }: { t?: any }) {
         </button>
         <button
           onClick={() => setTab('feishu')}
-          className={`flex-1 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${
+          className={`flex-1 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all ${
             tab === 'feishu' ? 'bg-blue-500 text-white' : 'text-white/40 hover:text-white'
           }`}
         >

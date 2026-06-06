@@ -80,7 +80,7 @@ export function ReminderPanel({ t }: { t?: any }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-32">
-        <Loader2 size={20} className="animate-spin text-white/20" />
+        <Loader2 size={20} className="animate-spin text-white/45" />
       </div>
     );
   }
@@ -91,17 +91,17 @@ export function ReminderPanel({ t }: { t?: any }) {
       <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-3">
         <div className="flex items-center gap-2">
           <Bell size={14} className="text-amber-400" />
-          <span className="text-[10px] font-black uppercase tracking-wider text-white/50">新建提醒</span>
+          <span className="text-xs font-black uppercase tracking-wider text-white/50">新建提醒</span>
         </div>
         <input
           value={newContent}
           onChange={e => setNewContent(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
           placeholder="提醒内容..."
-          className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white/70 placeholder:text-white/15 focus:outline-none focus:border-amber-500/20"
+          className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white/70 placeholder:text-white/40 focus:outline-none focus:border-amber-500/20"
         />
         <div className="flex items-center gap-2">
-          <Calendar size={12} className="text-white/20" />
+          <Calendar size={12} className="text-white/45" />
           <input
             type="datetime-local"
             value={newDueAt}
@@ -123,12 +123,12 @@ export function ReminderPanel({ t }: { t?: any }) {
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <Clock size={14} className="text-celestial-saturn" />
-          <span className="text-[10px] font-black uppercase tracking-wider text-white/30">
+          <span className="text-xs font-black uppercase tracking-wider text-white/55">
             待处理 ({pending.length})
           </span>
         </div>
         {pending.length === 0 ? (
-          <p className="text-xs text-white/15 py-4 text-center">暂无待处理提醒</p>
+          <p className="text-xs text-white/40 py-4 text-center">暂无待处理提醒</p>
         ) : (
           pending.map(r => (
             <ReminderCard key={r.id} reminder={r} onDelete={handleDelete} onMarkFired={handleMarkFired} />
@@ -141,7 +141,7 @@ export function ReminderPanel({ t }: { t?: any }) {
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <CheckCircle2 size={14} className="text-emerald-400" />
-            <span className="text-[10px] font-black uppercase tracking-wider text-white/20">
+            <span className="text-xs font-black uppercase tracking-wider text-white/45">
               已完成 ({fired.length})
             </span>
           </div>
@@ -183,12 +183,12 @@ function ReminderCard({
         isFired ? 'bg-emerald-400/40' : isOverdue ? 'bg-red-400' : 'bg-amber-400'
       }`} />
       <div className="flex-1 min-w-0">
-        <p className={`text-sm ${isFired ? 'text-white/25 line-through' : 'text-white/60'}`}>
+        <p className={`text-sm ${isFired ? 'text-white/50 line-through' : 'text-white/60'}`}>
           {reminder.content}
         </p>
         <div className="flex items-center gap-2 mt-0.5">
           {hasDue && (
-            <span className={`text-[9px] font-mono ${isOverdue ? 'text-red-400' : 'text-white/20'}`}>
+            <span className={`text-[12px] font-mono ${isOverdue ? 'text-red-400' : 'text-white/45'}`}>
               {new Date(reminder.dueAt!).toLocaleString('zh-CN', {
                 month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
               })}

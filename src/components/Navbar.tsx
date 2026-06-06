@@ -64,7 +64,7 @@ export function Navbar({ user, onLogin, onLogout, activeTab, setActiveTab, lang,
                 </div>
                 <div className="space-y-0.5">
                   <div className="text-sm font-bold text-white/80 group-hover:text-white transition-colors">{item.label}</div>
-                  <div className="text-[10px] text-white/30 group-hover:text-white/50 transition-colors leading-tight">{item.desc}</div>
+                  <div className="text-xs text-white/55 group-hover:text-white/50 transition-colors leading-tight">{item.desc}</div>
                 </div>
               </motion.button>
             ))}
@@ -82,7 +82,7 @@ export function Navbar({ user, onLogin, onLogout, activeTab, setActiveTab, lang,
         </div>
         <div className="flex flex-col -space-y-1">
           <span className="text-sm font-black tracking-tight glow-text uppercase">{t.lumiKernel || 'Lumi Kernel'}</span>
-          <span className="text-[8px] font-bold text-white/40 tracking-widest">{t.stableVersion || 'STABLE v2.0.4'}</span>
+          <span className="text-xs font-bold text-white/40 tracking-widest">{t.stableVersion || 'STABLE v2.0.4'}</span>
         </div>
       </div>
 

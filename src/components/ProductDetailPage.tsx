@@ -81,7 +81,7 @@ export function ProductDetailPage({ t, product, onBack }: ProductDetailPageProps
           {t.back}
         </Button>
         <div className="flex items-center gap-4">
-          <div className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${isActive ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-white/5 border-white/10 text-white/40'}`}>
+          <div className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest border ${isActive ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-white/5 border-white/10 text-white/40'}`}>
             {isActive ? (t.deviceOnline || 'Device Online') : (t.standbyMode || 'Standby Mode')}
           </div>
           <Button 
@@ -131,7 +131,7 @@ export function ProductDetailPage({ t, product, onBack }: ProductDetailPageProps
             >
               {/* This would be the product icon/image */}
               <div className="w-48 h-48 rounded-full bg-gradient-to-br from-white/10 to-black/40 border border-white/10 flex items-center justify-center shadow-2xl">
-                <div className={isActive ? "text-celestial-saturn" : "text-white/20"}>
+                <div className={isActive ? "text-celestial-saturn" : "text-white/45"}>
                   {React.isValidElement(iconMap[product.icon]) 
                     ? React.cloneElement(iconMap[product.icon] as React.ReactElement<any>, {
                         className: isActive ? "animate-pulse" : ""
@@ -145,7 +145,7 @@ export function ProductDetailPage({ t, product, onBack }: ProductDetailPageProps
             <div className="absolute bottom-8 left-8 right-8 flex justify-between items-end">
               <div className="space-y-1">
                 <div className="px-2 py-0.5 rounded bg-celestial-saturn/20 border border-celestial-saturn/30 inline-block">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-celestial-saturn">{product.category}</span>
+                  <span className="text-xs font-bold uppercase tracking-widest text-celestial-saturn">{product.category}</span>
                 </div>
                 <h1 className="text-4xl font-bold tracking-tighter">{product.name}</h1>
                 <p className="text-celestial-saturn font-mono text-lg">{product.price}</p>
@@ -227,7 +227,7 @@ export function ProductDetailPage({ t, product, onBack }: ProductDetailPageProps
                 </motion.div>
               ))}
               {isTyping && (
-                <div className="flex gap-1 items-center text-celestial-saturn/40 text-[10px]">
+                <div className="flex gap-1 items-center text-celestial-saturn/40 text-xs">
                   <div className="w-1 h-1 bg-current rounded-full animate-bounce" />
                   <div className="w-1 h-1 bg-current rounded-full animate-bounce [animation-delay:0.2s]" />
                   <div className="w-1 h-1 bg-current rounded-full animate-bounce [animation-delay:0.4s]" />

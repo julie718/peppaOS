@@ -76,7 +76,7 @@ export function OrgMembers() {
     };
     const s = map[role] || map.member;
     return (
-      <span className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 ${s.color}`}>
+      <span className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 ${s.color}`}>
         {s.icon} {role}
       </span>
     );
@@ -95,16 +95,16 @@ export function OrgMembers() {
       {/* Invite */}
       <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-end gap-3">
         <div className="flex-1">
-          <label className="text-white/30 text-xs mb-1 block">Invite User by ID</label>
+          <label className="text-white/55 text-xs mb-1 block">Invite User by ID</label>
           <input
             value={inviteUserId}
             onChange={e => setInviteUserId(e.target.value)}
             placeholder="User ID..."
-            className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder:text-white/20 focus:outline-none"
+            className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder:text-white/45 focus:outline-none"
           />
         </div>
         <div>
-          <label className="text-white/30 text-xs mb-1 block">Role</label>
+          <label className="text-white/55 text-xs mb-1 block">Role</label>
           <select
             value={inviteRole}
             onChange={e => setInviteRole(e.target.value)}
@@ -127,7 +127,7 @@ export function OrgMembers() {
 
       {/* Members list */}
       {loading ? (
-        <div className="text-center py-12 text-white/30"><Loader2 size={24} className="mx-auto animate-spin" /></div>
+        <div className="text-center py-12 text-white/55"><Loader2 size={24} className="mx-auto animate-spin" /></div>
       ) : (
         <div className="space-y-2">
           {members.map(member => (
@@ -143,7 +143,7 @@ export function OrgMembers() {
                 </div>
                 <div>
                   <p className="text-white text-sm font-medium">{member.userId}</p>
-                  <p className="text-white/30 text-xs">
+                  <p className="text-white/55 text-xs">
                     {member.joinedAt ? `Joined ${new Date(member.joinedAt).toLocaleDateString()}` : 'Pending'}
                     {member.status !== 'active' && <span className="text-amber-400 ml-2">{member.status}</span>}
                   </p>
@@ -154,7 +154,7 @@ export function OrgMembers() {
                 {member.role !== 'owner' && (
                   <button
                     onClick={() => handleRemove(member.userId)}
-                    className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/20 hover:text-red-400 transition-colors"
+                    className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/45 hover:text-red-400 transition-colors"
                     title="Remove member"
                   >
                     <UserMinus size={14} />

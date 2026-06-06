@@ -126,7 +126,7 @@ export function SetupWizard({ onFinish }: Props) {
               </button>
             )}
             {ollamaStatus === 'available' && (
-              <button onClick={() => setStep('api-setup')} className="w-full text-white/30 text-sm hover:text-white/50 py-2">
+              <button onClick={() => setStep('api-setup')} className="w-full text-white/55 text-sm hover:text-white/50 py-2">
                 Also configure a cloud API key for complex tasks
               </button>
             )}
@@ -172,7 +172,7 @@ export function SetupWizard({ onFinish }: Props) {
               value={apiKey}
               onChange={e => setApiKey(e.target.value)}
               placeholder={`${apiProvider} API key...`}
-              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/20 focus:outline-none focus:border-blue-500/50 font-mono text-sm"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/45 focus:outline-none focus:border-blue-500/50 font-mono text-sm"
             />
             <button
               onClick={handleSaveApiKey}
@@ -182,7 +182,7 @@ export function SetupWizard({ onFinish }: Props) {
               {saving ? <Loader2 size={18} className="animate-spin" /> : <Key size={18} />}
               Save & Continue
             </button>
-            <button onClick={() => setStep('voice-test')} className="w-full text-white/30 text-sm hover:text-white/50 py-2">
+            <button onClick={() => setStep('voice-test')} className="w-full text-white/55 text-sm hover:text-white/50 py-2">
               Skip for now
             </button>
           </div>

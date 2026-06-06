@@ -171,7 +171,7 @@ export function DeviceSyncCenter({ t }: { t: any }) {
                 ? `${sensoryCtx.deviceCount} ${t.sensorCtxOnline || 'online'} · ${t.sensorCtxAudio || 'Audio'}: ${sensoryCtx.hasAudio ? (t.sensorCtxYes || 'yes') : (t.sensorCtxNo || 'no')} · ${t.sensorCtxVideo || 'Video'}: ${sensoryCtx.hasVideo ? (t.sensorCtxYes || 'yes') : (t.sensorCtxNo || 'no')}`
                 : t.sensorPerceptionDesc || 'Real-time device discovery and synchronization.'}
               {lastSync && (
-                <span className="text-celestial-saturn text-[10px] font-mono ml-2">
+                <span className="text-celestial-saturn text-xs font-mono ml-2">
                   {t.syncedAt || 'Synced'} {new Date(lastSync).toLocaleTimeString()}
                 </span>
               )}
@@ -207,19 +207,19 @@ export function DeviceSyncCenter({ t }: { t: any }) {
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className={`w-2 h-2 rounded-full ${device.status === 'online' ? 'bg-green-500' : 'bg-white/20'}`} />
-                    <span className="text-[10px] font-mono text-white/40">
+                    <span className="text-xs font-mono text-white/40">
                       {device.status === 'online' ? (t.syncOnline || 'ONLINE') : (t.syncOffline || 'OFFLINE')}
                     </span>
                   </div>
                 </div>
                 <h4 className="text-sm font-bold truncate">{device.name}</h4>
-                <div className="text-[10px] text-white/30 mt-0.5">
+                <div className="text-xs text-white/55 mt-0.5">
                   {getDeviceLabel(device.type, t)}
                   {device.osInfo ? ` · ${device.osInfo}` : ''}
                 </div>
                 <div className="mt-4">
                   {pairedDevices.includes(device.id) ? (
-                    <div className="flex items-center gap-2 text-green-500 text-[10px] font-bold">
+                    <div className="flex items-center gap-2 text-green-500 text-xs font-bold">
                       <CheckCircle2 size={12} />
                       {t.pairedDevice || 'PAIRED'}
                     </div>
@@ -227,7 +227,7 @@ export function DeviceSyncCenter({ t }: { t: any }) {
                     <button
                       onClick={() => pairDevice(device.id)}
                       disabled={device.status !== 'online'}
-                      className="w-full py-2 bg-white/10 rounded-lg text-[10px] font-bold hover:bg-celestial-saturn hover:text-black transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="w-full py-2 bg-white/10 rounded-lg text-xs font-bold hover:bg-celestial-saturn hover:text-black transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                       {t.pairDevice || 'PAIR'}
                     </button>
@@ -238,8 +238,8 @@ export function DeviceSyncCenter({ t }: { t: any }) {
           </AnimatePresence>
           {!isSearching && discoveredDevices.length === 0 && (
             <div className="col-span-3 py-12 text-center space-y-2 border-2 border-dashed border-white/5 rounded-3xl">
-              <Zap size={32} className="mx-auto text-white/10" />
-              <p className="text-sm text-white/20">{t.noDevicesConnected || 'No devices connected. Open the app on another device to see it here.'}</p>
+              <Zap size={32} className="mx-auto text-white/35" />
+              <p className="text-sm text-white/45">{t.noDevicesConnected || 'No devices connected. Open the app on another device to see it here.'}</p>
             </div>
           )}
         </div>
@@ -283,7 +283,7 @@ export function DeviceSyncCenter({ t }: { t: any }) {
           <div className="p-4 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-celestial-nebula animate-pulse' : 'bg-white/20'}`} />
-              <span className="text-[10px] font-bold uppercase tracking-widest text-white/60">
+              <span className="text-xs font-bold uppercase tracking-widest text-white/60">
                 {isSyncing ? (t.liveStreamActive || 'Live Stream Active') : (t.sensorsStandby || 'Sensors Standby')}
               </span>
             </div>
@@ -296,7 +296,7 @@ export function DeviceSyncCenter({ t }: { t: any }) {
                   sensorCleanupRef.current = startSensorSync();
                 }
               }}
-              className={`text-[10px] font-bold hover:underline ${isSyncing ? 'text-red-400' : 'text-celestial-nebula'}`}
+              className={`text-xs font-bold hover:underline ${isSyncing ? 'text-red-400' : 'text-celestial-nebula'}`}
             >
               {isSyncing ? (t.stopBtn || 'STOP') : (t.enableBtn || 'ENABLE')}
             </button>
@@ -331,7 +331,7 @@ export function DeviceSyncCenter({ t }: { t: any }) {
                   <div>{'>'} {t.osLabel || 'OS'}: {fileAccessInfo.os}</div>
                 </div>
               ) : (
-                <div className="text-white/20 italic">{'>'} {t.readyClickQuery || 'Ready — click below to query system info.'}</div>
+                <div className="text-white/45 italic">{'>'} {t.readyClickQuery || 'Ready — click below to query system info.'}</div>
               )}
             </div>
 

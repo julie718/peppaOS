@@ -104,7 +104,7 @@ export default function App() {
           <div className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-celestial-mars to-celestial-saturn">
             {t.appInitializing || 'Lumi Core v2.0 Initializing...'}
           </div>
-          <div className="text-[10px] text-white/20 font-mono uppercase tracking-widest">
+          <div className="text-xs text-white/20 font-mono uppercase tracking-widest">
             {t.validatingEthics}
           </div>
         </motion.div>

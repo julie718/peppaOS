@@ -32,7 +32,7 @@ function hashLng(id: string): number {
 function LoadingFallback() {
   return (
     <div className="flex items-center justify-center w-full h-full">
-      <div className="text-white/20 text-xs font-mono animate-pulse">INITIALIZING NEXUS...</div>
+      <div className="text-white/45 text-xs font-mono animate-pulse">INITIALIZING NEXUS...</div>
     </div>
   );
 }

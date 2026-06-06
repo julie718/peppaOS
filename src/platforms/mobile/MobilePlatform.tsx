@@ -104,7 +104,7 @@ export function MobilePlatform({ t, user, lang, setLang, onLogin, onExit, render
             <div className="flex justify-between items-end">
               <div className="space-y-1">
                 <h2 className="text-3xl font-black italic tracking-tighter uppercase">{t.deviceStatus || <>Device <span className="text-celestial-saturn text-glow-sm">Status</span></>}</h2>
-                <p className="text-[10px] text-white/40 font-mono uppercase tracking-widest">{t.activeNodeMonitoring || 'Active Node Monitoring'}</p>
+                <p className="text-xs text-white/40 font-mono uppercase tracking-widest">{t.activeNodeMonitoring || 'Active Node Monitoring'}</p>
               </div>
             </div>
 
@@ -118,13 +118,13 @@ export function MobilePlatform({ t, user, lang, setLang, onLogin, onExit, render
                     </div>
                     <div>
                       <div className="text-xs font-black uppercase">{t.localHost || 'Local Host'}</div>
-                      <div className="text-[8px] text-white/40 uppercase font-mono">NODE_IP: 192.168.1.44</div>
+                      <div className="text-xs text-white/40 uppercase font-mono">NODE_IP: 192.168.1.44</div>
                     </div>
                   </div>
-                  <div className="px-3 py-1 bg-celestial-saturn/10 border border-celestial-saturn/20 rounded-full text-[8px] font-black text-celestial-saturn uppercase">{t.linked || 'Linked'}</div>
+                  <div className="px-3 py-1 bg-celestial-saturn/10 border border-celestial-saturn/20 rounded-full text-xs font-black text-celestial-saturn uppercase">{t.linked || 'Linked'}</div>
                 </div>
                 <div className="space-y-1.5">
-                   <div className="flex justify-between text-[8px] font-bold text-white/20 uppercase tracking-widest">
+                   <div className="flex justify-between text-xs font-bold text-white/20 uppercase tracking-widest">
                      <span>{t.shardingSync || 'Sharding Sync'}</span>
                      <span>98.2%</span>
                    </div>
@@ -142,13 +142,13 @@ export function MobilePlatform({ t, user, lang, setLang, onLogin, onExit, render
                     </div>
                     <div>
                       <div className="text-xs font-black uppercase">{t.meshBridge || 'Mesh Bridge'}</div>
-                      <div className="text-[8px] text-white/40 uppercase font-mono">LATENCY: 12ms</div>
+                      <div className="text-xs text-white/40 uppercase font-mono">LATENCY: 12ms</div>
                     </div>
                   </div>
-                  <div className="px-3 py-1 bg-purple-500/10 border border-purple-500/20 rounded-full text-[8px] font-black text-purple-500 uppercase">{t.activeStatus || 'Active'}</div>
+                  <div className="px-3 py-1 bg-purple-500/10 border border-purple-500/20 rounded-full text-xs font-black text-purple-500 uppercase">{t.activeStatus || 'Active'}</div>
                 </div>
                 <div className="space-y-1.5">
-                   <div className="flex justify-between text-[8px] font-bold text-white/20 uppercase tracking-widest">
+                   <div className="flex justify-between text-xs font-bold text-white/20 uppercase tracking-widest">
                      <span>{t.globalTraffic || 'Global Traffic'}</span>
                      <span>4.2 PB/S</span>
                    </div>
@@ -165,13 +165,13 @@ export function MobilePlatform({ t, user, lang, setLang, onLogin, onExit, render
                  <div className="w-8 h-8 rounded-xl bg-celestial-saturn/20 flex items-center justify-center text-celestial-saturn">
                    <ShieldCheck size={14} />
                  </div>
-                 <div className="text-[10px] font-black uppercase tracking-tight">{t.biometricsTile || 'Biometrics'}</div>
+                 <div className="text-xs font-black uppercase tracking-tight">{t.biometricsTile || 'Biometrics'}</div>
               </div>
               <div className="glass-dark p-5 rounded-[2rem] border border-white/5 flex items-center gap-3">
                  <div className="w-8 h-8 rounded-xl bg-orange-500/20 flex items-center justify-center text-orange-400">
                    <Activity size={14} />
                  </div>
-                 <div className="text-[10px] font-black uppercase tracking-tight">{t.telemetryTile || 'Telemetry'}</div>
+                 <div className="text-xs font-black uppercase tracking-tight">{t.telemetryTile || 'Telemetry'}</div>
               </div>
             </div>
           </motion.div>
@@ -187,7 +187,7 @@ export function MobilePlatform({ t, user, lang, setLang, onLogin, onExit, render
           >
             <div className="text-center space-y-2">
                <h2 className="text-4xl font-black italic tracking-tighter uppercase text-white">{t.centralPersona || <>Central <span className="text-celestial-saturn text-glow">Persona</span></>}</h2>
-               <p className="text-[10px] text-white/30 uppercase tracking-[0.4em] font-mono leading-none">{t.localShardIntegrityVerified || 'Local Shard Integrity Verified'}</p>
+               <p className="text-xs text-white/30 uppercase tracking-[0.4em] font-mono leading-none">{t.localShardIntegrityVerified || 'Local Shard Integrity Verified'}</p>
             </div>
 
             <motion.div 
@@ -284,13 +284,13 @@ export function MobilePlatform({ t, user, lang, setLang, onLogin, onExit, render
                 <div className="grid grid-cols-2 gap-2">
                   <button 
                     onClick={() => setLang('en')}
-                    className={`p-4 rounded-2xl border text-[10px] font-black uppercase tracking-widest transition-all ${lang === 'en' ? 'bg-celestial-saturn text-black border-celestial-saturn shadow-lg' : 'bg-white/5 border-white/5 text-white/40'}`}
+                    className={`p-4 rounded-2xl border text-xs font-black uppercase tracking-widest transition-all ${lang === 'en' ? 'bg-celestial-saturn text-black border-celestial-saturn shadow-lg' : 'bg-white/5 border-white/5 text-white/40'}`}
                   >
                     {t.english || 'English'}
                   </button>
                   <button
                     onClick={() => setLang('zh')}
-                    className={`p-4 rounded-2xl border text-[10px] font-black uppercase tracking-widest transition-all ${lang === 'zh' ? 'bg-celestial-saturn text-black border-celestial-saturn shadow-lg' : 'bg-white/5 border-white/5 text-white/40'}`}
+                    className={`p-4 rounded-2xl border text-xs font-black uppercase tracking-widest transition-all ${lang === 'zh' ? 'bg-celestial-saturn text-black border-celestial-saturn shadow-lg' : 'bg-white/5 border-white/5 text-white/40'}`}
                   >
                     {t.chinese || '中文'}
                   </button>
@@ -374,7 +374,7 @@ export function MobilePlatform({ t, user, lang, setLang, onLogin, onExit, render
                     <motion.span 
                       initial={{ opacity: 0, y: 5 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="text-[8px] font-black uppercase text-black mt-0.5"
+                      className="text-xs font-black uppercase text-black mt-0.5"
                     >
                       {item.label}
                     </motion.span>

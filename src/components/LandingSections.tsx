@@ -13,7 +13,7 @@ export function LandingSections({ t, onNavigateToSolutions, onSelectDesktop, onS
       {/* Smart Host Program Section */}
       <section className="space-y-16">
         <div className="text-center space-y-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-celestial-saturn/20 border border-celestial-saturn/30 text-[10px] font-bold uppercase tracking-widest text-celestial-saturn">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-celestial-saturn/20 border border-celestial-saturn/30 text-xs font-bold uppercase tracking-widest text-celestial-saturn">
             <Sparkles size={12} />
             {t.experimentalProtocol}
           </div>
@@ -59,7 +59,7 @@ export function LandingSections({ t, onNavigateToSolutions, onSelectDesktop, onS
               
               {/* Connecting Lines */}
               <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20">
-                <circle cx="50%" cy="50%" r="140" fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="4 4" className="text-white/20" />
+                <circle cx="50%" cy="50%" r="140" fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="4 4" className="text-white/45" />
               </svg>
             </div>
           </div>
@@ -105,7 +105,7 @@ export function LandingSections({ t, onNavigateToSolutions, onSelectDesktop, onS
         
         <div className="relative z-10 grid lg:grid-cols-2 gap-16 items-center px-12">
           <div className="space-y-8">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-bold uppercase tracking-widest text-white/40">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-bold uppercase tracking-widest text-white/40">
               <Building2 size={12} />
               {t.orgIndustry}
             </div>
@@ -239,10 +239,10 @@ export function LandingSections({ t, onNavigateToSolutions, onSelectDesktop, onS
         <div className="flex justify-between items-end">
            <div className="space-y-2">
              <h2 className="text-3xl font-black italic tracking-tighter uppercase">{t.globalNeuralMesh}</h2>
-             <p className="text-white/30 text-sm italic">{t.neuralMeshDesc}</p>
+             <p className="text-white/55 text-sm italic">{t.neuralMeshDesc}</p>
            </div>
            <div className="text-right hidden sm:block">
-              <span className="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-[10px] font-black text-white/40 uppercase tracking-widest">
+              <span className="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-xs font-black text-white/40 uppercase tracking-widest">
                 {t.nodesSynced}: {t.nodeCount || '42,901'}
               </span>
            </div>
@@ -255,7 +255,7 @@ export function LandingSections({ t, onNavigateToSolutions, onSelectDesktop, onS
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
         
         <div className="text-center space-y-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] font-black text-white/40 uppercase tracking-widest">
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full text-xs font-black text-white/40 uppercase tracking-widest">
             {t.crossInterfaceContinuity || 'Cross-Interface Continuity'}
           </div>
           <h2 className="text-6xl font-black tracking-tighter italic uppercase text-glow">
@@ -278,7 +278,7 @@ export function LandingSections({ t, onNavigateToSolutions, onSelectDesktop, onS
                 <div className="w-20 h-20 rounded-[2rem] bg-black/60 border border-white/10 flex items-center justify-center text-celestial-saturn shadow-2xl">
                   <Network size={36} />
                 </div>
-                <div className="px-3 py-1 bg-celestial-saturn/10 border border-celestial-saturn/20 rounded-full text-[8px] font-black text-celestial-saturn uppercase tracking-widest">
+                <div className="px-3 py-1 bg-celestial-saturn/10 border border-celestial-saturn/20 rounded-full text-xs font-black text-celestial-saturn uppercase tracking-widest">
                   Kernel v2.4.1
                 </div>
               </div>
@@ -291,11 +291,11 @@ export function LandingSections({ t, onNavigateToSolutions, onSelectDesktop, onS
               <div className="grid grid-cols-2 gap-4">
                  <div className="p-4 bg-white/5 rounded-2xl border border-white/5 text-center">
                     <div className="text-sm font-black text-white/80">824 TOPs</div>
-                    <div className="text-[8px] text-white/20 uppercase font-black">{t.peakLocalPower || 'Peak Local Power'}</div>
+                    <div className="text-xs text-white/45 uppercase font-black">{t.peakLocalPower || 'Peak Local Power'}</div>
                  </div>
                  <div className="p-4 bg-white/5 rounded-2xl border border-white/5 text-center">
                     <div className="text-sm font-black text-white/80">0 ms</div>
-                    <div className="text-[8px] text-white/20 uppercase font-black">{t.cloudLatency || 'Cloud Latency'}</div>
+                    <div className="text-xs text-white/45 uppercase font-black">{t.cloudLatency || 'Cloud Latency'}</div>
                  </div>
               </div>
               <Button 
@@ -318,7 +318,7 @@ export function LandingSections({ t, onNavigateToSolutions, onSelectDesktop, onS
                 <div className="w-20 h-20 rounded-[2rem] bg-black/60 border border-white/10 flex items-center justify-center text-celestial-nebula shadow-2xl">
                   <Smartphone size={36} />
                 </div>
-                <div className="px-3 py-1 bg-celestial-nebula/10 border border-celestial-nebula/20 rounded-full text-[8px] font-black text-celestial-nebula uppercase tracking-widest">
+                <div className="px-3 py-1 bg-celestial-nebula/10 border border-celestial-nebula/20 rounded-full text-xs font-black text-celestial-nebula uppercase tracking-widest">
                   Gateway v1.02
                 </div>
               </div>
@@ -331,11 +331,11 @@ export function LandingSections({ t, onNavigateToSolutions, onSelectDesktop, onS
               <div className="grid grid-cols-2 gap-4">
                  <div className="p-4 bg-white/5 rounded-2xl border border-white/5 text-center">
                     <div className="text-sm font-black text-white/80">{t.sensorySync || 'Sensory Sync'}</div>
-                    <div className="text-[8px] text-white/20 uppercase font-black">{t.meshActiveLabel || 'Mesh Active'}</div>
+                    <div className="text-xs text-white/45 uppercase font-black">{t.meshActiveLabel || 'Mesh Active'}</div>
                  </div>
                  <div className="p-4 bg-white/5 rounded-2xl border border-white/5 text-center">
                     <div className="text-sm font-black text-white/80">{t.biometric || 'Biometric'}</div>
-                    <div className="text-[8px] text-white/20 uppercase font-black">{t.neuralIDEncrypted || 'Neural ID Encrypted'}</div>
+                    <div className="text-xs text-white/45 uppercase font-black">{t.neuralIDEncrypted || 'Neural ID Encrypted'}</div>
                  </div>
               </div>
               <Button 
@@ -357,7 +357,7 @@ export function LandingSections({ t, onNavigateToSolutions, onSelectDesktop, onS
           viewport={{ once: true }}
           className="glass-dark rounded-[3rem] p-12 border border-white/10 space-y-6"
         >
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-celestial-saturn/20 border border-celestial-saturn/30 rounded-full text-[10px] font-bold uppercase tracking-widest text-celestial-saturn">
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-celestial-saturn/20 border border-celestial-saturn/30 rounded-full text-xs font-bold uppercase tracking-widest text-celestial-saturn">
             <Smartphone size={12} />
             {t.desktopAppAvailable || 'Desktop App Available'}
           </div>
@@ -381,7 +381,7 @@ export function LandingSections({ t, onNavigateToSolutions, onSelectDesktop, onS
               {t.launchWebApp || 'Launch Web App'}
             </button>
           </div>
-          <p className="text-[10px] text-white/20 font-mono">{t.versionInfo || 'v2.0.4 · Windows 10+ · 120MB · Free'}</p>
+          <p className="text-xs text-white/45 font-mono">{t.versionInfo || 'v2.0.4 · Windows 10+ · 120MB · Free'}</p>
         </motion.div>
       </section>
 
@@ -402,7 +402,7 @@ function StepCard({ number, title, desc, icon }: { number: string; title: string
     <GlassCard className="p-8 rounded-3xl space-y-6 group" hoverEffect={true}>
       <div className="flex justify-between items-start">
         <IconBox icon={icon} className="group-hover:scale-110 transition-transform" />
-        <span className="text-4xl font-black text-white/5 tracking-tighter">{number}</span>
+        <span className="text-4xl font-black text-white/25 tracking-tighter">{number}</span>
       </div>
       <div className="space-y-2">
         <h3 className="text-xl font-bold">{title}</h3>

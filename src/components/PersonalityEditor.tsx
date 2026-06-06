@@ -99,7 +99,7 @@ export function PersonalityEditor({ t }: { t?: any }) {
       <div className="flex items-center gap-3">
         <User className="text-celestial-saturn" />
         <h3 className="text-xl font-bold uppercase tracking-tighter text-white/90">{t?.lumiCore || 'Lumi Core Config'}</h3>
-        <span className="text-[10px] font-mono text-white/20 bg-white/5 px-2 py-0.5 rounded-full">v{config.version}</span>
+        <span className="text-xs font-mono text-white/45 bg-white/5 px-2 py-0.5 rounded-full">v{config.version}</span>
       </div>
 
       <p className="text-sm text-white/40 max-w-xl">
@@ -113,7 +113,7 @@ export function PersonalityEditor({ t }: { t?: any }) {
           <ReadonlyField label={t?.nameLabel || 'Name'} value={config.name} />
           <ReadonlyField label={t?.versionLabel || 'Version'} value={config.version} />
           <div className="space-y-1">
-            <label className="text-[10px] font-black uppercase text-white/30">{t?.coreMotivationLabel || 'Core Motivation'}</label>
+            <label className="text-xs font-black uppercase text-white/55">{t?.coreMotivationLabel || 'Core Motivation'}</label>
             <p className="text-sm text-white/60 bg-white/5 rounded-xl p-3">{config.coreMotivation}</p>
           </div>
         </Section>
@@ -123,36 +123,36 @@ export function PersonalityEditor({ t }: { t?: any }) {
           {config.personalityVector ? (
             <div className="space-y-4">
               <div>
-                <label className="text-[10px] font-black uppercase text-white/30 block mb-2">Cognitive Style</label>
+                <label className="text-xs font-black uppercase text-white/55 block mb-2">Cognitive Style</label>
                 <div className="grid grid-cols-4 gap-2">
                   {Object.entries(config.personalityVector.cognitiveStyle).map(([k, v]) => (
                     <div key={k} className="text-center p-3 bg-white/5 rounded-xl">
                       <div className="text-lg font-black text-celestial-saturn">{(v * 100).toFixed(0)}%</div>
-                      <div className="text-[9px] text-white/30 uppercase">{k}</div>
+                      <div className="text-[12px] text-white/55 uppercase">{k}</div>
                     </div>
                   ))}
                 </div>
               </div>
               <div>
-                <label className="text-[10px] font-black uppercase text-white/30 block mb-2">Social Style</label>
+                <label className="text-xs font-black uppercase text-white/55 block mb-2">Social Style</label>
                 <div className="grid grid-cols-4 gap-2">
                   {Object.entries(config.personalityVector.socialStyle).map(([k, v]) => (
                     <div key={k} className="text-center p-3 bg-white/5 rounded-xl">
                       <div className="text-lg font-black text-violet-400">{(v * 100).toFixed(0)}%</div>
-                      <div className="text-[9px] text-white/30 uppercase">{k}</div>
+                      <div className="text-[12px] text-white/55 uppercase">{k}</div>
                     </div>
                   ))}
                 </div>
               </div>
               {config.evolutionConfig && (
-                <div className="text-[10px] text-white/20 space-y-1">
+                <div className="text-xs text-white/45 space-y-1">
                   <div>Plasticity: {config.evolutionConfig.plasticity} | Cooldown: {Math.round(config.evolutionConfig.cooldownMs / 86400000)}d | Max mutations/step: {config.evolutionConfig.maxMutationsPerStep}</div>
                   {config.lastEvolvedAt && <div>Last evolved: {new Date(config.lastEvolvedAt).toLocaleDateString()}</div>}
                 </div>
               )}
             </div>
           ) : (
-            <p className="text-white/30 text-xs">{t?.evolutionNotInit || 'Evolution vector not yet initialized. It will be seeded on first interaction.'}</p>
+            <p className="text-white/55 text-xs">{t?.evolutionNotInit || 'Evolution vector not yet initialized. It will be seeded on first interaction.'}</p>
           )}
         </Section>
 
@@ -179,7 +179,7 @@ export function PersonalityEditor({ t }: { t?: any }) {
             </div>
           ))}
           {config.behavioralBoundaries.length === 0 && (
-            <p className="text-white/20 text-xs">{t?.noBoundariesDefined || 'No boundaries defined.'}</p>
+            <p className="text-white/45 text-xs">{t?.noBoundariesDefined || 'No boundaries defined.'}</p>
           )}
         </Section>
 
@@ -239,9 +239,9 @@ function ReadonlyField({ label, value, mono }: {
 }) {
   return (
     <div className="space-y-1">
-      <label className="text-[10px] font-black uppercase text-white/30">{label}</label>
+      <label className="text-xs font-black uppercase text-white/55">{label}</label>
       <div className={`w-full bg-white/5 border border-white/5 rounded-xl px-3 py-2 text-sm text-white/60 ${mono ? 'font-mono' : ''}`}>
-        {value || <span className="text-white/20">—</span>}
+        {value || <span className="text-white/45">—</span>}
       </div>
     </div>
   );

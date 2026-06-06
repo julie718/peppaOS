@@ -113,7 +113,7 @@ export function Settings({
             <SettingsSection title={t.language || 'Language'} icon={<Globe size={18} className="text-blue-400" />}>
               <div className="p-8 bg-white/5 rounded-[2.5rem] border border-white/5 space-y-6">
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-white/50 block mb-4">{t.selectLanguage}</label>
+                  <label className="text-xs font-black uppercase tracking-widest text-white/50 block mb-4">{t.selectLanguage}</label>
                   <div className="grid grid-cols-2 gap-4">
                     <button onClick={() => setLang('en')}
                       className={`p-6 rounded-2xl border text-sm font-bold transition-all flex items-center justify-center gap-3 ${lang === 'en' ? 'bg-white text-black border-white shadow-[0_0_20px_rgba(255,255,255,0.2)]' : 'bg-white/5 border-white/5 text-white/40 hover:bg-white/10'}`}>
@@ -135,7 +135,7 @@ export function Settings({
             <SettingsSection title={t.appearanceThemes || "Appearance & Themes"} icon={<Sparkle size={18} className="text-celestial-saturn" />}>
               <div className="p-8 bg-white/5 rounded-[2.5rem] border border-white/5 space-y-8">
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-white/50 block mb-4">{t.selectMatrixVariant || "Select Global Matrix Variant"}</label>
+                  <label className="text-xs font-black uppercase tracking-widest text-white/50 block mb-4">{t.selectMatrixVariant || "Select Global Matrix Variant"}</label>
                   <div className="grid grid-cols-3 gap-4">
                     {[
                       { id: 'celestial', label: t.celestial || 'Celestial', color: 'from-orange-400 to-red-500' },
@@ -145,7 +145,7 @@ export function Settings({
                       <button key={themeItem.id} onClick={() => setTheme && setTheme(themeItem.id)}
                         className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all text-center ${theme === themeItem.id ? 'bg-white/10 border-white/20 shadow-lg' : 'border-white/5 hover:bg-white/5'}`}>
                         <div className={`w-16 h-16 rounded-full bg-gradient-to-br ${themeItem.color} shadow-lg ${theme === themeItem.id ? 'ring-2 ring-white/50 ring-offset-2 ring-offset-black' : ''}`} />
-                        <span className={`text-[10px] font-black uppercase tracking-widest ${theme === themeItem.id ? 'text-white' : 'text-white/60'}`}>{themeItem.label}</span>
+                        <span className={`text-xs font-black uppercase tracking-widest ${theme === themeItem.id ? 'text-white' : 'text-white/60'}`}>{themeItem.label}</span>
                       </button>
                     ))}
                   </div>
@@ -161,18 +161,18 @@ export function Settings({
               <div className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-2">
-                    <div className="flex justify-between items-center text-[10px] font-black uppercase text-white/40 tracking-widest"><span>{t.neuralEngine || "Neural Engine"}</span><span className="text-green-500">{t.neuralEngineActive || "Active"}</span></div>
+                    <div className="flex justify-between items-center text-xs font-black uppercase text-white/40 tracking-widest"><span>{t.neuralEngine || "Neural Engine"}</span><span className="text-green-500">{t.neuralEngineActive || "Active"}</span></div>
                     <div className="text-xs font-bold text-white/80">{t.autonomousCognitiveLoop || "Autonomous Cognitive Loop"}</div>
-                    <p className="text-[10px] text-white/30">{t.autonomousCognitiveLoopDesc || "Allows agents to proactively execute tasks based on context awareness."}</p>
+                    <p className="text-xs text-white/55">{t.autonomousCognitiveLoopDesc || "Allows agents to proactively execute tasks based on context awareness."}</p>
                   </div>
                   <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-2">
-                    <div className="flex justify-between items-center text-[10px] font-black uppercase text-white/40 tracking-widest"><span>{t.memoryMesh || "Memory Mesh"}</span><span className="text-blue-500">{t.memoryMeshSyncing || "Syncing"}</span></div>
+                    <div className="flex justify-between items-center text-xs font-black uppercase text-white/40 tracking-widest"><span>{t.memoryMesh || "Memory Mesh"}</span><span className="text-blue-500">{t.memoryMeshSyncing || "Syncing"}</span></div>
                     <div className="text-xs font-bold text-white/80">{t.persistentLongTermRecall || "Persistent Long-term Recall"}</div>
-                    <p className="text-[10px] text-white/30">{t.persistentLongTermRecallDesc || "Enables cross-session memory shared across all identified node devices."}</p>
+                    <p className="text-xs text-white/55">{t.persistentLongTermRecallDesc || "Enables cross-session memory shared across all identified node devices."}</p>
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase text-white/30 ml-2">{t.primaryReasoningBrain || "Primary Reasoning Brain"}</label>
+                  <label className="text-xs font-black uppercase text-white/55 ml-2">{t.primaryReasoningBrain || "Primary Reasoning Brain"}</label>
                   <div className="relative">
                     <select value={aiConfig.provider} onChange={(e) => updateAIConfig({ provider: e.target.value })}
                       className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm font-bold appearance-none cursor-pointer focus:border-celestial-saturn/50 outline-none">
@@ -182,9 +182,9 @@ export function Settings({
                       <option value="openai">OpenAI</option>
                       <option value="anthropic">Anthropic Claude</option>
                     </select>
-                    <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20" />
+                    <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/45" />
                   </div>
-                  <p className="text-[9px] text-white/20 px-2">{t?.activeModel || 'Active model'}: <span className="text-white/40 font-mono">{aiConfig.model}</span> — {t?.changePerProvider || 'change per provider in API Matrix.'}</p>
+                  <p className="text-[12px] text-white/45 px-2">{t?.activeModel || 'Active model'}: <span className="text-white/40 font-mono">{aiConfig.model}</span> — {t?.changePerProvider || 'change per provider in API Matrix.'}</p>
                 </div>
               </div>
             </SettingsSection>
@@ -254,7 +254,7 @@ export function Settings({
               <div key={group.label} className="mb-1">
                 <button
                   onClick={() => toggleGroup(group.label)}
-                  className="w-full flex items-center gap-1 px-2 py-1 text-[8px] font-black uppercase tracking-widest text-white/20 hover:text-white/40 transition-colors"
+                  className="w-full flex items-center gap-1 px-2 py-1 text-xs font-black uppercase tracking-widest text-white/45 hover:text-white/40 transition-colors"
                 >
                   <ChevronDown size={9} className={`transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
                   {group.label}
@@ -289,7 +289,7 @@ export function Settings({
                 window.location.reload();
               }
             }}
-            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-bold text-red-400/60 hover:text-red-300 hover:bg-red-500/10 transition-all"
+            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold text-red-400/60 hover:text-red-300 hover:bg-red-500/10 transition-all"
           >
             <LogOut size={14} />
             {t?.signOut || 'Sign Out'}
@@ -378,7 +378,7 @@ function HardwareSettings({ t }: { t: any }) {
               <Shield className="text-celestial-saturn" size={20} />
               <h4 className="text-sm font-bold uppercase tracking-tight text-white">{t.privacyAssurance || "Privacy Assurance"}</h4>
            </div>
-           <p className="text-[11px] text-white/30 leading-relaxed italic">
+           <p className="text-xs text-white/55 leading-relaxed italic">
              {t.privacyAssuranceText || "Our protocol strictly enforces local-only processing. Your visual and auditory data streams are never transmitted outside your sovereign mesh node without direct user-signed override."}
            </p>
         </div>
@@ -413,17 +413,17 @@ function HardwareCapCard({ icon, label, desc, status, onEnable, disabled, t }: {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
            {status === 'granted' ? (
-             <div className="flex items-center gap-1.5 text-celestial-saturn text-[10px] font-black uppercase tracking-widest">
+             <div className="flex items-center gap-1.5 text-celestial-saturn text-xs font-black uppercase tracking-widest">
                <CheckCircle size={12} />
                {t.linked || "Linked"}
              </div>
            ) : status === 'denied' ? (
-             <div className="flex items-center gap-1.5 text-red-500 text-[10px] font-black uppercase tracking-widest">
+             <div className="flex items-center gap-1.5 text-red-500 text-xs font-black uppercase tracking-widest">
                <AlertCircle size={12} />
                {t.blocked || "Blocked"}
              </div>
            ) : (
-             <div className="text-[10px] font-black uppercase tracking-widest text-white/20">{t.awaitingAccess || "Awaiting Access"}</div>
+             <div className="text-xs font-black uppercase tracking-widest text-white/45">{t.awaitingAccess || "Awaiting Access"}</div>
            )}
         </div>
 
@@ -431,7 +431,7 @@ function HardwareCapCard({ icon, label, desc, status, onEnable, disabled, t }: {
           <Button
             onClick={onEnable}
             disabled={disabled}
-            className="bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-black uppercase tracking-widest px-4 h-9 rounded-xl"
+            className="bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-black uppercase tracking-widest px-4 h-9 rounded-xl"
           >
             {status === 'denied' ? (t.retryLink || 'Retry Link') : (t.authorize || 'Authorize')}
           </Button>
@@ -445,10 +445,10 @@ function SidebarItem({ active, onClick, icon, label }: { active: boolean, onClic
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors duration-150 w-full text-left relative ${active ? 'bg-white/10 text-white' : 'text-white/30 hover:bg-white/5 hover:text-white/50'}`}
+      className={`flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors duration-150 w-full text-left relative ${active ? 'bg-white/10 text-white' : 'text-white/55 hover:bg-white/5 hover:text-white/50'}`}
     >
       <div className={`flex-shrink-0 w-4 h-4 flex items-center justify-center ${active ? 'text-celestial-saturn' : 'text-current'}`}>{icon}</div>
-      <span className="text-[9px] font-bold uppercase tracking-tight truncate">{label}</span>
+      <span className="text-[12px] font-bold uppercase tracking-tight truncate">{label}</span>
       {active && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-celestial-saturn rounded-full" />}
     </button>
   );
@@ -533,8 +533,8 @@ function LLMProviderRow({ icon, label, providerId, models, placeholder, disabled
     <div className="p-6 bg-white/5 rounded-3xl border border-white/5 space-y-4">
       <div className="flex items-center gap-2">
         <div className="p-2 bg-white/5 rounded-lg">{icon}</div>
-        <label className="text-[10px] font-black uppercase tracking-widest text-white/50">{label}</label>
-        {serverConfigured && <span className="text-[8px] px-2 py-0.5 bg-green-500/10 border border-green-500/20 text-green-400 rounded-full font-bold">{t?.configured || 'CONFIGURED'}</span>}
+        <label className="text-xs font-black uppercase tracking-widest text-white/50">{label}</label>
+        {serverConfigured && <span className="text-xs px-2 py-0.5 bg-green-500/10 border border-green-500/20 text-green-400 rounded-full font-bold">{t?.configured || 'CONFIGURED'}</span>}
         {saved && <CheckCircle size={14} className="text-green-400 ml-auto" />}
       </div>
       <div className="flex gap-3">
@@ -550,7 +550,7 @@ function LLMProviderRow({ icon, label, providerId, models, placeholder, disabled
           />
           <div className="absolute right-2 top-2 flex gap-1">
             <button type="button" onClick={() => setShowKey(!showKey)}
-              className="h-10 px-2 bg-white/5 hover:bg-white/10 text-[8px] font-bold uppercase border border-white/5 rounded-lg">
+              className="h-10 px-2 bg-white/5 hover:bg-white/10 text-xs font-bold uppercase border border-white/5 rounded-lg">
               {showKey ? (t?.hide || 'Hide') : (t?.show || 'Show')}
             </button>
           </div>
@@ -558,20 +558,20 @@ function LLMProviderRow({ icon, label, providerId, models, placeholder, disabled
         <Button
           onClick={handleSaveKey}
           disabled={disabled || !keyValue.trim()}
-          className="h-[56px] px-4 bg-celestial-saturn text-black rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-30 disabled:cursor-not-allowed hover:bg-celestial-saturn/90 transition-all"
+          className="h-[56px] px-4 bg-celestial-saturn text-black rounded-xl text-xs font-black uppercase tracking-widest disabled:opacity-30 disabled:cursor-not-allowed hover:bg-celestial-saturn/90 transition-all"
         >
           {t?.save || 'Save'}
         </Button>
         <Button
           onClick={handleRemoveKey}
           disabled={disabled || (!keyValue && !serverConfigured)}
-          className="h-[56px] px-4 bg-red-500/10 border border-red-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest text-red-400 hover:bg-red-500/20 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+          className="h-[56px] px-4 bg-red-500/10 border border-red-500/20 rounded-xl text-xs font-black uppercase tracking-widest text-red-400 hover:bg-red-500/20 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
         >
           {t?.remove || 'Remove'}
         </Button>
       </div>
       <div className="flex items-center gap-3">
-        <label className="text-[9px] font-black uppercase text-white/30 tracking-wider whitespace-nowrap">{t?.model || 'Model'}</label>
+        <label className="text-[12px] font-black uppercase text-white/55 tracking-wider whitespace-nowrap">{t?.model || 'Model'}</label>
         <input
           type="text"
           value={model}
@@ -584,7 +584,7 @@ function LLMProviderRow({ icon, label, providerId, models, placeholder, disabled
           {models.map(m => <option key={m} value={m} />)}
         </datalist>
         {aiConfig.provider === providerId && (
-          <span className="text-[8px] px-2 py-0.5 bg-celestial-saturn/10 border border-celestial-saturn/20 text-celestial-saturn rounded-full font-bold whitespace-nowrap">{t?.activeBadge || 'ACTIVE'}</span>
+          <span className="text-xs px-2 py-0.5 bg-celestial-saturn/10 border border-celestial-saturn/20 text-celestial-saturn rounded-full font-bold whitespace-nowrap">{t?.activeBadge || 'ACTIVE'}</span>
         )}
       </div>
     </div>
@@ -669,14 +669,14 @@ function VoiceServicesPage({ t }: { t: any }) {
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span className="text-xs font-bold text-white/80">{t.ttsEngine || 'TTS Engine'}</span>
             </div>
-            <p className="text-[10px] text-white/40">{t.ttsEngineDesc || 'GPT-SoVITS + DashScope CosyVoice configured.'}</p>
+            <p className="text-xs text-white/40">{t.ttsEngineDesc || 'GPT-SoVITS + DashScope CosyVoice configured.'}</p>
           </div>
           <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-2">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span className="text-xs font-bold text-white/80">{t.sttEngine || 'STT Engine'}</span>
             </div>
-            <p className="text-[10px] text-white/40">{t.sttEngineDesc || 'Deepgram speech recognition active.'}</p>
+            <p className="text-xs text-white/40">{t.sttEngineDesc || 'Deepgram speech recognition active.'}</p>
           </div>
           <VoiceProviderSwitch t={t} />
         </div>
@@ -691,14 +691,14 @@ function VoiceServicesPage({ t }: { t: any }) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-bold text-white/80">{t.proactiveVoiceGreeting || '允许Lumi主动语音问候'}</p>
-              <p className="text-[10px] text-white/30 mt-0.5">{t.proactiveVoiceGreetingDesc || '开启后，Lumi会在检测到异常或长时间不活动时主动开口说话'}</p>
+              <p className="text-xs text-white/55 mt-0.5">{t.proactiveVoiceGreetingDesc || '开启后，Lumi会在检测到异常或长时间不活动时主动开口说话'}</p>
             </div>
             <ProactiveVoiceToggle />
           </div>
           <div className="flex items-center justify-between mt-3">
             <div>
               <p className="text-xs font-bold text-white/80">{t.alwaysOnVoiceLabel || '持续语音通道 (Always-On Voice)'}</p>
-              <p className="text-[10px] text-white/30 mt-0.5">{t.alwaysOnVoiceDesc || '开启后麦克风不会自动断开，Lumi始终在听。'}</p>
+              <p className="text-xs text-white/55 mt-0.5">{t.alwaysOnVoiceDesc || '开启后麦克风不会自动断开，Lumi始终在听。'}</p>
             </div>
             <AlwaysOnVoiceToggle />
           </div>
@@ -777,8 +777,8 @@ function ApiKeyField({ icon, label, placeholder, disabled = false, storageKey, s
     <div className="p-6 bg-white/5 rounded-3xl border border-white/5 space-y-4">
       <div className="flex items-center gap-2">
         <div className="p-2 bg-white/5 rounded-lg">{icon}</div>
-        <label className="text-[10px] font-black uppercase tracking-widest text-white/50">{label}</label>
-        {serverConfigured && <span className="text-[8px] px-2 py-0.5 bg-green-500/10 border border-green-500/20 text-green-400 rounded-full font-bold">{t?.configured || 'CONFIGURED'}</span>}
+        <label className="text-xs font-black uppercase tracking-widest text-white/50">{label}</label>
+        {serverConfigured && <span className="text-xs px-2 py-0.5 bg-green-500/10 border border-green-500/20 text-green-400 rounded-full font-bold">{t?.configured || 'CONFIGURED'}</span>}
         {saved && <CheckCircle size={14} className="text-green-400 ml-auto" />}
       </div>
       <div className="flex gap-2">
@@ -796,7 +796,7 @@ function ApiKeyField({ icon, label, placeholder, disabled = false, storageKey, s
             type="button"
             onClick={handleRemove}
             disabled={disabled || (!value && !serverConfigured)}
-            className="absolute right-2 top-2 h-10 px-3 bg-red-500/10 border border-red-500/20 rounded-lg text-[9px] font-bold uppercase tracking-tight text-red-400 hover:bg-red-500/20 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+            className="absolute right-2 top-2 h-10 px-3 bg-red-500/10 border border-red-500/20 rounded-lg text-[12px] font-bold uppercase tracking-tight text-red-400 hover:bg-red-500/20 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
           >
             {t?.remove || 'Remove'}
           </button>
@@ -804,12 +804,12 @@ function ApiKeyField({ icon, label, placeholder, disabled = false, storageKey, s
         <Button
           onClick={handleSave}
           disabled={disabled || !value.trim()}
-          className="h-[56px] px-6 bg-celestial-saturn text-black rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-30 disabled:cursor-not-allowed hover:bg-celestial-saturn/90 transition-all"
+          className="h-[56px] px-6 bg-celestial-saturn text-black rounded-xl text-xs font-black uppercase tracking-widest disabled:opacity-30 disabled:cursor-not-allowed hover:bg-celestial-saturn/90 transition-all"
         >
           {t?.save || 'Save'}
         </Button>
       </div>
-      {hint && <p className="text-[9px] text-white/20 leading-relaxed">{hint}</p>}
+      {hint && <p className="text-[12px] text-white/45 leading-relaxed">{hint}</p>}
     </div>
   );
 }
@@ -851,7 +851,7 @@ function SettingsItem({ label, desc, active = false, storageKey, onChange, t }: 
     <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
       <div className="space-y-1">
         <div className="font-bold text-sm text-white/90">{label}</div>
-        <div className="text-[10px] text-white/40 uppercase tracking-widest">{desc}</div>
+        <div className="text-xs text-white/40 uppercase tracking-widest">{desc}</div>
       </div>
       <div onClick={toggle} className={`w-10 h-5 rounded-full p-1 transition-colors cursor-pointer ${isActive ? 'bg-celestial-saturn' : 'bg-white/10'}`}>
         <div className={`w-3 h-3 rounded-full bg-white transition-transform ${isActive ? 'translate-x-5' : 'translate-x-0'}`} />

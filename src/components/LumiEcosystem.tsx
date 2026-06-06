@@ -111,7 +111,7 @@ export function LumiEcosystem({ t, onChatAgent }: { t: any; onChatAgent?: (agent
           <div className="grid lg:grid-cols-3 gap-12 items-center">
             <div className="space-y-8">
               <div className="space-y-2">
-                <p className="text-[10px] uppercase tracking-widest text-celestial-nebula font-bold">{t.shardStatus}</p>
+                <p className="text-xs uppercase tracking-widest text-celestial-nebula font-bold">{t.shardStatus}</p>
                 <div className="flex items-center gap-3">
                   <div className="w-3 h-3 rounded-full bg-celestial-glow animate-pulse" />
                   <span className="text-2xl font-bold">{t.immortalityActive}</span>
@@ -135,11 +135,11 @@ export function LumiEcosystem({ t, onChatAgent }: { t: any; onChatAgent?: (agent
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
-                  <p className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-1">{t.activeShards || 'Active Shards'}</p>
+                  <p className="text-xs uppercase tracking-widest text-white/40 font-bold mb-1">{t.activeShards || 'Active Shards'}</p>
                   <p className="text-xl font-bold">1,024</p>
                 </div>
                 <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
-                  <p className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-1">{t.redundancy || 'Redundancy'}</p>
+                  <p className="text-xs uppercase tracking-widest text-white/40 font-bold mb-1">{t.redundancy || 'Redundancy'}</p>
                   <p className="text-xl font-bold">x12</p>
                 </div>
               </div>
@@ -201,7 +201,7 @@ export function LumiEcosystem({ t, onChatAgent }: { t: any; onChatAgent?: (agent
                 </defs>
               </svg>
 
-              <div className="absolute bottom-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[10px] font-bold uppercase tracking-widest">
+              <div className="absolute bottom-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-xs font-bold uppercase tracking-widest">
                 <Network size={12} className="text-celestial-glow" />
                 {t.meshShardingActive || 'Mesh Sharding Active'}
               </div>
@@ -343,7 +343,7 @@ export function LumiEcosystem({ t, onChatAgent }: { t: any; onChatAgent?: (agent
                     {/* Incubation Progress Overlay */}
                     {isIncubating && (
                       <div className="absolute -bottom-12 left-0 w-full px-4 space-y-3">
-                        <div className="flex justify-between text-[10px] uppercase tracking-widest font-bold text-celestial-saturn/60">
+                        <div className="flex justify-between text-xs uppercase tracking-widest font-bold text-celestial-saturn/60">
                           <span>{t.incubatingBaseEssence || 'Incubating Base Essence'}</span>
                           <span>{progress}%</span>
                         </div>
@@ -486,11 +486,11 @@ export function LumiEcosystem({ t, onChatAgent }: { t: any; onChatAgent?: (agent
                 >
                   <Ghost size={48} />
                 </motion.div>
-                <div className="absolute -top-2 -right-2 px-3 py-1 bg-celestial-saturn text-black text-[10px] font-black rounded-full shadow-lg">{t.ownerBadge || 'OWNER'}</div>
+                <div className="absolute -top-2 -right-2 px-3 py-1 bg-celestial-saturn text-black text-xs font-black rounded-full shadow-lg">{t.ownerBadge || 'OWNER'}</div>
               </div>
               <div className="text-center">
                 <span className="text-sm font-bold uppercase tracking-widest text-white/60">{t.yourAgent || 'Your Agent'}</span>
-                <p className="text-[10px] text-white/20 font-mono">{t.agentIdLabel || 'ID: LUMI-8829-X'}</p>
+                <p className="text-xs text-white/45 font-mono">{t.agentIdLabel || 'ID: LUMI-8829-X'}</p>
               </div>
             </div>
 
@@ -524,8 +524,8 @@ export function LumiEcosystem({ t, onChatAgent }: { t: any; onChatAgent?: (agent
                     />
                   </div>
                   <div className="text-center">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">{t.peerNode || 'Peer Node'}</span>
-                    <p className="text-[8px] text-white/10 font-mono">{t.anonId || 'ANON-'}{n}29</p>
+                    <span className="text-xs font-bold uppercase tracking-widest text-white/40">{t.peerNode || 'Peer Node'}</span>
+                    <p className="text-xs text-white/35 font-mono">{t.anonId || 'ANON-'}{n}29</p>
                   </div>
                 </div>
               ))}
@@ -535,7 +535,7 @@ export function LumiEcosystem({ t, onChatAgent }: { t: any; onChatAgent?: (agent
           {/* Legacy Protocol Overlay */}
           <div className="absolute bottom-6 left-8 flex items-center gap-3 px-5 py-2.5 bg-black/60 backdrop-blur-xl rounded-2xl border border-white/10">
             <ShieldCheck size={16} className="text-green-500" />
-            <span className="text-[10px] font-bold uppercase tracking-widest text-white/60">{t.legacyProtocolEncrypted || 'Legacy Protocol: Encrypted Shards Distributed'}</span>
+            <span className="text-xs font-bold uppercase tracking-widest text-white/60">{t.legacyProtocolEncrypted || 'Legacy Protocol: Encrypted Shards Distributed'}</span>
           </div>
         </div>
       </section>
@@ -577,7 +577,7 @@ function SubscriptionCard({ tier, price, features, isPopular, t }: { tier: strin
   return (
     <GlassCard className={`flex flex-col h-full relative overflow-hidden ${isPopular ? 'border-celestial-saturn/50 shadow-[0_0_30px_rgba(255,165,0,0.1)]' : ''}`} hoverEffect={!isPopular}>
       {isPopular && (
-        <div className="absolute top-6 right-[-35px] bg-celestial-saturn text-black text-[10px] font-black uppercase tracking-widest py-1 px-12 rotate-45">
+        <div className="absolute top-6 right-[-35px] bg-celestial-saturn text-black text-xs font-black uppercase tracking-widest py-1 px-12 rotate-45">
           {t.popular || 'Popular'}
         </div>
       )}
@@ -619,7 +619,7 @@ function EcosystemStat({ icon, label, value }: { icon: React.ReactNode; label: s
     <GlassCard className="p-4 rounded-2xl flex items-center gap-4" hoverEffect={false}>
       <div className="text-celestial-saturn">{icon}</div>
       <div>
-        <div className="text-[10px] uppercase tracking-widest text-white/40 font-bold">{label}</div>
+        <div className="text-xs uppercase tracking-widest text-white/40 font-bold">{label}</div>
         <div className="text-sm font-bold">{value}</div>
       </div>
     </GlassCard>

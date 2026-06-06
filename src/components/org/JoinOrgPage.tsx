@@ -73,7 +73,7 @@ export function JoinOrgPage() {
               onChange={e => { setCode(e.target.value.toUpperCase().slice(0, 8)); setError(''); }}
               placeholder="ABCD1234"
               maxLength={8}
-              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-center text-2xl tracking-[0.3em] font-mono placeholder:text-white/20 focus:outline-none focus:border-blue-500/50"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-center text-2xl tracking-[0.3em] font-mono placeholder:text-white/45 focus:outline-none focus:border-blue-500/50"
             />
             {error && (
               <p className="text-red-400 text-sm text-center flex items-center justify-center gap-1">
@@ -89,7 +89,7 @@ export function JoinOrgPage() {
             </Button>
             <button
               onClick={() => setStep('input')}
-              className="w-full text-center text-white/30 text-sm hover:text-white/50"
+              className="w-full text-center text-white/55 text-sm hover:text-white/50"
             >
               Already joined? Reload the page to pick up your organization context.
             </button>
@@ -106,7 +106,7 @@ export function JoinOrgPage() {
             <Button onClick={handleJoin} className="w-full bg-green-600 hover:bg-green-500 text-white rounded-xl py-3">
               Join <CheckCircle size={16} className="ml-2" />
             </Button>
-            <button onClick={() => setStep('input')} className="w-full text-center text-white/30 text-sm hover:text-white/50">
+            <button onClick={() => setStep('input')} className="w-full text-center text-white/55 text-sm hover:text-white/50">
               Cancel
             </button>
           </motion.div>

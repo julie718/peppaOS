@@ -210,8 +210,8 @@ function OSWindow({
                 : icon}
             </div>
             <div className="flex flex-col">
-              <span className="text-[10px] font-black tracking-[0.2em] uppercase text-white/80 leading-none mb-0.5">{title}</span>
-              <span className="text-[7px] font-bold text-white/20 uppercase tracking-widest leading-none">{t.statusOperational || 'Status: Operational / Shared Root'}</span>
+              <span className="text-xs font-black tracking-[0.2em] uppercase text-white/80 leading-none mb-0.5">{title}</span>
+              <span className="text-xs font-bold text-white/45 uppercase tracking-widest leading-none">{t.statusOperational || 'Status: Operational / Shared Root'}</span>
             </div>
           </div>
           <div className="flex gap-3">
@@ -274,11 +274,11 @@ function ControlCenter({ isOpen, onClose, t, brightness, setBrightness, volume, 
         <div className="flex bg-white/5 p-1 rounded-xl">
            <button 
             onClick={() => setLang('en')}
-            className={`px-3 py-1 text-[8px] font-black uppercase tracking-widest rounded-lg transition-all ${lang === 'en' ? 'bg-white text-black' : 'text-white/40'}`}
+            className={`px-3 py-1 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${lang === 'en' ? 'bg-white text-black' : 'text-white/40'}`}
            >EN</button>
            <button 
             onClick={() => setLang('zh')}
-            className={`px-3 py-1 text-[8px] font-black uppercase tracking-widest rounded-lg transition-all ${lang === 'zh' ? 'bg-white text-black' : 'text-white/40'}`}
+            className={`px-3 py-1 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${lang === 'zh' ? 'bg-white text-black' : 'text-white/40'}`}
            >ZH</button>
         </div>
       </div>
@@ -319,7 +319,7 @@ function ControlCenter({ isOpen, onClose, t, brightness, setBrightness, volume, 
         </div>
         <div className="col-span-1 bg-white/5 rounded-[1.5rem] p-5 flex flex-col justify-between">
            <div className="space-y-2">
-             <div className="flex justify-between items-center text-[10px] font-bold text-white/40 uppercase">
+             <div className="flex justify-between items-center text-xs font-bold text-white/40 uppercase">
                <span>{t.display || 'Display'}</span>
                <button
                  onClick={() => setIsLightMode(!isLightMode)}
@@ -345,7 +345,7 @@ function ControlCenter({ isOpen, onClose, t, brightness, setBrightness, volume, 
              </div>
            </div>
            <div className="space-y-2">
-             <div className="flex justify-between items-center text-[10px] font-bold text-white/40 uppercase">
+             <div className="flex justify-between items-center text-xs font-bold text-white/40 uppercase">
                <span>{t.sound || 'Sound'}</span>
                <Volume2 size={12} />
              </div>
@@ -367,7 +367,7 @@ function ControlCenter({ isOpen, onClose, t, brightness, setBrightness, volume, 
 
       {/* Quick Access: Personality / Voice / LLM */}
       <div className="space-y-2 mb-6">
-        <span className="text-[10px] font-black text-white/20 uppercase tracking-widest px-2">{t.aiCore || 'AI Core'}</span>
+        <span className="text-xs font-black text-white/45 uppercase tracking-widest px-2">{t.aiCore || 'AI Core'}</span>
         <div className="space-y-1">
           {/* Voice selector */}
           <button
@@ -378,7 +378,7 @@ function ControlCenter({ isOpen, onClose, t, brightness, setBrightness, volume, 
               <Volume2 size={14} className="text-pink-400" />
               <span className="text-xs font-bold text-white/70">{t.voiceLabel || 'Voice'}</span>
             </div>
-            <span className="text-[10px] font-black text-pink-400 uppercase truncate max-w-[100px]">{selectedVoiceId || (t.defaultLabel || 'Default')}</span>
+            <span className="text-xs font-black text-pink-400 uppercase truncate max-w-[100px]">{selectedVoiceId || (t.defaultLabel || 'Default')}</span>
           </button>
 
           {/* Notifications shortcut */}
@@ -390,14 +390,14 @@ function ControlCenter({ isOpen, onClose, t, brightness, setBrightness, volume, 
               <Bell size={14} className="text-amber-400" />
               <span className="text-xs font-bold text-white/70">{t.notificationsLabel || 'Notifications'}</span>
             </div>
-            <span className="text-[10px] font-black text-amber-400">{unreadCount} {t.unread || 'unread'}</span>
+            <span className="text-xs font-black text-amber-400">{unreadCount} {t.unread || 'unread'}</span>
           </button>
         </div>
       </div>
 
       <div className="space-y-4">
         <div className="space-y-2">
-          <span className="text-[10px] font-black text-white/20 uppercase tracking-widest px-2">{t.matrixSynthesis || 'Matrix Synthesis'}</span>
+          <span className="text-xs font-black text-white/45 uppercase tracking-widest px-2">{t.matrixSynthesis || 'Matrix Synthesis'}</span>
           <div className="grid grid-cols-3 gap-2">
             {themes.map((themeOption) => (
               <button 
@@ -408,7 +408,7 @@ function ControlCenter({ isOpen, onClose, t, brightness, setBrightness, volume, 
                 <div className={`w-8 h-8 rounded-full ${themeOption.color} flex items-center justify-center text-white shadow-lg`}>
                   {themeOption.icon}
                 </div>
-                <span className="text-[8px] font-black uppercase text-white/40">{themeOption.label}</span>
+                <span className="text-xs font-black uppercase text-white/40">{themeOption.label}</span>
               </button>
             ))}
           </div>
@@ -452,8 +452,8 @@ function ControlCenter({ isOpen, onClose, t, brightness, setBrightness, volume, 
       </div>
       
       <div className="mt-6 pt-6 border-t border-white/5 flex items-center justify-between font-sans">
-        <span className="text-[10px] font-bold text-white/20 tracking-widest uppercase">{t.desktopVersion || 'Lumi OS v2.0.4'}</span>
-        <button onClick={onClose} className="text-[10px] font-black text-celestial-saturn hover:underline uppercase tracking-widest">{t.closeNexus || 'Close Nexus'}</button>
+        <span className="text-xs font-bold text-white/45 tracking-widest uppercase">{t.desktopVersion || 'Lumi OS v2.0.4'}</span>
+        <button onClick={onClose} className="text-xs font-black text-celestial-saturn hover:underline uppercase tracking-widest">{t.closeNexus || 'Close Nexus'}</button>
       </div>
     </motion.div>
   );
@@ -537,12 +537,12 @@ function KernelMonitorApp({ t }: { t: any }) {
             <Cpu size={24} />
           </div>
           <div>
-            <div className="text-[10px] font-black text-white/40 uppercase tracking-widest leading-none mb-1">{stats.hostname || t.localIntelNode || 'Local Node'}</div>
+            <div className="text-xs font-black text-white/40 uppercase tracking-widest leading-none mb-1">{stats.hostname || t.localIntelNode || 'Local Node'}</div>
             <div className="text-lg font-black text-white tracking-tight">{chipLabel}</div>
           </div>
         </div>
         <div className="text-right">
-          <div className="text-[10px] font-black text-celestial-saturn uppercase tracking-widest leading-none mb-1">{loadStatus} · {stats.cpus}c · {uptimeFmt}</div>
+          <div className="text-xs font-black text-celestial-saturn uppercase tracking-widest leading-none mb-1">{loadStatus} · {stats.cpus}c · {uptimeFmt}</div>
           <div className="text-xs font-mono text-white/40">{stats.release || ''} / CPU {stats.cpu}%</div>
         </div>
       </div>
@@ -554,7 +554,7 @@ function KernelMonitorApp({ t }: { t: any }) {
           { label: 'GPU', value: stats.gpu?.name || `${stats.cpus} Cores · ${stats.arch}`, bar: 0, color: 'bg-blue-500' }
         ].map((stat, i) => (
           <div key={i} className="p-5 bg-white/5 rounded-[2rem] border border-white/5 space-y-3 hover:bg-white/10 transition-colors cursor-default">
-            <div className="text-[9px] font-black text-white/20 uppercase tracking-[0.2em]">{stat.label}</div>
+            <div className="text-[12px] font-black text-white/45 uppercase tracking-[0.2em]">{stat.label}</div>
             <div className="text-xl font-black text-white tracking-tighter">{stat.value}</div>
             <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
                <motion.div
@@ -586,21 +586,21 @@ function KernelMonitorApp({ t }: { t: any }) {
 
       <div className="bg-black/40 rounded-[2rem] border border-white/5 p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <div className="text-[10px] font-black uppercase tracking-widest text-white/40">{t.autonomyRuntime || 'Autonomy Runtime'}</div>
-          <div className="text-[9px] font-bold uppercase tracking-widest text-celestial-saturn">{tasks.filter(t => t.active).length} {t.activeLabel || 'active'}</div>
+          <div className="text-xs font-black uppercase tracking-widest text-white/40">{t.autonomyRuntime || 'Autonomy Runtime'}</div>
+          <div className="text-[12px] font-bold uppercase tracking-widest text-celestial-saturn">{tasks.filter(t => t.active).length} {t.activeLabel || 'active'}</div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           {tasks.map(task => (
             <div key={task.id} className="p-3 bg-white/5 rounded-xl border border-white/5 flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-[10px] font-black uppercase tracking-widest text-white/70 truncate">{task.id}</div>
-                <div className="text-[9px] text-white/25 font-mono">{task.cron}{task.lastRun ? ` / ${new Date(task.lastRun).toLocaleTimeString()}` : ''}</div>
+                <div className="text-xs font-black uppercase tracking-widest text-white/70 truncate">{task.id}</div>
+                <div className="text-[12px] text-white/50 font-mono">{task.cron}{task.lastRun ? ` / ${new Date(task.lastRun).toLocaleTimeString()}` : ''}</div>
               </div>
               <div className={`w-2 h-2 rounded-full shrink-0 ${task.active ? 'bg-green-500 animate-pulse' : 'bg-white/20'}`} />
             </div>
           ))}
           {tasks.length === 0 && (
-            <div className="col-span-2 text-[10px] text-white/25 font-bold uppercase tracking-widest">{t.schedulerNotReporting || 'Scheduler not reporting yet'}</div>
+            <div className="col-span-2 text-xs text-white/50 font-bold uppercase tracking-widest">{t.schedulerNotReporting || 'Scheduler not reporting yet'}</div>
           )}
         </div>
       </div>
@@ -636,11 +636,11 @@ function Spotlight({ isOpen, onClose, onSelect, apps, t }: { isOpen: boolean; on
           <input 
             autoFocus
             placeholder={t.searchNeuralHub || "Search Lumi Neural Hub..."}
-            className="flex-1 bg-transparent border-none outline-none text-xl font-bold text-white placeholder:text-white/20"
+            className="flex-1 bg-transparent border-none outline-none text-xl font-bold text-white placeholder:text-white/45"
             value={query}
             onChange={e => setQuery(e.target.value)}
           />
-          <div className="px-2 py-1 bg-white/5 rounded text-[10px] font-black text-white/40 tracking-widest border border-white/5">ESC</div>
+          <div className="px-2 py-1 bg-white/5 rounded text-xs font-black text-white/40 tracking-widest border border-white/5">ESC</div>
         </div>
         <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
           {filteredApps.length > 0 ? (
@@ -655,7 +655,7 @@ function Spotlight({ isOpen, onClose, onSelect, apps, t }: { isOpen: boolean; on
                 </div>
                 <div className="flex-1">
                   <div className="text-sm font-black text-white tracking-tight">{app.label}</div>
-                  <div className="text-[10px] text-white/30 uppercase tracking-widest">{t.neuralApp || 'Neural Application'}</div>
+                  <div className="text-xs text-white/55 uppercase tracking-widest">{t.neuralApp || 'Neural Application'}</div>
                 </div>
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                   <ChevronRight size={16} className="text-white/40" />
@@ -663,7 +663,7 @@ function Spotlight({ isOpen, onClose, onSelect, apps, t }: { isOpen: boolean; on
               </button>
             ))
           ) : (
-             <div className="p-12 text-center text-white/20">
+             <div className="p-12 text-center text-white/45">
                 <BrainCircuit size={48} className="mx-auto mb-4 opacity-10" />
                 <p className="text-xs font-black uppercase tracking-widest">{t.noNeuralNodes || 'No neural nodes found'}</p>
              </div>
@@ -715,21 +715,21 @@ function DailyCapability({ t, onInstall }: { t: any; onInstall: (skillId: string
     <GlassCard className="p-5 rounded-[2rem] border-white/5 bg-black/20 space-y-3">
       <div className="flex items-center gap-2">
         <Sparkles size={12} className="text-celestial-saturn" />
-        <span className="text-[9px] font-black uppercase tracking-widest text-white/30">{t.dailyCapability || 'Daily Capability'}</span>
+        <span className="text-[12px] font-black uppercase tracking-widest text-white/55">{t.dailyCapability || 'Daily Capability'}</span>
       </div>
       <div className="flex items-center gap-3">
         <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${skill.iconColor} flex items-center justify-center shrink-0`}>
           <Sparkles size={14} className="text-white" />
         </div>
         <div className="min-w-0 flex-1">
-          <h4 className="text-[11px] font-bold text-white/80">{skill.name}</h4>
-          <p className="text-[8px] text-white/30 truncate">{skill.desc}</p>
+          <h4 className="text-xs font-bold text-white/80">{skill.name}</h4>
+          <p className="text-xs text-white/55 truncate">{skill.desc}</p>
         </div>
       </div>
       <button
         onClick={handleInstall}
         disabled={installing}
-        className="w-full h-9 rounded-xl bg-white/10 text-white/60 hover:bg-white/20 text-[10px] font-bold transition-all disabled:opacity-50 flex items-center justify-center"
+        className="w-full h-9 rounded-xl bg-white/10 text-white/60 hover:bg-white/20 text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center"
       >
         {installing ? (
           <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}>
@@ -1576,14 +1576,14 @@ export function DesktopUI({
                 <h2 className="text-6xl font-black text-white/90 tracking-[1.2rem] uppercase drop-shadow-[0_0_30px_rgba(255,255,255,0.1)]">{t.nexusTitle || 'Nexus'}</h2>
                 <div className="mt-4 flex items-center justify-center gap-4">
                   <div className="h-px w-12 bg-gradient-to-r from-transparent to-celestial-saturn/50" />
-                  <p className="text-[10px] text-celestial-saturn font-black tracking-[0.8em] uppercase">{t.distributedOSCore || 'Distributed OS Core'}</p>
+                  <p className="text-xs text-celestial-saturn font-black tracking-[0.8em] uppercase">{t.distributedOSCore || 'Distributed OS Core'}</p>
                   <div className="h-px w-12 bg-gradient-to-l from-transparent to-celestial-saturn/50" />
                 </div>
               </motion.div>
 
               <motion.button
                 onClick={() => setViewMode('personal')}
-                className="group px-10 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-[10px] font-black text-white/60 tracking-[0.4em] uppercase transition-all backdrop-blur-2xl hover:text-white hover:border-white/20"
+                className="group px-10 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-xs font-black text-white/60 tracking-[0.4em] uppercase transition-all backdrop-blur-2xl hover:text-white hover:border-white/20"
               >
                 {t.focusPersonalTerritory || 'Focus Personal Territory'}
               </motion.button>
@@ -1605,7 +1605,7 @@ export function DesktopUI({
                <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-celestial-mars to-celestial-saturn flex items-center justify-center p-1 group-hover:rotate-12 transition-transform shadow-lg shadow-celestial-saturn/20">
                  <Rocket size={14} className="text-white" />
                </div>
-               <span className="text-[10px] font-black tracking-widest uppercase text-white/60">{t.lumiOS || 'Lumi OS'}</span>
+               <span className="text-xs font-black tracking-widest uppercase text-white/60">{t.lumiOS || 'Lumi OS'}</span>
             </button>
             <div className="h-4 w-px bg-white/10" />
             <div className="flex gap-4">
@@ -1621,17 +1621,17 @@ export function DesktopUI({
                       toast.info(t.desktopOnly || 'File browse requires desktop app');
                     }
                   } catch (err: any) { toast.error(err.message || 'Failed to list files'); }
-                }} className="w-full text-left px-4 py-2 text-[11px] text-white/60 hover:text-white hover:bg-white/10 transition-colors">{t.openFiles || 'Open Files'}</button>
-                <button onClick={() => { toggleWindow('settings'); }} className="w-full text-left px-4 py-2 text-[11px] text-white/60 hover:text-white hover:bg-white/10 transition-colors">{t.settings || 'Settings'}</button>
-                <button onClick={onExit} className="w-full text-left px-4 py-2 text-[11px] text-red-400/70 hover:text-red-400 hover:bg-white/10 transition-colors">{t.exit || 'Exit'}</button>
+                }} className="w-full text-left px-4 py-2 text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors">{t.openFiles || 'Open Files'}</button>
+                <button onClick={() => { toggleWindow('settings'); }} className="w-full text-left px-4 py-2 text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors">{t.settings || 'Settings'}</button>
+                <button onClick={onExit} className="w-full text-left px-4 py-2 text-xs text-red-400/70 hover:text-red-400 hover:bg-white/10 transition-colors">{t.exit || 'Exit'}</button>
               </TopMenuButton>
               <TopMenuButton label={t.edit || 'Edit'}>
                 <button onClick={() => {
                   setEditMode(!editMode);
-                }} className="w-full text-left px-4 py-2 text-[11px] text-white/60 hover:text-white hover:bg-white/10 transition-colors">
+                }} className="w-full text-left px-4 py-2 text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors">
                   {editMode ? (t.doneEditing || 'Done Editing') : (t.editDesktop || 'Edit Desktop')}
                 </button>
-                <button onClick={() => { toggleWindow('settings'); setSettingsSection('personalization'); }} className="w-full text-left px-4 py-2 text-[11px] text-white/60 hover:text-white hover:bg-white/10 transition-colors">{t.theme || 'Theme'}</button>
+                <button onClick={() => { toggleWindow('settings'); setSettingsSection('personalization'); }} className="w-full text-left px-4 py-2 text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors">{t.theme || 'Theme'}</button>
               </TopMenuButton>
               <TopMenuButton label={t.kernel || 'Kernel'} onClick={() => toggleWindow('kernel')} />
               <TopMenuButton label={t.view || 'View'} onClick={() => setViewMode(viewMode === 'personal' ? 'world' : 'personal')} />
@@ -1640,12 +1640,12 @@ export function DesktopUI({
           </div>
 
           <div className="flex items-center gap-6">
-            <div className="flex items-center gap-4 text-white/30">
+            <div className="flex items-center gap-4 text-white/55">
                <div className="flex items-center gap-1" onClick={() => setIsSearchOpen(true)}><Search size={14} className="hover:text-white transition-colors cursor-pointer" /></div>
                <button onClick={() => toggleWindow('notifications')} className="flex items-center gap-1 relative hover:text-white transition-colors">
                  <Bell size={14} />
                  {unreadCount > 0 && (
-                   <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-red-500 text-[7px] font-black flex items-center justify-center text-white">
+                   <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-red-500 text-xs font-black flex items-center justify-center text-white">
                      {unreadCount > 9 ? '9+' : unreadCount}
                    </span>
                  )}
@@ -1663,10 +1663,10 @@ export function DesktopUI({
                <BatteryIndicator />
                <button
                  onClick={toggleWallpaperMode}
-                 className={`h-6 px-2 rounded-md border transition-all flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider ${
+                 className={`h-6 px-2 rounded-md border transition-all flex items-center gap-1 text-[12px] font-bold uppercase tracking-wider ${
                    isWallpaperMode
                      ? 'bg-celestial-saturn/20 text-celestial-saturn border-celestial-saturn/30'
-                     : 'bg-white/5 border-white/5 text-white/30 hover:bg-white/10 hover:text-white'
+                     : 'bg-white/5 border-white/5 text-white/55 hover:bg-white/10 hover:text-white'
                  }`}
                  title={isWallpaperMode ? '退出壁纸模式' : '壁纸模式'}
                >
@@ -1686,8 +1686,8 @@ export function DesktopUI({
               className="flex items-center gap-3 px-3 py-1 bg-white/5 hover:bg-white/10 rounded-full border border-white/5 transition-all group"
             >
               <div className="flex flex-col items-end">
-                <span className="text-[9px] font-black text-white/80 leading-none">{time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                <span className="text-[7px] font-bold text-white/30 uppercase tracking-tighter">{time.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                <span className="text-[12px] font-black text-white/80 leading-none">{time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                <span className="text-xs font-bold text-white/55 uppercase tracking-tighter">{time.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
               </div>
               <Activity size={14} className="text-celestial-saturn group-hover:rotate-180 transition-transform duration-500" />
             </button>
@@ -1696,21 +1696,21 @@ export function DesktopUI({
             <div className="flex items-center gap-1 ml-2">
               <button
                 onClick={handleWindowMinimize}
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-white/30 hover:text-white hover:bg-white/10 transition-colors"
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-white/55 hover:text-white hover:bg-white/10 transition-colors"
                 title="最小化"
               >
                 <Minus size={14} />
               </button>
               <button
                 onClick={handleWindowMaximize}
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-white/30 hover:text-white hover:bg-white/10 transition-colors"
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-white/55 hover:text-white hover:bg-white/10 transition-colors"
                 title="最大化"
               >
                 <Square size={12} />
               </button>
               <button
                 onClick={handleWindowClose}
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-white/30 hover:text-white hover:bg-red-500/80 transition-colors"
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-white/55 hover:text-white hover:bg-red-500/80 transition-colors"
                 title="关闭"
               >
                 <X size={14} />
@@ -1743,7 +1743,7 @@ export function DesktopUI({
             }`}
           >
             {viewMode === 'world' ? <Cpu size={24} /> : <Globe size={24} />}
-            <div className="absolute -top-12 left-1/2 -translate-x-1/2 px-3 py-1 bg-black/80 rounded-lg text-[8px] font-black uppercase text-white opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+            <div className="absolute -top-12 left-1/2 -translate-x-1/2 px-3 py-1 bg-black/80 rounded-lg text-xs font-black uppercase text-white opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
               {viewMode === 'world' ? (t.personalView || 'Personal View') : (t.nexusView || 'Nexus View')}
             </div>
           </button>
@@ -1756,7 +1756,7 @@ export function DesktopUI({
             }`}
           >
             <BrainCircuit size={24} />
-            <div className="absolute -top-12 left-1/2 -translate-x-1/2 px-3 py-1 bg-black/80 rounded-lg text-[8px] font-black uppercase text-white opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+            <div className="absolute -top-12 left-1/2 -translate-x-1/2 px-3 py-1 bg-black/80 rounded-lg text-xs font-black uppercase text-white opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
               {t.knowledgeBase || 'Knowledge Base'}
             </div>
           </button>
@@ -1789,16 +1789,16 @@ export function DesktopUI({
                         <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center">
                           <span className="scale-75">{app.icon}</span>
                         </div>
-                        <span className="text-[10px] font-bold text-white/80 truncate">{app.label}</span>
+                        <span className="text-xs font-bold text-white/80 truncate">{app.label}</span>
                       </div>
                       <div className="px-3 py-2">
-                        <p className="text-[9px] text-white/30 leading-tight">
+                        <p className="text-[12px] text-white/55 leading-tight">
                           {focusedWindow === app.id ? (t.activeFocused || 'Active — focused') : (t.openInBackground || 'Open in background')}
                         </p>
                       </div>
                    </div>
                 )}
-                <div className="absolute -top-12 left-1/2 -translate-x-1/2 px-3 py-1 bg-black/80 rounded-lg text-[8px] font-black uppercase text-white opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                <div className="absolute -top-12 left-1/2 -translate-x-1/2 px-3 py-1 bg-black/80 rounded-lg text-xs font-black uppercase text-white opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
                   {app.label}
                 </div>
               </motion.button>
@@ -1920,17 +1920,17 @@ export function DesktopUI({
                 isLightMode={isLightMode}
               />
               {wakeWord.isListening && callState === 'idle' && (
-                <div className="mt-2 text-[10px] text-white/20 uppercase tracking-[0.25em] font-mono">
+                <div className="mt-2 text-xs text-white/45 uppercase tracking-[0.25em] font-mono">
                   Listening for &ldquo;Jarvis&rdquo;
                 </div>
               )}
               {wakeWord.error && (
-                <div className="mt-2 text-[10px] text-red-400/60 font-mono max-w-[200px] text-center leading-relaxed">
+                <div className="mt-2 text-xs text-red-400/60 font-mono max-w-[200px] text-center leading-relaxed">
                   Wake: {wakeWord.error}
                 </div>
               )}
               {!wakeWord.isListening && !wakeWord.error && callState === 'idle' && (
-                <div className="mt-2 text-[10px] text-yellow-400/40 font-mono">
+                <div className="mt-2 text-xs text-yellow-400/40 font-mono">
                   Wake word initializing...
                 </div>
               )}
@@ -1946,7 +1946,7 @@ export function DesktopUI({
                 className="whitespace-nowrap"
               >
                  <div className="flex flex-col items-center gap-1 group">
-                   <span className="text-[10px] font-black tracking-[0.4em] text-white/40 uppercase group-hover:text-celestial-saturn transition-colors">
+                   <span className="text-xs font-black tracking-[0.4em] text-white/40 uppercase group-hover:text-celestial-saturn transition-colors">
                      {callState === 'idle' ? (t.lumiNeuralCore || 'Lumi Neural Core') : `${callState.toUpperCase()} ${t.sessionActive || 'SESSION'}`}
                    </span>
                    <div className="flex gap-1">
@@ -2047,7 +2047,7 @@ export function DesktopUI({
                         {def.icon}
                       </div>
                     </div>
-                    <span className={`desktop-icon-label ${editMode ? 'bg-black/80 text-white px-2 py-0.5 rounded-full text-[8px]' : ''}`}>{label}</span>
+                    <span className={`desktop-icon-label ${editMode ? 'bg-black/80 text-white px-2 py-0.5 rounded-full text-xs' : ''}`}>{label}</span>
                   </motion.div>
                 );
               })}
@@ -2069,14 +2069,14 @@ export function DesktopUI({
               {notifications.filter(n => !n.read).length > 0 && (
                 <GlassCard className="p-5 rounded-[2rem] space-y-2 border-white/5 bg-black/30 backdrop-blur-3xl cursor-pointer hover:bg-white/[0.06] transition-all" onClick={() => toggleWindow('notifications')}>
                   <div className="flex items-center justify-between">
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-white/30 flex items-center gap-2">
+                    <h4 className="text-xs font-black uppercase tracking-widest text-white/55 flex items-center gap-2">
                       <Bell size={12} className="text-amber-400" /> {t.recent || 'Recent'} ({unreadCount} {t.unread || 'unread'})
                     </h4>
-                    <ChevronRight size={12} className="text-white/20" />
+                    <ChevronRight size={12} className="text-white/45" />
                   </div>
                   <div className="space-y-1">
                     {notifications.filter(n => !n.read).slice(0, 3).map(n => (
-                      <div key={n.id} className="text-[9px] text-white/50 truncate">
+                      <div key={n.id} className="text-[12px] text-white/50 truncate">
                         <span className="text-white/70 font-bold">{n.title}</span> — {n.message}
                       </div>
                     ))}
@@ -2086,12 +2086,12 @@ export function DesktopUI({
 
               {nativeFiles.length > 0 && (
                 <GlassCard className="p-6 w-full md:w-80 rounded-3xl space-y-4 border-white/5 bg-black/10">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-white/20">{t.nativeVaultEntry || 'Native Vault Entry'}</h4>
+                  <h4 className="text-xs font-black uppercase tracking-widest text-white/45">{t.nativeVaultEntry || 'Native Vault Entry'}</h4>
                   <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-2">
                     {nativeFiles.map((file, idx) => (
                       <div key={idx} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-all cursor-pointer group">
                         {file.isDirectory ? <Folder size={14} className="text-celestial-saturn" /> : <FileText size={14} className="text-white/40" />}
-                        <span className="text-[10px] text-white/60 truncate group-hover:text-white transition-colors">{file.name}</span>
+                        <span className="text-xs text-white/60 truncate group-hover:text-white transition-colors">{file.name}</span>
                       </div>
                     ))}
                   </div>
@@ -2114,17 +2114,17 @@ export function DesktopUI({
             <GlassCard className="p-4 rounded-2xl border-white/10 bg-black/70 backdrop-blur-2xl space-y-2">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">{t.liveDeviceLabel || 'Live'} · xiaozhi ⇄ Lumi</span>
+                <span className="text-[12px] font-black text-white/40 uppercase tracking-widest">{t.liveDeviceLabel || 'Live'} · xiaozhi ⇄ Lumi</span>
               </div>
               <div className="space-y-1 max-h-48 overflow-y-auto custom-scrollbar">
                 {mcpActivities.slice(0, 5).map((act) => (
-                  <div key={act.id} className="text-[9px] text-white/60 border-l-2 border-white/10 pl-2">
+                  <div key={act.id} className="text-[12px] text-white/60 border-l-2 border-white/10 pl-2">
                     <span className="text-white/80 font-bold">{act.action === 'create_ppt' ? 'PPT' : act.action === 'chat' ? 'Chat' : act.action}</span>
                     {' · '}
                     <span className={act.status === 'completed' ? 'text-green-400' : act.status === 'failed' ? 'text-red-400' : 'text-celestial-saturn'}>
                       {act.status}
                     </span>
-                    {act.message && <div className="text-white/30 truncate">{act.message.slice(0, 60)}</div>}
+                    {act.message && <div className="text-white/55 truncate">{act.message.slice(0, 60)}</div>}
                     {act.title && <div className="text-white/50">{act.title} ({act.slidesCount} slides)</div>}
                     {act.path && <div className="text-green-400/60 truncate">Saved: {act.path.split('\\').pop()}</div>}
                     {act.toolCalls !== undefined && act.toolCalls > 0 && <div className="text-celestial-saturn/60">Used {act.toolCalls} tool(s)</div>}
@@ -2201,10 +2201,10 @@ export function DesktopUI({
                           <p className="text-white/40 max-w-md text-sm">{t.mediaCenterDesc || 'Voice synthesis, media playback, and audio settings.'}</p>
                        </div>
                        <div className="flex gap-4">
-                          <button onClick={() => { toggleWindow('settings'); setSettingsSection('voice'); }} className="px-6 py-3 bg-celestial-saturn/10 border border-celestial-saturn/30 rounded-2xl text-[10px] font-black uppercase tracking-widest text-celestial-saturn hover:bg-celestial-saturn/20 transition-all">
+                          <button onClick={() => { toggleWindow('settings'); setSettingsSection('voice'); }} className="px-6 py-3 bg-celestial-saturn/10 border border-celestial-saturn/30 rounded-2xl text-xs font-black uppercase tracking-widest text-celestial-saturn hover:bg-celestial-saturn/20 transition-all">
                              {t.voiceForge || 'Voice Forge'}
                           </button>
-                          <button onClick={() => { toggleWindow('settings'); setSettingsSection('music'); }} className="px-6 py-3 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white/40 hover:bg-white/10 transition-all">
+                          <button onClick={() => { toggleWindow('settings'); setSettingsSection('music'); }} className="px-6 py-3 bg-white/5 border border-white/10 rounded-2xl text-xs font-black uppercase tracking-widest text-white/40 hover:bg-white/10 transition-all">
                              {t.mediaServices || 'Media Services'}
                           </button>
                        </div>
@@ -2382,7 +2382,7 @@ function SoundPanel({ t }: { t?: any }) {
         </div>
         <div>
           <h3 className="text-xl font-bold uppercase tracking-tighter text-white/90">{t?.voiceStudio || 'Voice Studio'}</h3>
-          <p className="text-[10px] text-white/30 uppercase tracking-widest">{t?.voiceStudioDesc || 'Cloning & Design'}</p>
+          <p className="text-xs text-white/55 uppercase tracking-widest">{t?.voiceStudioDesc || 'Cloning & Design'}</p>
         </div>
         <div className="ml-auto">
           <VoicePicker t={t} direction="down" refreshTrigger={voiceRefresh} />
@@ -2392,16 +2392,16 @@ function SoundPanel({ t }: { t?: any }) {
       <div className="flex-1 grid grid-cols-2 gap-4 overflow-hidden">
         {/* Left: Clone */}
         <div className="overflow-y-auto scrollbar-hide rounded-2xl bg-white/[0.02] border border-white/5 p-4">
-          <h4 className="text-xs font-black uppercase tracking-widest text-white/30 mb-4">{t?.voiceCloning || 'Voice Cloning'}</h4>
+          <h4 className="text-xs font-black uppercase tracking-widest text-white/55 mb-4">{t?.voiceCloning || 'Voice Cloning'}</h4>
           <VoiceForge t={t} compact onCloneSuccess={() => setVoiceRefresh(n => n + 1)} />
         </div>
 
         {/* Right: Design */}
         <div className="overflow-y-auto scrollbar-hide rounded-2xl bg-white/[0.02] border border-white/5 p-4 space-y-4">
-          <h4 className="text-xs font-black uppercase tracking-widest text-white/30">{t?.voiceDesignTab || 'Voice Design'}</h4>
+          <h4 className="text-xs font-black uppercase tracking-widest text-white/55">{t?.voiceDesignTab || 'Voice Design'}</h4>
           <p className="text-xs text-white/40">{t?.voiceDesignDesc || 'Describe the voice you want, and AI will generate it. No audio sample needed.'}</p>
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase text-white/30">{t?.voiceDesignPrompt || 'Voice Description'}</label>
+            <label className="text-xs font-black uppercase text-white/55">{t?.voiceDesignPrompt || 'Voice Description'}</label>
             <textarea
               value={designPrompt}
               onChange={e => setDesignPrompt(e.target.value)}
@@ -2410,7 +2410,7 @@ function SoundPanel({ t }: { t?: any }) {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase text-white/30">{t?.voiceDesignName || 'Voice Name'}</label>
+            <label className="text-xs font-black uppercase text-white/55">{t?.voiceDesignName || 'Voice Name'}</label>
             <input
               value={designName}
               onChange={e => setDesignName(e.target.value)}
@@ -2452,7 +2452,7 @@ function BatteryIndicator() {
   return (
     <div className="flex items-center gap-1" title={`电池 ${level}%${charging ? ' (充电中)' : ''}`}>
       <Battery size={14} className={level <= 20 ? 'text-red-400' : level <= 50 ? 'text-yellow-400' : ''} />
-      <span className="text-[10px] font-bold">{level}%</span>
+      <span className="text-xs font-bold">{level}%</span>
     </div>
   );
 }
@@ -2464,7 +2464,7 @@ function TopMenuButton({ label, onClick, children }: { label: string; onClick?: 
 
   if (!children) {
     return (
-      <button onClick={onClick} className="text-[10px] font-bold text-white/30 hover:text-white uppercase tracking-widest transition-colors">
+      <button onClick={onClick} className="text-xs font-bold text-white/55 hover:text-white uppercase tracking-widest transition-colors">
         {label}
       </button>
     );
@@ -2475,7 +2475,7 @@ function TopMenuButton({ label, onClick, children }: { label: string; onClick?: 
       <button
         onClick={() => setOpen(!open)}
         onMouseEnter={() => setOpen(true)}
-        className="text-[10px] font-bold text-white/30 hover:text-white uppercase tracking-widest transition-colors"
+        className="text-xs font-bold text-white/55 hover:text-white uppercase tracking-widest transition-colors"
       >{label}</button>
       {open && (
         <div
@@ -2522,7 +2522,7 @@ function ClockWidget({ t, time }: { t?: any; time: Date }) {
         <div className="text-xl font-black text-white/80">
           {today.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </div>
-        <span className="text-[8px] font-bold text-white/30 uppercase tracking-widest">
+        <span className="text-xs font-bold text-white/55 uppercase tracking-widest">
           {days[today.getDay()]}, {months[today.getMonth()]} {today.getDate()}
         </span>
       </GlassCard>
@@ -2539,7 +2539,7 @@ function ClockWidget({ t, time }: { t?: any; time: Date }) {
           </div>
           <div className="grid grid-cols-7 gap-1 mb-2">
             {['S','M','T','W','T','F','S'].map((d, i) => (
-              <span key={i} className="text-[8px] font-bold text-white/20 text-center">{d}</span>
+              <span key={i} className="text-xs font-bold text-white/45 text-center">{d}</span>
             ))}
           </div>
           <div className="grid grid-cols-7 gap-1">
@@ -2547,7 +2547,7 @@ function ClockWidget({ t, time }: { t?: any; time: Date }) {
             {calDays.map(d => (
               <div
                 key={d}
-                className={`text-[10px] text-center py-1 rounded-md font-mono ${
+                className={`text-xs text-center py-1 rounded-md font-mono ${
                   d === today.getDate() ? 'bg-celestial-saturn text-black font-bold' : 'text-white/60 hover:bg-white/10 cursor-pointer'
                 }`}
               >
@@ -2555,7 +2555,7 @@ function ClockWidget({ t, time }: { t?: any; time: Date }) {
               </div>
             ))}
           </div>
-          <div className="mt-3 pt-3 border-t border-white/5 text-[9px] text-white/30 text-center font-mono">
+          <div className="mt-3 pt-3 border-t border-white/5 text-[12px] text-white/55 text-center font-mono">
             {today.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </div>
         </motion.div>
@@ -2594,7 +2594,7 @@ function BatteryWidget({ t }: { t?: any }) {
       >
         <Battery size={20} className={level != null && level <= 20 ? 'text-red-400' : level != null && level <= 50 ? 'text-yellow-400' : 'text-celestial-glow'} />
         <div className="text-xl font-black text-white/80">{level != null ? `${level}%` : '--%'}</div>
-        <span className="text-[8px] font-bold text-white/30 uppercase tracking-widest">
+        <span className="text-xs font-bold text-white/55 uppercase tracking-widest">
           {level == null ? (t?.webMode || 'Web Mode') : charging ? (t?.charging || 'Charging') : (t?.battery || 'Battery')}
         </span>
       </GlassCard>
@@ -2604,28 +2604,28 @@ function BatteryWidget({ t }: { t?: any }) {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           className="absolute top-full mt-2 right-0 z-[80] w-56 p-4 rounded-2xl bg-black/90 backdrop-blur-2xl border border-white/10 shadow-2xl pointer-events-auto"
         >
-          <div className="text-[10px] font-black uppercase tracking-widest text-white/50 mb-3">
+          <div className="text-xs font-black uppercase tracking-widest text-white/50 mb-3">
             {t?.powerUsage || 'Power Usage'}
           </div>
           <div className="space-y-2">
-            <div className="flex justify-between text-[10px]">
+            <div className="flex justify-between text-xs">
               <span className="text-white/40">{t?.currentLevel || 'Current Level'}</span>
               <span className="font-bold text-white/80">{level}%</span>
             </div>
-            <div className="flex justify-between text-[10px]">
+            <div className="flex justify-between text-xs">
               <span className="text-white/40">{t?.status || 'Status'}</span>
               <span className={`font-bold ${charging ? 'text-green-400' : 'text-white/80'}`}>
                 {charging ? (t?.charging || 'Charging') : (t?.onBattery || 'On Battery')}
               </span>
             </div>
             {estHours != null && !charging && (
-              <div className="flex justify-between text-[10px]">
+              <div className="flex justify-between text-xs">
                 <span className="text-white/40">{t?.estRemaining || 'Est. Remaining'}</span>
                 <span className="font-bold text-white/80">~{estHours}h</span>
               </div>
             )}
             {powerDraw != null && (
-              <div className="flex justify-between text-[10px]">
+              <div className="flex justify-between text-xs">
                 <span className="text-white/40">{t?.estPowerDraw || 'Est. Power Draw'}</span>
                 <span className="font-bold text-white/80">~{powerDraw}W</span>
               </div>

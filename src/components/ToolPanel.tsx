@@ -59,7 +59,7 @@ export function ToolPanel({ t }: { t?: any }) {
         </div>
         <div>
           <h2 className="text-sm font-bold text-white/90">{t?.toolControlPanel || 'Tool Control Panel'}</h2>
-          <p className="text-[10px] text-white/30">
+          <p className="text-xs text-white/55">
             {loading ? (t?.loading || 'Loading...') : `${tools.length} ${t?.toolsRegistered || 'tools registered'}`}
           </p>
         </div>
@@ -67,7 +67,7 @@ export function ToolPanel({ t }: { t?: any }) {
 
       <div className="flex-1 p-6 space-y-6">
         {loading ? (
-          <div className="flex items-center justify-center py-12 text-white/30">
+          <div className="flex items-center justify-center py-12 text-white/55">
             <Loader2 size={24} className="animate-spin mr-2" /> {t?.loadingTools || 'Loading tools...'}
           </div>
         ) : (
@@ -77,12 +77,12 @@ export function ToolPanel({ t }: { t?: any }) {
               <div key={section.label} className="space-y-2">
                 <div className="flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full bg-${section.color}-500`} />
-                  <span className="text-[10px] font-black uppercase text-white/30 tracking-wider">
+                  <span className="text-xs font-black uppercase text-white/55 tracking-wider">
                     {t?.[section.label] || section.label} ({section.items.length})
                   </span>
                 </div>
                 {section.items.length === 0 ? (
-                  <p className="text-[10px] text-white/15 italic px-4 py-2">{t?.noToolsInCategory || 'No tools in this category'}</p>
+                  <p className="text-xs text-white/40 italic px-4 py-2">{t?.noToolsInCategory || 'No tools in this category'}</p>
                 ) : (
                 <div className="space-y-1">
                   {section.items.map(tool => {
@@ -102,12 +102,12 @@ export function ToolPanel({ t }: { t?: any }) {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-white/80 font-mono">{tool.name}</span>
-                            <span className={`text-[8px] px-1.5 py-0.5 rounded-md font-black uppercase border ${sec.bg} ${sec.border} ${sec.text}`}>
+                            <span className={`text-xs px-1.5 py-0.5 rounded-md font-black uppercase border ${sec.bg} ${sec.border} ${sec.text}`}>
                               {tool.securityLevel}
                             </span>
-                            <span className="text-[8px] text-white/20 uppercase">{tool.permission}</span>
+                            <span className="text-xs text-white/45 uppercase">{tool.permission}</span>
                           </div>
-                          <p className="text-[10px] text-white/30 mt-0.5 truncate">{tool.description}</p>
+                          <p className="text-xs text-white/55 mt-0.5 truncate">{tool.description}</p>
                         </div>
                         <button
                           onClick={() => toggleTool(tool.name)}

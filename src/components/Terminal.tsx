@@ -173,11 +173,11 @@ export function TerminalWindow({ t: _t, onClose, isActive }: TerminalWindowProps
   return (
     <div className="w-full h-full flex flex-col">
       <div className="flex items-center gap-2 px-4 py-1.5 border-b border-white/5 bg-black/20 shrink-0">
-        <span className="text-[9px] font-black tracking-[0.2em] uppercase text-white/40">Terminal</span>
+        <span className="text-[12px] font-black tracking-[0.2em] uppercase text-white/40">Terminal</span>
         <div className="flex-1" />
         <button
           onClick={handleClose}
-          className="text-[9px] font-bold text-white/30 hover:text-red-400 transition-colors uppercase tracking-widest"
+          className="text-[12px] font-bold text-white/55 hover:text-red-400 transition-colors uppercase tracking-widest"
         >
           Close (Ctrl+D)
         </button>

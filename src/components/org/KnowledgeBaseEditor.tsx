@@ -62,7 +62,7 @@ export function KnowledgeBaseEditor({ articleId, onSaved }: Props) {
 
   if (loading) {
     return (
-      <div className="p-6 text-center text-white/30">
+      <div className="p-6 text-center text-white/55">
         <Loader2 size={24} className="mx-auto animate-spin" />
       </div>
     );
@@ -80,7 +80,7 @@ export function KnowledgeBaseEditor({ articleId, onSaved }: Props) {
           value={title}
           onChange={e => setTitle(e.target.value)}
           placeholder={t.articleTitle || 'Article title...'}
-          className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/20 focus:outline-none focus:border-blue-500/40"
+          className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/45 focus:outline-none focus:border-blue-500/40"
         />
         <select
           value={category}
@@ -106,12 +106,12 @@ export function KnowledgeBaseEditor({ articleId, onSaved }: Props) {
       </div>
 
       <div className="flex items-center gap-2">
-        <Tag size={14} className="text-white/30" />
+        <Tag size={14} className="text-white/55" />
         <input
           value={tags}
           onChange={e => setTags(e.target.value)}
           placeholder={t.tagsCommaSeparated || 'Tags (comma separated)'}
-          className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder:text-white/20 focus:outline-none focus:border-blue-500/40"
+          className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder:text-white/45 focus:outline-none focus:border-blue-500/40"
         />
       </div>
 
@@ -119,7 +119,7 @@ export function KnowledgeBaseEditor({ articleId, onSaved }: Props) {
         value={content}
         onChange={e => setContent(e.target.value)}
         placeholder={t.writeArticleContent || 'Write your article content here... Markdown supported.'}
-        className="w-full h-64 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder:text-white/20 focus:outline-none focus:border-blue-500/40 resize-y font-mono"
+        className="w-full h-64 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder:text-white/45 focus:outline-none focus:border-blue-500/40 resize-y font-mono"
       />
 
       <div className="flex items-center gap-3">

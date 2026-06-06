@@ -37,7 +37,7 @@ export function FoundersSanctuary({ t, user, onBack }: { t: any; user: any; onBa
         className="flex items-center gap-2 text-white/40 hover:text-white transition-colors group"
       >
         <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-        <span className="text-[10px] font-black uppercase tracking-widest">{t.returnToHub || 'Back to Hub'}</span>
+        <span className="text-xs font-black uppercase tracking-widest">{t.returnToHub || 'Back to Hub'}</span>
       </motion.button>
 
       {/* Header Section */}
@@ -48,14 +48,14 @@ export function FoundersSanctuary({ t, user, onBack }: { t: any; user: any; onBa
           className="inline-flex items-center gap-3 px-6 py-2 bg-white/5 border border-white/10 rounded-full"
         >
           <Lock size={14} className="text-celestial-saturn" />
-          <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white/60">{t.restrictedAccess || 'Restricted Access // Sanctuary-Level-7'}</span>
+          <span className="text-xs font-black uppercase tracking-[0.4em] text-white/60">{t.restrictedAccess || 'Restricted Access // Sanctuary-Level-7'}</span>
         </motion.div>
 
         <div className="space-y-4">
           <h1 className="text-7xl font-black tracking-tighter leading-none italic uppercase italic">
             {t.founderVision || "Founder's"} <br /> <span className="text-celestial-saturn text-glow">{t.foundersSanctuary || 'Sanctuary'}</span>
           </h1>
-          <p className="text-xl text-white/30 max-w-2xl mx-auto italic">
+          <p className="text-xl text-white/55 max-w-2xl mx-auto italic">
             {t.sanctuaryHeroDesc || 'The mathematical foundation of Lumi. These archives contain the blueprints for the sovereign neural future.'}
           </p>
         </div>
@@ -76,7 +76,7 @@ export function FoundersSanctuary({ t, user, onBack }: { t: any; user: any; onBa
             </div>
 
             <div className="space-y-6 relative z-10">
-               <div className="text-[10px] font-mono text-celestial-saturn tracking-[0.3em] font-bold">
+               <div className="text-xs font-mono text-celestial-saturn tracking-[0.3em] font-bold">
                  {t.moduleIdLabel || 'MODULE_ID:'} {item.id}
                </div>
 
@@ -86,9 +86,9 @@ export function FoundersSanctuary({ t, user, onBack }: { t: any; user: any; onBa
                <div className="pt-6 flex justify-between items-center border-t border-white/5">
                   <div className="flex items-center gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-celestial-saturn animate-pulse" />
-                    <span className="text-[10px] font-black text-white/40 uppercase">{item.status}</span>
+                    <span className="text-xs font-black text-white/40 uppercase">{item.status}</span>
                   </div>
-                  <button className="text-[8px] font-black text-white/20 hover:text-white transition-colors uppercase tracking-widest border border-white/10 px-4 py-2 rounded-full">
+                  <button className="text-xs font-black text-white/45 hover:text-white transition-colors uppercase tracking-widest border border-white/10 px-4 py-2 rounded-full">
                     {t.openArchive || 'Open Archive'}
                   </button>
                </div>
@@ -99,7 +99,7 @@ export function FoundersSanctuary({ t, user, onBack }: { t: any; user: any; onBa
 
       {/* The Protocol Codex */}
       <section className="glass p-16 rounded-[4rem] border border-white/5 relative overflow-hidden">
-         <div className="absolute top-0 right-0 p-12 text-[120px] font-black text-white/5 leading-none select-none pointer-events-none">
+         <div className="absolute top-0 right-0 p-12 text-[120px] font-black text-white/25 leading-none select-none pointer-events-none">
            {t.codexWatermark || 'CODEX'}
          </div>
 

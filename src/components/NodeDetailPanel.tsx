@@ -149,13 +149,13 @@ export function NodeDetailPanel({
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-bold text-white/90 truncate">{node.title}</h3>
-                <span className="text-[9px] text-white/30 uppercase tracking-wider">
+                <span className="text-[12px] text-white/55 uppercase tracking-wider">
                   {node.type === 'file' ? 'File' : node.type === 'conversation' ? 'Conversation' : node.isBranch ? 'Branch' : 'Memory'} · {node.id.slice(0, 8)}
                 </span>
               </div>
               <button
                 onClick={onClose}
-                className="p-1.5 hover:bg-white/10 rounded-xl text-white/30 hover:text-white transition-colors"
+                className="p-1.5 hover:bg-white/10 rounded-xl text-white/55 hover:text-white transition-colors"
               >
                 <X size={18} />
               </button>
@@ -168,22 +168,22 @@ export function NodeDetailPanel({
                 <>
                   {node.fileData.size && (
                     <div className="space-y-1.5">
-                      <label className="text-[8px] font-bold text-white/20 uppercase tracking-widest">Size</label>
+                      <label className="text-xs font-bold text-white/45 uppercase tracking-widest">Size</label>
                       <p className="text-sm text-white/60">{node.fileData.size}</p>
                     </div>
                   )}
                   {node.fileData.source && (
                     <div className="space-y-1.5">
-                      <label className="text-[8px] font-bold text-white/20 uppercase tracking-widest">Source</label>
-                      <span className="inline-block px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[9px] font-bold text-white/50 uppercase">
+                      <label className="text-xs font-bold text-white/45 uppercase tracking-widest">Source</label>
+                      <span className="inline-block px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[12px] font-bold text-white/50 uppercase">
                         {node.fileData.source}
                       </span>
                     </div>
                   )}
                   {node.fileData.status && (
                     <div className="space-y-1.5">
-                      <label className="text-[8px] font-bold text-white/20 uppercase tracking-widest">Status</label>
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9px] font-bold uppercase ${
+                      <label className="text-xs font-bold text-white/45 uppercase tracking-widest">Status</label>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[12px] font-bold uppercase ${
                         node.fileData.status === 'indexed'
                           ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                           : node.fileData.status === 'indexing'
@@ -197,10 +197,10 @@ export function NodeDetailPanel({
                   )}
                   {node.fileData.agentIds && node.fileData.agentIds.length > 0 && (
                     <div className="space-y-1.5">
-                      <label className="text-[8px] font-bold text-white/20 uppercase tracking-widest">Agents</label>
+                      <label className="text-xs font-bold text-white/45 uppercase tracking-widest">Agents</label>
                       <div className="flex flex-wrap gap-1">
                         {node.fileData.agentIds.map((aid: string) => (
-                          <span key={aid} className="px-2 py-0.5 bg-emerald-500/5 border border-emerald-500/20 rounded-full text-[8px] font-bold text-emerald-400/60 uppercase">{aid.slice(0, 8)}</span>
+                          <span key={aid} className="px-2 py-0.5 bg-emerald-500/5 border border-emerald-500/20 rounded-full text-xs font-bold text-emerald-400/60 uppercase">{aid.slice(0, 8)}</span>
                         ))}
                       </div>
                     </div>
@@ -212,35 +212,35 @@ export function NodeDetailPanel({
               {(node.type === 'memory' || node.type === 'branch') && node.memoryData && (
                 <>
                   <div className="space-y-1.5">
-                    <label className="text-[8px] font-bold text-white/20 uppercase tracking-widest">Content</label>
+                    <label className="text-xs font-bold text-white/45 uppercase tracking-widest">Content</label>
                     <p className="text-sm text-white/75 leading-relaxed bg-white/[0.04] rounded-xl p-3 border border-white/[0.06]">
                       {node.memoryData.content}
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div className="p-3 bg-white/[0.04] rounded-xl border border-white/[0.06]">
-                      <label className="text-[7px] font-bold text-white/15 uppercase tracking-widest">Tier</label>
+                      <label className="text-xs font-bold text-white/40 uppercase tracking-widest">Tier</label>
                       <p className="text-xs font-bold text-white/65 mt-0.5">{TIER_LABELS[node.memoryData.tier || 'episodic'] || node.memoryData.tier}</p>
                     </div>
                     <div className="p-3 bg-white/[0.04] rounded-xl border border-white/[0.06]">
-                      <label className="text-[7px] font-bold text-white/15 uppercase tracking-widest">Type</label>
+                      <label className="text-xs font-bold text-white/40 uppercase tracking-widest">Type</label>
                       <p className="text-xs font-bold text-white/65 mt-0.5 capitalize">{node.memoryData.type || 'unknown'}</p>
                     </div>
                     <div className="p-3 bg-white/[0.04] rounded-xl border border-white/[0.06]">
-                      <label className="text-[7px] font-bold text-white/15 uppercase tracking-widest">Confidence</label>
+                      <label className="text-xs font-bold text-white/40 uppercase tracking-widest">Confidence</label>
                       <p className="text-xs font-bold text-white/65 mt-0.5">{((node.memoryData.confidence || 0) * 100).toFixed(0)}%</p>
                     </div>
                     <div className="p-3 bg-white/[0.04] rounded-xl border border-white/[0.06]">
-                      <label className="text-[7px] font-bold text-white/15 uppercase tracking-widest">Importance</label>
+                      <label className="text-xs font-bold text-white/40 uppercase tracking-widest">Importance</label>
                       <p className="text-xs font-bold text-white/65 mt-0.5">{((node.memoryData.importance || 0) * 100).toFixed(0)}%</p>
                     </div>
                   </div>
                   {node.memoryData.keywords && node.memoryData.keywords.length > 0 && (
                     <div className="space-y-1.5">
-                      <label className="text-[8px] font-bold text-white/20 uppercase tracking-widest">Keywords</label>
+                      <label className="text-xs font-bold text-white/45 uppercase tracking-widest">Keywords</label>
                       <div className="flex flex-wrap gap-1">
                         {node.memoryData.keywords.map((kw: string) => (
-                          <span key={kw} className="px-2 py-0.5 bg-white/5 rounded-full text-[8px] text-white/30">{kw}</span>
+                          <span key={kw} className="px-2 py-0.5 bg-white/5 rounded-full text-xs text-white/55">{kw}</span>
                         ))}
                       </div>
                     </div>
@@ -253,7 +253,7 @@ export function NodeDetailPanel({
                 <>
                   {node.conversationData.summary && (
                     <div className="space-y-1.5">
-                      <label className="text-[8px] font-bold text-white/20 uppercase tracking-widest">Summary</label>
+                      <label className="text-xs font-bold text-white/45 uppercase tracking-widest">Summary</label>
                       <p className="text-sm text-white/75 leading-relaxed bg-white/[0.04] rounded-xl p-3 border border-white/[0.06]">
                         {node.conversationData.summary}
                       </p>
@@ -261,15 +261,15 @@ export function NodeDetailPanel({
                   )}
                   <div className="grid grid-cols-2 gap-2">
                     <div className="p-3 bg-white/[0.04] rounded-xl border border-white/[0.06]">
-                      <label className="text-[7px] font-bold text-white/15 uppercase tracking-widest">Messages</label>
+                      <label className="text-xs font-bold text-white/40 uppercase tracking-widest">Messages</label>
                       <p className="text-xs font-bold text-white/65 mt-0.5">{node.conversationData.messageCount || 0}</p>
                     </div>
                     <div className="p-3 bg-white/[0.04] rounded-xl border border-white/[0.06]">
-                      <label className="text-[7px] font-bold text-white/15 uppercase tracking-widest">Status</label>
+                      <label className="text-xs font-bold text-white/40 uppercase tracking-widest">Status</label>
                       <p className="text-xs font-bold text-white/65 mt-0.5 capitalize">{node.conversationData.status || 'unknown'}</p>
                     </div>
                     <div className="p-3 bg-white/[0.04] rounded-xl border border-white/[0.06]">
-                      <label className="text-[7px] font-bold text-white/15 uppercase tracking-widest">Last Active</label>
+                      <label className="text-xs font-bold text-white/40 uppercase tracking-widest">Last Active</label>
                       <p className="text-xs font-bold text-white/65 mt-0.5">
                         {node.conversationData.lastActiveAt
                           ? new Date(node.conversationData.lastActiveAt).toLocaleDateString()
@@ -277,7 +277,7 @@ export function NodeDetailPanel({
                       </p>
                     </div>
                     <div className="p-3 bg-white/[0.04] rounded-xl border border-white/[0.06]">
-                      <label className="text-[7px] font-bold text-white/15 uppercase tracking-widest">Created</label>
+                      <label className="text-xs font-bold text-white/40 uppercase tracking-widest">Created</label>
                       <p className="text-xs font-bold text-white/65 mt-0.5">
                         {node.conversationData.createdAt
                           ? new Date(node.conversationData.createdAt).toLocaleDateString()
@@ -294,12 +294,12 @@ export function NodeDetailPanel({
               {node.type === 'file' && (
                 <>
                   {onDownload && (
-                    <button onClick={() => onDownload(node.id)} className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-bold text-white/60 transition-colors">
+                    <button onClick={() => onDownload(node.id)} className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-white/60 transition-colors">
                       <Download size={13} /> Download
                     </button>
                   )}
                   {onIngest && (
-                    <button onClick={() => onIngest(node.id)} className="flex items-center gap-1.5 px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-xl text-[10px] font-bold text-amber-400 transition-colors">
+                    <button onClick={() => onIngest(node.id)} className="flex items-center gap-1.5 px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-xl text-xs font-bold text-amber-400 transition-colors">
                       <Brain size={13} /> Ingest
                     </button>
                   )}
@@ -311,12 +311,12 @@ export function NodeDetailPanel({
                     <button onClick={() => {
                       const content = prompt(t.editContentPrompt || 'Edit content:', node.memoryData?.content || '');
                       if (content) onEdit(node.id, content);
-                    }} className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-bold text-white/60 transition-colors">
+                    }} className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-white/60 transition-colors">
                       <Edit3 size={13} /> Edit
                     </button>
                   )}
                   {onToggleProtect && (
-                    <button onClick={() => onToggleProtect(node.id)} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-bold transition-colors ${
+                    <button onClick={() => onToggleProtect(node.id)} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
                       node.isCore ? 'bg-amber-500/10 border border-amber-500/20 text-amber-400' : 'bg-white/5 hover:bg-white/10 text-white/60'
                     }`}>
                       {node.isCore ? <Shield size={13} /> : <ShieldOff size={13} />}
@@ -327,7 +327,7 @@ export function NodeDetailPanel({
                     <select
                       value={node.memoryData?.tier || 'episodic'}
                       onChange={e => onChangeTier(node.id, e.target.value)}
-                      className="bg-white/5 border border-white/10 rounded-xl px-2 py-2 text-[10px] font-bold uppercase appearance-none cursor-pointer text-white/50"
+                      className="bg-white/5 border border-white/10 rounded-xl px-2 py-2 text-xs font-bold uppercase appearance-none cursor-pointer text-white/50"
                     >
                       {Object.entries(TIER_LABELS).map(([k, v]) => (
                         <option key={k} value={k}>{v}</option>
@@ -337,7 +337,7 @@ export function NodeDetailPanel({
                 </>
               )}
               <div className="flex-1" />
-              <button onClick={() => onDelete(node.id)} className="flex items-center gap-1.5 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-xl text-[10px] font-bold text-red-400 transition-colors">
+              <button onClick={() => onDelete(node.id)} className="flex items-center gap-1.5 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-xl text-xs font-bold text-red-400 transition-colors">
                 <Trash2 size={13} /> Delete
               </button>
             </div>

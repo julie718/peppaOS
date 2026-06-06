@@ -126,16 +126,16 @@ export function WebPlatform({
                                 <div key={i} className="w-2.5 h-2.5 rounded-full bg-celestial-saturn animate-pulse shadow-[0_0_12px_#ffcc00]" style={{ animationDelay: `${i * 0.3}s` }} />
                              ))}
                           </div>
-                          <span className="text-[11px] font-black uppercase tracking-[0.2em] text-white/90">{t.activeNodesLabel || 'Active Nodes'}: {t.nodeCount || '42,901'}</span>
+                          <span className="text-xs font-black uppercase tracking-[0.2em] text-white/90">{t.activeNodesLabel || 'Active Nodes'}: {t.nodeCount || '42,901'}</span>
                           <div className="w-px h-3 bg-white/20 mx-1" />
-                          <span className="text-[11px] font-black uppercase tracking-[0.2em] text-celestial-saturn">{user ? (user.role === 'admin' ? (t.foundingArchitect || 'Founding Architect') : (t.verifiedNode || 'Verified Node')) : (t.verified || 'Verified')}</span>
+                          <span className="text-xs font-black uppercase tracking-[0.2em] text-celestial-saturn">{user ? (user.role === 'admin' ? (t.foundingArchitect || 'Founding Architect') : (t.verifiedNode || 'Verified Node')) : (t.verified || 'Verified')}</span>
                        </div>
                        
                        <div className="flex gap-8">
-                          <button onClick={() => setActiveTab('solutions')} className="text-[10px] font-bold text-white/40 hover:text-celestial-saturn uppercase tracking-[0.3em] transition-all border-b border-transparent hover:border-celestial-saturn/60 pb-1">
+                          <button onClick={() => setActiveTab('solutions')} className="text-xs font-bold text-white/40 hover:text-celestial-saturn uppercase tracking-[0.3em] transition-all border-b border-transparent hover:border-celestial-saturn/60 pb-1">
                              Core Vision • 核心愿景
                           </button>
-                          <button onClick={() => setActiveTab('founders')} className="text-[10px] font-bold text-white/40 hover:text-celestial-saturn uppercase tracking-[0.3em] transition-all border-b border-transparent hover:border-celestial-saturn/60 pb-1">
+                          <button onClick={() => setActiveTab('founders')} className="text-xs font-bold text-white/40 hover:text-celestial-saturn uppercase tracking-[0.3em] transition-all border-b border-transparent hover:border-celestial-saturn/60 pb-1">
                              Founder's Sanctuary • 创始人圣殿
                           </button>
                        </div>

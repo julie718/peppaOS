@@ -25,7 +25,7 @@ export function VoiceCallButton({ callState, audioLevel, onStart, onEnd, hasVoic
     thinking: { icon: <Loader2 size={20} className="animate-spin" />, color: 'bg-celestial-mars/10 text-celestial-mars border-celestial-mars/30', label: t.callThinking || 'Thinking' },
     speaking: { icon: <Volume2 size={20} />, color: 'bg-celestial-glow/10 text-celestial-glow border-celestial-glow/30', label: t.callSpeaking || 'Speaking' },
     queued: { icon: <Loader2 size={20} className="animate-spin" />, color: 'bg-purple-500/10 text-purple-400 border-purple-500/30', label: t.callQueued || 'Queued' },
-    passive: { icon: <motion.div animate={{ opacity: [0.15, 0.35, 0.15] }} transition={{ duration: 3, repeat: Infinity }}><Mic size={20} /></motion.div>, color: 'bg-white/5 text-white/20 border-white/5', label: t.callPassive || 'Passive' },
+    passive: { icon: <motion.div animate={{ opacity: [0.15, 0.35, 0.15] }} transition={{ duration: 3, repeat: Infinity }}><Mic size={20} /></motion.div>, color: 'bg-white/5 text-white/45 border-white/5', label: t.callPassive || 'Passive' },
   };
 
   const config = stateConfig[callState];
@@ -73,7 +73,7 @@ export function VoiceCallButton({ callState, audioLevel, onStart, onEnd, hasVoic
             exit={{ opacity: 0, y: 4 }}
             className="absolute -bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap"
           >
-            <span className="text-[9px] font-bold uppercase tracking-widest text-white/40">
+            <span className="text-[12px] font-bold uppercase tracking-widest text-white/40">
               {config.label}
             </span>
           </motion.div>

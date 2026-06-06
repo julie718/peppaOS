@@ -42,10 +42,10 @@ export function VoiceProviderSwitch({ t }: { t?: any }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-black uppercase tracking-widest text-white/40">{t?.sttProvider || 'STT'}</span>
+        <span className="text-xs font-black uppercase tracking-widest text-white/40">{t?.sttProvider || 'STT'}</span>
         <div className="flex items-center gap-1">
           {active.stt === 'local-whisper' ? <Cpu size={12} className="text-emerald-400" /> : <Cloud size={12} className={active.stt === 'ark' ? 'text-cyan-400' : 'text-blue-400'} />}
-          <span className="text-[9px] font-mono text-white/30">{active.stt}</span>
+          <span className="text-[12px] font-mono text-white/55">{active.stt}</span>
         </div>
       </div>
       <div className="flex gap-2">
@@ -53,7 +53,7 @@ export function VoiceProviderSwitch({ t }: { t?: any }) {
           <button
             key={o.value}
             onClick={() => save(o.value, pref.tts)}
-            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
               pref.stt === o.value
                 ? 'bg-celestial-saturn text-black'
                 : 'bg-white/5 text-white/40 hover:bg-white/10'
@@ -63,10 +63,10 @@ export function VoiceProviderSwitch({ t }: { t?: any }) {
       </div>
 
       <div className="flex items-center justify-between mt-4">
-        <span className="text-[10px] font-black uppercase tracking-widest text-white/40">{t?.ttsProvider || 'TTS'}</span>
+        <span className="text-xs font-black uppercase tracking-widest text-white/40">{t?.ttsProvider || 'TTS'}</span>
         <div className="flex items-center gap-1">
           {active.tts === 'gptsovits' ? <Cpu size={12} className="text-emerald-400" /> : <Cloud size={12} className={active.tts === 'ark' ? 'text-cyan-400' : 'text-blue-400'} />}
-          <span className="text-[9px] font-mono text-white/30">{active.tts}</span>
+          <span className="text-[12px] font-mono text-white/55">{active.tts}</span>
         </div>
       </div>
       <div className="flex gap-2">
@@ -74,7 +74,7 @@ export function VoiceProviderSwitch({ t }: { t?: any }) {
           <button
             key={o.value}
             onClick={() => save(pref.stt, o.value)}
-            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
               pref.tts === o.value
                 ? 'bg-celestial-saturn text-black'
                 : 'bg-white/5 text-white/40 hover:bg-white/10'

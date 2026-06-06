@@ -36,7 +36,7 @@ export const ContextMenu: React.FC<Props> = ({ menu, items, onAction }) => {
               >
                 <span className="font-medium">{item.label}</span>
                 {item.shortcut && (
-                  <span className="text-[10px] text-white/20 font-mono ml-6">{item.shortcut}</span>
+                  <span className="text-xs text-white/45 font-mono ml-6">{item.shortcut}</span>
                 )}
               </button>
             );

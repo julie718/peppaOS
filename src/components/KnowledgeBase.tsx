@@ -278,7 +278,7 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
               >
                 <div className="flex flex-col items-center gap-4">
                   <Loader2 size={40} className="animate-spin text-amber-400" />
-                  <span className="text-[11px] font-black uppercase tracking-[0.3em] text-white/30">{t.awakening || 'Awakening...'}</span>
+                  <span className="text-xs font-black uppercase tracking-[0.3em] text-white/55">{t.awakening || 'Awakening...'}</span>
                 </div>
               </motion.div>
             )}
@@ -290,17 +290,17 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
               {/* Left: title */}
               <div className="flex items-center gap-3 bg-black/40 backdrop-blur-xl border border-white/[0.08] rounded-2xl px-4 py-2">
                 <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shadow-[0_0_8px_rgba(251,191,36,0.5)]" />
-                <span className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em]">智库</span>
+                <span className="text-xs font-black text-white/50 uppercase tracking-[0.2em]">智库</span>
               </div>
 
               {/* Search */}
               <div className="relative flex items-center gap-2 bg-black/40 backdrop-blur-xl border border-white/[0.08] rounded-2xl px-4 py-2 flex-1 max-w-[320px]">
-                <Search size={13} className="text-white/20 shrink-0" />
+                <Search size={13} className="text-white/45 shrink-0" />
                 <input
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder={t.searchMemories || 'Search memories...'}
-                  className="bg-transparent text-[11px] text-white/70 placeholder:text-white/20 outline-none flex-1 min-w-0"
+                  className="bg-transparent text-xs text-white/70 placeholder:text-white/45 outline-none flex-1 min-w-0"
                 />
                 <AnimatePresence>
                   {search.trim() && (
@@ -311,7 +311,7 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
                       className="absolute top-full left-0 right-0 mt-2 bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl"
                     >
                       {searchResults.length === 0 ? (
-                        <div className="px-4 py-3 text-[10px] text-white/30">{t.noMatchesFound || 'No matches found'}</div>
+                        <div className="px-4 py-3 text-xs text-white/55">{t.noMatchesFound || 'No matches found'}</div>
                       ) : (
                         searchResults.map(m => (
                           <button
@@ -320,7 +320,7 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
                             className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-white/5 transition-colors group"
                           >
                             <ArrowRight size={12} className="text-amber-400/50 shrink-0 group-hover:text-amber-400 transition-colors" />
-                            <span className="text-[11px] text-white/60 group-hover:text-white/80 transition-colors truncate">
+                            <span className="text-xs text-white/60 group-hover:text-white/80 transition-colors truncate">
                               {m.content.slice(0, 60)}
                             </span>
                           </button>
@@ -344,7 +344,7 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
-                  className="flex items-center gap-1.5 bg-black/40 backdrop-blur-xl border border-green-500/20 rounded-xl px-3 py-2 text-[10px] font-bold text-green-400/70 hover:text-green-300 hover:border-green-400/40 transition-all"
+                  className="flex items-center gap-1.5 bg-black/40 backdrop-blur-xl border border-green-500/20 rounded-xl px-3 py-2 text-xs font-bold text-green-400/70 hover:text-green-300 hover:border-green-400/40 transition-all"
                 >
                   {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
                   {t.kbImport || 'Import'}
@@ -352,7 +352,7 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
                 <button
                   onClick={handleAutoOrganize}
                   disabled={organizing}
-                  className="flex items-center gap-1.5 bg-black/40 backdrop-blur-xl border border-cyan-500/20 rounded-xl px-3 py-2 text-[10px] font-bold text-cyan-400/70 hover:text-cyan-300 hover:border-cyan-400/40 transition-all"
+                  className="flex items-center gap-1.5 bg-black/40 backdrop-blur-xl border border-cyan-500/20 rounded-xl px-3 py-2 text-xs font-bold text-cyan-400/70 hover:text-cyan-300 hover:border-cyan-400/40 transition-all"
                 >
                   {organizing ? <Loader2 size={13} className="animate-spin" /> : <Network size={13} />}
                   {t.kbOrganize || 'Organize'}
@@ -360,7 +360,7 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
                 <button
                   onClick={handleConsolidate}
                   disabled={consolidating}
-                  className="flex items-center gap-1.5 bg-black/40 backdrop-blur-xl border border-emerald-500/20 rounded-xl px-3 py-2 text-[10px] font-bold text-emerald-400/70 hover:text-emerald-300 hover:border-emerald-400/40 transition-all"
+                  className="flex items-center gap-1.5 bg-black/40 backdrop-blur-xl border border-emerald-500/20 rounded-xl px-3 py-2 text-xs font-bold text-emerald-400/70 hover:text-emerald-300 hover:border-emerald-400/40 transition-all"
                 >
                   {consolidating ? <Loader2 size={13} className="animate-spin" /> : <GitMerge size={13} />}
                   {t.kbMerge || 'Merge'}
@@ -368,7 +368,7 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
                 <button
                   onClick={handleSelfReflect}
                   disabled={reflecting}
-                  className="flex items-center gap-1.5 bg-black/40 backdrop-blur-xl border border-violet-500/20 rounded-xl px-3 py-2 text-[10px] font-bold text-violet-400/70 hover:text-violet-300 hover:border-violet-400/40 transition-all"
+                  className="flex items-center gap-1.5 bg-black/40 backdrop-blur-xl border border-violet-500/20 rounded-xl px-3 py-2 text-xs font-bold text-violet-400/70 hover:text-violet-300 hover:border-violet-400/40 transition-all"
                 >
                   {reflecting ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
                   {t.kbReflect || 'Reflect'}
@@ -376,7 +376,7 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
                 <button
                   onClick={handleAnalyze}
                   disabled={analyzing}
-                  className="flex items-center gap-1.5 bg-black/40 backdrop-blur-xl border border-amber-500/20 rounded-xl px-3 py-2 text-[10px] font-bold text-amber-400/70 hover:text-amber-300 hover:border-amber-400/40 transition-all"
+                  className="flex items-center gap-1.5 bg-black/40 backdrop-blur-xl border border-amber-500/20 rounded-xl px-3 py-2 text-xs font-bold text-amber-400/70 hover:text-amber-300 hover:border-amber-400/40 transition-all"
                 >
                   {analyzing ? <Loader2 size={13} className="animate-spin" /> : <TrendingUp size={13} />}
                   {t.kbPatterns || 'Patterns'}
@@ -386,11 +386,11 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
               {/* Right: close + stats */}
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-3 bg-black/40 backdrop-blur-xl border border-white/[0.08] rounded-2xl px-4 py-2">
-                  <span className="text-[9px] font-bold text-blue-400/60">{totalFiles} {t.kbFiles || 'files'}</span>
+                  <span className="text-[12px] font-bold text-blue-400/60">{totalFiles} {t.kbFiles || 'files'}</span>
                   <span className="w-px h-3 bg-white/[0.08]" />
-                  <span className="text-[9px] font-bold text-amber-400/60">{totalMemories} {t.kbMem || 'mem'}</span>
+                  <span className="text-[12px] font-bold text-amber-400/60">{totalMemories} {t.kbMem || 'mem'}</span>
                   <span className="w-px h-3 bg-white/[0.08]" />
-                  <span className="text-[9px] font-bold text-cyan-400/60">{totalBranches} {t.kbBranches || 'branches'}</span>
+                  <span className="text-[12px] font-bold text-cyan-400/60">{totalBranches} {t.kbBranches || 'branches'}</span>
                 </div>
                 <button
                   onClick={onClose}
@@ -426,7 +426,7 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
 
           {/* Bottom hint */}
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-            <span className="text-[9px] font-bold text-white/15 uppercase tracking-[0.15em] bg-black/30 px-4 py-1.5 rounded-full border border-white/[0.04]">
+            <span className="text-[12px] font-bold text-white/40 uppercase tracking-[0.15em] bg-black/30 px-4 py-1.5 rounded-full border border-white/[0.04]">
               {t.kbEscHint || 'ESC to close · Click nodes to inspect · Drag to rotate'}
             </span>
           </div>

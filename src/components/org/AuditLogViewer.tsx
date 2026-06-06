@@ -112,30 +112,30 @@ export function AuditLogViewer() {
           className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-end gap-3"
         >
           <div className="flex-1">
-            <label className="text-white/30 text-xs block mb-1">User ID</label>
+            <label className="text-white/55 text-xs block mb-1">User ID</label>
             <input
               value={filters.userId}
               onChange={e => setFilters(f => ({ ...f, userId: e.target.value }))}
               placeholder="Filter by user..."
-              className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder:text-white/20 focus:outline-none"
+              className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder:text-white/45 focus:outline-none"
             />
           </div>
           <div className="flex-1">
-            <label className="text-white/30 text-xs block mb-1">Action</label>
+            <label className="text-white/55 text-xs block mb-1">Action</label>
             <input
               value={filters.action}
               onChange={e => setFilters(f => ({ ...f, action: e.target.value }))}
               placeholder="e.g. template.create..."
-              className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder:text-white/20 focus:outline-none"
+              className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder:text-white/45 focus:outline-none"
             />
           </div>
           <div className="flex-1">
-            <label className="text-white/30 text-xs block mb-1">Resource Type</label>
+            <label className="text-white/55 text-xs block mb-1">Resource Type</label>
             <input
               value={filters.resourceType}
               onChange={e => setFilters(f => ({ ...f, resourceType: e.target.value }))}
               placeholder="e.g. agent_template..."
-              className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder:text-white/20 focus:outline-none"
+              className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder:text-white/45 focus:outline-none"
             />
           </div>
           <Button onClick={handleFilter} className="bg-amber-600 hover:bg-amber-500 text-white rounded-lg flex items-center gap-1">
@@ -146,9 +146,9 @@ export function AuditLogViewer() {
 
       {/* Entries */}
       {loading ? (
-        <div className="text-center py-12 text-white/30"><Loader2 size={24} className="mx-auto animate-spin" /></div>
+        <div className="text-center py-12 text-white/55"><Loader2 size={24} className="mx-auto animate-spin" /></div>
       ) : entries.length === 0 ? (
-        <div className="text-center py-12 text-white/30">
+        <div className="text-center py-12 text-white/55">
           <ScrollText size={32} className="mx-auto mb-2 opacity-30" />
           No audit entries found
         </div>
@@ -161,20 +161,20 @@ export function AuditLogViewer() {
                 key={entry.id}
                 className="bg-white/5 border border-white/5 rounded-lg px-4 py-3 flex items-center gap-4 hover:bg-white/[0.07] transition-colors"
               >
-                <Clock size={12} className="text-white/20 flex-shrink-0" />
-                <span className="text-white/20 text-xs font-mono min-w-[140px]">
+                <Clock size={12} className="text-white/45 flex-shrink-0" />
+                <span className="text-white/45 text-xs font-mono min-w-[140px]">
                   {new Date(entry.timestamp).toLocaleString()}
                 </span>
                 <span className={`text-xs font-medium min-w-[160px] ${actionColor(entry.action)}`}>
                   {entry.action}
                 </span>
-                <div className="flex items-center gap-1 text-white/30 text-xs min-w-[120px]">
+                <div className="flex items-center gap-1 text-white/55 text-xs min-w-[120px]">
                   <User size={10} /> {entry.userId.slice(0, 10)}...
                 </div>
-                <div className="flex items-center gap-1 text-white/30 text-xs min-w-[120px]">
+                <div className="flex items-center gap-1 text-white/55 text-xs min-w-[120px]">
                   <FileText size={10} /> {entry.resourceType}
                 </div>
-                <span className="text-white/20 text-xs font-mono flex-1 truncate">
+                <span className="text-white/45 text-xs font-mono flex-1 truncate">
                   {Object.keys(details).length > 0 ? JSON.stringify(details).slice(0, 60) : '-'}
                 </span>
               </div>

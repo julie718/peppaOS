@@ -161,30 +161,30 @@ export function AvatarStudio({
           <Brush size={18} className="text-cyan-400" />
           <div>
             <h2 className="text-sm font-black text-white/90 uppercase tracking-wider">形象设计室</h2>
-            <p className="text-[10px] text-white/30 font-mono">Avatar Design Studio</p>
+            <p className="text-xs text-white/55 font-mono">Avatar Design Studio</p>
           </div>
         </div>
         <div className="flex items-center gap-2 bg-white/5 rounded-xl p-1">
           <button
             onClick={() => setTab('gallery')}
-            className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${
-              tab === 'gallery' ? 'bg-cyan-500/20 text-cyan-400' : 'text-white/30 hover:text-white/50'
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all ${
+              tab === 'gallery' ? 'bg-cyan-500/20 text-cyan-400' : 'text-white/55 hover:text-white/50'
             }`}
           >
             形象画廊
           </button>
           <button
             onClick={() => setTab('generate')}
-            className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${
-              tab === 'generate' ? 'bg-fuchsia-500/20 text-fuchsia-400' : 'text-white/30 hover:text-white/50'
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all ${
+              tab === 'generate' ? 'bg-fuchsia-500/20 text-fuchsia-400' : 'text-white/55 hover:text-white/50'
             }`}
           >
             AI 定制
           </button>
           <button
             onClick={() => setTab('wardrobe')}
-            className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${
-              tab === 'wardrobe' ? 'bg-emerald-500/20 text-emerald-400' : 'text-white/30 hover:text-white/50'
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all ${
+              tab === 'wardrobe' ? 'bg-emerald-500/20 text-emerald-400' : 'text-white/55 hover:text-white/50'
             }`}
           >
             <Shirt size={12} className="inline mr-1" /> 装扮
@@ -197,7 +197,7 @@ export function AvatarStudio({
         <div className="w-72 flex-shrink-0 border-r border-white/5 overflow-y-auto custom-scrollbar p-4">
           {tab === 'gallery' ? (
             <div className="space-y-2">
-              <p className="text-[9px] font-bold uppercase tracking-wider text-white/20 mb-3">内置形象</p>
+              <p className="text-[12px] font-bold uppercase tracking-wider text-white/45 mb-3">内置形象</p>
               {pets.map(pet => (
                 <div key={pet.id} className="relative group/pet">
                   <button
@@ -218,7 +218,7 @@ export function AvatarStudio({
                         {PET_ICONS[pet.id] && <span className="scale-75 inline-block">{PET_ICONS[pet.id]}</span>}
                         {pet.name}
                       </div>
-                      <p className="text-[9px] text-white/30 truncate">{PET_DESCS[pet.id]?.slice(0, 20)}</p>
+                      <p className="text-[12px] text-white/55 truncate">{PET_DESCS[pet.id]?.slice(0, 20)}</p>
                     </div>
                     {activePet.id === pet.id && (
                       <Check size={14} className="text-cyan-400 flex-shrink-0" />
@@ -238,7 +238,7 @@ export function AvatarStudio({
               <input ref={importRef} type="file" accept=".json" onChange={handleImport} className="hidden" />
               <button
                 onClick={() => importRef.current?.click()}
-                className="w-full flex items-center justify-center gap-2 p-3 bg-white/5 border border-dashed border-white/10 rounded-xl text-[10px] font-bold text-white/20 hover:text-white/40 hover:border-white/20 transition-all"
+                className="w-full flex items-center justify-center gap-2 p-3 bg-white/5 border border-dashed border-white/10 rounded-xl text-xs font-bold text-white/45 hover:text-white/40 hover:border-white/20 transition-all"
               >
                 <Upload size={12} />
                 导入社区宠物
@@ -251,19 +251,19 @@ export function AvatarStudio({
             />
           ) : (
             <div className="space-y-4">
-              <p className="text-[9px] font-bold uppercase tracking-wider text-white/20">AI 形象生成</p>
+              <p className="text-[12px] font-bold uppercase tracking-wider text-white/45">AI 形象生成</p>
               <div className="space-y-3">
                 {/* AI Mode Toggle */}
                 <div className="flex items-center gap-2 p-2 bg-white/5 rounded-xl">
                   <button
                     onClick={() => setAiMode(false)}
-                    className={`flex-1 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${!aiMode ? 'bg-cyan-500/20 text-cyan-400' : 'text-white/20 hover:text-white/40'}`}
+                    className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all ${!aiMode ? 'bg-cyan-500/20 text-cyan-400' : 'text-white/45 hover:text-white/40'}`}
                   >
                     <Wand2 size={12} className="inline mr-1" /> 程序生成
                   </button>
                   <button
                     onClick={() => setAiMode(true)}
-                    className={`flex-1 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${aiMode ? 'bg-fuchsia-500/20 text-fuchsia-400' : 'text-white/20 hover:text-white/40'}`}
+                    className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all ${aiMode ? 'bg-fuchsia-500/20 text-fuchsia-400' : 'text-white/45 hover:text-white/40'}`}
                   >
                     <Sparkles size={12} className="inline mr-1" /> AI 增强
                   </button>
@@ -272,7 +272,7 @@ export function AvatarStudio({
                   value={genPrompt}
                   onChange={e => setGenPrompt(e.target.value)}
                   placeholder="描述你想要的桌面宠物，例如：一只戴红色围巾的白色小猫，像素风，可爱的..."
-                  className="w-full h-32 bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-white/70 placeholder:text-white/15 focus:outline-none focus:border-fuchsia-500/20 resize-none"
+                  className="w-full h-32 bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-white/70 placeholder:text-white/40 focus:outline-none focus:border-fuchsia-500/20 resize-none"
                 />
                 <button
                   onClick={handleGenerate}
@@ -283,7 +283,7 @@ export function AvatarStudio({
                   {generating ? '生成中...' : '开始生成'}
                 </button>
               </div>
-              <div className="p-3 bg-amber-500/5 border border-amber-500/15 rounded-xl text-[9px] text-amber-300/60 leading-relaxed">
+              <div className="p-3 bg-amber-500/5 border border-amber-500/15 rounded-xl text-[12px] text-amber-300/60 leading-relaxed">
                 AI 生成的形象为原创版权，可放心商用。生成需约 30 秒，请耐心等待。
               </div>
             </div>
@@ -312,7 +312,7 @@ export function AvatarStudio({
           {/* Pet Info */}
           <div className="text-center space-y-1">
             <h3 className="text-lg font-bold text-white/80">{activePet.name}</h3>
-            <p className="text-[10px] text-white/30 font-mono">by {activePet.author}</p>
+            <p className="text-xs text-white/55 font-mono">by {activePet.author}</p>
             <p className="text-xs text-white/40 max-w-xs">{PET_DESCS[activePet.id] || ''}</p>
           </div>
 
@@ -322,10 +322,10 @@ export function AvatarStudio({
               <button
                 key={anim}
                 onClick={() => { setPreviewAnim(anim); setAnimKey(k => k + 1); }}
-                className={`px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase transition-all ${
+                className={`px-3 py-1.5 rounded-lg text-[12px] font-bold uppercase transition-all ${
                   previewAnim === anim
                     ? 'bg-cyan-500/20 border border-cyan-500/30 text-cyan-400'
-                    : 'bg-white/5 border border-white/5 text-white/30 hover:bg-white/10'
+                    : 'bg-white/5 border border-white/5 text-white/55 hover:bg-white/10'
                 }`}
               >
                 {anim === 'idle' ? '待机' : anim === 'run' ? '奔跑' : anim === 'wave' ? '挥手' : anim === 'jump' ? '跳跃' : anim === 'waiting' ? '等待' : anim}
@@ -333,7 +333,7 @@ export function AvatarStudio({
             ))}
             <button
               onClick={() => setAnimKey(k => k + 1)}
-              className="p-1.5 rounded-lg bg-white/5 border border-white/5 text-white/30 hover:bg-white/10 transition-all"
+              className="p-1.5 rounded-lg bg-white/5 border border-white/5 text-white/55 hover:bg-white/10 transition-all"
             >
               <RotateCcw size={12} />
             </button>
@@ -344,7 +344,7 @@ export function AvatarStudio({
             {onResetToSphere && selectedPetId && (
               <button
                 onClick={() => onResetToSphere()}
-                className="flex items-center gap-2 px-5 py-3 bg-white/5 border border-white/10 rounded-2xl text-sm font-bold text-white/30 hover:text-white/60 hover:bg-white/10 transition-all"
+                className="flex items-center gap-2 px-5 py-3 bg-white/5 border border-white/10 rounded-2xl text-sm font-bold text-white/55 hover:text-white/60 hover:bg-white/10 transition-all"
               >
                 还原默认圆球
               </button>
@@ -402,13 +402,13 @@ function WardrobePanel({
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <Shirt size={14} className="text-emerald-400" />
-        <p className="text-[10px] font-black uppercase tracking-wider text-white/50">配件装扮</p>
-        <span className="text-[9px] text-white/20">({equipped.length} 件)</span>
+        <p className="text-xs font-black uppercase tracking-wider text-white/50">配件装扮</p>
+        <span className="text-[12px] text-white/45">({equipped.length} 件)</span>
       </div>
 
       {categories.map(cat => (
         <div key={cat} className="space-y-1.5">
-          <p className="text-[8px] font-bold uppercase tracking-widest text-white/15">
+          <p className="text-xs font-bold uppercase tracking-widest text-white/40">
             {CATEGORY_LABELS[cat] || cat}
           </p>
           <div className="grid grid-cols-2 gap-1.5">
@@ -427,10 +427,10 @@ function WardrobePanel({
                   <div className="flex items-center gap-2">
                     {active && <Check size={10} className="text-emerald-400 flex-shrink-0" />}
                     <div className="min-w-0">
-                      <div className={`text-[10px] font-bold truncate ${active ? 'text-emerald-400' : 'text-white/50'}`}>
+                      <div className={`text-xs font-bold truncate ${active ? 'text-emerald-400' : 'text-white/50'}`}>
                         {acc.nameCN}
                       </div>
-                      <div className="text-[8px] text-white/15 truncate">{acc.name}</div>
+                      <div className="text-xs text-white/40 truncate">{acc.name}</div>
                     </div>
                   </div>
                 </button>
@@ -443,7 +443,7 @@ function WardrobePanel({
       {equipped.length > 0 && (
         <button
           onClick={() => onChange([])}
-          className="w-full p-2 bg-white/5 border border-white/5 rounded-xl text-[9px] text-white/20 hover:text-white/40 hover:bg-white/10 transition-all"
+          className="w-full p-2 bg-white/5 border border-white/5 rounded-xl text-[12px] text-white/45 hover:text-white/40 hover:bg-white/10 transition-all"
         >
           卸下全部
         </button>

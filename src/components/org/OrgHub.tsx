@@ -90,10 +90,10 @@ export function OrgHub() {
             {t.orgWorkSpace}
           </h3>
           {orgConnection?.orgName && (
-            <p className="text-white/30 text-[10px]">{orgConnection.orgName}</p>
+            <p className="text-white/55 text-xs">{orgConnection.orgName}</p>
           )}
           {/* Role badge */}
-          <span className={`text-[10px] px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${roleInfo.color}`}>
+          <span className={`text-xs px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${roleInfo.color}`}>
             {roleInfo.icon} {roleInfo.label}
           </span>
           {/* Domain switch */}

@@ -89,12 +89,12 @@ export function TemplateMarketplace() {
       {/* Filters */}
       <div className="flex items-center gap-3">
         <div className="relative flex-1">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/55" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder={t.searchTemplates || 'Search templates...'}
-            className="w-full pl-9 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder:text-white/20 focus:outline-none focus:border-purple-500/40"
+            className="w-full pl-9 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder:text-white/45 focus:outline-none focus:border-purple-500/40"
           />
         </div>
         <select
@@ -109,9 +109,9 @@ export function TemplateMarketplace() {
 
       {/* Grid */}
       {loading ? (
-        <div className="text-center py-12 text-white/30"><Loader2 size={24} className="mx-auto animate-spin" /></div>
+        <div className="text-center py-12 text-white/55"><Loader2 size={24} className="mx-auto animate-spin" /></div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-12 text-white/30">
+        <div className="text-center py-12 text-white/55">
           <Package size={32} className="mx-auto mb-2 opacity-30" />
           {t.noTemplatesFound || 'No templates found'}
         </div>
@@ -127,7 +127,7 @@ export function TemplateMarketplace() {
             >
               <div className="flex items-start justify-between mb-3">
                 <span className="text-2xl">{template.icon || 'Bot'}</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400">
+                <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400">
                   v{template.version}
                 </span>
               </div>
@@ -136,10 +136,10 @@ export function TemplateMarketplace() {
               </h3>
               <p className="text-white/40 text-xs mt-1 line-clamp-2">{template.description}</p>
               <div className="flex items-center gap-3 mt-3">
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-white/40 flex items-center gap-1">
+                <span className="text-xs px-2 py-0.5 rounded-full bg-white/5 text-white/40 flex items-center gap-1">
                   <Tag size={10} /> {template.category}
                 </span>
-                <span className="text-[10px] text-white/30 flex items-center gap-1">
+                <span className="text-xs text-white/55 flex items-center gap-1">
                   <Download size={10} /> {template.downloadCount}
                 </span>
               </div>

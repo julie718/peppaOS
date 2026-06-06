@@ -56,11 +56,11 @@ export function ReminderWidget({ onOpenFull }: { onOpenFull: () => void }) {
         className="flex items-center justify-between cursor-pointer"
         onClick={onOpenFull}
       >
-        <h4 className="text-[10px] font-black uppercase tracking-widest text-white/30 flex items-center gap-2">
+        <h4 className="text-xs font-black uppercase tracking-widest text-white/55 flex items-center gap-2">
           <Clock size={12} className="text-amber-400" />
           提醒 {reminders.length > 0 ? `(${reminders.length})` : ''}
         </h4>
-        <span className="text-white/10 text-[9px] hover:text-white/30">查看全部</span>
+        <span className="text-white/35 text-[12px] hover:text-white/55">查看全部</span>
       </div>
 
       {reminders.length > 0 && (
@@ -68,7 +68,7 @@ export function ReminderWidget({ onOpenFull }: { onOpenFull: () => void }) {
           {reminders.slice(0, 3).map(r => {
             const overdue = r.dueAt && new Date(r.dueAt) < new Date();
             return (
-              <div key={r.id} className="flex items-center gap-2 text-[10px]">
+              <div key={r.id} className="flex items-center gap-2 text-xs">
                 <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${overdue ? 'bg-red-400' : 'bg-amber-400/60'}`} />
                 <span className={`truncate ${overdue ? 'text-red-300/80' : 'text-white/50'}`}>
                   {r.content}
@@ -86,12 +86,12 @@ export function ReminderWidget({ onOpenFull }: { onOpenFull: () => void }) {
           onChange={e => setQuickAdd(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') handleQuickAdd(); }}
           placeholder="快速添加..."
-          className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-[10px] text-white/50 placeholder:text-white/10 focus:outline-none focus:border-amber-500/20"
+          className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white/50 placeholder:text-white/35 focus:outline-none focus:border-amber-500/20"
         />
         <button
           onClick={handleQuickAdd}
           disabled={!quickAdd.trim() || adding}
-          className="p-1.5 rounded-lg bg-white/5 border border-white/5 text-white/20 hover:text-amber-400 hover:border-amber-500/20 disabled:opacity-20 transition-all"
+          className="p-1.5 rounded-lg bg-white/5 border border-white/5 text-white/45 hover:text-amber-400 hover:border-amber-500/20 disabled:opacity-20 transition-all"
         >
           {adding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
         </button>

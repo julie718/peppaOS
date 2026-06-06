@@ -119,7 +119,7 @@ export function VoiceTrainingDialog({ isOpen, onClose, onSuccess }: VoiceTrainin
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-white">Voice Lab</h3>
-                  <p className="text-xs font-black uppercase tracking-widest text-white/30">Clone & Train Neural Voices</p>
+                  <p className="text-xs font-black uppercase tracking-widest text-white/55">Clone & Train Neural Voices</p>
                 </div>
               </div>
               <button 
@@ -172,7 +172,7 @@ export function VoiceTrainingDialog({ isOpen, onClose, onSuccess }: VoiceTrainin
                           <FileAudio size={18} className="text-celestial-saturn" />
                           <div className="w-48">
                             <p className="text-sm font-bold text-white truncate">{file.name}</p>
-                            <p className="text-[10px] font-black text-white/30 uppercase">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                            <p className="text-xs font-black text-white/55 uppercase">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
                           </div>
                         </div>
                         <button 
@@ -191,7 +191,7 @@ export function VoiceTrainingDialog({ isOpen, onClose, onSuccess }: VoiceTrainin
                     className={`w-full py-5 rounded-[1.5rem] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3 shadow-xl ${
                       files.length > 0 && !isProcessing
                         ? 'bg-celestial-saturn text-black hover:scale-[1.02] active:scale-[0.98]'
-                        : 'bg-white/5 text-white/20 cursor-not-allowed'
+                        : 'bg-white/5 text-white/45 cursor-not-allowed'
                     }`}
                   >
                     {isProcessing ? (
@@ -212,7 +212,7 @@ export function VoiceTrainingDialog({ isOpen, onClose, onSuccess }: VoiceTrainin
               {step === 'naming' && (
                 <div className="space-y-8">
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em]">Identity Designation</label>
+                    <label className="text-xs font-black text-white/40 uppercase tracking-[0.3em]">Identity Designation</label>
                     <input 
                       type="text" 
                       value={voiceName}
@@ -223,8 +223,8 @@ export function VoiceTrainingDialog({ isOpen, onClose, onSuccess }: VoiceTrainin
                   </div>
 
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em]">Engine Architecture</label>
-                    <p className="text-[9px] text-white/20 leading-relaxed">CosyVoice and GPT-SoVITS provide premade voices but don't support custom cloning. Use ElevenLabs or FishAudio to create a custom voice from your samples.</p>
+                    <label className="text-xs font-black text-white/40 uppercase tracking-[0.3em]">Engine Architecture</label>
+                    <p className="text-[12px] text-white/45 leading-relaxed">CosyVoice and GPT-SoVITS provide premade voices but don't support custom cloning. Use ElevenLabs or FishAudio to create a custom voice from your samples.</p>
                     <div className="grid grid-cols-2 gap-4">
                       {(['elevenlabs', 'fishaudio'] as const).map((p) => (
                         <button
@@ -239,8 +239,8 @@ export function VoiceTrainingDialog({ isOpen, onClose, onSuccess }: VoiceTrainin
                           {provider === p && (
                             <motion.div layoutId="provider-bg" className="absolute inset-0 bg-celestial-saturn/5" />
                           )}
-                          <p className="text-[10px] font-black uppercase tracking-widest relative z-10">{p}</p>
-                          <p className="text-[8px] font-medium opacity-60 mt-1 relative z-10">{p === 'elevenlabs' ? 'Multilingual' : 'Zero-shot'}</p>
+                          <p className="text-xs font-black uppercase tracking-widest relative z-10">{p}</p>
+                          <p className="text-xs font-medium opacity-60 mt-1 relative z-10">{p === 'elevenlabs' ? 'Multilingual' : 'Zero-shot'}</p>
                         </button>
                       ))}
                     </div>

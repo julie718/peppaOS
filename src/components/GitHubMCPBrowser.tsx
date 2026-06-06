@@ -99,7 +99,7 @@ export function GitHubMCPBrowser({ t }: { t?: any }) {
         </div>
         <div>
           <h2 className="text-sm font-bold text-white/90">{t?.mcpBrowserTitle || 'MCP Browser'}</h2>
-          <p className="text-[10px] text-white/30">{t?.mcpBrowserDesc || 'Discover and install community MCP servers'}</p>
+          <p className="text-xs text-white/55">{t?.mcpBrowserDesc || 'Discover and install community MCP servers'}</p>
         </div>
       </div>
 
@@ -111,7 +111,7 @@ export function GitHubMCPBrowser({ t }: { t?: any }) {
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
               source === 'github'
                 ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                : 'text-white/30 hover:text-white/50'
+                : 'text-white/55 hover:text-white/50'
             }`}
           >
             <Github size={12} />
@@ -122,7 +122,7 @@ export function GitHubMCPBrowser({ t }: { t?: any }) {
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
               source === 'npm'
                 ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                : 'text-white/30 hover:text-white/50'
+                : 'text-white/55 hover:text-white/50'
             }`}
           >
             <Package size={12} />
@@ -133,7 +133,7 @@ export function GitHubMCPBrowser({ t }: { t?: any }) {
         {/* Search bar */}
         <div className="flex gap-2">
           <div className="flex-1 flex items-center gap-2 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl">
-            <Search size={14} className="text-white/30" />
+            <Search size={14} className="text-white/55" />
             <input
               value={query}
               onChange={e => setQuery(e.target.value)}
@@ -143,7 +143,7 @@ export function GitHubMCPBrowser({ t }: { t?: any }) {
                   ? (t?.mcpSearchGitHub || 'Search GitHub for MCP servers...')
                   : (t?.mcpSearchNpm || 'Search npm for MCP packages...')
               }
-              className="flex-1 bg-transparent text-white/80 text-sm outline-none placeholder:text-white/30"
+              className="flex-1 bg-transparent text-white/80 text-sm outline-none placeholder:text-white/55"
             />
           </div>
           <button
@@ -160,10 +160,10 @@ export function GitHubMCPBrowser({ t }: { t?: any }) {
           <div className="flex items-center gap-3">
             {/* Sort toggle */}
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-white/20 uppercase tracking-wider">{t?.sortBy || 'Sort'}</span>
+              <span className="text-xs text-white/45 uppercase tracking-wider">{t?.sortBy || 'Sort'}</span>
               <button
                 onClick={() => setSortBy(sortBy === 'stars' ? 'relevance' : 'stars')}
-                className="text-[10px] px-2 py-1 rounded-md bg-white/5 text-white/50 font-bold uppercase hover:bg-white/10 transition-all"
+                className="text-xs px-2 py-1 rounded-md bg-white/5 text-white/50 font-bold uppercase hover:bg-white/10 transition-all"
               >
                 {sortBy === 'stars' ? (t?.mcpSortStars || 'Stars') : (t?.mcpSortRelevance || 'Relevance')}
               </button>
@@ -172,11 +172,11 @@ export function GitHubMCPBrowser({ t }: { t?: any }) {
             {/* Language filter — GitHub only */}
             {source === 'github' && (
               <div className="flex items-center gap-2">
-                <span className="text-[10px] text-white/20 uppercase tracking-wider">{t?.mcpFilterLanguage || 'Lang'}</span>
+                <span className="text-xs text-white/45 uppercase tracking-wider">{t?.mcpFilterLanguage || 'Lang'}</span>
                 <select
                   value={langFilter}
                   onChange={e => setLangFilter(e.target.value)}
-                  className="text-[10px] px-2 py-1 rounded-md bg-white/5 text-white/50 font-bold uppercase border border-white/5 outline-none cursor-pointer hover:bg-white/10 transition-all"
+                  className="text-xs px-2 py-1 rounded-md bg-white/5 text-white/50 font-bold uppercase border border-white/5 outline-none cursor-pointer hover:bg-white/10 transition-all"
                 >
                   <option value="">{t?.mcpFilterAllLanguages || 'All'}</option>
                   {LANGUAGES.map(l => (
@@ -191,11 +191,11 @@ export function GitHubMCPBrowser({ t }: { t?: any }) {
         {/* Results */}
         <div className="space-y-2">
           {loading ? (
-            <div className="flex items-center justify-center py-12 text-white/30">
+            <div className="flex items-center justify-center py-12 text-white/55">
               <Loader2 size={24} className="animate-spin mr-2" /> {t?.mcpSearching || 'Searching...'}
             </div>
           ) : searched && results.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-white/20">
+            <div className="flex flex-col items-center justify-center py-12 text-white/45">
               <Package size={40} className="mb-3 opacity-30" />
               <span className="text-xs font-bold uppercase tracking-widest">{t?.mcpNoServersFound || 'No MCP servers found'}</span>
             </div>
@@ -220,21 +220,21 @@ export function GitHubMCPBrowser({ t }: { t?: any }) {
                     {repo.stars > 0 && (
                       <div className="flex items-center gap-1 text-amber-400">
                         <Star size={12} fill="currentColor" />
-                        <span className="text-[10px] font-bold">{repo.stars}</span>
+                        <span className="text-xs font-bold">{repo.stars}</span>
                       </div>
                     )}
                   </div>
-                  <p className="text-[11px] text-white/40 mt-1 line-clamp-2">
+                  <p className="text-xs text-white/40 mt-1 line-clamp-2">
                     {repo.description || t?.mcpNoDescription || 'No description'}
                   </p>
                   <div className="flex items-center gap-2 mt-2">
                     {repo.language && (
-                      <span className="text-[8px] px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-400 font-bold uppercase">
+                      <span className="text-xs px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-400 font-bold uppercase">
                         {repo.language}
                       </span>
                     )}
                     {repo.topics.slice(0, 3).map(topic => (
-                      <span key={topic} className="text-[8px] px-1.5 py-0.5 rounded-md bg-white/5 text-white/30 font-bold uppercase">
+                      <span key={topic} className="text-xs px-1.5 py-0.5 rounded-md bg-white/5 text-white/55 font-bold uppercase">
                         {topic}
                       </span>
                     ))}
@@ -246,7 +246,7 @@ export function GitHubMCPBrowser({ t }: { t?: any }) {
                     target="_blank"
                     rel="noopener noreferrer"
                     title={t?.mcpViewOn ? `${t.mcpViewOn} ${source === 'github' ? 'GitHub' : 'npm'}` : `View on ${source}`}
-                    className="p-2 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/10 transition-all"
+                    className="p-2 rounded-lg text-white/55 hover:text-white/60 hover:bg-white/10 transition-all"
                   >
                     <ExternalLink size={14} />
                   </a>

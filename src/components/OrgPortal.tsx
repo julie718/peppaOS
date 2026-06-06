@@ -68,7 +68,7 @@ export function OrgPortal({ onBack }: { onBack?: () => void }) {
     return (
       <div className="flex items-center justify-center p-20">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center">
-          <Building2 size={48} className="mx-auto text-white/20 mb-4" />
+          <Building2 size={48} className="mx-auto text-white/45 mb-4" />
           <p className="text-white/40 text-sm">{t.loginRequired || 'Sign in to access org features'}</p>
         </motion.div>
       </div>
@@ -78,7 +78,7 @@ export function OrgPortal({ onBack }: { onBack?: () => void }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center p-20">
-        <Loader2 size={32} className="animate-spin text-white/30" />
+        <Loader2 size={32} className="animate-spin text-white/55" />
       </div>
     );
   }
@@ -99,13 +99,13 @@ export function OrgPortal({ onBack }: { onBack?: () => void }) {
               <ExternalLink size={16} />
               {t.openOrgWorkbench || 'Open Org Workbench'}
             </a>
-            <p className="text-white/20 text-xs mt-3">
+            <p className="text-white/45 text-xs mt-3">
               {t.orgWorkbenchNote || 'The workbench opens in a new tab. Manage your organization, knowledge base, and team from there.'}
             </p>
           </div>
           {onBack && (
             <div className="text-center mt-4">
-              <button onClick={onBack} className="text-white/30 text-sm hover:text-white/50">
+              <button onClick={onBack} className="text-white/55 text-sm hover:text-white/50">
                 ← {t.back || '返回'}
               </button>
             </div>
@@ -144,7 +144,7 @@ export function OrgPortal({ onBack }: { onBack?: () => void }) {
                   <h3 className="text-white font-semibold">{t.joinOrganization || 'Join Organization'}</h3>
                   <p className="text-white/40 text-sm">{t.joinOrganizationDesc || 'Enter an invitation code from your admin'}</p>
                 </div>
-                <ArrowRight size={20} className="text-white/20" />
+                <ArrowRight size={20} className="text-white/45" />
               </motion.button>
 
               {/* Create new org */}
@@ -161,12 +161,12 @@ export function OrgPortal({ onBack }: { onBack?: () => void }) {
                   <h3 className="text-white font-semibold">{t.createOrganization || 'Create Organization'}</h3>
                   <p className="text-white/40 text-sm">{t.createOrganizationDesc || 'Become the admin. Your instance will upgrade to org mode.'}</p>
                 </div>
-                <ArrowRight size={20} className="text-white/20" />
+                <ArrowRight size={20} className="text-white/45" />
               </motion.button>
             </div>
 
             {onBack && (
-              <button onClick={onBack} className="w-full text-center text-white/30 text-sm hover:text-white/50 py-2">
+              <button onClick={onBack} className="w-full text-center text-white/55 text-sm hover:text-white/50 py-2">
                 ← {t.back || '返回'}
               </button>
             )}
@@ -177,7 +177,7 @@ export function OrgPortal({ onBack }: { onBack?: () => void }) {
           <motion.div key="join" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
             <JoinOrgPage />
             <div className="text-center mt-4">
-              <button onClick={() => setMode('select')} className="text-white/30 text-sm hover:text-white/50">
+              <button onClick={() => setMode('select')} className="text-white/55 text-sm hover:text-white/50">
                 ← {t.back || 'Back'}
               </button>
             </div>
@@ -206,7 +206,7 @@ export function OrgPortal({ onBack }: { onBack?: () => void }) {
                     value={orgForm.name}
                     onChange={e => setOrgForm(p => ({ ...p, name: e.target.value }))}
                     placeholder={t.orgNamePlaceholder || 'e.g. Acme Studio'}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/20 focus:outline-none focus:border-purple-500/50"
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/45 focus:outline-none focus:border-purple-500/50"
                   />
                 </div>
                 <div>
@@ -217,7 +217,7 @@ export function OrgPortal({ onBack }: { onBack?: () => void }) {
                     onChange={e => setOrgForm(p => ({ ...p, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }))}
                     placeholder="acme-studio"
                     maxLength={30}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/20 focus:outline-none focus:border-purple-500/50 font-mono"
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/45 focus:outline-none focus:border-purple-500/50 font-mono"
                   />
                 </div>
 
@@ -236,13 +236,13 @@ export function OrgPortal({ onBack }: { onBack?: () => void }) {
                   {t.createOrganization || 'Create Organization'}
                 </button>
 
-                <p className="text-white/20 text-xs text-center">
+                <p className="text-white/45 text-xs text-center">
                   {t.createOrganizationHint || 'Your server will restart as org after creation. This takes a few seconds.'}
                 </p>
               </div>
             )}
             <div className="text-center mt-4">
-              <button onClick={() => { setMode('select'); setCreateResult('idle'); }} className="text-white/30 text-sm hover:text-white/50">
+              <button onClick={() => { setMode('select'); setCreateResult('idle'); }} className="text-white/55 text-sm hover:text-white/50">
                 ← {t.back || 'Back'}
               </button>
             </div>

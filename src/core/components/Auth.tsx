@@ -95,7 +95,7 @@ export function LoginModal({ t, isOpen, onClose, onLoginSuccess, onGoogleLogin }
               <h2 className="text-2xl font-black tracking-tighter text-white">
                 {isRegister ? t.register || 'Create Node' : t.loginTitle || 'Sync Node'}
               </h2>
-              <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-1">
+              <p className="text-white/40 text-xs font-bold uppercase tracking-widest mt-1">
                 {t.authSubtitle || 'Lumi Network Authentication'}
               </p>
             </div>
@@ -106,39 +106,39 @@ export function LoginModal({ t, isOpen, onClose, onLoginSuccess, onGoogleLogin }
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">{t.username || 'Identifier'}</label>
+              <label className="text-xs font-black uppercase tracking-widest text-white/30 ml-1">{t.username || 'Identifier'}</label>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/10 focus:outline-none focus:border-celestial-saturn/50 transition-colors"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:border-celestial-saturn/50 transition-colors"
                 placeholder={t.authPlaceholderUsername || 'User_ID_0X1F'}
               />
             </div>
 
             {isRegister && (
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">{t.phone || 'Communication Line'}</label>
+                <label className="text-xs font-black uppercase tracking-widest text-white/30 ml-1">{t.phone || 'Communication Line'}</label>
                 <input
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   required
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/10 focus:outline-none focus:border-celestial-saturn/50 transition-colors"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:border-celestial-saturn/50 transition-colors"
                   placeholder="+86..."
                 />
               </div>
             )}
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">{t.password || 'Access Key'}</label>
+              <label className="text-xs font-black uppercase tracking-widest text-white/30 ml-1">{t.password || 'Access Key'}</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/10 focus:outline-none focus:border-celestial-saturn/50 transition-colors"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/35 focus:outline-none focus:border-celestial-saturn/50 transition-colors"
                 placeholder="••••••••"
               />
             </div>
@@ -170,7 +170,7 @@ export function LoginModal({ t, isOpen, onClose, onLoginSuccess, onGoogleLogin }
 
               <div className="flex items-center gap-4 my-2">
                  <div className="h-px flex-1 bg-white/5" />
-                 <span className="text-[9px] font-black text-white/20 uppercase tracking-widest">{t.authOrDivider || 'or'}</span>
+                 <span className="text-[12px] font-black text-white/20 uppercase tracking-widest">{t.authOrDivider || 'or'}</span>
                  <div className="h-px flex-1 bg-white/5" />
               </div>
 
@@ -186,7 +186,7 @@ export function LoginModal({ t, isOpen, onClose, onLoginSuccess, onGoogleLogin }
               <button
                 type="button"
                 onClick={() => setIsRegister(!isRegister)}
-                className="text-[10px] font-black text-celestial-saturn uppercase tracking-widest hover:underline transition-all mt-2"
+                className="text-xs font-black text-celestial-saturn uppercase tracking-widest hover:underline transition-all mt-2"
               >
                 {isRegister ? t.hasAccount || 'Return to Login' : t.noAccount || 'Expand Neural Network'}
               </button>

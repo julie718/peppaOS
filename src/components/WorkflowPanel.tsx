@@ -62,8 +62,8 @@ function StatusLabel({ status, t }: { status: WorkflowPanelProps['agentStatus'];
     status === 'executing' ? 'text-green-400' :
     status === 'done' ? 'text-red-400' :
     status === 'error' ? 'text-red-500' :
-    'text-white/30';
-  return <span className={`text-[10px] font-black uppercase tracking-widest ${color}`}>{label}</span>;
+    'text-white/55';
+  return <span className={`text-xs font-black uppercase tracking-widest ${color}`}>{label}</span>;
 }
 
 function StepIcon({ type }: { type: WorkflowStep['type'] }) {
@@ -107,7 +107,7 @@ export default function WorkflowPanel({ visible, agentStatus, steps, t }: Workfl
                 <StatusLights status={agentStatus} />
                 <StatusLabel status={agentStatus} t={t} />
               </div>
-              <span className="text-[8px] text-white/20 font-mono">
+              <span className="text-xs text-white/45 font-mono">
                 {steps.length > 0 ? `${steps.length} ${t?.workflowSteps || 'steps'}` : ''}
               </span>
             </div>
@@ -124,17 +124,17 @@ export default function WorkflowPanel({ visible, agentStatus, steps, t }: Workfl
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.2 }}
-                    className="flex items-start gap-2 text-[10px] text-white/60"
+                    className="flex items-start gap-2 text-xs text-white/60"
                   >
                     <StepIcon type={step.type} />
                     <div className="min-w-0 flex-1">
                       <span className="text-white/80">{step.text}</span>
                       {step.detail && (
-                        <div className="text-white/30 truncate mt-0.5">{step.detail}</div>
+                        <div className="text-white/55 truncate mt-0.5">{step.detail}</div>
                       )}
                     </div>
                     {step.type === 'tool_start' && (
-                      <ChevronRight size={10} className="text-white/20 shrink-0 mt-0.5" />
+                      <ChevronRight size={10} className="text-white/45 shrink-0 mt-0.5" />
                     )}
                   </motion.div>
                 ))}
@@ -143,7 +143,7 @@ export default function WorkflowPanel({ visible, agentStatus, steps, t }: Workfl
 
             {/* Empty state */}
             {steps.length === 0 && (
-              <div className="text-[10px] text-white/20 text-center py-4">
+              <div className="text-xs text-white/45 text-center py-4">
                 {t?.workflowWaiting || 'Waiting for agent activity...'}
               </div>
             )}
