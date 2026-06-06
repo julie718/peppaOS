@@ -290,6 +290,35 @@ export function useWakeWord({
     }
   }, [accessKey, disable, enablePicovoice, enableQwenWake]);
 
+  // Listen for socket disconnect/reconnect — reset so wake auto-restarts on reconnect
+  useEffect(() => {
+    const s = socketRef.current;
+    if (!s) return;
+
+    const onDisconnect = () => {
+      console.log('[WakeWord] Socket disconnected, resetting...');
+      setIsListening(false);
+      setError('Connection lost — reconnecting...');
+    };
+    const onReconnect = () => {
+      console.log('[WakeWord] Socket reconnected');
+      setError(null);
+    };
+
+    s.on('disconnect', onDisconnect);
+    // socket.io-client fires 'connect' on initial AND reconnect
+    const onConnect = () => {
+      if (!s.connected) return;
+      onReconnect();
+    };
+    s.on('connect', onConnect);
+
+    return () => {
+      s.off('disconnect', onDisconnect);
+      s.off('connect', onConnect);
+    };
+  }, [socket?.id]);
+
   // Auto-start / stop — includes socket state so it retries when connection becomes available
   useEffect(() => {
     console.log('[WakeWord] State change — enabled:', enabled, 'isListening:', isListening, 'socket:', !!socketRef.current?.connected);

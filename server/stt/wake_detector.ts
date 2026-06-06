@@ -4,6 +4,7 @@
  */
 import { logger } from '../../logger';
 import { getKey } from '../config/keys';
+import { getVoicePreference } from '../config/voice_preference';
 
 const WAKE_WORDS = [
   'Jarvis', 'jarvis', '贾维斯',
@@ -225,28 +226,51 @@ function createArkWakeDetector(
   };
 }
 
-// ── Factory: auto-select Ark > Qwen ──
+// ── Factory: respects user's STT preference, auto-select Ark > Qwen ──
 
 export function createWakeDetector(
   accessKey?: string,
   echoFilter?: (text: string) => boolean,
 ): WakeDetectorSession {
-  // 1. Doubao Speech — preferred (AppID:AccessToken)
-  const speechKey = process.env.DOUBAO_SPEECH_KEY || getKey('DOUBAO_SPEECH_KEY');
-  if (speechKey && speechKey.includes(':')) {
-    const token = speechKey.slice(speechKey.indexOf(':') + 1).trim();
-    logger.info('[WakeDetector] Using Doubao Speech');
-    return createArkWakeDetector(token, echoFilter);
-  }
+  // Read user STT preference — if explicitly set, honor it
+  let userPref: 'auto' | 'ark' | 'qwen' = 'auto';
+  try {
+    userPref = getVoicePreference().stt || 'auto';
+  } catch {}
 
-  // 2. Qwen (DashScope) — fallback
+  const speechKey = process.env.DOUBAO_SPEECH_KEY || getKey('DOUBAO_SPEECH_KEY');
+  const hasDoubao = !!(speechKey && speechKey.includes(':'));
   const qwenKey = accessKey
     || process.env.DASHSCOPE_API_KEY
     || process.env.QWEN_API_KEY
     || getKey('DASHSCOPE_API_KEY')
     || getKey('QWEN_API_KEY');
+
+  // Explicit user choice takes priority
+  if (userPref === 'ark') {
+    if (hasDoubao) {
+      const token = speechKey!.slice(speechKey!.indexOf(':') + 1).trim();
+      logger.info('[WakeDetector] Using Doubao Speech (user preference)');
+      return createArkWakeDetector(token, echoFilter);
+    }
+    logger.warn('[WakeDetector] User prefers Ark but no Doubao Speech key configured');
+  }
+  if (userPref === 'qwen') {
+    if (qwenKey) {
+      logger.info('[WakeDetector] Using Qwen (user preference)');
+      return createQwenWakeDetector(qwenKey, echoFilter);
+    }
+    logger.warn('[WakeDetector] User prefers Qwen but no DashScope key configured');
+  }
+
+  // Auto mode — prefer Doubao, fall back to Qwen
+  if (hasDoubao) {
+    const token = speechKey!.slice(speechKey!.indexOf(':') + 1).trim();
+    logger.info('[WakeDetector] Using Doubao Speech (auto)');
+    return createArkWakeDetector(token, echoFilter);
+  }
   if (qwenKey) {
-    logger.info('[WakeDetector] Using Qwen');
+    logger.info('[WakeDetector] Using Qwen (auto)');
     return createQwenWakeDetector(qwenKey, echoFilter);
   }
 
