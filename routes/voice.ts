@@ -3,7 +3,9 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { synthesizeSpeech, cloneVoice, designVoice, listVoices, getActiveProvider } from '../server/tts/adapter';
+import { TTSProvider } from '../server/tts/types';
 import { readDB, writeDB } from '../db_layer';
+import { getKey } from '../server/config/keys';
 import { logger } from '../logger';
 import { recordLatency } from '../server/monitor/latency_store';
 import { getDataPath } from '../server/config/data_path';
@@ -167,21 +169,40 @@ router.post('/voice/design', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/voice/voices — List user's cloned voices + provider premade voices
+// GET /api/voice/voices — List user's cloned voices + ALL provider premade voices
 router.get('/voice/voices', async (req: Request, res: Response) => {
   try {
     const userId = getUserId(req);
     const db = readDB();
     const userVoices = db.voiceProfiles?.[userId] || [];
 
-    // Also try to fetch premade voices from active provider
+    // Fetch premade voices from ALL available providers, not just the active one
     let premadeVoices: any[] = [];
-    const provider = getActiveProvider();
-    if (provider) {
+    const providers: TTSProvider[] = [];
+
+    // Check which providers are available (by API key / server presence)
+    if (process.env.DASHSCOPE_API_KEY || process.env.QWEN_API_KEY || getKey('DASHSCOPE_API_KEY') || getKey('QWEN_API_KEY')) {
+      providers.push('cosyvoice');
+    }
+    if (process.env.ARK_API_KEY || getKey('ARK_API_KEY')) {
+      providers.push('ark');
+    }
+    if (process.env.GPTSOVITS_API_URL || process.env.GPTSOVITS_ENABLED === 'true') {
+      providers.push('gptsovits');
+    }
+    // If nothing configured, fall back to active provider
+    if (providers.length === 0) {
+      const active = getActiveProvider();
+      if (active) providers.push(active);
+    }
+
+    for (const provider of providers) {
       try {
-        premadeVoices = await listVoices(provider);
+        const voices = await listVoices(provider);
+        // Tag each voice with its provider so the frontend can show it
+        premadeVoices.push(...voices.map(v => ({ ...v, provider })));
       } catch {
-        // Provider not available — just return user voices
+        // Provider not available — skip
       }
     }
 

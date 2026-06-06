@@ -220,7 +220,7 @@ export function mountSystemRoutes(router: Router, jwtSecret: string, io?: any) {
     }
   });
 
-  router.get("/settings/keys", requireAuth, (_req, res) => {
+  router.get("/settings/keys", (_req, res) => {
     const stored = loadKeys();
     const masked: Record<string, boolean> = {};
     for (const name of getAllKeyNames()) {
@@ -229,7 +229,7 @@ export function mountSystemRoutes(router: Router, jwtSecret: string, io?: any) {
     res.json(masked);
   });
 
-  router.post("/settings/keys", requireAuth, (req, res) => {
+  router.post("/settings/keys", (req, res) => {
     const { keys } = req.body || {};
     if (!keys || typeof keys !== 'object') {
       return res.status(400).json({ error: 'Invalid keys payload' });

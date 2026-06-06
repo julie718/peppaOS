@@ -413,8 +413,10 @@ export function useVoiceCall({ socket, onTranscript, onResponse }: UseVoiceCallO
 
       scriptProcessor.onaudioprocess = (event) => {
         if (!socket?.connected) return;
-        // Always send mic audio — server STT handles barge-in detection
-        // Echo cancellation is in getUserMedia (echoCancellation: true)
+        // Skip mic audio while TTS is playing to prevent Lumi from
+        // hearing its own voice through external speakers (echo loop).
+        // audioLevel from AnalyserNode still works for barge-in detection.
+        if (isTtsPlaying.current) return;
         const input = event.inputBuffer.getChannelData(0);
         // Convert float32 [-1,1] to int16 PCM
         const int16 = new Int16Array(input.length);
@@ -505,16 +507,31 @@ export function useVoiceCall({ socket, onTranscript, onResponse }: UseVoiceCallO
     setAudioLevel(0);
   }, [socket, stopAllPlayback, clearPassiveTimers]);
 
-  // Barge-in: detect user speaking over TTS via audio level
+  // Barge-in: detect user speaking over TTS via audio level.
+  // After TTS starts, wait 400ms before enabling barge-in so Lumi's own
+  // voice from external speakers doesn't trigger a self-interrupt.
+  const ttsStartedAt = useRef(0);
   useEffect(() => {
-    const threshold = 0.12;
+    if (isTtsPlaying.current && ttsStartedAt.current === 0) {
+      ttsStartedAt.current = Date.now();
+    } else if (!isTtsPlaying.current) {
+      ttsStartedAt.current = 0;
+    }
+  }, [callState]);
+
+  useEffect(() => {
+    const threshold = 0.15;
+    const minTtsDuration = 400; // ms — ignore barge-in during first 400ms of TTS
     if (
       audioLevel > threshold &&
       isTtsPlaying.current &&
-      (callState === 'speaking' || callState === 'thinking')
+      (callState === 'speaking' || callState === 'thinking') &&
+      ttsStartedAt.current > 0 &&
+      Date.now() - ttsStartedAt.current > minTtsDuration
     ) {
       socket?.emit('audio:interrupt');
       stopAllPlayback();
+      ttsStartedAt.current = 0;
       setCallState('listening');
     }
   }, [audioLevel, callState, socket, stopAllPlayback]);

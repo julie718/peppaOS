@@ -487,7 +487,8 @@ function LLMProviderRow({ icon, label, providerId, models, placeholder, disabled
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ keys: { [serverKey]: '' } }),
-    }).then(() => {
+    }).then(r => {
+      if (!r.ok) throw new Error('Remove failed');
       setServerConfigured(false);
       setKeyValue('');
       setSaved(true);
@@ -502,8 +503,10 @@ function LLMProviderRow({ icon, label, providerId, models, placeholder, disabled
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ keys: { [serverKey]: keyValue.trim() } }),
-    }).then(() => setServerConfigured(true))
-      .catch(() => toast.error(t?.failedToSaveKey || 'Failed to save key'));
+    }).then(r => {
+      if (!r.ok) throw new Error('Save failed');
+      setServerConfigured(true);
+    }).catch(() => toast.error(t?.failedToSaveKey || 'Failed to save key'));
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -906,12 +909,13 @@ function ApiKeyField({ icon, label, placeholder, disabled = false, storageKey, s
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ keys: { [serverKey]: '' } }),
-      }).then(() => {
+      }).then(r => {
+        if (!r.ok) throw new Error('Remove failed');
         setServerConfigured(false);
         setValue('');
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
-      }).catch(() => {});
+      }).catch(() => toast.error(t?.failedToRemoveKey || 'Failed to remove key'));
     }
     toast.success(t?.apiKeyRemoved || 'API key removed');
   };
@@ -924,8 +928,10 @@ function ApiKeyField({ icon, label, placeholder, disabled = false, storageKey, s
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ keys: { [serverKey]: value.trim() } }),
-      }).then(r => r.json())
-        .then(() => setServerConfigured(true))
+      }).then(r => {
+        if (!r.ok) throw new Error('Save failed');
+        return r.json();
+      }).then(() => setServerConfigured(true))
         .catch(() => toast.error(t?.failedToSaveKey || 'Failed to save key to server'));
     }
     toast.success(t?.apiKeySaved || 'API key saved');

@@ -176,7 +176,8 @@ export function VoicePicker({ t, direction = 'up', refreshTrigger = 0 }: { t: an
                     <div className="flex-1 min-w-0">
                       <div className="text-sm truncate">{voice.name}</div>
                       <div className="flex items-center gap-1 text-xs text-white/55">
-                        {voice.language && <span>{voice.language}</span>}
+                        {voice.provider && <span className="text-white/40">{voice.provider}</span>}
+                        {voice.language && <span>· {voice.language}</span>}
                         {voice.category && <span className="opacity-50">· {voice.category}</span>}
                       </div>
                     </div>
