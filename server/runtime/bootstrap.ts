@@ -60,6 +60,7 @@ export async function bootstrap(ctx: BootstrapContext) {
     }
   }
 
+
   // Register all agent tools
   registerAllTools(toolRegistry, { getDeepSeek: llm.getDeepSeek, getGemini: llm.getGemini, getOpenAI: llm.getOpenAI, getAnthropic: llm.getAnthropic, getQwen: llm.getQwen });
   console.log(`[Tools] Registered ${toolRegistry.list().length} built-in tools`);

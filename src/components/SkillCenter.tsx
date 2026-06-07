@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, ShoppingBag, Cpu, Download, Trash2, Power, PowerOff, RefreshCw, Star, Wrench, CheckCircle, Globe, Search, Zap, Tag, ChevronDown, Upload, Palette, Terminal, Monitor, Film, Key } from 'lucide-react';
+import { Sparkles, ShoppingBag, Cpu, Download, Trash2, Power, PowerOff, RefreshCw, Star, Wrench, CheckCircle, Globe, Search, Zap, Tag, ChevronDown, Upload, Palette, Terminal, Monitor, Film, Key, Users, Bot, ExternalLink } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { toast } from 'sonner';
@@ -61,7 +61,7 @@ interface ExternalResult {
   npmPackage?: string; repoUrl?: string;
 }
 
-type Tab = 'featured' | 'marketplace' | 'installed' | 'generate';
+type Tab = 'featured' | 'marketplace' | 'installed' | 'generate' | 'team';
 type SortKey = 'downloads' | 'rating' | 'newest';
 
 const FEATURED_SKILLS = [
@@ -80,6 +80,14 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [installing, setInstalling] = useState<string | null>(null);
+  const [agents, setAgents] = useState<any[]>([]);
+  const [agentsLoading, setAgentsLoading] = useState(false);
+  const [showConnectForm, setShowConnectForm] = useState(false);
+  const [connectName, setConnectName] = useState('');
+  const [connectCategory, setConnectCategory] = useState('general');
+  const [connectSkillTags, setConnectSkillTags] = useState('');
+  const [connectCommand, setConnectCommand] = useState('');
+  const [connecting, setConnecting] = useState(false);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('');
   const [sortKey, setSortKey] = useState<SortKey>('downloads');
@@ -118,6 +126,15 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
     } catch {}
   }, [lang]);
 
+  const fetchAgents = useCallback(async () => {
+    setAgentsLoading(true);
+    try {
+      const res = await fetch('/api/agents');
+      if (res.ok) setAgents(await res.json());
+    } catch {}
+    setAgentsLoading(false);
+  }, []);
+
   // External search (npm + GitHub) — debounced
   const fetchExternal = useCallback(async (q: string) => {
     if (!q || q.length < 2) { setNpmResults([]); setGithubResults([]); return; }
@@ -135,6 +152,7 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
   }, []);
 
   useEffect(() => { fetchMarketplace(); fetchInstalled(); fetchCategories(); }, [fetchMarketplace, fetchInstalled, fetchCategories]);
+  useEffect(() => { if (activeTab === 'team') fetchAgents(); }, [activeTab, fetchAgents]);
 
   // Debounced external search
   useEffect(() => {
@@ -221,6 +239,34 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
     } catch {}
   };
 
+  const handleConnectExternal = async () => {
+    if (!connectName.trim() || !connectCommand.trim()) return;
+    setConnecting(true);
+    try {
+      const res = await fetch('/api/agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: connectName.trim(),
+          category: connectCategory,
+          skillTags: connectSkillTags.split(',').map(s => s.trim()).filter(Boolean),
+          runtime: 'external',
+          externalCommand: connectCommand.trim(),
+        }),
+      });
+      if (res.ok) {
+        toast.success(`"${connectName.trim()}" ${t.skillInstalledToast || 'connected'}`);
+        setShowConnectForm(false);
+        setConnectName(''); setConnectCategory('general'); setConnectSkillTags(''); setConnectCommand('');
+        fetchAgents();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Connection failed');
+      }
+    } catch (err: any) { toast.error(err.message); }
+    finally { setConnecting(false); }
+  };
+
   const handleGenerate = async () => {
     if (!genDescription.trim()) return;
     setGenerating(true);
@@ -277,6 +323,7 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
     { id: 'marketplace', label: t.marketplaceTab || 'Marketplace', icon: <ShoppingBag size={14} /> },
     { id: 'installed', label: t.installedTab || 'Installed', icon: <Cpu size={14} /> },
     { id: 'generate', label: t.generateTab || 'Generate', icon: <Sparkles size={14} /> },
+    { id: 'team', label: t.teamTab || 'Team', icon: <Users size={14} /> },
   ];
 
   const SAMPLE_PROMPTS = [
@@ -766,6 +813,119 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
                 ))}
               </div>
             </div>
+          </motion.div>
+        )}
+
+        {activeTab === 'team' && (
+          <motion.div key="team" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }} className="space-y-6">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-white/40 max-w-xl">{t.teamDesc || "Lumi's team of agents. Each member has their own skills — Lumi can dispatch tasks through the orchestrator."}</p>
+              <button
+                onClick={() => setShowConnectForm(!showConnectForm)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-xs font-bold text-cyan-400 hover:bg-cyan-500/20 transition-all shrink-0"
+              >
+                <ExternalLink size={12} />
+                {t.connectExternal || 'Connect External Agent'}
+              </button>
+            </div>
+
+            <AnimatePresence>
+              {showConnectForm && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                  <div className="p-5 bg-cyan-500/5 rounded-2xl border border-cyan-500/10 space-y-4">
+                    <p className="text-xs text-cyan-400/70">{t.connectExternalDesc || 'Link an AI agent running on your machine or cloud.'}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <Input value={connectName} onChange={e => setConnectName(e.target.value)}
+                        placeholder={t.agentName || 'Agent Name'} className="bg-white/5 border-white/10 rounded-xl py-2 text-xs" />
+                      <select value={connectCategory} onChange={e => setConnectCategory(e.target.value)}
+                        className="bg-white/5 border border-white/10 rounded-xl py-2 px-3 text-xs text-white/80">
+                        {['general','code','content','analysis','search','automation','assistant','media'].map(c => (
+                          <option key={c} value={c} className="bg-gray-900">{c}</option>
+                        ))}
+                      </select>
+                      <Input value={connectSkillTags} onChange={e => setConnectSkillTags(e.target.value)}
+                        placeholder={t.agentSkillTags || 'Skill Tags (comma separated)'} className="bg-white/5 border-white/10 rounded-xl py-2 text-xs" />
+                      <Input value={connectCommand} onChange={e => setConnectCommand(e.target.value)}
+                        placeholder={t.agentCommandHint || 'openclaw send --task "{task}"'} className="bg-white/5 border-white/10 rounded-xl py-2 text-xs font-mono" />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button onClick={handleConnectExternal}
+                        disabled={connecting || !connectName.trim() || !connectCommand.trim()}
+                        className="bg-cyan-500 text-black font-bold text-xs px-4 py-2 rounded-xl hover:scale-105 transition-transform disabled:opacity-40">
+                        {connecting ? (t.connectingBtn || 'Connecting...') : (t.connectBtn || 'Connect')}
+                      </Button>
+                      <Button onClick={() => setShowConnectForm(false)}
+                        className="bg-white/5 text-white/55 font-bold text-xs px-4 py-2 rounded-xl hover:bg-white/10 transition-all">
+                        {t.cancel || 'Cancel'}
+                      </Button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {agentsLoading ? (
+              <div className="p-16 bg-white/5 rounded-[2rem] border border-white/5 text-center">
+                <p className="text-white/40 text-sm">{t.loading || 'Loading...'}</p>
+              </div>
+            ) : agents.length === 0 ? (
+              <div className="p-16 bg-white/5 rounded-[2rem] border border-white/5 text-center">
+                <Users size={40} className="text-white/45 mx-auto mb-4" />
+                <p className="text-white/40 font-bold uppercase tracking-widest text-sm">{t.noTeamMembers || 'No team members yet'}</p>
+                <p className="text-white/45 text-xs mt-2">{t.teamCreateHint || 'Use agent_create in chat to add a teammate.'}</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <AnimatePresence>
+                  {agents.map((agent: any) => (
+                    <motion.div
+                      key={agent.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="p-6 bg-white/5 rounded-3xl border border-white/5 hover:border-white/10 transition-all"
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${agent.runtime === 'external' ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' : 'bg-violet-500/10 text-violet-400 border-violet-500/20'}`}>
+                            {agent.runtime === 'external' ? <ExternalLink size={18} /> : <Bot size={18} />}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-white/90 text-sm flex items-center gap-2">{agent.name}
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase ${agent.runtime === 'external' ? 'bg-cyan-500/10 text-cyan-400' : 'bg-violet-500/10 text-violet-400'}`}>
+                                {agent.runtime === 'external' ? (t.agentExternal || 'CLI') : (t.agentInternal || 'Built-in')}
+                              </span>
+                            </h4>
+                            <span className="text-xs text-white/55 font-mono">{agent.category || 'general'}{agent.status ? ` · ${agent.status}` : ''}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {agent.skillTags && agent.skillTags.length > 0 && (
+                        <div className="flex items-center gap-1.5 flex-wrap mb-3">
+                          {agent.skillTags.map((tag: string) => (
+                            <span key={tag} className="flex items-center gap-1 px-2 py-0.5 bg-white/5 rounded-full text-[12px] text-white/55">
+                              <Tag size={8} /> {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-4 text-xs text-white/45">
+                        <span className="flex items-center gap-1">
+                          <Zap size={10} /> {t.agentRuntime || 'Runtime'}: {agent.runtime === 'external' ? (t.agentExternal || 'CLI') : (t.agentInternal || 'Built-in')}
+                        </span>
+                        {agent.externalCommand && (
+                          <span className="font-mono text-[11px] text-cyan-400/60 truncate max-w-[200px]" title={agent.externalCommand}>
+                            {agent.externalCommand}
+                          </span>
+                        )}
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

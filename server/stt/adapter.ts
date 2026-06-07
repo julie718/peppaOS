@@ -7,6 +7,7 @@ import * as localWhisper from './providers/local-whisper';
 import { getKey } from '../config/keys';
 import { getVoicePreference } from '../config/voice_preference';
 import { recordLatency } from '../monitor/latency_store';
+import { isCircuitClosed } from '../cloud/circuit_breaker';
 
 export async function transcribe(audioBuffer: Buffer, config: STTConfig): Promise<STTResult> {
   const start = Date.now();
@@ -75,20 +76,26 @@ export function createStreamingSession(
 
 export function getActiveSTTProvider(): STTProvider | null {
   const pref = getVoicePreference();
-  // If user explicitly chose a provider, use it
+  // If user explicitly chose a provider, use it (even if circuit is open — user knows best)
   if (pref.stt === 'local-whisper' && localWhisper.isLocalWhisperAvailable()) return 'local-whisper';
   if (pref.stt === 'qwen') return 'qwen';
   if (pref.stt === 'ark') return 'ark';
   if (pref.stt === 'deepgram') return 'deepgram';
   if (pref.stt === 'whisper') return 'whisper';
-  // Auto mode — prefer local, fall back to cloud
+  // Auto mode — prefer local, then healthy cloud providers
   try {
     if (localWhisper.isLocalWhisperAvailable()) return 'local-whisper';
   } catch {}
   const doubaoSpeech = process.env.DOUBAO_SPEECH_KEY || getKey('DOUBAO_SPEECH_KEY');
   if (doubaoSpeech && doubaoSpeech.includes(':')) return 'ark';
+  // Check every cloud provider — skip ones with open circuit breakers
   const qwenKey = process.env.DASHSCOPE_API_KEY || process.env.QWEN_API_KEY
     || getKey('DASHSCOPE_API_KEY') || getKey('QWEN_API_KEY');
+  if (qwenKey && isCircuitClosed('qwen')) return 'qwen';
+  if (process.env.DEEPGRAM_API_KEY || getKey('DEEPGRAM_API_KEY')) {
+    if (isCircuitClosed('deepgram')) return 'deepgram';
+  }
+  // Fallback: try them anyway if nothing healthy (circuit may have recovered)
   if (qwenKey) return 'qwen';
   if (process.env.DEEPGRAM_API_KEY || getKey('DEEPGRAM_API_KEY')) return 'deepgram';
   if (process.env.OPENAI_API_KEY || getKey('OPENAI_API_KEY')) return 'whisper';

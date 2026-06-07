@@ -21,6 +21,7 @@ import { AgentRecord } from "./runtime";
 import { recordWorkflow } from "../skills/worklog";
 import { personalityRegistry } from "../personality";
 import { recordTokenUsage } from "../llm/token_tracker";
+import { executeExternalAgent, validateExternalCommand } from "./external_runtime";
 
 type LLMProvider = 'deepseek' | 'gemini' | 'openai' | 'anthropic' | 'qwen';
 
@@ -533,6 +534,37 @@ function topologicalGroups(assignments: WorkerAssignment[]): WorkerAssignment[][
 }
 
 /**
+ * Execute a task on an external agent via CLI (OpenClaw, Hermes, etc.).
+ */
+async function executeExternalWorkerTask(
+  assignment: WorkerAssignment,
+): Promise<{ subTaskId: string; output: string; agentId: string }> {
+  const { subTask, agent } = assignment;
+
+  const validationError = validateExternalCommand(agent.externalCommand!);
+  if (validationError) {
+    return {
+      subTaskId: subTask.id,
+      output: `[External agent config error: ${validationError}]`,
+      agentId: agent.id,
+    };
+  }
+
+  const result = await executeExternalAgent(
+    { command: agent.externalCommand!, timeout: 180_000 },
+    subTask.description,
+  );
+
+  return {
+    subTaskId: subTask.id,
+    output: result.success
+      ? result.output
+      : `[External agent '${agent.name}' failed (exit ${result.exitCode}): ${result.output.slice(0, 500)}]`,
+    agentId: agent.id,
+  };
+}
+
+/**
  * Execute a single worker task with retry and fallback.
  * - Attempt 1: primary agent
  * - Attempt 2: retry same agent (transient errors)
@@ -547,6 +579,12 @@ async function executeWorkerTask(
   fallbackAgents: AgentRecord[],
 ): Promise<{ subTaskId: string; output: string; agentId: string }> {
   const { subTask, agent } = assignment;
+
+  // External agents: dispatch via CLI (OpenClaw, Hermes, etc.)
+  if (agent.runtime === 'external' && agent.externalCommand) {
+    return executeExternalWorkerTask(assignment);
+  }
+
   const agentsToTry = [
     agent,
     ...fallbackAgents.filter(a => a.id !== agent.id).slice(0, 2),

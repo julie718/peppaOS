@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import { mcpManager, getMCPConfig, updateMCPConfig, SKILLS_DIR } from "../mcp";
 import { getMarketplaceSkills, getSkillById, searchSkills, getCategories, recordInstall, publishSkill, rateSkill, getSkillRatings } from "../marketplace/registry";
 import { translateSkills } from "../skills/translations";
+import { createAgentForSkill } from "../agents/skill_agent";
 
 const QWEN_BASE = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 
@@ -120,6 +121,23 @@ export function mountMarketplaceRoutes(
 
       // Bundled skills: copy from bundled directory into ~/lumi_skills/
       if (installSource === 'bundled' && reqInstallPath) {
+        const bundledSkill = getSkillById(skillId);
+
+        // External-runtime skills (OpenClaw, Hermes, etc.) — no MCP server, just create team agent
+        if (bundledSkill?.runtime === 'external') {
+          recordInstall(skillId);
+          const agentId = createAgentForSkill(skillName, {
+            description: bundledSkill?.description,
+            category: bundledSkill?.category,
+            toolCount: bundledSkill?.toolCount,
+            skillTags: bundledSkill?.externalCommand ? ['external', 'cli'] : undefined,
+            runtime: 'external',
+            externalCommand: bundledSkill?.externalCommand,
+            installSource: 'bundled',
+          }, io);
+          return res.json({ success: true, name: skillName, agentId, message: `External agent "${skillName}" connected! Use it in chat or assign tasks in the Team tab.` });
+        }
+
         const skillDirName = skillName.toLowerCase().replace(/[^a-z0-9]/g, '-');
         io.emit('skill:installing', { skillId, name: skillName, stage: 'copying' });
         try {
@@ -133,6 +151,12 @@ export function mountMarketplaceRoutes(
         }
         recordInstall(skillId);
         io.emit('skill:installed', { skillId, name: skillName, source: 'bundled' });
+        createAgentForSkill(skillName, {
+          description: bundledSkill?.description,
+          category: bundledSkill?.category,
+          toolCount: bundledSkill?.toolCount,
+          installSource: 'bundled',
+        }, io);
         return res.json({ success: true, name: skillName, message: `Skill "${skillName}" installed and activated!` });
       }
 
@@ -140,6 +164,22 @@ export function mountMarketplaceRoutes(
       if (installSource === 'community') {
         const skillDirName = skillId.replace('skill-', '');
         const bundledPath = path.join(__dirname, '..', 'skills', 'bundled', skillDirName);
+        const comSkill = getSkillById(skillId);
+
+        // External-runtime community skill — skip MCP, create external agent
+        if (comSkill?.runtime === 'external') {
+          recordInstall(skillId);
+          createAgentForSkill(skillName, {
+            description: comSkill?.description,
+            category: comSkill?.category,
+            skillTags: ['external', 'cli'],
+            runtime: 'external',
+            externalCommand: comSkill?.externalCommand,
+            installSource: 'community',
+          }, io);
+          return res.json({ success: true, name: skillName, message: `External agent "${skillName}" connected!` });
+        }
+
         if (fs.existsSync(bundledPath)) {
           io.emit('skill:installing', { skillId, name: skillName, stage: 'copying' });
           try {
@@ -152,6 +192,12 @@ export function mountMarketplaceRoutes(
           }
           recordInstall(skillId);
           io.emit('skill:installed', { skillId, name: skillName, source: 'community' });
+          createAgentForSkill(skillName, {
+            description: comSkill?.description,
+            category: comSkill?.category,
+            toolCount: comSkill?.toolCount,
+            installSource: 'community',
+          }, io);
           return res.json({ success: true, name: skillName, message: `Skill "${skillName}" installed and activated!` });
         }
         // Fallback: mark as bookmarked
@@ -189,6 +235,11 @@ export function mountMarketplaceRoutes(
         }
         recordInstall(skillId);
         io.emit('skill:installed', { skillId, name: skillName, source: 'npm' });
+        createAgentForSkill(skillName, {
+          description: `npm package: ${npmPkg}`,
+          category: 'general',
+          installSource: 'npm',
+        }, io);
         return res.json({ success: true, name: skillName, message: `Skill "${skillName}" installed from npm and activated!` });
       }
 
@@ -207,6 +258,11 @@ export function mountMarketplaceRoutes(
         }
         recordInstall(skillId);
         io.emit('skill:installed', { skillId, name: skillName, source: 'github' });
+        createAgentForSkill(skillName, {
+          description: `GitHub repo: ${repoUrl}`,
+          category: 'general',
+          installSource: 'github',
+        }, io);
         return res.json({ success: true, name: skillName, message: `Skill "${skillName}" installed from GitHub and activated!` });
       }
 

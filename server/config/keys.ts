@@ -18,6 +18,17 @@ interface KeyStore {
   DOUBAO_SPEECH_KEY?: string;
 }
 
+/** Which circuit-breaker provider(s) a given key name affects */
+const KEY_TO_CIRCUIT: Partial<Record<keyof KeyStore, string[]>> = {
+  DASHSCOPE_API_KEY: ['qwen'],
+  QWEN_API_KEY: ['qwen'],
+  DEEPGRAM_API_KEY: ['deepgram'],
+  OPENAI_API_KEY: ['openai'],
+  ANTHROPIC_API_KEY: ['anthropic'],
+  GEMINI_API_KEY: ['gemini'],
+  DEEPSEEK_API_KEY: ['deepseek'],
+};
+
 export function loadKeys(): KeyStore {
   try {
     if (fs.existsSync(KEYS_FILE)) {
@@ -38,6 +49,19 @@ export function saveKeys(keys: Partial<KeyStore>): void {
     }
   }
   fs.writeFileSync(KEYS_FILE, JSON.stringify(merged, null, 2));
+
+  // Reset circuit breakers for affected providers so updated keys take effect immediately
+  try {
+    const { resetCircuit } = require('../cloud/circuit_breaker');
+    for (const keyName of Object.keys(keys)) {
+      const circuits = KEY_TO_CIRCUIT[keyName as keyof KeyStore];
+      if (circuits) {
+        for (const c of circuits) {
+          resetCircuit(c);
+        }
+      }
+    }
+  } catch {}
 }
 
 export function getKey(name: keyof KeyStore): string | undefined {

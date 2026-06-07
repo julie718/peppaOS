@@ -40,6 +40,10 @@ export interface AgentRecord {
   isFrozen?: boolean;
   /** IDs of initial seed memories created during distillation */
   seedMemoryIds?: string[];
+  /** Runtime environment: 'internal' (LLM via runWithTools) or 'external' (CLI process) */
+  runtime?: 'internal' | 'external';
+  /** CLI command template for external agents. {task} is replaced with the task text. */
+  externalCommand?: string;
 }
 
 export interface AgentTickResult {

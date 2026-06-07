@@ -12,6 +12,12 @@ async function agentCreate(args: Record<string, any>, _context?: any): Promise<s
   const modelPreference = args.model || 'qwen-plus';
   const knowledgeDomains: string[] = Array.isArray(args.knowledgeDomains) ? args.knowledgeDomains : [];
   const autonomyLevel = args.autonomyLevel || 'reactive';
+  const runtime = args.runtime || 'internal';
+  const externalCommand = (args.externalCommand || '').trim() || undefined;
+
+  if (runtime === 'external' && !externalCommand) {
+    return 'Error: external agents must provide an externalCommand (e.g. "openclaw send --agent mybot --message \\"{task}\\"").';
+  }
 
   const id = `worker_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   const agent: Record<string, any> = {
@@ -30,6 +36,8 @@ async function agentCreate(args: Record<string, any>, _context?: any): Promise<s
     executionMode,
     allowCrossPollination: true,
     territory: 'open',
+    runtime,
+    ...(externalCommand ? { externalCommand } : {}),
   };
 
   try {
@@ -70,6 +78,7 @@ async function agentList(_args: Record<string, any>, context?: any): Promise<str
       skillTags: a.skillTags || [],
       status: a.status,
       territory: a.territory || 'open',
+      runtime: a.runtime || 'internal',
       createdAt: a.createdAt,
     }));
 
@@ -150,6 +159,8 @@ export function registerAgentTools(registry: ToolRegistry): void {
         model: { type: 'string', description: 'Preferred LLM model (default: qwen-plus)' },
         knowledgeDomains: { type: 'array', items: { type: 'string' }, description: 'Knowledge domains for RAG routing' },
         autonomyLevel: { type: 'string', description: 'reactive (on-demand only), scheduled (periodic checks), or autonomous (self-triggering)' },
+        runtime: { type: 'string', description: '"internal" (LLM-powered, default) or "external" (CLI process like OpenClaw/Hermes)' },
+        externalCommand: { type: 'string', description: 'CLI command template for external agents. Use {task} placeholder. e.g. "openclaw send --agent mybot --message \\"{task}\\""' },
       },
       required: ['name'],
     },

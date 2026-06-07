@@ -67,15 +67,15 @@ export function mountAgentRoutes(
   });
 
   router.get("/agents", requireAuth, (req, res) => {
-    try { res.json(readDB().agents.filter((a: any) => a.ownerUid === req.user!.uid && !a.id.startsWith('ephemeral_'))); }
+    try { res.json(readDB().agents.filter((a: any) => !a.id.startsWith('ephemeral_') && (!a.ownerUid || a.ownerUid === req.user!.uid))); }
     catch (err: any) { res.status(500).json({ error: err.message }); }
   });
 
   router.post("/agents", requireAuth, (req, res) => {
     try {
-      const { name, category, data, personalityId, modelPreference, memoryScope, autonomyLevel, territory, distilledFrom, evidenceMap, relationshipType, isFrozen, seedMemoryIds, executionMode } = req.body;
+      const { name, category, data, personalityId, modelPreference, memoryScope, autonomyLevel, territory, distilledFrom, evidenceMap, relationshipType, isFrozen, seedMemoryIds, executionMode, runtime, externalCommand } = req.body;
       const db = readDB(); const isSanctuary = territory === 'sanctuary';
-      const agent: any = { id: Math.random().toString(36).substring(2, 15), ownerUid: req.user!.uid, name, category: category || (relationshipType || 'friend'), data: data || '{}', status: "active", personalityId: personalityId || 'lumi', modelPreference: modelPreference || '', memoryScope: isSanctuary ? 'private' : (memoryScope || 'shared'), autonomyLevel: isSanctuary ? 'reactive' : (autonomyLevel || 'reactive'), runtimeConfig: '{}', territory: territory || 'open', distilledFrom: distilledFrom || '', evidenceMap: evidenceMap || [], relationshipType: relationshipType || '', isFrozen: isFrozen ?? isSanctuary, seedMemoryIds: seedMemoryIds || [], executionMode: executionMode || '', createdAt: new Date().toISOString(), lastActiveAt: new Date().toISOString(), skillTags: [], knowledgeDomains: [], allowCrossPollination: !isSanctuary };
+      const agent: any = { id: Math.random().toString(36).substring(2, 15), ownerUid: req.user!.uid, name, category: category || (relationshipType || 'friend'), data: data || '{}', status: "active", personalityId: personalityId || 'lumi', modelPreference: modelPreference || '', memoryScope: isSanctuary ? 'private' : (memoryScope || 'shared'), autonomyLevel: isSanctuary ? 'reactive' : (autonomyLevel || 'reactive'), runtimeConfig: '{}', territory: territory || 'open', distilledFrom: distilledFrom || '', evidenceMap: evidenceMap || [], relationshipType: relationshipType || '', isFrozen: isFrozen ?? isSanctuary, seedMemoryIds: seedMemoryIds || [], executionMode: executionMode || '', runtime: runtime || 'internal', externalCommand: externalCommand || '', createdAt: new Date().toISOString(), lastActiveAt: new Date().toISOString(), skillTags: [], knowledgeDomains: [], allowCrossPollination: !isSanctuary };
       db.agents.push(agent); writeDB(db); res.json(agent);
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
@@ -91,6 +91,7 @@ export function mountAgentRoutes(
         'name', 'category', 'personalityId', 'modelPreference', 'memoryScope',
         'autonomyLevel', 'executionMode', 'skillTags', 'knowledgeDomains',
         'allowCrossPollination', 'isFrozen', 'territory', 'relationshipType',
+        'runtime', 'externalCommand',
       ];
       for (const field of allowedFields) {
         if (req.body[field] !== undefined) agent[field] = req.body[field];

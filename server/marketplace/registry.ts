@@ -38,6 +38,10 @@ export interface MarketplaceSkill {
   apiKeyUrl?: string;
   requiresSetup?: boolean;
   setupNote?: string;
+  /** 'external' = CLI tool like OpenClaw/Hermes — install creates agent, not MCP server */
+  runtime?: 'internal' | 'external';
+  /** CLI command template for external-runtime skills */
+  externalCommand?: string;
 }
 
 export interface SkillRating {
@@ -82,6 +86,8 @@ function discoverBundledSkills(): MarketplaceSkill[] {
         apiKeyUrl: lumi.apiKeyUrl,
         requiresSetup: lumi.requiresSetup || false,
         setupNote: lumi.setupNote,
+        runtime: lumi.runtime || 'internal',
+        externalCommand: lumi.externalCommand,
       });
     } catch { /* skip invalid packages */ }
   }

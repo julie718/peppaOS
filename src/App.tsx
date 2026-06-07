@@ -13,7 +13,7 @@ import { Settings } from './components/Settings';
 import { Docs } from './components/Docs';
 import { ProtocolsWorld } from './components/ProtocolsWorld';
 import { AgentChatPage } from './components/AgentChatPage';
-import { SkillMarketplace } from './components/SkillMarketplace';
+import { SkillHall } from './components/SkillHall';
 import { MultimodalProducts } from './components/MultimodalProducts';
 import { ProductDetailPage } from './components/ProductDetailPage';
 import { Solutions } from './components/Solutions';
@@ -123,7 +123,7 @@ export default function App() {
         return (
           <div className="space-y-24">
             <LumiEcosystem t={t} onChatAgent={(agent) => { setSelectedAgent(agent); setActiveTab('agent-chat'); }} />
-            <SkillMarketplace t={t} lang={lang} />
+            <SkillHall t={t} lang={lang} />
           </div>
         );
       case 'agent-chat':

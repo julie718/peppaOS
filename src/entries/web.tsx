@@ -11,7 +11,7 @@ import { WebPlatform } from '../platforms/web/WebPlatform';
 import { FloatingAgent } from '../components/FloatingAgent';
 import { ProtocolsWorld } from '../components/ProtocolsWorld';
 import { LumiEcosystem } from '../components/LumiEcosystem';
-import { SkillMarketplace } from '../components/SkillMarketplace';
+import { SkillHall } from '../components/SkillHall';
 import { AgentChatPage } from '../components/AgentChatPage';
 import { LoginRequired } from '../core/components/Auth';
 import { MultimodalProducts } from '../components/MultimodalProducts';
@@ -51,7 +51,7 @@ export function WebApp() {
       case 'home': return null;
       case 'protocols': return <ProtocolsWorld t={shell.t} />;
       case 'marketplace': case 'ecosystem':
-        return <div className="space-y-24"><LumiEcosystem t={shell.t} onChatAgent={(a: any) => { setSelectedAgent(a); setActiveTab('agent-chat'); }} /><SkillMarketplace t={shell.t} lang={shell.lang} /></div>;
+        return <div className="space-y-24"><LumiEcosystem t={shell.t} onChatAgent={(a: any) => { setSelectedAgent(a); setActiveTab('agent-chat'); }} /><SkillHall t={shell.t} lang={shell.lang} /></div>;
       case 'agent-chat': return !shell.user ? <LoginRequired t={shell.t} onLogin={shell.handleLogin} /> : <AgentChatPage t={shell.t} user={shell.user} agent={selectedAgent} isOpen={true} onClose={() => setActiveTab('ecosystem')} />;
       case 'multimodal': return <MultimodalProducts t={shell.t} onSelectProduct={(p: any) => { setSelectedProduct(p); setActiveTab('product-detail'); }} />;
       case 'product-detail': return selectedProduct ? <ProductDetailPage t={shell.t} product={selectedProduct} onBack={() => setActiveTab('multimodal')} /> : <MultimodalProducts t={shell.t} onSelectProduct={(p: any) => { setSelectedProduct(p); setActiveTab('product-detail'); }} />;

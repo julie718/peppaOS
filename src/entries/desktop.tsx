@@ -10,7 +10,7 @@ import '@fontsource-variable/geist';
 import '../index.css';
 import { DesktopUI } from '../components/DesktopUI';
 import { LumiEcosystem } from '../components/LumiEcosystem';
-import { SkillMarketplace } from '../components/SkillMarketplace';
+import { SkillHall } from '../components/SkillHall';
 import { AgentChatPage } from '../components/AgentChatPage';
 import { LoginRequired } from '../core/components/Auth';
 import { Settings } from '../components/Settings';
@@ -48,7 +48,7 @@ export function DesktopApp() {
   const renderTabContent = (tab: string) => {
     switch (tab) {
       case 'home': return null;
-      case 'ecosystem': return <div className="space-y-24"><LumiEcosystem t={shell.t} onChatAgent={(a: any) => { setSelectedAgent(a); setActiveTab('agent-chat'); }} /><SkillMarketplace t={shell.t} lang={shell.lang} /></div>;
+      case 'ecosystem': return <div className="space-y-24"><LumiEcosystem t={shell.t} onChatAgent={(a: any) => { setSelectedAgent(a); setActiveTab('agent-chat'); }} /><SkillHall t={shell.t} lang={shell.lang} /></div>;
       case 'agent-chat': return !shell.user ? <LoginRequired t={shell.t} onLogin={shell.handleLogin} /> : <AgentChatPage t={shell.t} user={shell.user} agent={selectedAgent} isOpen={true} onClose={() => setActiveTab('ecosystem')} />;
       case 'docs': return <Docs t={shell.t} />;
       case 'founders': return <FoundersSanctuary t={shell.t} user={shell.user} onBack={() => setActiveTab('home')} />;

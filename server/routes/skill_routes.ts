@@ -9,6 +9,7 @@ import { generateSkill } from "../skills/generator";
 import { getRecentWorkflows } from "../skills/worklog";
 import { getDataPath } from "../config/data_path";
 import { requireAuth } from "../middleware/auth";
+import { createAgentForSkill } from "../agents/skill_agent";
 
 const asyncHandler = (fn: (req: Request, res: Response, next?: NextFunction) => Promise<any>) =>
   (req: Request, res: Response, next: NextFunction) =>
@@ -103,6 +104,11 @@ export function mountSkillRoutes(
           console.warn('[SkillGen] Failed to save to knowledge base:', e);
         }
         io.emit('skill:updated', { name: result.skillName });
+        createAgentForSkill(result.skillName, {
+          description: description || 'Auto-generated skill',
+          category: 'general',
+          installSource: 'generated',
+        }, io);
         res.json(result);
       } else {
         res.status(400).json(result);
@@ -126,23 +132,27 @@ export function mountSkillRoutes(
 
         // Restart to pick up new skill
         await mcpManager.restartServer(skillName);
+        createAgentForSkill(skillName, { description: `Git install: ${url}`, category: 'general', installSource: 'git' }, io);
         res.json({ success: true, name: skillName, directory: destDir });
       } else if (source === 'local' && localPath) {
         const skillName = name || path.basename(localPath);
         const destDir = mcpManager.installSkill(skillName, localPath);
         await mcpManager.restartServer(skillName);
+        createAgentForSkill(skillName, { description: `Local install: ${localPath}`, category: 'general', installSource: 'local' }, io);
         res.json({ success: true, name: skillName, directory: destDir });
       } else if (source === 'npm' && pkgName) {
         const npmDir = await mcpManager.installFromNpm(pkgName);
         const npmName = path.basename(npmDir);
         await mcpManager.restartServer(npmName);
         io.emit('skill:installed', { name: npmName, source: 'npm' });
+        createAgentForSkill(npmName, { description: `npm package: ${pkgName}`, category: 'general', installSource: 'npm' }, io);
         res.json({ success: true, name: npmName, directory: npmDir });
       } else if (source === 'github' && url) {
         const ghDir = await mcpManager.installFromGitHub(url);
         const ghName = path.basename(ghDir);
         await mcpManager.restartServer(ghName);
         io.emit('skill:installed', { name: ghName, source: 'github' });
+        createAgentForSkill(ghName, { description: `GitHub repo: ${url}`, category: 'general', installSource: 'github' }, io);
         res.json({ success: true, name: ghName, directory: ghDir });
       } else {
         res.status(400).json({ error: 'Invalid source. Use: git (with url), local (with path), or npm (with package)' });
@@ -157,6 +167,19 @@ export function mountSkillRoutes(
     try {
       mcpManager.uninstallSkill(req.params.name);
       io.emit('skill:uninstalled', { name: req.params.name });
+      // Remove auto-created team agent
+      const agentId = `skill_${req.params.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+      try {
+        const db = readDB();
+        if (db.agents) {
+          const idx = db.agents.findIndex((a: any) => a.id === agentId && a.autoCreated);
+          if (idx !== -1) {
+            db.agents.splice(idx, 1);
+            writeDB(db);
+            io.emit('agent:removed', { id: agentId });
+          }
+        }
+      } catch {}
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });

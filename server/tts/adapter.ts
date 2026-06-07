@@ -5,6 +5,7 @@ import * as ark from './providers/ark';
 import { getKey } from '../config/keys';
 import { hasDoubaoSpeech } from './providers/ark';
 import { getVoicePreference } from '../config/voice_preference';
+import { isCircuitClosed } from '../cloud/circuit_breaker';
 
 export async function synthesizeSpeech(text: string, config: TTSConfig): Promise<TTSResult> {
   switch (config.provider) {
@@ -55,11 +56,13 @@ export function getActiveProvider(): TTSProvider | null {
   if (pref.tts === 'gptsovits' && (process.env.GPTSOVITS_API_URL || process.env.GPTSOVITS_ENABLED === 'true')) return 'gptsovits';
   if (pref.tts === 'cosyvoice') return 'cosyvoice';
   if (pref.tts === 'ark' && hasDoubaoSpeech()) return 'ark';
-  // Auto mode — pick based on what's available
+  // Auto mode — pick based on what's available, skip circuit-open providers
   if (hasDoubaoSpeech()) return 'ark';
   const dashscopeKey = process.env.DASHSCOPE_API_KEY || process.env.QWEN_API_KEY || getKey('DASHSCOPE_API_KEY') || getKey('QWEN_API_KEY');
-  if (dashscopeKey) return 'cosyvoice';
+  if (dashscopeKey && isCircuitClosed('qwen')) return 'cosyvoice';
   if (process.env.GPTSOVITS_API_URL || process.env.GPTSOVITS_ENABLED === 'true') return 'gptsovits';
+  // Fallback: try anyway if nothing healthy
+  if (dashscopeKey) return 'cosyvoice';
   return 'cosyvoice';
 }
 
