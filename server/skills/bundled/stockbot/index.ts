@@ -1,0 +1,281 @@
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { z } from 'zod';
+
+// ── East Money public API helpers (no API key needed) ──────────────────────
+
+const UA = 'LumiOS/2.0';
+
+function marketCode(code: string): string {
+  const c = code.replace(/\D/g, '');
+  if (/^6/.test(c)) return `1.${c}`;
+  return `0.${c}`;
+}
+
+async function fetchJSON(url: string): Promise<any> {
+  const res = await fetch(url, { headers: { 'User-Agent': UA, 'Referer': 'https://quote.eastmoney.com/' } });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+// ── Tool 1: stock_search ───────────────────────────────────────────────────
+
+async function searchStocks(args: any) {
+  const keyword = String(args.keyword || '');
+  if (!keyword.trim()) return err('keyword is required');
+  try {
+    const data = await fetchJSON(
+      `https://searchadapter.eastmoney.com/api/suggest/get?input=${encodeURIComponent(keyword)}&type=14&token=D43BF722C8E33BDC906FB84A85B32659&count=10`
+    );
+    const items = data?.QuotationCodeTable?.Data || [];
+    if (!items.length) return ok({ query: keyword, count: 0, results: [], hint: 'No matching stocks found' });
+    const results = items.map((it: any) => ({
+      code: it.Code,
+      name: it.Name,
+      market: it.MktNum === '1' ? 'SH' : it.MktNum === '0' ? 'SZ' : it.MktNum,
+      type: it.SecurityTypeName || 'stock',
+    }));
+    return ok({ query: keyword, count: results.length, results });
+  } catch (e: any) {
+    return err(`Search failed: ${e.message}`);
+  }
+}
+
+// ── Tool 2: stock_quote ────────────────────────────────────────────────────
+
+async function getQuote(args: any) {
+  const raw = String(args.code || '').trim();
+  if (!raw) return err('code is required (e.g. 600519 or 000001)');
+  try {
+    const secid = raw.includes('.') ? raw : marketCode(raw);
+    const fields = 'f43,f44,f45,f46,f47,f48,f50,f51,f52,f57,f58,f60,f116,f117,f162,f167,f169,f170,f171';
+    const data = await fetchJSON(
+      `https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=${fields}`
+    );
+    const d = data?.data;
+    if (!d) return err(`No data for "${raw}"`);
+    const result = {
+      code: d.f57,
+      name: d.f58,
+      price: d.f43 != null ? d.f43 / 100 : null,
+      high: d.f44 != null ? d.f44 / 100 : null,
+      low: d.f45 != null ? d.f45 / 100 : null,
+      open: d.f46 != null ? d.f46 / 100 : null,
+      volume: d.f47,
+      turnover: d.f48,
+      changePercent: d.f169 != null ? d.f169 / 100 : null,
+      changeAmount: d.f170 != null ? d.f170 / 100 : null,
+      amplitude: d.f171 != null ? d.f171 / 100 : null,
+      limitUp: d.f51 != null ? d.f51 / 100 : null,
+      limitDown: d.f52 != null ? d.f52 / 100 : null,
+      pe: d.f60 != null ? d.f60 / 100 : null,
+      pb: d.f167 != null ? d.f167 / 100 : null,
+      totalCap: d.f116,   // 总市值 (yuan)
+      floatCap: d.f117,   // 流通市值 (yuan)
+      turnoverRate: d.f162 != null ? d.f162 / 100 : null,
+      volumeRatio: d.f50 != null ? d.f50 / 100 : null,
+    };
+    return ok(result);
+  } catch (e: any) {
+    return err(`Quote failed: ${e.message}`);
+  }
+}
+
+// ── Tool 3: stock_kline ────────────────────────────────────────────────────
+
+async function getKline(args: any) {
+  const raw = String(args.code || '').trim();
+  const period = String(args.period || 'daily');
+  const limit = Math.min(Number(args.limit || 30), 365);
+  if (!raw) return err('code is required');
+  const kltMap: Record<string, string> = { daily: '101', weekly: '102', monthly: '103' };
+  const klt = kltMap[period] || '101';
+  try {
+    const secid = raw.includes('.') ? raw : marketCode(raw);
+    const fields2 = 'f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61';
+    const data = await fetchJSON(
+      `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=${fields2}&klt=${klt}&fqt=1&end=20500101&lmt=${limit}`
+    );
+    const rawLines = data?.data?.klines || [];
+    const name = data?.data?.name || raw;
+    const klines = rawLines.map((line: string) => {
+      const parts = line.split(',');
+      return {
+        date: parts[0],
+        open: Number(parts[1]),
+        close: Number(parts[2]),
+        high: Number(parts[3]),
+        low: Number(parts[4]),
+        volume: Number(parts[5]),
+        turnover: Number(parts[6]),
+        amplitude: Number(parts[7]),
+        changePercent: Number(parts[8]),
+        changeAmount: Number(parts[9]),
+        turnoverRate: Number(parts[10]),
+      };
+    });
+    // Summarize recent trend
+    const recent = klines.slice(-5).map((k: any) => k.close);
+    const trend = recent.length >= 2 ? (recent[recent.length - 1] >= recent[0] ? 'up' : 'down') : 'flat';
+    return ok({ code: raw, name, period, count: klines.length, trend, klines });
+  } catch (e: any) {
+    return err(`K-line failed: ${e.message}`);
+  }
+}
+
+// ── Tool 4: market_index ────────────────────────────────────────────────────
+
+const INDICES: Record<string, { secid: string; name: string }> = {
+  sh:      { secid: '1.000001', name: '上证指数' },
+  sz:      { secid: '0.399001', name: '深证成指' },
+  chinext: { secid: '0.399006', name: '创业板指' },
+  star:    { secid: '1.000688', name: '科创50' },
+  hs300:   { secid: '1.000300', name: '沪深300' },
+  sz50:    { secid: '1.000016', name: '上证50' },
+  zz500:   { secid: '1.000905', name: '中证500' },
+};
+
+async function getMarketIndex(args: any) {
+  const code = String(args.index || 'all').toLowerCase();
+  try {
+    const targets = code === 'all'
+      ? Object.entries(INDICES)
+      : Object.entries(INDICES).filter(([k]) => k === code || INDICES[k].secid === code);
+    if (!targets.length) return err(`Unknown index "${code}". Try: ${Object.keys(INDICES).join(', ')}`);
+
+    const fields = 'f43,f44,f45,f46,f47,f48,f57,f58,f169,f170,f171';
+    const results: any[] = [];
+    for (const [, info] of targets) {
+      const data = await fetchJSON(
+        `https://push2.eastmoney.com/api/qt/stock/get?secid=${info.secid}&fields=${fields}`
+      );
+      const d = data?.data;
+      if (!d) continue;
+      results.push({
+        name: d.f58,
+        price: d.f43 != null ? d.f43 / 100 : null,
+        high: d.f44 != null ? d.f44 / 100 : null,
+        low: d.f45 != null ? d.f45 / 100 : null,
+        open: d.f46 != null ? d.f46 / 100 : null,
+        volume: d.f47,
+        turnover: d.f48,
+        changePercent: d.f169 != null ? d.f169 / 100 : null,
+        changeAmount: d.f170 != null ? d.f170 / 100 : null,
+        amplitude: d.f171 != null ? d.f171 / 100 : null,
+      });
+    }
+    return ok({ indices: results });
+  } catch (e: any) {
+    return err(`Index failed: ${e.message}`);
+  }
+}
+
+// ── Tool 5: hot_sectors ────────────────────────────────────────────────────
+
+async function getHotSectors(_args: any) {
+  try {
+    const fields = 'f2,f3,f4,f8,f12,f14,f15,f20,f104,f105,f128,f140';
+    const data = await fetchJSON(
+      `https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=30&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:90+t:2&fields=${fields}`
+    );
+    const items = data?.data?.diff || [];
+    const sectors = items.map((it: any) => ({
+      code: it.f12,
+      name: it.f14,
+      index: it.f15,
+      changePercent: it.f3 != null ? it.f3 / 100 : null,
+      changeAmount: it.f4 != null ? it.f4 / 100 : null,
+      turnoverRate: it.f8 != null ? it.f8 / 100 : null,
+      totalCap: it.f20,
+      // Leading stock
+      leadStock: it.f128 ? { code: it.f128, name: it.f140 } : null,
+      upCount: it.f104,
+      downCount: it.f105,
+    }));
+    // Sort by changePercent descending
+    sectors.sort((a: any, b: any) => (b.changePercent ?? -999) - (a.changePercent ?? -999));
+    return ok({ count: sectors.length, sectors });
+  } catch (e: any) {
+    return err(`Hot sectors failed: ${e.message}`);
+  }
+}
+
+// ── Tool 6: stock_news ──────────────────────────────────────────────────────
+
+async function getStockNews(args: any) {
+  const raw = String(args.code || '').trim();
+  if (!raw) return err('code is required');
+  try {
+    const secid = raw.includes('.') ? raw : marketCode(raw);
+    // Use East Money's news/list endpoint
+    const data = await fetchJSON(
+      `https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=f57,f58`
+    );
+    const name = data?.data?.f58 || raw;
+    const newsData = await fetchJSON(
+      `https://push2.eastmoney.com/api/qt/stock/news/get?secid=${secid}&pagesize=10&pageindex=1&source=web`
+    );
+    const items = (newsData?.data?.list || []).map((it: any) => ({
+      title: it.title || it.TITLE,
+      time: it.showTime || it.SHOWTIME || it.time,
+      source: it.source || it.SOURCE,
+      url: it.url || it.URL,
+      summary: (it.digest || it.DIGEST || '').replace(/<[^>]+>/g, '').slice(0, 150),
+    }));
+    return ok({ code: raw, name, count: items.length, news: items });
+  } catch (e: any) {
+    return err(`News failed: ${e.message}`);
+  }
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+function ok(data: any) {
+  return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
+}
+function err(message: string) {
+  return { content: [{ type: 'text' as const, text: `StockBot error: ${message}` }], isError: true };
+}
+
+// ── Server ──────────────────────────────────────────────────────────────────
+
+const server = new McpServer({ name: 'stockbot', version: '1.0.0' }, { capabilities: { tools: {} } });
+
+server.registerTool('stock_search', {
+  description: 'Search A-stock by name or code. Returns matching stocks with code, name, and market.',
+  inputSchema: { keyword: z.string().describe('Search keyword, e.g. "茅台" or "600519"') },
+}, searchStocks);
+
+server.registerTool('stock_quote', {
+  description: 'Get real-time quote for a stock: price, change%, volume, PE, PB, market cap, limit up/down, etc.',
+  inputSchema: { code: z.string().describe('Stock code, e.g. "600519" or "000001"') },
+}, getQuote);
+
+server.registerTool('stock_kline', {
+  description: 'Get K-line (candlestick) data. Returns OHLCV bars with date, amplitude, turnover rate.',
+  inputSchema: {
+    code: z.string().describe('Stock code'),
+    period: z.enum(['daily', 'weekly', 'monthly']).optional().describe('K-line period (default: daily)'),
+    limit: z.number().optional().describe('Number of bars (default: 30, max: 365)'),
+  },
+}, getKline);
+
+server.registerTool('market_index', {
+  description: 'Get major Chinese market indices: 上证, 深证, 创业板, 科创50, 沪深300, 上证50, 中证500. Pass "all" for all.',
+  inputSchema: {
+    index: z.string().optional().describe('Index key: sh, sz, chinext, star, hs300, sz50, zz500, or "all" (default)'),
+  },
+}, getMarketIndex);
+
+server.registerTool('hot_sectors', {
+  description: 'Get today\'s hottest industry sectors ranked by change%. Includes leading stock per sector.',
+  inputSchema: {},
+}, getHotSectors);
+
+server.registerTool('stock_news', {
+  description: 'Get latest news and announcements for a stock.',
+  inputSchema: { code: z.string().describe('Stock code, e.g. "600519"') },
+}, getStockNews);
+
+const transport = new StdioServerTransport();
+await server.connect(transport);
