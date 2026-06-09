@@ -50,6 +50,19 @@ function err(message: string) {
   return { content: [{ type: 'text' as const, text: `NeteaseMusic error: ${message}` }], isError: true };
 }
 
+// ── Auto-configure ncm-cli from env/stored keys ─────────────────────────────
+
+async function autoConfigureFromEnv() {
+  const appId = process.env.NETEASE_APP_ID || '';
+  const privateKey = process.env.NETEASE_PRIVATE_KEY || '';
+  if (appId) {
+    await execAsync(`npx @music163/ncm-cli config set appId "${appId}"`, { timeout: 10000 }).catch(() => {});
+  }
+  if (privateKey) {
+    await execAsync(`npx @music163/ncm-cli config set privateKey "${privateKey.replace(/\n/g, '\\n')}"`, { timeout: 10000 }).catch(() => {});
+  }
+}
+
 // ── MCP Server ───────────────────────────────────────────────────────────────
 
 const server = new McpServer({ name: 'netease-music', version: '1.0.0' }, { capabilities: { tools: {} } });
@@ -359,8 +372,9 @@ server.registerTool('netease_queue', {
 // ── Start ────────────────────────────────────────────────────────────────────
 
 async function main() {
+  await autoConfigureFromEnv();
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('[Netease Music] Ready — 7 tools loaded. Setup with netease_setup first.');
+  console.error('[Netease Music] Ready — 7 tools loaded.');
 }
 main().catch(console.error);

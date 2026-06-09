@@ -16,6 +16,8 @@ interface KeyStore {
   E2B_API_KEY?: string;
   ARK_API_KEY?: string;
   DOUBAO_SPEECH_KEY?: string;
+  NETEASE_APP_ID?: string;
+  NETEASE_PRIVATE_KEY?: string;
 }
 
 /** Which circuit-breaker provider(s) a given key name affects */
@@ -82,5 +84,7 @@ export function getAllKeyNames(): (keyof KeyStore)[] {
     'E2B_API_KEY',
     'ARK_API_KEY',
     'DOUBAO_SPEECH_KEY',
+    'NETEASE_APP_ID',
+    'NETEASE_PRIVATE_KEY',
   ];
 }

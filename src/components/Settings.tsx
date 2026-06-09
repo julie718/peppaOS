@@ -881,6 +881,8 @@ function SkillsToolsPage({ t }: { t: any }) {
         </p>
         <div className="grid grid-cols-1 gap-6">
           <ApiKeyField icon={<Sparkle size={18} className="text-amber-400" />} label={t.minimaxLabel || 'MiniMax (Music + Video + TTS + Voice Clone)'} placeholder={t.minimaxPlaceholder || 'Enter MiniMax API key...'} storageKey="lumi_minimax_key" serverKey="MINIMAX_API_KEY" hint={t.minimaxHint || 'Powers music, video, image, TTS, and voice cloning. Get your key at platform.minimaxi.com'} t={t} />
+          <ApiKeyField icon={<Music size={18} className="text-red-400" />} label={t.neteaseAppIdLabel || '网易云音乐 App ID'} placeholder={t.neteaseAppIdPlaceholder || 'Enter NetEase App ID...'} storageKey="lumi_netease_appid" serverKey="NETEASE_APP_ID" hint={t.neteaseAppIdHint || '网易云开放平台凭证。前往 developer.music.163.com 获取。'} t={t} />
+          <ApiKeyField icon={<Music size={18} className="text-red-400" />} label={t.neteasePrivateKeyLabel || '网易云音乐 Private Key'} placeholder={t.neteasePrivateKeyPlaceholder || 'Enter NetEase Private Key...'} storageKey="lumi_netease_privatekey" serverKey="NETEASE_PRIVATE_KEY" hint={t.neteasePrivateKeyHint || 'RSA 私钥，从开放平台应用详情中复制完整内容。'} t={t} />
           <ApiKeyField icon={<Terminal size={18} className="text-green-400" />} label={t.e2bLabel || 'E2B (Code Sandbox)'} placeholder={t.e2bPlaceholder || 'Enter E2B API key...'} storageKey="lumi_e2b_key" serverKey="E2B_API_KEY" hint={t.e2bHint || 'Secure cloud sandbox for executing Python and JavaScript code. Get your key at e2b.dev'} t={t} />
         </div>
       </SettingsSection>
