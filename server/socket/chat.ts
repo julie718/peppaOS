@@ -489,9 +489,11 @@ export function registerChatHandler(
               album: pick.album?.name,
               duration: pick.duration || pick.dt,
             };
+            const audioUrl = `https://music.163.com/song/media/outer/url?id=${pick.id}.mp3`;
             emitMusicAtmosphere(socket, {
               track: trackInfo,
               mood,
+              audioUrl,
               lumiReason: `你现在心情${mood === 'tired' ? '有点累' : mood === 'sad' ? '不太好' : mood === 'happy' ? '很开心' : '还不错'}，选了这首给你听。`,
             });
             responseText = `正在播放「${trackInfo.name}」— ${trackInfo.artists.join('、')}`;
