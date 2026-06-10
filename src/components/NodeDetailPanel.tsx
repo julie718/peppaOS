@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useT } from '../lib/useT';
-import { X, Download, Trash2, Edit3, Brain, Shield, ShieldOff, File, Clock, Layers, Sparkles, CheckCircle2, Loader2, MessageSquare } from 'lucide-react';
+import { X, Download, Trash2, Edit3, Brain, Shield, ShieldOff, File, Clock, Layers, Sparkles, CheckCircle2, Loader2, MessageSquare, Eye, EyeOff, FileText, FolderOpen } from 'lucide-react';
 
 interface FileEntry {
   id: string;
@@ -91,6 +91,49 @@ export function NodeDetailPanel({
   onEdit,
 }: NodeDetailPanelProps) {
   const t = useT();
+  const [previewContent, setPreviewContent] = useState<string | null>(null);
+  const [previewMediaUrl, setPreviewMediaUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  const fileName = node?.type === 'file' ? node.fileData?.name || node.title : '';
+  const imageExts = /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i;
+  const audioExts = /\.(mp3|wav|ogg|flac|m4a|aac|wma)$/i;
+  const videoExts = /\.(mp4|mov|avi|webm|mkv)$/i;
+  const pdfExts = /\.pdf$/i;
+  const textFileExts = /\.(txt|md|json|csv|log|xml|yaml|yml|ts|tsx|js|jsx|py|html|css|env|toml|ini|cfg)$/i;
+
+  const isImageFile = imageExts.test(fileName);
+  const isAudioFile = audioExts.test(fileName);
+  const isVideoFile = videoExts.test(fileName);
+  const isPdfFile = pdfExts.test(fileName);
+  const isTextFile = textFileExts.test(fileName);
+  const isPreviewable = isImageFile || isAudioFile || isVideoFile || isPdfFile || isTextFile;
+
+  const handleTogglePreview = async () => {
+    if (!node || node.type !== 'file') return;
+    if (previewContent || previewMediaUrl) {
+      if (previewMediaUrl) URL.revokeObjectURL(previewMediaUrl);
+      setPreviewContent(null); setPreviewMediaUrl(null);
+      return;
+    }
+    setPreviewLoading(true);
+    try {
+      const res = await fetch(`/api/files/download/${encodeURIComponent(node.id)}`);
+      if (!res.ok) throw new Error('');
+      if (isImageFile || isAudioFile || isVideoFile) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        setPreviewMediaUrl(url);
+      } else {
+        const text = await res.text();
+        setPreviewContent(text.slice(0, 20000));
+      }
+    } catch {
+      setPreviewContent('Failed to load preview');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
   return (
     <AnimatePresence>
       {node && (
@@ -205,6 +248,70 @@ export function NodeDetailPanel({
                       </div>
                     </div>
                   )}
+
+                  {isPreviewable && (
+                    <div className="space-y-2">
+                      <button
+                        onClick={handleTogglePreview}
+                        disabled={previewLoading}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-white/60 transition-colors"
+                      >
+                        {previewLoading ? <Loader2 size={12} className="animate-spin" /> : (previewContent || previewMediaUrl) ? <EyeOff size={12} /> : <Eye size={12} />}
+                        {(previewContent || previewMediaUrl) ? 'Hide Preview' : 'Preview'}
+                      </button>
+
+                      {/* Image preview */}
+                      {previewMediaUrl && isImageFile && (
+                        <div className="bg-white/[0.03] rounded-xl overflow-hidden border border-white/[0.06]">
+                          <img src={previewMediaUrl} alt={fileName} className="w-full max-h-64 object-contain" />
+                        </div>
+                      )}
+
+                      {/* Audio preview */}
+                      {previewMediaUrl && isAudioFile && (
+                        <div className="bg-white/[0.04] rounded-xl p-3 border border-white/[0.06]">
+                          <audio controls className="w-full h-10" src={previewMediaUrl}>
+                            Your browser does not support the audio element.
+                          </audio>
+                        </div>
+                      )}
+
+                      {/* Video preview */}
+                      {previewMediaUrl && isVideoFile && (
+                        <div className="bg-white/[0.03] rounded-xl overflow-hidden border border-white/[0.06]">
+                          <video controls className="w-full max-h-56" src={previewMediaUrl}>
+                            Your browser does not support the video element.
+                          </video>
+                        </div>
+                      )}
+
+                      {/* PDF preview — open in new tab */}
+                      {isPdfFile && (
+                        <div className="bg-white/[0.04] rounded-xl p-3 border border-white/[0.06] flex items-center gap-3">
+                          <FileText size={28} className="text-red-400/70" />
+                          <div className="flex-1">
+                            <p className="text-sm text-white/70">{t.pdfPreviewHint || 'Open this PDF directly in the browser'}</p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const url = `/api/files/download/${encodeURIComponent(node.id)}?inline=1`;
+                              window.open(url, '_blank');
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg text-xs font-bold text-red-400 transition-colors"
+                          >
+                            <Eye size={12} /> Open
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Text file preview */}
+                      {previewContent && isTextFile && (
+                        <div className="bg-white/[0.04] rounded-xl p-3 border border-white/[0.06] max-h-48 overflow-y-auto custom-scrollbar">
+                          <pre className="text-xs text-white/65 leading-relaxed whitespace-pre-wrap font-mono">{previewContent}</pre>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </>
               )}
 
@@ -298,6 +405,17 @@ export function NodeDetailPanel({
                       <Download size={13} /> Download
                     </button>
                   )}
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`/api/files/open-folder/${encodeURIComponent(node.id)}`);
+                        if (!res.ok) throw new Error('');
+                      } catch { /* fall through */ }
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-white/60 transition-colors"
+                  >
+                    <FolderOpen size={13} /> Show in Folder
+                  </button>
                   {onIngest && (
                     <button onClick={() => onIngest(node.id)} className="flex items-center gap-1.5 px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-xl text-xs font-bold text-amber-400 transition-colors">
                       <Brain size={13} /> Ingest

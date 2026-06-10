@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Loader2, Search, Sparkles, TrendingUp, Network, GitMerge, Upload, ArrowRight } from 'lucide-react';
+import { X, Loader2, Search, Sparkles, TrendingUp, Network, GitMerge, Upload, ArrowRight, File, FileText, Trash2, Download, Eye, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSocket } from '@/hooks/useSocket';
 import { NodeDetailPanel } from './NodeDetailPanel';
@@ -283,6 +283,52 @@ export function KnowledgeBase({ t, isOpen, onClose }: KnowledgeBaseProps) {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Left: File browser */}
+          <div className="absolute left-6 top-32 bottom-20 z-20 flex flex-col">
+            <div className="bg-black/40 backdrop-blur-xl border border-white/[0.08] rounded-2xl overflow-hidden flex-1 flex flex-col w-64 min-h-0">
+              <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
+                <span className="text-xs font-bold text-white/45 uppercase tracking-widest flex items-center gap-2">
+                  <File size={12} className="text-blue-400/60" />
+                  {t.kbFiles || 'Files'} ({totalFiles})
+                </span>
+              </div>
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+                {files.length === 0 ? (
+                  <div className="text-xs text-white/25 text-center py-8">{t.noFilesYet || 'No files yet'}</div>
+                ) : (
+                  files.map(f => (
+                    <button
+                      key={f.id}
+                      onClick={() => { setSelectedId(f.id); setCardPos(null); }}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-all group ${
+                        selectedId === f.id
+                          ? 'bg-white/10 border border-white/15 shadow-[0_0_20px_rgba(59,130,246,0.08)]'
+                          : 'hover:bg-white/5 border border-transparent'
+                      }`}
+                    >
+                      {f.name.match(/\.(pdf|docx?|xlsx?|pptx?)$/i) ? (
+                        <FileText size={13} className="text-amber-400/60 shrink-0" />
+                      ) : f.name.match(/\.(mp3|wav|m4a|ogg|flac)$/i) ? (
+                        <File size={13} className="text-purple-400/60 shrink-0" />
+                      ) : f.name.match(/\.(mp4|mov|avi|mkv|webm)$/i) ? (
+                        <File size={13} className="text-red-400/60 shrink-0" />
+                      ) : (
+                        <File size={13} className="text-blue-400/60 shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs text-white/70 truncate block">{f.name}</span>
+                        {f.source && (
+                          <span className="text-[12px] text-white/25 uppercase">{f.source}</span>
+                        )}
+                      </div>
+                      <ChevronRight size={12} className="text-white/20 shrink-0 group-hover:text-white/40 transition-colors" />
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
 
           {/* Top bar — controls */}
           <div className="absolute top-6 left-6 right-6 z-20 pointer-events-none">

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, Loader2, ArrowLeft, Ghost, Zap, Cpu, Sparkles, Upload, FileText, Mic, Video, CheckCircle2, Pause, Play, Square, ChevronDown, ChevronRight, XCircle, Info, Copy, Check } from 'lucide-react';
+import { Send, Loader2, ArrowLeft, Ghost, Zap, Cpu, Sparkles, Upload, FileText, Mic, Video, CheckCircle2, Pause, Play, Square, ChevronDown, ChevronRight, XCircle, Copy, Check } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { socketService } from '@/services/socketService';
@@ -100,7 +100,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [optimizationProgress, setOptimizationProgress] = useState(0);
-  const [showInfoPanel, setShowInfoPanel] = useState(true);
+  const [uploadResults, setUploadResults] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const { speak, stop, pause, resume, isSpeaking, isPaused } = useTTS();
   const recognition = useRef<any>(null);
@@ -112,12 +112,11 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (showVoicePicker) setShowVoicePicker(false);
-        else if (showInfoPanel) setShowInfoPanel(false);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [showVoicePicker, showInfoPanel]);
+  }, [showVoicePicker]);
 
   const agentName = agent?.name || (t.lumiEssence || 'Lumi Essence');
   const agentCategory = agent?.category || (t.friend || 'friend');
@@ -164,23 +163,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
 
   useEffect(() => {
     if (agentId && !isFounder) {
-      fetch(`/api/agents/${agentId}/history`)
-        .then(res => res.json())
-        .then(data => {
-          if (Array.isArray(data)) {
-            const historyMessages = data.map((m: any, idx: number) => ({
-              id: `history-${idx}`,
-              text: m.content,
-              userName: m.role === 'assistant' ? agentName : (user?.displayName || user?.username || (t.chatUserFallback || 'User')),
-              timestamp: new Date().toISOString(),
-              type: m.role === 'assistant' ? 'agent' : 'user'
-            }));
-            setMessages(historyMessages);
-          }
-        })
-        .catch(err => console.error(t.failedToLoadChatHistory || "Failed to load chat history", err));
-
-      // Load the single active conversation
+      // Load the single active conversation messages
       fetch('/api/conversations/active')
         .then(r => r.json())
         .then(async (data) => {
@@ -189,9 +172,9 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
             const msgRes = await fetch(`/api/conversations/${conv.id}/messages?limit=500`);
             const msgData = await msgRes.json();
             if (msgData.messages && Array.isArray(msgData.messages)) {
-              setMessages(msgData.messages.map((m: any, idx: number) => ({
-                id: m.id || `msg-${idx}`,
-                text: m.content || m.message || '',
+              setMessages(msgData.messages.map((m: any) => ({
+                id: m.id || crypto.randomUUID(),
+                text: m.content || m.message || m.response || '',
                 userName: m.role === 'assistant' ? agentName : (user?.displayName || user?.username || (t.chatUserFallback || 'User')),
                 timestamp: m.timestamp || m.createdAt || new Date().toISOString(),
                 type: m.role === 'assistant' ? 'agent' : 'user',
@@ -201,7 +184,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
         })
         .catch(() => {});
     }
-  }, [agentId, agentName, user, isFounder, t.failedToLoadChatHistory]);
+  }, [agentId, agentName, user, isFounder, t.chatUserFallback, t.failedToLoadChatHistory]);
 
   const streamingMsgId = useRef<string | null>(null);
 
@@ -258,13 +241,16 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     socket.on("agent:response", (data: { text: string; agentName: string; source?: string }) => {
       setIsTyping(false);
       if (streamingMsgId.current) {
-        // Finalize streamed message with complete text
+        // Finalize streamed message — keep chunked text if response text is empty
+        const finalText = (data.text && data.text.trim()) ? data.text : null;
         setMessages(prev => prev.map(m =>
-          m.id === streamingMsgId.current ? { ...m, text: data.text } : m
+          m.id === streamingMsgId.current
+            ? { ...m, text: finalText || m.text }
+            : m
         ));
         streamingMsgId.current = null;
-      } else {
-        // No streaming — add as new message
+      } else if (data.text && data.text.trim()) {
+        // No streaming — add as new message (only if non-empty)
         setMessages(prev => [...prev, {
           id: Date.now().toString(),
           text: data.text,
@@ -302,18 +288,18 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     // conversation_updated now arrives AFTER agent:response (fixed order in chat.ts).
     // streamingMsgId is null by then for text chat → no-op. For voice it's still set → reload.
     socket.on("chat:conversation_updated", (data: { conversationId: string; agentId: string }) => {
-      if (data.agentId !== agentId || !streamingMsgId.current) return;
-      // Voice path: streaming just completed, reload full state from API
+      if (data.agentId !== agentId) return;
+      if (!streamingMsgId.current) return;
       streamingMsgId.current = null;
       fetch(`/api/conversations/${data.conversationId}/messages?limit=100`)
         .then(r => r.json())
         .then(result => {
           if (result.messages && Array.isArray(result.messages)) {
-            setMessages(result.messages.map((m: any, idx: number) => ({
-              id: m.id || `hist-${idx}`,
-              text: m.content,
+            setMessages(result.messages.map((m: any) => ({
+              id: m.id || crypto.randomUUID(),
+              text: m.content || m.message || m.response || '',
               userName: m.role === 'assistant' ? (agentNameRef.current || 'Lumi') : (user?.displayName || 'You'),
-              timestamp: m.createdAt,
+              timestamp: m.timestamp || m.createdAt || new Date().toISOString(),
               type: m.role === 'assistant' ? 'agent' : 'user',
               mode: m.mode,
             })));
@@ -335,10 +321,26 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
   }, [speak, stop, isFounder, socket]);
 
   useEffect(() => {
+    // Scroll to bottom when messages change (new messages, initial load)
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      requestAnimationFrame(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+      });
     }
   }, [messages]);
+
+  // Scroll to bottom on mount when messages first load
+  useEffect(() => {
+    if (messages.length > 0 && scrollRef.current) {
+      requestAnimationFrame(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+      });
+    }
+  }, [isOpen]);
 
   const sendText = async (text: string) => {
     if (!text || !user) return;
@@ -460,45 +462,59 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     fileInputRef.current?.click();
   };
 
-  const doUpload = (files: FileList | null) => {
+  const doUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setIsOptimizing(true);
-    setOptimizationProgress(0);
+    setOptimizationProgress(30);
 
+    const fileList = Array.from(files);
     const formData = new FormData();
-    Array.from(files).forEach(f => formData.append('files', f));
+    fileList.forEach(f => formData.append('files', f));
 
-    const xhr = new XMLHttpRequest();
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) {
-        setOptimizationProgress(Math.round((e.loaded / e.total) * 90));
-      }
-    };
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
+    try {
+      const res = await fetch('/api/files/upload', { method: 'POST', body: formData, credentials: 'include' });
+      if (res.ok) {
+        const d = await res.json();
         setOptimizationProgress(100);
-        setTimeout(() => {
-          setIsOptimizing(false);
-          setOptimizationProgress(0);
-        }, 500);
-        toast.success(`${t.chatKnowledgeAdded || 'Added to Knowledge Base'}: ${files.length} file(s)`);
+        setTimeout(() => { setIsOptimizing(false); setOptimizationProgress(0); }, 500);
+
+        for (const f of d.files || []) {
+          const result: any = {
+            id: `upres-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            fileName: f.name,
+            timestamp: new Date().toISOString(),
+            content: f.content || null,
+            preview: f.preview || null,
+            ingested: f.ingested || false,
+          };
+          setUploadResults(prev => [result, ...prev]);
+
+          // Inject file content into chat so Lumi sees it in current conversation
+          if (f.content) {
+            setMessages(prev => [...prev, {
+              id: `filectx-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              text: `[Uploaded: ${f.name}]\n\n${f.content}`,
+              userName: user?.displayName || user?.username || 'You',
+              timestamp: new Date().toISOString(),
+              type: 'file_context',
+            }]);
+          }
+        }
       } else {
         setIsOptimizing(false);
+        setOptimizationProgress(0);
         try {
-          const err = JSON.parse(xhr.responseText);
+          const err = await res.json();
           toast.error(err.error || (t.uploadFailed || 'Upload failed'));
         } catch {
           toast.error(t.uploadFailed || 'Upload failed');
         }
       }
-    };
-    xhr.onerror = () => {
+    } catch {
       setIsOptimizing(false);
+      setOptimizationProgress(0);
       toast.error(t.chatConnError || 'Connection error during upload');
-    };
-    xhr.open('POST', '/api/files/upload');
-    xhr.withCredentials = true;
-    xhr.send(formData);
+    }
   };
 
   if (isFounder) {
@@ -662,24 +678,21 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
             </div>
             {messages.length > 0 && (
               <button
-                onClick={() => setMessages([])}
+                onClick={async () => {
+                  setMessages([]);
+                  try {
+                    const r = await fetch('/api/conversations/active');
+                    const d = await r.json();
+                    if (d.activeConversation) {
+                      await fetch(`/api/conversations/${d.activeConversation.id}/close`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ summary: '' }) });
+                    }
+                  } catch {}
+                }}
                 className="h-7 px-2 text-[10px] font-bold uppercase tracking-widest text-white/20 hover:text-red-400 hover:bg-red-500/10 rounded-full border border-transparent hover:border-red-500/20 transition-colors"
               >
                 Clear
               </button>
             )}
-            <Button
-              onClick={() => setShowInfoPanel(!showInfoPanel)}
-              variant="ghost"
-              className={`h-7 px-2 text-xs font-bold uppercase tracking-widest flex items-center gap-1 rounded-full border transition-colors ${
-                showInfoPanel
-                  ? 'bg-white/10 text-white border-white/20'
-                  : 'text-white/45 hover:text-white/60 border-transparent hover:bg-white/5'
-              }`}
-            >
-              <Info size={12} />
-              {showInfoPanel ? (t.chatHide || 'Hide') : (t.chatInfo || 'Info')}
-            </Button>
           </div>
 
           <div
@@ -725,7 +738,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                   ? messages.filter(m => m.text?.toLowerCase().includes(searchQuery.toLowerCase()))
                   : messages;
                 return displayMsgs.map((msg) => (
-                msg.type === 'tool' ? (
+                msg.type === 'file_context' ? null /* invisible context */ : msg.type === 'tool' ? (
                   <motion.div
                     key={msg.id}
                     initial={{ opacity: 0, y: 10 }}
@@ -907,15 +920,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
         </div>
 
         {/* ── Info Sidebar ── */}
-        <AnimatePresence>
-          {showInfoPanel && (
-            <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 'auto', opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="w-72 flex-shrink-0 space-y-4 overflow-y-auto custom-scrollbar"
-            >
+            <div className="w-72 flex-shrink-0 space-y-4 overflow-y-auto custom-scrollbar">
           <GlassCard className="p-6 rounded-[2.5rem] space-y-4 border-celestial-saturn/20" hoverEffect={false}>
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold uppercase tracking-widest text-white/40">{t.activeCapabilities || 'Active Capabilities'}</h4>
@@ -997,6 +1002,53 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                 </div>
               </div>
             )}
+
+            {uploadResults.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-white/5">
+                <h5 className="text-[11px] font-bold text-white/35 uppercase tracking-widest">Uploaded</h5>
+                {uploadResults.map(r => (
+                  <div key={r.id} className="bg-white/[0.03] border border-white/[0.06] rounded-xl overflow-hidden">
+                    <div className="px-3 py-2 flex items-center gap-2">
+                      <Upload size={11} className="text-green-400/60 shrink-0" />
+                      <span className="text-[11px] text-white/60 truncate flex-1">{r.fileName}</span>
+                      {r.content && (
+                        <span className="text-[10px] text-white/25 shrink-0">{(r.content?.length || 0).toLocaleString()}c</span>
+                      )}
+                    </div>
+                    {r.preview && (
+                      <div className="px-3 py-1.5 bg-black/20 border-t border-white/[0.04] text-[10px] text-white/35 max-h-16 overflow-y-auto font-mono whitespace-pre-wrap">
+                        {r.preview.slice(0, 300)}...
+                      </div>
+                    )}
+                    {r.ingested ? (
+                      <div className="px-3 py-1 bg-black/20 border-t border-white/[0.04] text-[10px] text-white/25 flex items-center gap-1">
+                        <CheckCircle2 size={9} /> In Knowledge Base
+                      </div>
+                    ) : (
+                      <div className="px-3 py-1.5 bg-black/20 border-t border-white/[0.04] flex items-center gap-2">
+                        <span className="text-[10px] text-white/35">Add to KB?</span>
+                        <button
+                          onClick={async () => {
+                            try {
+                              await fetch('/api/files/ingest', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ fileId: r.fileName, agentId: 'lumi' }),
+                              });
+                              setUploadResults(prev => prev.map(x => x.id === r.id ? { ...x, ingested: true } : x));
+                              toast.success(`"${r.fileName}" added to Knowledge Base`);
+                            } catch { toast.error('Failed'); }
+                          }}
+                          className="px-2 py-0.5 text-[10px] font-bold bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/20 rounded-md text-amber-400 transition-colors"
+                        >
+                          Yes
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </GlassCard>
 
           <GlassCard className="p-6 rounded-[2.5rem] space-y-4" hoverEffect={false}>
@@ -1023,9 +1075,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
               {t.agentSyncDesc || 'Your agent is currently synchronized with the local node. All interactions are stored in your private neural cloud.'}
             </p>
           </GlassCard>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
       </div>
     </div>
 

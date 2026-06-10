@@ -12,6 +12,7 @@ import jwt from 'jsonwebtoken';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import { exec, spawn } from 'child_process';
 import { readDB, writeDB } from '../db_layer';
 import { ingestDocument } from '../server/agents/rag';
 import { getDataPath } from '../server/config/data_path';
@@ -115,18 +116,21 @@ router.get('/files/list', (_req: Request, res: Response) => {
   }
 });
 
-// ── POST /files/upload — upload files ──
-router.post('/files/upload', requireAuth, upload.array('files', 20), (req: Request, res: Response) => {
+// ── POST /files/upload — upload files + auto-ingest into Lumi's memory ──
+router.post('/files/upload', requireAuth, upload.array('files', 20), async (req: Request, res: Response) => {
   try {
     const uploadedFiles = req.files as Express.Multer.File[];
     if (!uploadedFiles || uploadedFiles.length === 0) {
       return res.status(400).json({ error: 'No files provided' });
     }
 
+    const userId = getUserId(req);
     const db = readDB();
     if (!db.knowledgeFiles) db.knowledgeFiles = [];
 
-    const saved: string[] = [];
+    const textExts = /\.(txt|md|json|csv|log|xml|yaml|yml|ts|tsx|js|jsx|py|html|css|env|toml|ini|cfg)$/i;
+
+    const saved: any[] = [];
     for (const file of uploadedFiles) {
       let dest = path.join(KNOWLEDGE_DIR, file.originalname);
       let counter = 1;
@@ -141,6 +145,7 @@ router.post('/files/upload', requireAuth, upload.array('files', 20), (req: Reque
 
       // Track in DB
       const existing = db.knowledgeFiles.find((m: any) => m.filename === finalName);
+      const isNew = !existing;
       if (existing) {
         existing.source = 'upload';
         existing.updatedAt = new Date().toISOString();
@@ -153,7 +158,33 @@ router.post('/files/upload', requireAuth, upload.array('files', 20), (req: Reque
           updatedAt: new Date().toISOString(),
         });
       }
-      saved.push(finalName);
+
+      const entry: any = { name: finalName, type: 'file' };
+
+      // For text files: return content so the chat can use it immediately
+      if (textExts.test(ext)) {
+        try {
+          const content = fs.readFileSync(dest, 'utf-8');
+          entry.content = content.slice(0, 50000); // cap at 50KB for chat context
+          entry.preview = content.slice(0, 1000);
+        } catch {}
+      }
+
+      // Only auto-ingest if this is a new file (not a re-upload of existing)
+      if (isNew && textExts.test(ext)) {
+        try {
+          const content = fs.readFileSync(dest, 'utf-8');
+          const result = await ingestDocument(userId, 'lumi', finalName, content);
+          const meta = db.knowledgeFiles.find((m: any) => m.filename === finalName);
+          if (meta && !meta.agentIds.includes('lumi')) meta.agentIds.push('lumi');
+          entry.ingested = true;
+          console.log(`[AutoIngest] "${finalName}" → ${result.chunkCount} chunks`);
+        } catch (ingestErr: any) {
+          console.warn(`[AutoIngest] Failed for "${finalName}": ${ingestErr.message}`);
+        }
+      }
+
+      saved.push(entry);
     }
     writeDB(db);
     res.json({ success: true, files: saved });
@@ -195,7 +226,7 @@ router.post('/files/save', requireAuth, (req: Request, res: Response) => {
   }
 });
 
-// ── GET /files/download/:id — download a file ──
+// ── GET /files/download/:id — download or preview a file ──
 router.get('/files/download/:id', (req: Request, res: Response) => {
   try {
     const safeName = path.basename(req.params.id);
@@ -203,8 +234,57 @@ router.get('/files/download/:id', (req: Request, res: Response) => {
     if (!safeName || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
       return res.status(404).json({ error: 'File not found' });
     }
-    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(safeName)}`);
+
+    // MIME types for common previewable formats
+    const ext = path.extname(safeName).toLowerCase();
+    const mimeMap: Record<string, string> = {
+      '.txt': 'text/plain', '.md': 'text/markdown', '.json': 'application/json',
+      '.csv': 'text/csv', '.log': 'text/plain', '.xml': 'application/xml',
+      '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript',
+      '.ts': 'text/typescript', '.tsx': 'text/typescript', '.py': 'text/x-python',
+      '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
+      '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg',
+      '.flac': 'audio/flac', '.m4a': 'audio/mp4',
+      '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
+      '.pdf': 'application/pdf',
+    };
+    const mime = mimeMap[ext];
+    if (mime) res.setHeader('Content-Type', mime);
+
+    const inline = req.query.inline === '1';
+    if (inline) {
+      res.setHeader('Content-Disposition', 'inline');
+    } else {
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(safeName)}`);
+    }
     fs.createReadStream(filePath).pipe(res);
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ── GET /files/open-folder/:id — open the file's containing folder in the OS ──
+router.get('/files/open-folder/:id', requireAuth, (req: Request, res: Response) => {
+  try {
+    const safeName = path.basename(req.params.id);
+    const filePath = path.join(KNOWLEDGE_DIR, safeName);
+    if (!safeName || !fs.existsSync(filePath)) return res.status(404).json({ error: 'Not found' });
+
+    const folder = path.resolve(path.dirname(filePath));
+    const platform = process.platform;
+    let cmd: string;
+    if (platform === 'win32') {
+      cmd = `explorer "${folder}"`;
+    } else if (platform === 'darwin') {
+      cmd = `open "${folder}"`;
+    } else {
+      cmd = `xdg-open "${folder}"`;
+    }
+    // spawn detached so it survives server restart; explorer may exit 1 on success
+    const proc = spawn(cmd, [], { detached: true, stdio: 'ignore', shell: true });
+    proc.unref();
+    res.json({ success: true, path: folder });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
   }
