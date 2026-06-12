@@ -21,6 +21,10 @@ interface KeyStore {
   ALIYUN_AK_ID?: string;
   ALIYUN_AK_SECRET?: string;
   SILICONFLOW_API_KEY?: string;
+  XIAOMI_API_KEY?: string;
+  KIMI_API_KEY?: string;
+  RELAY_API_KEY?: string;
+  RELAY_BASE_URL?: string;
 }
 
 /** Which circuit-breaker provider(s) a given key name affects */
@@ -92,5 +96,9 @@ export function getAllKeyNames(): (keyof KeyStore)[] {
     'ALIYUN_AK_ID',
     'ALIYUN_AK_SECRET',
     'SILICONFLOW_API_KEY',
+    'XIAOMI_API_KEY',
+    'KIMI_API_KEY',
+    'RELAY_API_KEY',
+    'RELAY_BASE_URL',
   ];
 }

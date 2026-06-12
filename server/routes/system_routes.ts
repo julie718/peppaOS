@@ -59,6 +59,15 @@ export function mountSystemRoutes(router: Router, jwtSecret: string, io?: any) {
     res.json({ tasks: scheduler.listTasks() });
   });
 
+  router.post("/scheduler/tasks/:id/toggle", requireAuth, (req, res) => {
+    const { id } = req.params;
+    const result = scheduler.toggleTask(id);
+    if (!result.found) {
+      return res.status(404).json({ error: `Task "${id}" not found` });
+    }
+    res.json({ id, enabled: result.enabled });
+  });
+
   // Token usage aggregation
   router.get("/llm/usage", (req, res) => {
     let token = req.cookies.token;

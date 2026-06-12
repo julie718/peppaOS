@@ -362,7 +362,7 @@ export function parseAnthropicResponse(rawResponse: any): NormalizedLLMResponse 
 export async function makeLLMCall(
   messages: NormalizedMessage[],
   toolDeclarations: ToolDeclaration[],
-  config: { provider: 'deepseek' | 'gemini' | 'openai' | 'anthropic' | 'qwen' | 'ark' | 'ollama' | 'lmstudio' | 'auto'; model: string; maxTokens?: number; userId?: string },  getDeepSeek: () => any,
+  config: { provider: 'deepseek' | 'gemini' | 'openai' | 'anthropic' | 'qwen' | 'ark' | 'ollama' | 'lmstudio' | 'xiaomi' | 'kimi' | 'relay' | 'auto'; model: string; maxTokens?: number; userId?: string },  getDeepSeek: () => any,
   getGemini: () => any,
   getOpenAI?: () => any,
   getAnthropic?: () => any,
@@ -370,6 +370,9 @@ export async function makeLLMCall(
   getOllama?: () => any,
   getLmStudio?: () => any,
   getArk?: () => any,
+  getXiaomi?: () => any,
+  getKimi?: () => any,
+  getRelay?: () => any,
 ): Promise<NormalizedLLMResponse> {
   // ── Privacy gate: strict mode blocks cloud providers ──
   // Reasoning models need high token budget — their CoT eats into max_tokens
@@ -423,11 +426,14 @@ export async function makeLLMCall(
   }
 
   // OpenAI-compatible path: DeepSeek, Qwen, Ark, Ollama, LM Studio
-  if (config.provider === 'deepseek' || config.provider === 'qwen' || config.provider === 'ark' || config.provider === 'ollama' || config.provider === 'lmstudio') {
+  if (config.provider === 'deepseek' || config.provider === 'qwen' || config.provider === 'ark' || config.provider === 'ollama' || config.provider === 'lmstudio' || config.provider === 'xiaomi' || config.provider === 'kimi' || config.provider === 'relay') {
     const client = config.provider === 'deepseek' ? getDeepSeek()
       : config.provider === 'qwen' ? getQwen?.()
       : config.provider === 'ark' ? getArk?.()
       : config.provider === 'lmstudio' ? getLmStudio?.()
+      : config.provider === 'xiaomi' ? getXiaomi?.()
+      : config.provider === 'kimi' ? getKimi?.()
+      : config.provider === 'relay' ? getRelay?.()
       : getOllama?.();
     if (!client) throw new Error(`${config.provider} not configured`);
 
@@ -518,7 +524,7 @@ function isReasoningModel(model: string): boolean {
 export async function makeLLMCallStreaming(
   messages: NormalizedMessage[],
   toolDeclarations: ToolDeclaration[],
-  config: { provider: 'deepseek' | 'gemini' | 'openai' | 'anthropic' | 'qwen' | 'ark' | 'ollama' | 'lmstudio' | 'auto'; model: string; maxTokens?: number; userId?: string; signal?: AbortSignal },
+  config: { provider: 'deepseek' | 'gemini' | 'openai' | 'anthropic' | 'qwen' | 'ark' | 'ollama' | 'lmstudio' | 'xiaomi' | 'kimi' | 'relay' | 'auto'; model: string; maxTokens?: number; userId?: string; signal?: AbortSignal },
   onChunk: StreamCallback,
   getDeepSeek: () => any,
   getGemini: () => any,
@@ -528,6 +534,9 @@ export async function makeLLMCallStreaming(
   getOllama?: () => any,
   getLmStudio?: () => any,
   getArk?: () => any,
+  getXiaomi?: () => any,
+  getKimi?: () => any,
+  getRelay?: () => any,
 ): Promise<NormalizedLLMResponse> {
   // ── Privacy gate ──
   if (isStrictPrivacy() && config.provider !== 'auto') {
@@ -548,12 +557,15 @@ export async function makeLLMCallStreaming(
   }
 
   // ── DeepSeek / OpenAI / Qwen / Ark / Ollama / LM Studio (OpenAI-compatible streaming) ──
-  if (config.provider === 'deepseek' || config.provider === 'openai' || config.provider === 'qwen' || config.provider === 'ark' || config.provider === 'ollama' || config.provider === 'lmstudio') {
+  if (config.provider === 'deepseek' || config.provider === 'openai' || config.provider === 'qwen' || config.provider === 'ark' || config.provider === 'ollama' || config.provider === 'lmstudio' || config.provider === 'xiaomi' || config.provider === 'kimi' || config.provider === 'relay') {
     const client = config.provider === 'deepseek' ? getDeepSeek()
       : config.provider === 'openai' ? getOpenAI?.()
       : config.provider === 'qwen' ? getQwen?.()
       : config.provider === 'ark' ? getArk?.()
       : config.provider === 'lmstudio' ? getLmStudio?.()
+      : config.provider === 'xiaomi' ? getXiaomi?.()
+      : config.provider === 'kimi' ? getKimi?.()
+      : config.provider === 'relay' ? getRelay?.()
       : getOllama?.();
     if (!client) throw new Error(`${config.provider} not configured`);
 

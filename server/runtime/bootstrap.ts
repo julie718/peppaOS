@@ -16,6 +16,7 @@ interface BootstrapContext {
   jwtSecret: string;
   llm: {
     getDeepSeek: any; getGemini: any; getOpenAI: any; getAnthropic: any; getQwen: any;
+    getXiaomi?: any; getKimi?: any; getRelay?: any;
   };
   __dirname: string;
 }
@@ -122,7 +123,7 @@ export async function bootstrap(ctx: BootstrapContext) {
   server.listen(PORT, HOST, () => {
     console.log(`Server running on http://${HOST}:${PORT}`);
     scheduler.setIO(io);
-    registerScheduledTasks(llm.getDeepSeek, llm.getGemini, llm.getOpenAI, llm.getAnthropic, llm.getQwen);
+    registerScheduledTasks(llm.getDeepSeek, llm.getGemini, llm.getOpenAI, llm.getAnthropic, llm.getQwen, llm.getXiaomi, llm.getKimi, llm.getRelay);
 
     // Clean up stale ephemeral agents on startup
     try {

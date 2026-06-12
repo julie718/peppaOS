@@ -14,6 +14,9 @@ let ollama: OpenAI | null = null;
 let ollamaDetected = false;
 let lmstudio: OpenAI | null = null;
 let lmstudioDetected = false;
+let xiaomi: OpenAI | null = null;
+let kimi: OpenAI | null = null;
+let relay: OpenAI | null = null;
 
 /** Read Ollama base URL from settings (user-configured) or env var */
 function getOllamaBaseUrl(): string {
@@ -52,6 +55,9 @@ export interface LLMClients {
   isOllamaAvailable: () => boolean;
   getLmStudio: () => OpenAI | null;
   isLmStudioAvailable: () => boolean;
+  getXiaomi: () => OpenAI | null;
+  getKimi: () => OpenAI | null;
+  getRelay: () => OpenAI | null;
 }
 
 function getOpenAI() {
@@ -165,6 +171,40 @@ function isLmStudioAvailable() {
   return lmstudioDetected;
 }
 
+function getXiaomi() {
+  const key = process.env.XIAOMI_API_KEY || getKey('XIAOMI_API_KEY');
+  if (!xiaomi && key) {
+    xiaomi = new OpenAI({
+      apiKey: key,
+      baseURL: process.env.XIAOMI_BASE_URL || 'https://api.xiaomi.com/v1',
+    });
+  }
+  return xiaomi;
+}
+
+function getKimi() {
+  const key = process.env.KIMI_API_KEY || getKey('KIMI_API_KEY');
+  if (!kimi && key) {
+    kimi = new OpenAI({
+      apiKey: key,
+      baseURL: process.env.KIMI_BASE_URL || 'https://api.moonshot.cn/v1',
+    });
+  }
+  return kimi;
+}
+
+function getRelay() {
+  const key = process.env.RELAY_API_KEY || getKey('RELAY_API_KEY');
+  const baseUrl = process.env.RELAY_BASE_URL || getKey('RELAY_BASE_URL') || 'https://api.example.com/v1';
+  if (!relay && key) {
+    relay = new OpenAI({
+      apiKey: key,
+      baseURL: baseUrl,
+    });
+  }
+  return relay;
+}
+
 async function detectLmStudio(): Promise<boolean> {
   try {
     const baseUrl = getLmStudioBaseUrl();
@@ -188,5 +228,5 @@ export function createLLMRuntime(): LLMClients {
   // Fire-and-forget: detect local Ollama and LM Studio in background
   detectOllama();
   detectLmStudio();
-  return { getOpenAI, getAnthropic, getGemini, getDeepSeek, getQwen, getArk, getOllama, isOllamaAvailable, getLmStudio, isLmStudioAvailable };
+  return { getOpenAI, getAnthropic, getGemini, getDeepSeek, getQwen, getArk, getOllama, isOllamaAvailable, getLmStudio, isLmStudioAvailable, getXiaomi, getKimi, getRelay };
 }

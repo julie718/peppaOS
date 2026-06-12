@@ -27,6 +27,8 @@ interface ScheduledTask {
   handler: () => Promise<string | null>;
   /** If true, result is stored internally but NOT broadcast as a proactive notification */
   quiet?: boolean;
+  /** If false, task is paused and will not fire */
+  enabled?: boolean;
 }
 
 type LLMGetters = {
@@ -35,6 +37,9 @@ type LLMGetters = {
   getOpenAI?: () => any;
   getAnthropic?: () => any;
   getQwen?: () => any;
+  getXiaomi?: () => any;
+  getKimi?: () => any;
+  getRelay?: () => any;
 };
 
 class Scheduler {
@@ -42,6 +47,7 @@ class Scheduler {
   private timers: Map<string, NodeJS.Timeout> = new Map();
   io: SocketIOServer | null = null;
   private llmGetters: LLMGetters | null = null;
+  private disabledTasks: Set<string> = new Set();
 
   setIO(io: SocketIOServer) {
     this.io = io;
@@ -52,8 +58,85 @@ class Scheduler {
   }
 
   register(task: ScheduledTask) {
+    // Restore enable/disable state from persistence
+    const storedDisabled = this.loadDisabledState();
+    if (storedDisabled.has(task.id)) {
+      task.enabled = false;
+      this.disabledTasks.add(task.id);
+    }
     this.tasks.push(task);
     this.scheduleTask(task);
+  }
+
+  /** Load disabled task IDs from DB */
+  private loadDisabledState(): Set<string> {
+    try {
+      const db = readDB();
+      const setting = (db.settings || []).find((s: any) => s.key === 'scheduler_disabled_tasks');
+      if (setting?.value) {
+        return new Set(JSON.parse(setting.value));
+      }
+    } catch {}
+    return new Set();
+  }
+
+  /** Persist disabled task IDs to DB */
+  private persistDisabledState() {
+    try {
+      const db = readDB();
+      let setting = (db.settings || []).find((s: any) => s.key === 'scheduler_disabled_tasks');
+      const value = JSON.stringify([...this.disabledTasks]);
+      if (setting) {
+        setting.value = value;
+      } else {
+        if (!db.settings) db.settings = [];
+        db.settings.push({ key: 'scheduler_disabled_tasks', value });
+      }
+      writeDB(db);
+    } catch {}
+  }
+
+  disableTask(id: string): boolean {
+    const task = this.tasks.find(t => t.id === id);
+    if (!task) return false;
+    task.enabled = false;
+    this.disabledTasks.add(id);
+    this.clearTimer(id);
+    this.persistDisabledState();
+    console.log(`[Scheduler] Task "${id}" disabled`);
+    return true;
+  }
+
+  enableTask(id: string): boolean {
+    const task = this.tasks.find(t => t.id === id);
+    if (!task) return false;
+    task.enabled = true;
+    this.disabledTasks.delete(id);
+    this.scheduleTask(task);
+    this.persistDisabledState();
+    console.log(`[Scheduler] Task "${id}" enabled`);
+    return true;
+  }
+
+  private clearTimer(id: string) {
+    const timer = this.timers.get(id);
+    if (timer) {
+      clearInterval(timer);
+      clearTimeout(timer);
+      this.timers.delete(id);
+    }
+  }
+
+  toggleTask(id: string): { enabled: boolean; found: boolean } {
+    const task = this.tasks.find(t => t.id === id);
+    if (!task) return { enabled: false, found: false };
+    if (task.enabled !== false) {
+      this.disableTask(id);
+      return { enabled: false, found: true };
+    } else {
+      this.enableTask(id);
+      return { enabled: true, found: true };
+    }
   }
 
   listTasks() {
@@ -62,6 +145,7 @@ class Scheduler {
       cron: task.cron,
       lastRun: task.lastRun,
       active: this.timers.has(task.id),
+      enabled: task.enabled !== false,
     }));
   }
 
@@ -97,6 +181,10 @@ class Scheduler {
   }
 
   private scheduleTask(task: ScheduledTask) {
+    if (task.enabled === false) {
+      console.log(`[Scheduler] Task "${task.id}" is disabled — skipping schedule`);
+      return;
+    }
     const parsed = this.parseCron(task.cron);
 
     if (parsed.type === 'interval') {
@@ -232,6 +320,9 @@ export function registerScheduledTasks(
   getOpenAI?: () => any,
   getAnthropic?: () => any,
   getQwen?: () => any,
+  getXiaomi?: () => any,
+  getKimi?: () => any,
+  getRelay?: () => any,
 ) {
   /** Get all unique user IDs from DB (registered users + anonymous fallback) */
   function getAllUserIds(): string[] {
@@ -1496,6 +1587,53 @@ Output ONLY the prediction message — no preamble, no labels.`;
       if (scheduler.io) {
         // Broadcast idle check request; frontend reports back with idle time
         scheduler.io.emit('ambient:idle_check', { timestamp: new Date().toISOString() });
+      }
+      return null;
+    },
+  });
+
+  // ── Autonomous work cycle (every 10 min) — background task generation + execution ──
+  scheduler.register({
+    id: 'autonomous_work_cycle',
+    cron: 'every_10m',
+    lastRun: null,
+    handler: async () => {
+      if (!scheduler.io) return null;
+
+      const userIds = getAllUserIds();
+      let totalGenerated = 0;
+      let totalExecuted = 0;
+
+      const getters: LLMGetters = {
+        getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
+        getXiaomi, getKimi, getRelay,
+      };
+
+      for (const userId of userIds) {
+        try {
+          // Check if user has autonomous mode enabled
+          const db = readDB();
+          const modeSetting = (db.settings || []).find((s: any) =>
+            s.key === `op_mode_${userId}`
+          );
+          if (!modeSetting || modeSetting.value !== 'autonomous') continue;
+
+          // Generate tasks
+          const { generateAutonomousTasks } = await import('./autonomy/task_generator');
+          const generated = await generateAutonomousTasks(userId, getters);
+          totalGenerated += generated;
+
+          // Execute next pending task
+          const { executeNextAutonomousTask } = await import('./autonomy/task_executor');
+          const result = await executeNextAutonomousTask(scheduler.io!, getters);
+          if (result.executed) totalExecuted++;
+        } catch (err: any) {
+          console.warn(`[AutoWorkCycle] Failed for ${userId}:`, err.message);
+        }
+      }
+
+      if (totalGenerated > 0 || totalExecuted > 0) {
+        return `Generated ${totalGenerated} tasks, executed ${totalExecuted}`;
       }
       return null;
     },

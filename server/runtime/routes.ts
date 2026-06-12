@@ -19,6 +19,7 @@ import { mountContactsRoutes } from "../routes/contacts_routes";
 import { mountBranchConnectionRoutes } from "../routes/branch_routes";
 import { mountNotificationRoutes } from "../routes/notifications";
 import { mountCanvasRoutes } from "../routes/canvas_routes";
+import { autonomyRoutes } from "../routes/autonomy_routes";
 
 interface RouteContext {
   apiRouter: Router;
@@ -73,6 +74,9 @@ export function mountAllRoutes({ apiRouter, jwtSecret, llm, getCookieOptions, io
 
   // Canvas Workbench
   mountCanvasRoutes(apiRouter, jwtSecret);
+
+  // Autonomy
+  apiRouter.use('/autonomy', autonomyRoutes());
 
   // Misc (founder vision, feedback, admin config, Org chat)
   mountMiscRoutes(apiRouter, jwtSecret, llmGetters);

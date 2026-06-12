@@ -66,12 +66,19 @@ export function ProactiveNotifications() {
       }
     };
 
+    const handleAwaySummary = (data: { awayMinutes: number; taskCount: number; summary: string }) => {
+      addNotification({ type: 'success', title: t.notifAwaySummary || 'While you were away', message: data.summary });
+      toast.success(data.summary, { duration: 10000, id: `away-${Date.now()}` });
+    };
+
     socket.on('agent:proactive', handleProactive);
     socket.on('agent:tool_call', handleToolCall);
+    socket.on('autonomous:away_summary', handleAwaySummary);
 
     return () => {
       socket.off('agent:proactive', handleProactive);
       socket.off('agent:tool_call', handleToolCall);
+      socket.off('autonomous:away_summary', handleAwaySummary);
     };
   }, [socket, addNotification]);
 

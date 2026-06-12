@@ -3,6 +3,7 @@ import { readDB } from "../../db_layer";
 import { pushActivityEvent, setIdleState, getIdleState, getLastEvent } from "../context/activity_stream";
 import { detectClipboardChange } from "../context/clipboard_monitor";
 import { processActivityEvent } from "../context/proactive_triggers";
+import { reportIdleState } from "../autonomy/safety_gate";
 
 const ambientNoise = new Map<string, { rms: number; lastUpdate: string }>();
 
@@ -54,13 +55,36 @@ export function registerAmbientHandlers(socket: Socket, getUserId: (s: Socket) =
     const uid = getUserId(socket);
     if (!uid) return;
     const isIdle = data.idle_seconds > 60;
-    const wasIdle = getIdleState(uid).isIdle;
+    const prevState = getIdleState(uid);
+    const wasIdle = prevState.isIdle;
+    const idleSince = prevState.idleSince;
     setIdleState(uid, isIdle);
+    reportIdleState(uid, data.idle_seconds);
     socket.emit("ambient:idle_echo", data);
     if (isIdle && !wasIdle) {
       triggerIdleProcessing(uid, io).catch(err =>
         console.warn(`[IdleProcessing] Background task failed for ${uid}:`, err.message)
       );
+    }
+
+    // Return-from-away summary: user was away, now back
+    if (!isIdle && wasIdle && data.idle_seconds < 10 && idleSince) {
+      const awayMinutes = Math.round((Date.now() - new Date(idleSince).getTime()) / 60000);
+      if (awayMinutes >= 2) {
+        const { getTaskHistory } = require('../autonomy/task_queue');
+        const recentTasks = getTaskHistory(20, 0).filter(
+          (t: any) => t.userId === uid && t.status === 'completed' && new Date(t.completedAt!).getTime() > new Date(idleSince).getTime()
+        );
+        if (recentTasks.length > 0) {
+          const summary = recentTasks.map((t: any) => `- ${t.title}: ${(t.result || '').slice(0, 80)}`).join('\n');
+          socket.emit('autonomous:away_summary', {
+            awayMinutes,
+            taskCount: recentTasks.length,
+            summary: `你离开的${awayMinutes}分钟里，Lumi完成了${recentTasks.length}项任务:\n${summary}`,
+            tasks: recentTasks.map((t: any) => ({ id: t.id, title: t.title, result: t.result?.slice(0, 200) })),
+          });
+        }
+      }
     }
   });
 

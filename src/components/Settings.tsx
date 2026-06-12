@@ -84,7 +84,7 @@ export function Settings({
   onSectionChange?: (section: string) => void;
 }) {
   const { platform, isElectron } = usePlatform();
-  const { aiConfig, updateAIConfig, logout } = useApp();
+  const { aiConfig, updateAIConfig, logout, operationMode, setOperationMode } = useApp();
   const [providerStatus, setProviderStatus] = useState<Record<string, { available: boolean; model: string }>>({});
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
@@ -161,18 +161,7 @@ export function Settings({
           <div className="space-y-8">
             <SettingsSection title={t.agentFramework || "Agent Framework (Lumi Protocol)"} icon={<BrainCircuit size={18} className="text-celestial-saturn" />}>
               <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-2">
-                    <div className="flex justify-between items-center text-xs font-black uppercase text-white/40 tracking-widest"><span>{t.neuralEngine || "Neural Engine"}</span><span className="text-green-500">{t.neuralEngineActive || "Active"}</span></div>
-                    <div className="text-xs font-bold text-white/80">{t.autonomousCognitiveLoop || "Autonomous Cognitive Loop"}</div>
-                    <p className="text-xs text-white/55">{t.autonomousCognitiveLoopDesc || "Allows agents to proactively execute tasks based on context awareness."}</p>
-                  </div>
-                  <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-2">
-                    <div className="flex justify-between items-center text-xs font-black uppercase text-white/40 tracking-widest"><span>{t.memoryMesh || "Memory Mesh"}</span><span className="text-blue-500">{t.memoryMeshSyncing || "Syncing"}</span></div>
-                    <div className="text-xs font-bold text-white/80">{t.persistentLongTermRecall || "Persistent Long-term Recall"}</div>
-                    <p className="text-xs text-white/55">{t.persistentLongTermRecallDesc || "Enables cross-session memory shared across all identified node devices."}</p>
-                  </div>
-                </div>
+                <AutonomousSettingsPanel t={t} operationMode={operationMode} setOperationMode={setOperationMode} />
                 <div className="space-y-1">
                   <label className="text-xs font-black uppercase text-white/55 ml-2">{t.primaryReasoningBrain || "Primary Reasoning Brain"}</label>
                   <div className="relative">
@@ -183,6 +172,10 @@ export function Settings({
                       <option value="gemini">Google Gemini</option>
                       <option value="openai">OpenAI</option>
                       <option value="anthropic">Anthropic Claude</option>
+                      <option value="xiaomi">Xiaomi / 小米</option>
+                      <option value="kimi">Kimi / 月之暗面</option>
+                      <option value="relay">中转站 (API Relay)</option>
+                      <option value="ark">Doubao / 豆包 (Ark)</option>
                     </select>
                     <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/45" />
                   </div>
@@ -668,6 +661,9 @@ function LLMProvidersPage({ t, providerStatus }: { t: any; providerStatus: Recor
           <LLMProviderRow icon={<Sparkle size={18} className="text-purple-400" />} label="Anthropic Claude" providerId="anthropic" models={['claude-sonnet-4-6', 'claude-opus-4-7', 'claude-haiku-4-5']} placeholder="sk-ant-..." serverKey="ANTHROPIC_API_KEY" t={t} />
           <OllamaProviderRow t={t} />
           <LmStudioProviderRow t={t} />
+          <LLMProviderRow icon={<Cpu size={18} className="text-orange-400" />} label="Xiaomi / 小米" providerId="xiaomi" models={['xiaomi-chat']} placeholder="Enter Xiaomi API key..." serverKey="XIAOMI_API_KEY" t={t} />
+          <LLMProviderRow icon={<Sparkle size={18} className="text-rose-400" />} label="Kimi / 月之暗面 (Moonshot)" providerId="kimi" models={['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k']} placeholder="sk-..." serverKey="KIMI_API_KEY" t={t} />
+          <RelayProviderRow t={t} />
         </div>
       </SettingsSection>
     </div>
@@ -973,6 +969,231 @@ function ApiKeyField({ icon, label, placeholder, disabled = false, storageKey, s
   );
 }
 
+
+function RelayProviderRow({ t }: { t?: any }) {
+  const [apiKey, setApiKey] = useState(() => {
+    try { return localStorage.getItem('lumi_relay_key') || ''; } catch { return ''; }
+  });
+  const [baseUrl, setBaseUrl] = useState(() => {
+    try { return localStorage.getItem('lumi_relay_url') || 'https://api.example.com/v1'; } catch { return 'https://api.example.com/v1'; }
+  });
+  const [serverKeyOk, setServerKeyOk] = useState(false);
+  const [serverUrlOk, setServerUrlOk] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/settings/keys')
+      .then(r => r.json())
+      .then(data => {
+        setServerKeyOk(!!data['RELAY_API_KEY']);
+        setServerUrlOk(!!data['RELAY_BASE_URL']);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleSave = () => {
+    if (!apiKey.trim() || !baseUrl.trim()) return;
+    localStorage.setItem('lumi_relay_key', apiKey.trim());
+    localStorage.setItem('lumi_relay_url', baseUrl.trim());
+    fetch('/api/settings/keys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keys: { RELAY_API_KEY: apiKey.trim(), RELAY_BASE_URL: baseUrl.trim() } }),
+    }).then(r => {
+      if (r.ok) { setServerKeyOk(true); setServerUrlOk(true); }
+    }).catch(() => toast.error(t?.failedToSaveKey || 'Failed to save'));
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleRemove = () => {
+    localStorage.removeItem('lumi_relay_key');
+    localStorage.removeItem('lumi_relay_url');
+    fetch('/api/settings/keys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keys: { RELAY_API_KEY: '', RELAY_BASE_URL: '' } }),
+    }).then(r => {
+      if (r.ok) { setServerKeyOk(false); setServerUrlOk(false); setApiKey(''); setBaseUrl(''); }
+    }).catch(() => {});
+  };
+
+  return (
+    <div className="p-6 bg-white/5 rounded-3xl border border-white/5 space-y-4">
+      <div className="flex items-center gap-2">
+        <div className="p-2 bg-white/5 rounded-lg"><Globe size={18} className="text-cyan-400" /></div>
+        <label className="text-xs font-black uppercase tracking-widest text-white/50">中转站 (API Relay)</label>
+        {(serverKeyOk || serverUrlOk) && <span className="text-xs px-2 py-0.5 bg-green-500/10 border border-green-500/20 text-green-400 rounded-full font-bold">CONFIGURED</span>}
+        {saved && <CheckCircle size={14} className="text-green-400 ml-auto" />}
+      </div>
+      <div className="space-y-3">
+        <div className="flex gap-2">
+          <input
+            type="password"
+            value={apiKey}
+            onChange={e => setApiKey(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSave()}
+            placeholder="API Key"
+            className="flex-1 bg-black/40 border border-white/10 rounded-xl p-4 text-white font-mono text-sm outline-none focus:border-cyan-400/50 transition-colors"
+          />
+        </div>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={baseUrl}
+            onChange={e => setBaseUrl(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSave()}
+            placeholder="https://your-relay.example.com/v1"
+            className="flex-1 bg-black/40 border border-white/10 rounded-xl p-4 text-white font-mono text-sm outline-none focus:border-cyan-400/50 transition-colors"
+          />
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <Button
+          onClick={handleSave}
+          disabled={!apiKey.trim() || !baseUrl.trim()}
+          className="h-[48px] px-6 bg-cyan-600 text-white rounded-xl text-xs font-black uppercase tracking-widest disabled:opacity-30 disabled:cursor-not-allowed hover:bg-cyan-500 transition-all"
+        >
+          {t?.save || 'Save'}
+        </Button>
+        <Button
+          onClick={handleRemove}
+          disabled={!apiKey && !serverKeyOk && !serverUrlOk}
+          className="h-[48px] px-4 bg-red-500/10 border border-red-500/20 rounded-xl text-xs font-black uppercase tracking-widest text-red-400 hover:bg-red-500/20 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+        >
+          {t?.remove || 'Remove'}
+        </Button>
+      </div>
+      <p className="text-[12px] text-white/45 leading-relaxed">OpenAI-compatible API relay. Enter the base URL and API key of your proxy/relay service.</p>
+    </div>
+  );
+}
+
+function AutonomousSettingsPanel({ t, operationMode, setOperationMode }: { t: any; operationMode: 'desktop_control' | 'terminal' | 'autonomous'; setOperationMode: (m: 'desktop_control' | 'terminal' | 'autonomous') => void }) {
+  const [gateConfig, setGateConfig] = useState({ allowedHours: [{ start: 8, end: 22 }], requireIdle: true, minIdleSeconds: 120, maxTokensPerHour: 3000 });
+  const [taskList, setTaskList] = useState<any[]>([]);
+  const [tasksExpanded, setTasksExpanded] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/autonomy/gate_config')
+      .then(r => r.json())
+      .then(d => setGateConfig(d))
+      .catch(() => {});
+    fetch('/api/scheduler/tasks')
+      .then(r => r.json())
+      .then(d => setTaskList(d.tasks || []))
+      .catch(() => {});
+  }, []);
+
+  const updateGate = (partial: Record<string, any>) => {
+    const updated = { ...gateConfig, ...partial };
+    setGateConfig(updated);
+    fetch('/api/autonomy/gate_config', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(partial),
+    }).catch(() => {});
+  };
+
+  const toggleTask = async (taskId: string) => {
+    try {
+      const r = await fetch(`/api/scheduler/tasks/${taskId}/toggle`, { method: 'POST', credentials: 'include' });
+      const data = await r.json();
+      setTaskList(prev => prev.map(t => t.id === taskId ? { ...t, enabled: data.enabled } : t));
+    } catch {}
+  };
+
+  const isAutonomous = operationMode === 'autonomous';
+
+  return (
+    <div className="space-y-4">
+      {/* Operation Mode */}
+      <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-xs font-black uppercase tracking-widest text-white/60">Autonomous Mode</div>
+            <p className="text-xs text-white/40 mt-1">Enable background autonomous work — Lumi can self-initiate tasks when idle.</p>
+          </div>
+          <button
+            onClick={() => setOperationMode(isAutonomous ? 'desktop_control' : 'autonomous')}
+            className={`w-11 h-6 rounded-full transition-all ${isAutonomous ? 'bg-cyan-500' : 'bg-white/10'}`}
+          >
+            <div className={`w-4 h-4 rounded-full bg-white transition-transform ${isAutonomous ? 'translate-x-[24px]' : 'translate-x-[2px]'}`} />
+          </button>
+        </div>
+        {isAutonomous && (
+          <div className="flex items-center gap-2 text-xs text-cyan-400/70">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+            Autonomous mode active — Lumi will generate tasks when you're idle
+          </div>
+        )}
+      </div>
+
+      {/* Safety Gates */}
+      <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-4">
+        <div className="text-xs font-black uppercase tracking-widest text-white/60">Safety Gates</div>
+
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-white/50">Require user idle</span>
+          <button
+            onClick={() => updateGate({ requireIdle: !gateConfig.requireIdle })}
+            className={`w-10 h-5 rounded-full transition-all ${gateConfig.requireIdle ? 'bg-cyan-500' : 'bg-white/10'}`}
+          >
+            <div className={`w-3 h-3 rounded-full bg-white transition-transform ${gateConfig.requireIdle ? 'translate-x-[22px]' : 'translate-x-[2px]'}`} />
+          </button>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-white/50">Min idle time: {gateConfig.minIdleSeconds}s</span>
+          </div>
+          <input
+            type="range" min={30} max={600} step={30} value={gateConfig.minIdleSeconds}
+            onChange={e => updateGate({ minIdleSeconds: parseInt(e.target.value) })}
+            className="w-full accent-cyan-500"
+          />
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-white/50">Max tokens/hour: {gateConfig.maxTokensPerHour}</span>
+          </div>
+          <input
+            type="range" min={500} max={10000} step={500} value={gateConfig.maxTokensPerHour}
+            onChange={e => updateGate({ maxTokensPerHour: parseInt(e.target.value) })}
+            className="w-full accent-cyan-500"
+          />
+        </div>
+      </div>
+
+      {/* Scheduler Tasks */}
+      <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-3">
+        <button onClick={() => setTasksExpanded(!tasksExpanded)} className="w-full flex items-center justify-between">
+          <div className="text-xs font-black uppercase tracking-widest text-white/60">Background Tasks</div>
+          <ChevronDown size={14} className={`text-white/40 transition-transform ${tasksExpanded ? 'rotate-180' : ''}`} />
+        </button>
+
+        {tasksExpanded && (
+          <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1">
+            {taskList.map((task: any) => (
+              <div key={task.id} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/[0.02]">
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-bold text-white/60 truncate">{task.id}</div>
+                  <div className="text-[11px] text-white/30">{task.cron} {task.lastRun ? `· Last: ${new Date(task.lastRun).toLocaleTimeString()}` : ''}</div>
+                </div>
+                <button
+                  onClick={() => toggleTask(task.id)}
+                  className={`w-8 h-4 rounded-full transition-all ${task.enabled !== false ? 'bg-cyan-500/50' : 'bg-white/10'}`}
+                >
+                  <div className={`w-3 h-3 rounded-full bg-white transition-transform ${task.enabled !== false ? 'translate-x-[18px]' : 'translate-x-[1px]'}`} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function SettingsSection({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (

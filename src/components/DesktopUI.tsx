@@ -87,6 +87,7 @@ import { useSocket } from '@/hooks/useSocket';
 import { useAmbientPoller } from '@/hooks/useAmbientPoller';
 import { useVoiceCall } from '@/hooks/useVoiceCall';
 import { useApp } from '@/contexts/AppContext';
+import { AutonomousFeed } from './AutonomousFeed';
 const NexusGlobe = lazy(() => import('./NexusGlobe/NexusGlobe').then(m => ({ default: m.NexusGlobe })));
 const InkWorldLazy = lazy(() => import('./InkWorld').then(m => ({ default: m.InkWorld })));
 import WorkflowPanel, { type WorkflowStep } from './WorkflowPanel';
@@ -502,9 +503,9 @@ function DesktopIcon({ label, icon, colorClass, onClick, onContextMenu }: Deskto
 }
 
 function KernelMonitorApp({ t }: { t: any }) {
+  const socket = useSocket();
   const [data, setData] = useState<number[]>([]);
   const [stats, setStats] = useState({ cpu: 0, ram: { used: 0, total: 0, percent: 0 }, platform: '', release: '', arch: '', hostname: '', cpus: 0, uptime: 0, gpu: null as { name?: string; util?: number } | null });
-  const [tasks, setTasks] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -525,23 +526,26 @@ function KernelMonitorApp({ t }: { t: any }) {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    const fetchTasks = async () => {
-      try {
-        const res = await fetch('/api/scheduler/tasks');
-        if (!res.ok) return;
-        const data = await res.json();
-        setTasks(data.tasks || []);
-      } catch {}
-    };
-    fetchTasks();
-    const interval = setInterval(fetchTasks, 10000);
-    return () => clearInterval(interval);
-  }, []);
-
   const chipLabel = stats.platform ? `${stats.platform.toUpperCase()}_${stats.arch.toUpperCase()}_NODE` : 'NEURAL_NODE';
   const uptimeFmt = stats.uptime ? `${Math.floor(stats.uptime / 3600)}h ${Math.floor((stats.uptime % 3600) / 60)}m` : '';
   const loadStatus = stats.cpu > 80 ? 'WARN' : stats.cpu > 50 ? 'LOAD' : 'IDLE';
+  const [autoRunning, setAutoRunning] = useState(false);
+  const [autoTaskTitle, setAutoTaskTitle] = useState('');
+
+  useEffect(() => {
+    if (!socket) return;
+    const onStart = (d: any) => { setAutoRunning(true); setAutoTaskTitle(d.title || ''); };
+    const onDone = () => { setAutoRunning(false); setAutoTaskTitle(''); };
+    const onFail = () => { setAutoRunning(false); setAutoTaskTitle(''); };
+    socket.on('autonomous:task_started', onStart);
+    socket.on('autonomous:task_completed', onDone);
+    socket.on('autonomous:task_failed', onFail);
+    return () => {
+      socket.off('autonomous:task_started', onStart);
+      socket.off('autonomous:task_completed', onDone);
+      socket.off('autonomous:task_failed', onFail);
+    };
+  }, [socket]);
 
   return (
     <div className="p-8 h-full flex flex-col space-y-6 font-sans">
@@ -556,6 +560,12 @@ function KernelMonitorApp({ t }: { t: any }) {
           </div>
         </div>
         <div className="text-right">
+          {autoRunning && (
+            <div className="flex items-center gap-2 justify-end mb-1">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+              <span className="text-xs font-bold text-amber-400/80">AUTO · {autoTaskTitle.slice(0, 20)}</span>
+            </div>
+          )}
           <div className="text-xs font-black text-celestial-saturn uppercase tracking-widest leading-none mb-1">{loadStatus} · {stats.cpus}c · {uptimeFmt}</div>
           <div className="text-xs font-mono text-white/40">{stats.release || ''} / CPU {stats.cpu}%</div>
         </div>
@@ -598,26 +608,7 @@ function KernelMonitorApp({ t }: { t: any }) {
         </div>
       </div>
 
-      <div className="bg-black/40 rounded-[2rem] border border-white/5 p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="text-xs font-black uppercase tracking-widest text-white/40">{t.autonomyRuntime || 'Autonomy Runtime'}</div>
-          <div className="text-[12px] font-bold uppercase tracking-widest text-celestial-saturn">{tasks.filter(t => t.active).length} {t.activeLabel || 'active'}</div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {tasks.map(task => (
-            <div key={task.id} className="p-3 bg-white/5 rounded-xl border border-white/5 flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-xs font-black uppercase tracking-widest text-white/70 truncate">{task.id}</div>
-                <div className="text-[12px] text-white/50 font-mono">{task.cron}{task.lastRun ? ` / ${new Date(task.lastRun).toLocaleTimeString()}` : ''}</div>
-              </div>
-              <div className={`w-2 h-2 rounded-full shrink-0 ${task.active ? 'bg-green-500 animate-pulse' : 'bg-white/20'}`} />
-            </div>
-          ))}
-          {tasks.length === 0 && (
-            <div className="col-span-2 text-xs text-white/50 font-bold uppercase tracking-widest">{t.schedulerNotReporting || 'Scheduler not reporting yet'}</div>
-          )}
-        </div>
-      </div>
+      <AutonomousFeed />
     </div>
   );
 }
