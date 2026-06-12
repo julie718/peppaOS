@@ -5,6 +5,7 @@
 import "dotenv/config";
 import { fileURLToPath } from "url";
 import path from "path";
+import express from "express";
 import { createApp } from "./server/runtime/core";
 import { createLLMRuntime } from "./server/runtime/llm";
 import { mountAllRoutes } from "./server/runtime/routes";
@@ -26,6 +27,9 @@ const ROLE = resolveRole();
 
 const { app, server, io, apiRouter, PORT, HOST, JWT_SECRET, getCookieOptions } = createApp();
 const llm = createLLMRuntime();
+
+// ── Static serve for lumi_output (charts, images, generated files) ──
+app.use('/lumi_output', express.static(path.join(process.cwd(), 'lumi_output')));
 
 // ── Shared routes (both roles) ──
 mountAllRoutes({ apiRouter, jwtSecret: JWT_SECRET, llm, getCookieOptions, io });
