@@ -50,6 +50,7 @@ import {
   Terminal as TerminalIcon,
   MousePointer2,
   Music,
+  Layers,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { GlassCard } from './SharedUI';
@@ -68,6 +69,7 @@ import { ContextMenu } from './ContextMenu';
 import { DesktopOnboarding } from './DesktopOnboarding';
 import { DeviceSyncCenter } from './DeviceSyncCenter';
 import { AgentChatPage } from './AgentChatPage';
+import { CanvasWorkbench } from './Workbench/CanvasWorkbench';
 import { OrgHub } from './org/OrgHub';
 import { OrgPortal } from './OrgPortal';
 import { WorkModeSwitch } from './org/WorkModeSwitch';
@@ -797,6 +799,7 @@ export function DesktopUI({
   const [knowledgeOpen, setKnowledgeOpen] = useState(activeTab === 'knowledge');
   const [chatOpen, setChatOpen] = useState(false);
   const [chatPrefill, setChatPrefill] = useState('');
+  const [canvasOpen, setCanvasOpen] = useState(false);
   const [sanctuaryOpen, setSanctuaryOpen] = useState(false);
   const [sanctuaryAgent, setSanctuaryAgent] = useState<any>(null);
   const [petReaction, setPetReaction] = useState<{ animation: string; until: number } | null>(null);
@@ -886,7 +889,7 @@ export function DesktopUI({
     { id: 'memory-avatar', labelKey: 'memoryAvatars', icon: <Castle size={24} />, colorClass: 'from-fuchsia-500 to-purple-600', windowId: 'memory-avatar' },
     { id: 'avatar-studio', labelKey: 'avatarStudio', icon: <Brush size={24} />, colorClass: 'from-cyan-400 to-blue-600', windowId: 'avatar-studio' },
     { id: 'sound', labelKey: 'sound', icon: <Volume2 size={24} />, colorClass: 'from-sky-500 to-indigo-600', windowId: 'sound' },
-    { id: 'terminal', labelKey: 'terminal', icon: <TerminalIcon size={24} />, colorClass: 'from-gray-600 to-slate-800', windowId: 'terminal' },
+    { id: 'canvas', labelKey: 'canvasWorkbench', icon: <Layers size={24} />, colorClass: 'from-teal-500 to-cyan-600', windowId: 'canvas' },
   ];
 
   const handleWallpaperUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1064,6 +1067,14 @@ export function DesktopUI({
           text: t.workflowAnalyzing || 'Analyzing your request...',
           time: Date.now(),
         }]);
+        // Auto-open canvas when orchestrator or multi-agent workflow kicks in
+        if (data.agentName && (
+          data.agentName.includes('Orchestrator') ||
+          data.agentName.includes('Office') ||
+          data.agentName.startsWith('Step')
+        )) {
+          setCanvasOpen(true);
+        }
       } else if (data.status === 'idle') {
         setAgentStatus('done');
         setWorkflowSteps(prev => [...prev, {
@@ -1307,7 +1318,7 @@ export function DesktopUI({
       return;
     }
 
-    // Knowledge base and Chat open fullscreen, not as windows
+    // Knowledge base, Chat, and Canvas open fullscreen, not as windows
     if (tab === 'knowledge') {
       setKnowledgeOpen(prev => !prev);
       return;
@@ -1315,6 +1326,10 @@ export function DesktopUI({
     if (tab === 'chat') {
       setChatOpen(prev => !prev);
       setActiveTab(tab);
+      return;
+    }
+    if (tab === 'canvas') {
+      setCanvasOpen(prev => !prev);
       return;
     }
     if (tab === 'memory-avatar') {
@@ -1389,6 +1404,7 @@ export function DesktopUI({
     { id: 'devices', label: t.devices || 'Devices', icon: <Cpu size={24} />, color: 'from-blue-600 to-cyan-400' },
     { id: 'settings', label: t.settings || 'OS Integrity', icon: <SettingsIcon size={24} />, color: 'from-gray-400 to-slate-600' },
     { id: 'music-center', label: '音乐中心', icon: <Music size={24} />, color: 'from-red-500 to-pink-600' },
+    { id: 'canvas', label: t.canvasWorkbench || 'Canvas', icon: <Layers size={24} />, color: 'from-teal-500 to-cyan-600' },
   ];
 
   const sphereSentiment =
@@ -1783,7 +1799,7 @@ export function DesktopUI({
           <div className="h-8 w-px bg-white/10 mx-2" />
           <AnimatePresence>
             {appIcons.map(app => {
-              const isActive = openWindows.includes(app.id) || (app.id === 'chat' && chatOpen);
+              const isActive = openWindows.includes(app.id) || (app.id === 'chat' && chatOpen) || (app.id === 'canvas' && canvasOpen);
               return (
               <motion.button
                 key={app.id}
@@ -2353,6 +2369,15 @@ export function DesktopUI({
         onClose={() => { setChatOpen(false); setChatPrefill(''); }}
         prefillMessage={chatPrefill}
         onPrefillConsumed={() => setChatPrefill('')}
+        onOpenCanvas={() => { setChatOpen(false); setCanvasOpen(true); }}
+      />
+
+      {/* Canvas Workbench fullscreen overlay */}
+      <CanvasWorkbench
+        isOpen={canvasOpen}
+        onClose={() => setCanvasOpen(false)}
+        t={t}
+        user={user}
       />
 
       {/* Org Workbench fullscreen overlay — available to all logged-in users */}

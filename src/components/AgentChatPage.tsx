@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, Loader2, ArrowLeft, Ghost, Zap, Cpu, Sparkles, Upload, FileText, Mic, Video, CheckCircle2, Pause, Play, Square, ChevronDown, ChevronRight, XCircle, Copy, Check } from 'lucide-react';
+import { Send, Loader2, ArrowLeft, Ghost, Zap, Cpu, Sparkles, Upload, FileText, Mic, Video, CheckCircle2, Pause, Play, Square, ChevronDown, ChevronRight, XCircle, Copy, Check, Layers } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { socketService } from '@/services/socketService';
@@ -19,7 +19,7 @@ import { useVoiceCall } from '@/hooks/useVoiceCall';
 import { useVoiceCloning } from '@/hooks/useVoiceCloning';
 import { listVoices } from '@/services/voiceService';
 
-export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage, onPrefillConsumed }: { t: any; user: any; agent?: any; isOpen: boolean; onClose: () => void; prefillMessage?: string; onPrefillConsumed?: () => void }) {
+export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage, onPrefillConsumed, onOpenCanvas }: { t: any; user: any; agent?: any; isOpen: boolean; onClose: () => void; prefillMessage?: string; onPrefillConsumed?: () => void; onOpenCanvas?: () => void }) {
   const [messages, setMessages] = useState<any[]>([]);
   const [agentMetadata, setAgentMetadata] = useState<Partial<AgentResponse>>({});
   const { platform, isElectron } = usePlatform();
@@ -590,13 +590,22 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
             </AnimatePresence>
           </div>
 
-          <VoiceCallButton 
+          <VoiceCallButton
             callState={callState}
             audioLevel={audioLevel}
             onStart={() => startCall(selectedVoiceId, 'lumi', agentId)}
             onEnd={endCall}
             hasVoice={voices.length > 0}
           />
+          {onOpenCanvas && (
+            <button
+              onClick={() => onOpenCanvas()}
+              className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-teal-500/10 flex items-center justify-center text-teal-400 hover:bg-teal-500/20 border border-teal-400/20 hover:border-teal-400/40 transition-all"
+              title={t.canvasWorkbench || 'Canvas Workbench'}
+            >
+              <Layers className="w-4 h-4 md:w-5 md:h-5" />
+            </button>
+          )}
           <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-celestial-saturn/20 flex items-center justify-center text-celestial-saturn border border-celestial-saturn/20">
             <Ghost className="w-4 h-4 md:w-5 md:h-5" />
           </div>

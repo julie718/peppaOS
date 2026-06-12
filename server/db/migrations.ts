@@ -60,6 +60,11 @@ export const MIGRATIONS: Migration[] = [
     status TEXT NOT NULL DEFAULT 'pending', sourceInteractionId TEXT NOT NULL DEFAULT '',
     createdAt TEXT NOT NULL, firedAt TEXT
   )` },
+  { version: 32, description: 'Create canvas_sessions table', sql: `CREATE TABLE IF NOT EXISTS canvas_sessions (
+    id TEXT PRIMARY KEY, userId TEXT NOT NULL, title TEXT NOT NULL DEFAULT '',
+    cards TEXT NOT NULL DEFAULT '[]', taskText TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'active', createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL
+  )` },
 ];
 
 // Indexes are safe to create repeatedly
@@ -77,6 +82,7 @@ export const INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_interactions_org ON interactions(orgId, userId)`,
   `CREATE INDEX IF NOT EXISTS idx_agents_user_domain ON agents(userId, domain)`,
   `CREATE INDEX IF NOT EXISTS idx_agents_org ON agents(orgId, userId)`,
+  `CREATE INDEX IF NOT EXISTS idx_canvas_sessions_user ON canvas_sessions(userId)`,
 ];
 
 export function runMigrations(db: sqlite3.Database): Promise<number[]> {

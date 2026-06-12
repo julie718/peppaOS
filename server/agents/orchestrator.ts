@@ -463,8 +463,23 @@ export function matchWorkers(
   return assignments;
 }
 
-/** Auto-create a minimal ephemeral agent for a one-shot task */
+/** Auto-create or reuse a minimal ephemeral agent for a one-shot task */
 function createEphemeralAgent(category: string, skillTag: string): AgentRecord {
+  // Reuse existing idle ephemeral with same category+skill if available
+  try {
+    const db = readDB();
+    const reusable = (db.agents || []).find((a: any) =>
+      a.id.startsWith('ephemeral_') &&
+      a.status === 'idle' &&
+      a.category === category &&
+      (a.skillTags || []).includes(skillTag)
+    );
+    if (reusable) {
+      reusable.lastActiveAt = new Date().toISOString();
+      return reusable as AgentRecord;
+    }
+  } catch {}
+
   const id = `ephemeral_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   const agent: AgentRecord = {
     id,
@@ -482,15 +497,11 @@ function createEphemeralAgent(category: string, skillTag: string): AgentRecord {
     executionMode: 'lumi',
     allowCrossPollination: false,
   };
-  // Persist to DB so it's visible
   try {
     const db = readDB();
     if (!db.agents) db.agents = [];
     db.agents.push(agent as any);
-    // Note: ephemeral agents are cleaned up by the scheduler or on restart
-  } catch (err) {
-    // Non-critical — agent works in-memory even without DB persistence
-  }
+  } catch {}
   return agent;
 }
 

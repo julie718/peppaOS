@@ -381,6 +381,18 @@ function createTables(): Promise<void> {
       );
     `;
 
+    // Canvas sessions — infinite canvas workbench
+    db!.run(`CREATE TABLE IF NOT EXISTS canvas_sessions (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
+      title TEXT NOT NULL DEFAULT '',
+      cards TEXT NOT NULL DEFAULT '[]',
+      taskText TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'active',
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    )`);
+
     db!.exec(sql, (err) => {
       if (err) { reject(err); return; }
       insertInitialData().then(resolve).catch(reject);

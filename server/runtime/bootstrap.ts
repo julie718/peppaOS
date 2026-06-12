@@ -123,6 +123,19 @@ export async function bootstrap(ctx: BootstrapContext) {
     console.log(`Server running on http://${HOST}:${PORT}`);
     scheduler.setIO(io);
     registerScheduledTasks(llm.getDeepSeek, llm.getGemini, llm.getOpenAI, llm.getAnthropic, llm.getQwen);
+
+    // Clean up stale ephemeral agents on startup
+    try {
+      const db = readDB();
+      if (db.agents) {
+        const before = db.agents.length;
+        db.agents = db.agents.filter((a: any) => !a.id.startsWith('ephemeral_'));
+        if (before !== db.agents.length) {
+          writeDB(db);
+          console.log(`[Bootstrap] Cleaned ${before - db.agents.length} ephemeral agents`);
+        }
+      }
+    } catch {}
   });
 
   // Cleanup on exit
