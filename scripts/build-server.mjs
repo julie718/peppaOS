@@ -7,7 +7,7 @@ await build({
   platform: 'node',
   format: 'esm',
   outfile: 'dist-server/server.mjs',
-  external: ['sqlite3'],
+  external: ['sqlite3', 'sharp', '@img/sharp-win32-x64', '@img/sharp-libvips-win32-x64', 'lightningcss'],
   banner: {
     js: "import { createRequire as __lumiCreateRequire } from 'module'; const require = __lumiCreateRequire(import.meta.url);",
   },
