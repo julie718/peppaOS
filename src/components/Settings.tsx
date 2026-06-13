@@ -5,7 +5,6 @@ import {
   Globe,
   Cpu,
   Database,
-  Radio,
   BrainCircuit,
   ChevronDown,
   Music,
@@ -26,7 +25,6 @@ import { Button } from './ui/button';
 import { toast } from 'sonner';
 
 import { usePlatform } from '@/hooks/usePlatform';
-import { DeviceSyncCenter } from './DeviceSyncCenter';
 import { BiometricsEnrollPanel } from './biometrics/BiometricsEnrollPanel';
 import { useApp } from '@/contexts/AppContext';
 import { VoiceForge } from './VoiceForge';
@@ -47,7 +45,6 @@ function buildSidebarGroups(t: any) {
       items: [
         { id: 'neural', label: t.neuralEngine || 'Neural Engine', icon: <BrainCircuit size={16} /> },
         { id: 'llm-providers', label: t.llmProviders || 'LLM Providers', icon: <BrainCircuit size={16} /> },
-        { id: 'voice', label: t.voiceForge || 'Voice Forge', icon: <Music size={16} /> },
         { id: 'voice-services', label: t.voiceServices || 'Voice Services', icon: <Mic size={16} /> },
       ],
     },
@@ -56,7 +53,6 @@ function buildSidebarGroups(t: any) {
       items: [
         { id: 'security', label: t.settings || 'Security', icon: <Shield size={16} /> },
         { id: 'hardware', label: t.settingsHardware || 'Hardware', icon: <Camera size={16} /> },
-        { id: 'sync', label: t.distributedIntelligenceHub || 'Device Sync', icon: <Radio size={16} /> },
         { id: 'mcp', label: t.settingsMCP || 'MCP', icon: <Cpu size={16} /> },
         { id: 'messaging', label: t.messaging || 'Messaging', icon: <MessagesSquare size={16} /> },
       ],
@@ -186,14 +182,6 @@ export function Settings({
         return <LLMProvidersPage t={t} providerStatus={providerStatus} />;
       case 'voice-services':
         return <VoiceServicesPage t={t} />;
-      case 'sync':
-        return (
-          <div className="space-y-8">
-            <SettingsSection title={t.distributedIntelligenceHub || "Distributed Intelligence Hub"} icon={<Radio size={18} className="text-celestial-saturn" />}>
-              <DeviceSyncCenter t={t} />
-            </SettingsSection>
-          </div>
-        );
       case 'security':
         return (
           <div className="space-y-8">

@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, ShoppingBag, Cpu, Download, Trash2, Power, PowerOff, RefreshCw, Star, Wrench, CheckCircle, Globe, Search, Zap, Tag, ChevronDown, Upload, Palette, Terminal, Monitor, Film, Key, Users, Bot, ExternalLink } from 'lucide-react';
+import { Sparkles, ShoppingBag, Cpu, Download, Trash2, Power, PowerOff, RefreshCw, Star, Wrench, CheckCircle, Globe, Search, Zap, Tag, ChevronDown, Upload, Palette, Terminal, Monitor, Film, Key, Users, ExternalLink } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { toast } from 'sonner';
 import { useSocket } from '@/hooks/useSocket';
-import { TeamHub } from './TeamHub';
 
 const ICON_CLASSES: Record<string, string> = {
   CloudSun: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
@@ -63,7 +62,7 @@ interface ExternalResult {
   npmPackage?: string; repoUrl?: string;
 }
 
-type Tab = 'featured' | 'marketplace' | 'installed' | 'generate' | 'team';
+type Tab = 'featured' | 'marketplace' | 'installed' | 'generate';
 type SortKey = 'downloads' | 'rating' | 'newest';
 
 const FEATURED_SKILLS = [
@@ -333,7 +332,6 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
     { id: 'marketplace', label: t.marketplaceTab || 'Marketplace', icon: <ShoppingBag size={14} /> },
     { id: 'installed', label: t.installedTab || 'Installed', icon: <Cpu size={14} /> },
     { id: 'generate', label: t.generateTab || 'Generate', icon: <Sparkles size={14} /> },
-    { id: 'team', label: t.team || 'Team', icon: <Bot size={14} /> },
   ];
 
   const SAMPLE_PROMPTS = [
@@ -868,11 +866,6 @@ export function SkillCenter({ t, lang }: { t: any; lang: 'en' | 'zh' }) {
           </motion.div>
         )}
 
-        {activeTab === 'team' && (
-          <motion.div key="team" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }}>
-            <TeamHub t={t} />
-          </motion.div>
-        )}
 
       </AnimatePresence>
     </div>
