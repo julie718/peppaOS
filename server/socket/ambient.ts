@@ -1,6 +1,6 @@
 import { Socket, Server } from "socket.io";
 import { readDB } from "../../db_layer";
-import { pushActivityEvent, setIdleState, getIdleState, getLastEvent } from "../context/activity_stream";
+import { pushActivityEvent, setIdleState, getIdleState, getLastEvent, clearActivityStream } from "../context/activity_stream";
 import { detectClipboardChange } from "../context/clipboard_monitor";
 import { processActivityEvent } from "../context/proactive_triggers";
 import { reportIdleState } from "../autonomy/safety_gate";
@@ -118,4 +118,12 @@ export function registerAmbientHandlers(socket: Socket, getUserId: (s: Socket) =
       }
     }
   }));
+
+  socket.on("disconnect", () => {
+    const uid = getUserId(socket);
+    if (uid) {
+      ambientNoise.delete(uid);
+      clearActivityStream(uid);
+    }
+  });
 }

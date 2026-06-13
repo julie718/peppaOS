@@ -49,6 +49,10 @@ interface AudioSession {
   lastChunkTime: number;
   /** Timer to auto-close STT session after prolonged silence (5min) */
   silenceTimer: ReturnType<typeof setTimeout> | null;
+  /** Tracked TTS decay timers — cleared on stop/disconnect to prevent post-session mutations */
+  ttsDecayTimers: ReturnType<typeof setTimeout>[];
+  /** Barge-in confirmation delay timer — cleared on stop/disconnect */
+  bargeinTimer: ReturnType<typeof setTimeout> | null;
   /** Voiceprint verification: true when owner's voice is recognized */
   voiceprintMatched: boolean;
   voiceprintConfidence: number;
@@ -76,11 +80,13 @@ function charOverlap(a: string, b: string): number {
   return overlap / Math.max(setA.size, setB.size);
 }
 
+const MAX_ECHO_ENTRIES = 50;
 const recentTtsTexts: { text: string; until: number }[] = [];
 
 /** Record a TTS sentence for echo cancellation (shared with wake detector). */
 export function addEchoText(text: string): void {
   recentTtsTexts.push({ text, until: Date.now() + 10000 });
+  if (recentTtsTexts.length > MAX_ECHO_ENTRIES) recentTtsTexts.shift();
 }
 
 /** Check if a transcript matches recent TTS output (speaker → mic echo). */
@@ -136,6 +142,8 @@ function getAudioSession(socket: Socket): AudioSession {
       inputQueue: [],
       lastChunkTime: 0,
       silenceTimer: null,
+      ttsDecayTimers: [],
+      bargeinTimer: null,
       userId: '',
       agentId: 'lumi',
       voiceprintMatched: true,  // default: allow (no voiceprints enrolled yet)
@@ -379,7 +387,8 @@ async function processVoiceInput(
         if (session.bgGeneration === myGeneration) session.isSpeaking = false;
         // Keep ttsSpeakingCount elevated for 3s after synthesis — client playback continues
         const decay = () => { ttsSpeakingCount = Math.max(0, ttsSpeakingCount - 1); };
-        setTimeout(decay, 3000);
+        const t = setTimeout(decay, 3000);
+        session.ttsDecayTimers.push(t);
       }
     });
     ttsPromises.push(ttsQueue);
@@ -733,6 +742,9 @@ export function registerVoiceHandlers(
     session.currentVoiceId = data.voiceId || personalityCfg?.ttsVoiceId || null;
     session.personalityId = data.personalityId || 'lumi';
 
+    // End previous STT session if re-starting without explicit stop
+    if (session.sttSession) { try { session.sttSession.end(); } catch {} session.sttSession = null; }
+
     const sttProvider = getActiveSTTProvider();
     if (sttProvider) {
       try {
@@ -824,7 +836,9 @@ export function registerVoiceHandlers(
             logger.info(`[Audio] Heard: "${text}"`);
 
             // Brief delay before processing (user can barge-in during this window)
-            setTimeout(() => {
+            session.bargeinTimer = setTimeout(() => {
+              session.bargeinTimer = null;
+              if (!session.isActive) return;
               processVoiceInput(socket, session, text, llmGetters, sensoryFn).catch(err => {
                 logger.error("[Voice Error]:", err);
                 session.isSpeaking = false;
@@ -915,6 +929,10 @@ export function registerVoiceHandlers(
       session.sttSession.end();
       session.sttSession = null;
     }
+    // Clear tracked timers to prevent post-session mutations
+    if (session.bargeinTimer) { clearTimeout(session.bargeinTimer); session.bargeinTimer = null; }
+    for (const t of session.ttsDecayTimers) { clearTimeout(t); }
+    session.ttsDecayTimers = [];
     socket.emit("audio:status", { status: "idle" });
   });
 
@@ -1155,6 +1173,9 @@ export function registerVoiceHandlers(
     const session = socket.data.audioSession as AudioSession | undefined;
     if (session) {
       if (session.silenceTimer) { clearTimeout(session.silenceTimer); session.silenceTimer = null; }
+      if (session.bargeinTimer) { clearTimeout(session.bargeinTimer); session.bargeinTimer = null; }
+      for (const t of session.ttsDecayTimers) { clearTimeout(t); }
+      session.ttsDecayTimers = [];
       if (session.sttSession) {
         session.sttSession.end();
         session.sttSession = null;

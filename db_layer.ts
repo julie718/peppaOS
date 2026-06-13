@@ -590,6 +590,28 @@ export function readDB(): any {
   return memoryDB;
 }
 
+// Prune old entries from memory + SQLite to prevent unbounded growth
+export function pruneOldData(): void {
+  if (!memoryDB || !db) return;
+  const limits: Record<string, number> = { interactions: 20000, memories: 5000, tokenUsage: 5000 };
+  const tableMap: Record<string, string> = { interactions: 'interactions', memories: 'memories', tokenUsage: 'token_usage' };
+  for (const [key, max] of Object.entries(limits)) {
+    const arr = memoryDB[key];
+    if (arr && arr.length > max) {
+      const excess = arr.length - max;
+      const removed = arr.splice(0, excess); // trim oldest entries
+      try {
+        for (const entry of removed) {
+          const id = entry.id || entry.uid || entry.interactionId;
+          if (id) db!.run(`DELETE FROM ${tableMap[key]} WHERE id = ?`, [id]);
+        }
+      } catch { /* best-effort, memory is already trimmed */ }
+      console.log(`[DB] Pruned ${excess} old ${key} (${max} kept)`);
+    }
+  }
+  dbDirty = true;
+}
+
 // Write lock to prevent concurrent SQLite transactions
 let writeLock: Promise<void> = Promise.resolve();
 

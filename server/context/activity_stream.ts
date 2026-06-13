@@ -20,6 +20,11 @@ export interface ActivityEvent {
 const MAX_EVENTS = 100;
 const activityBuffers = new Map<string, ActivityEvent[]>();
 
+export function clearActivityStream(userId: string): void {
+  activityBuffers.delete(userId);
+  idleState.delete(userId);
+}
+
 export function pushActivityEvent(userId: string, event: ActivityEvent): void {
   if (!activityBuffers.has(userId)) {
     activityBuffers.set(userId, []);

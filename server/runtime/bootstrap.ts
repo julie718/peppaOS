@@ -1,7 +1,7 @@
 import path from "path";
 import fs from "fs";
 import { spawn, ChildProcess } from "child_process";
-import { readDB, writeDB, flushDB, ensureDatabaseInitialized } from "../../db_layer";
+import { readDB, writeDB, flushDB, ensureDatabaseInitialized, pruneOldData } from "../../db_layer";
 import { toolRegistry } from "../tools/registry";
 import { registerAllTools } from "../tools/definitions/index";
 import { mcpManager, registerMCPTools } from "../mcp";
@@ -32,6 +32,7 @@ export async function bootstrap(ctx: BootstrapContext) {
   try {
     await ensureDatabaseInitialized();
     console.log('Database initialized successfully');
+    pruneOldData();
   } catch (error) {
     console.error('Failed to initialize database:', error);
     process.exit(1);
