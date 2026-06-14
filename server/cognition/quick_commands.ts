@@ -68,7 +68,7 @@ const patterns: QuickPattern[] = [
     patterns: [/^(打开计算器|计算器|calculator|open\s*calculator)[。！？.!?]*$/i],
     handler: () => ({
       responseText: '好的，正在打开计算器。',
-      toolCall: { name: 'desktop_open', arguments: { path: 'calc.exe' } },
+      toolCall: { name: 'desktop_open', arguments: { target: 'calc.exe' } },
       matched: true,
     }),
   },
@@ -76,7 +76,7 @@ const patterns: QuickPattern[] = [
     patterns: [/^(打开记事本|记事本|notepad|open\s*notepad)[。！？.!?]*$/i],
     handler: () => ({
       responseText: '好的，正在打开记事本。',
-      toolCall: { name: 'desktop_open', arguments: { path: 'notepad.exe' } },
+      toolCall: { name: 'desktop_open', arguments: { target: 'notepad.exe' } },
       matched: true,
     }),
   },
@@ -92,7 +92,7 @@ const patterns: QuickPattern[] = [
     patterns: [/^(打开终端|终端|terminal|cmd|命令提示符|命令行)[。！？.!?]*$/i],
     handler: () => ({
       responseText: '好的，正在打开终端。',
-      toolCall: { name: 'desktop_open', arguments: { path: 'cmd.exe' } },
+      toolCall: { name: 'desktop_open', arguments: { target: 'cmd.exe' } },
       matched: true,
     }),
   },
@@ -100,7 +100,7 @@ const patterns: QuickPattern[] = [
     patterns: [/^(打开浏览器|浏览器|browser|open\s*browser)[。！？.!?]*$/i],
     handler: () => ({
       responseText: '好的，正在打开浏览器。',
-      toolCall: { name: 'desktop_open', arguments: { path: 'https://www.google.com' } },
+      toolCall: { name: 'desktop_open', arguments: { target: 'https://www.google.com' } },
       matched: true,
     }),
   },
@@ -108,7 +108,7 @@ const patterns: QuickPattern[] = [
     patterns: [/^(打开VS\s*Code|打开vscode|vscode|code)[。！？.!?]*$/i],
     handler: () => ({
       responseText: '好的，正在打开 VS Code。',
-      toolCall: { name: 'desktop_open', arguments: { path: 'code' } },
+      toolCall: { name: 'desktop_open', arguments: { target: 'code' } },
       matched: true,
     }),
   },

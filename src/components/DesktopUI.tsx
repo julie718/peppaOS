@@ -239,6 +239,7 @@ function OSWindow({
             <button
               onClick={(e) => { e.stopPropagation(); onClose(id); }}
               className="w-3 h-3 rounded-full bg-red-500/40 border border-red-500/60 hover:bg-red-500/80 flex items-center justify-center transition-colors group/close"
+              title={t.close || 'Close'}
             >
               <X size={6} className="text-white opacity-0 group-hover/close:opacity-100 transition-opacity" />
             </button>
@@ -1524,6 +1525,10 @@ export function DesktopUI({
       setActiveTab('home');
       return;
     }
+    if (tab === 'org') {
+      setActiveTab('org');
+      return;
+    }
 
     // Knowledge base, Chat, and Canvas open fullscreen, not as windows
     if (tab === 'knowledge') {
@@ -1612,6 +1617,33 @@ export function DesktopUI({
     { id: 'settings', label: t.settings || 'OS Integrity', icon: <SettingsIcon size={24} />, color: 'from-gray-400 to-slate-600' },
   ];
 
+  const desktopAppEntries = desktopIcons.map(def => ({
+    id: def.windowId,
+    label: (t as any)[def.labelKey] || def.labelKey,
+    icon: def.icon,
+    color: def.colorClass,
+  }));
+  const utilityAppEntries = [
+    { id: 'knowledge', label: t.knowledgeBase || 'Knowledge Base', icon: <BrainCircuit size={24} />, color: 'from-cyan-400 to-blue-600' },
+    { id: 'notifications', label: t.notificationsLabel || 'Notifications', icon: <Bell size={24} />, color: 'from-amber-500 to-orange-600' },
+    { id: 'terminal', label: t.terminal || 'Terminal', icon: <TerminalIcon size={24} />, color: 'from-green-500 to-emerald-600' },
+    { id: 'voice', label: t.voiceLabel || 'Voice', icon: <Volume2 size={24} />, color: 'from-pink-500 to-rose-600' },
+    { id: 'memory', label: t.memory || 'Memory', icon: <BrainCircuit size={24} />, color: 'from-cyan-500 to-blue-600' },
+    { id: 'mcp', label: t.mcp || 'MCP', icon: <Wrench size={24} />, color: 'from-purple-500 to-violet-600' },
+    { id: 'sync', label: t.sync || 'Sync', icon: <RefreshCw size={24} />, color: 'from-blue-500 to-indigo-600' },
+    { id: 'reminders', label: t.reminders || 'Reminders', icon: <Calendar size={24} />, color: 'from-amber-500 to-orange-600' },
+    { id: 'tokens', label: t.tokens || 'Tokens', icon: <Circle size={24} />, color: 'from-celestial-mars to-celestial-saturn' },
+    { id: 'profile', label: t.profile || 'Profile', icon: <UserIcon size={24} />, color: 'from-white/30 to-white/10' },
+  ];
+  const allAppEntries = [...appIcons, ...desktopAppEntries, ...utilityAppEntries]
+    .filter((entry, index, list) => list.findIndex(other => other.id === entry.id) === index);
+  const getWindowMeta = (windowId: string) => allAppEntries.find(entry => entry.id === windowId) || {
+    id: windowId,
+    label: windowId,
+    icon: <Circle size={24} />,
+    color: 'from-celestial-mars to-celestial-saturn',
+  };
+
   const sphereSentiment =
     openWindows.includes('kernel') ? 'excited' :
     chatOpen ? 'focused' : 'default';
@@ -1638,6 +1670,64 @@ export function DesktopUI({
     if (windowId === 'terminal') return { w: '900px', h: '600px' };
     return { w: '900px', h: '700px' };
   };
+  const dockApps = [
+    ...appIcons,
+    ...(canvasOpen && !appIcons.some(app => app.id === 'canvas') ? [getWindowMeta('canvas')] : []),
+    ...openWindows
+      .filter(windowId => !appIcons.some(app => app.id === windowId))
+      .map(getWindowMeta),
+  ];
+  const operationModeOptions = [
+    {
+      id: 'desktop_control' as const,
+      label: t.modeMouse || '键鼠',
+      title: t.modeMouseTitle || '键鼠模式',
+      description: t.modeMouseDesc || '适合打开软件、点击界面、读屏并操作当前桌面。',
+      icon: <MousePointer2 size={16} />,
+    },
+    {
+      id: 'terminal' as const,
+      label: t.modeTerminal || '命令',
+      title: t.modeTerminalTitle || '命令模式',
+      description: t.modeTerminalDesc || '优先用终端命令处理文件、系统、开发和批量任务。',
+      icon: <TerminalIcon size={16} />,
+    },
+    {
+      id: 'autonomous' as const,
+      label: t.modeAutonomous || '自由',
+      title: t.modeAutonomousTitle || '自由模式',
+      description: t.modeAutonomousDesc || '适合多步后台任务；高风险操作仍会请求确认。',
+      icon: <Zap size={16} />,
+    },
+  ];
+  const currentOperationMode = operationModeOptions.find(m => m.id === operationMode) || operationModeOptions[0];
+  const renderOperationModeSelector = (compact = false) => (
+    <div className={`flex flex-col items-center ${compact ? 'gap-1.5' : 'gap-2'}`}>
+      <div className={`flex items-center ${compact ? 'gap-1.5' : 'gap-2'}`}>
+        {operationModeOptions.map(m => (
+          <button
+            key={m.id}
+            onClick={() => setOperationMode(m.id)}
+            className={`flex items-center ${compact ? 'gap-1 px-2.5 py-1 text-[11px]' : 'gap-2 px-4 py-2 text-sm'} rounded-full font-bold uppercase tracking-wider transition-all ${
+              operationMode === m.id
+                ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 shadow-sm shadow-cyan-500/10'
+                : 'bg-white/5 text-white/45 border border-white/5 hover:bg-white/10 hover:text-white/60'
+            }`}
+            title={`${m.title}: ${m.description}`}
+          >
+            {React.isValidElement(m.icon)
+              ? React.cloneElement(m.icon as React.ReactElement<any>, { size: compact ? 12 : 16 })
+              : m.icon}
+            {m.label}
+          </button>
+        ))}
+      </div>
+      <div className={`rounded-2xl border border-cyan-500/15 bg-black/35 backdrop-blur-xl text-center ${compact ? 'max-w-[260px] px-3 py-1.5' : 'max-w-[360px] px-4 py-2'}`}>
+        <div className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-400">{currentOperationMode.title}</div>
+        <p className={`${compact ? 'text-[11px]' : 'text-[12px]'} leading-relaxed text-white/55`}>{currentOperationMode.description}</p>
+      </div>
+    </div>
+  );
 
   return (
     <div
@@ -1843,7 +1933,7 @@ export function DesktopUI({
         {/* Top Status Bar */}
         <div className={`absolute top-0 inset-x-0 h-10 glass-dark border-b border-white/5 flex items-center px-6 pointer-events-auto backdrop-blur-md transition-all duration-1000 ${isWallpaperMode || musicVisible ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
           <div className="flex items-center gap-6 flex-1">
-            <button onClick={onExit} className="flex items-center gap-2 group transition-all">
+            <button onClick={() => toggleWindow('home')} className="flex items-center gap-2 group transition-all">
                <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-celestial-mars to-celestial-saturn flex items-center justify-center p-1 group-hover:rotate-12 transition-transform shadow-lg shadow-celestial-saturn/20">
                  <Rocket size={14} className="text-white" />
                </div>
@@ -1967,7 +2057,7 @@ export function DesktopUI({
               isOpen={isSearchOpen} 
               onClose={() => setIsSearchOpen(false)} 
               onSelect={toggleWindow}
-              apps={appIcons}
+              apps={allAppEntries}
               t={t}
             />
           )}
@@ -2001,7 +2091,7 @@ export function DesktopUI({
           </button>
           <div className="h-8 w-px bg-white/10 mx-2" />
           <AnimatePresence>
-            {appIcons.map(app => {
+            {dockApps.map(app => {
               const isActive = openWindows.includes(app.id) || (app.id === 'chat' && chatOpen) || (app.id === 'canvas' && canvasOpen);
               return (
               <motion.button
@@ -2120,28 +2210,8 @@ export function DesktopUI({
                 >
                   {callState !== 'idle' ? <Mic size={20} className="animate-pulse" /> : <Mic size={20} />}
                 </button>
-                {/* Operation Mode selector — pet mode */}
-                <div className="flex items-center gap-1.5 mt-1">
-                  {([
-                    { id: 'desktop_control' as const, label: '键鼠', icon: <MousePointer2 size={16} /> },
-                    { id: 'terminal' as const, label: '命令', icon: <TerminalIcon size={16} /> },
-                    { id: 'autonomous' as const, label: '自由', icon: <Zap size={16} /> },
-                  ]).map(m => (
-                    <button
-                      key={m.id}
-                      onClick={() => setOperationMode(m.id)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold uppercase tracking-wider transition-all ${
-                        operationMode === m.id
-                          ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 shadow-sm shadow-cyan-500/10'
-                          : 'bg-white/5 text-white/45 border border-white/5 hover:bg-white/10 hover:text-white/60'
-                      }`}
-                      title={m.id === 'desktop_control' ? '键鼠模式：截图驱动桌面控制' : m.id === 'terminal' ? '命令行模式：终端命令操作' : '自由模式：后台自主执行'}
-                    >
-                      {m.icon}
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
+                {/* Operation Mode selector */}
+                {renderOperationModeSelector(false)}
                 {/* Reset to sphere button */}
                 <button
                   onClick={(e) => {
@@ -2183,27 +2253,9 @@ export function DesktopUI({
                 gesturesDisabled={false}
                 isLightMode={isLightMode}
               />
-              {/* Operation Mode selector — sphere mode */}
-              <div className="flex items-center gap-1.5 mt-2 justify-center">
-                {([
-                  { id: 'desktop_control' as const, label: '键鼠', icon: <MousePointer2 size={12} /> },
-                  { id: 'terminal' as const, label: '命令', icon: <TerminalIcon size={12} /> },
-                  { id: 'autonomous' as const, label: '自由', icon: <Zap size={12} /> },
-                ]).map(m => (
-                  <button
-                    key={m.id}
-                    onClick={() => setOperationMode(m.id)}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all ${
-                      operationMode === m.id
-                        ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-                        : 'bg-white/5 text-white/45 border border-white/5 hover:bg-white/10 hover:text-white/60'
-                    }`}
-                    title={m.id === 'desktop_control' ? '键鼠模式：截图驱动桌面控制' : m.id === 'terminal' ? '命令行模式：终端命令操作' : '自由模式：后台自主执行'}
-                  >
-                    {m.icon}
-                    {m.label}
-                  </button>
-                ))}
+              {/* Operation Mode selector */}
+              <div className="mt-2">
+                {renderOperationModeSelector(true)}
               </div>
               {wakeWord.isListening && callState === 'idle' && (
                 <div className="mt-2 text-xs text-white/45 uppercase tracking-[0.25em] font-mono">
@@ -2311,7 +2363,7 @@ export function DesktopUI({
                       if (editMode) return;
                       e.preventDefault();
                       e.stopPropagation();
-                      showContextMenu(e.clientX, e.clientY, { type: 'icon', targetId: def.id });
+                      showContextMenu(e.clientX, e.clientY, { type: 'icon', targetId: def.windowId });
                     }}
                     initial={editMode ? false : { opacity: 0, scale: 0.8 }}
                     animate={editMode ? { opacity: 1 } : { opacity: 1, scale: 1 }}
@@ -2325,7 +2377,7 @@ export function DesktopUI({
                     tabIndex={editMode ? -1 : 0}
                     onKeyDown={(e: React.KeyboardEvent) => {
                       if (editMode) return;
-                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleWindow(def.windowId); }
+                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(); }
                     }}
                   >
                     <div className={`desktop-icon-img bg-gradient-to-br ${def.colorClass} shadow-[0_10px_20px_-5px_rgba(0,0,0,0.5)] ${editMode ? 'scale-105' : ''}`}>
@@ -2448,12 +2500,13 @@ export function DesktopUI({
           {openWindows.map(windowId => {
             const size = getWindowSize(windowId);
             const orderIdx = windowOrder.indexOf(windowId);
+            const meta = getWindowMeta(windowId);
             return (
               <OSWindow
                 key={windowId}
                 id={windowId}
-                title={appIcons.find(a => a.id === windowId)?.label || windowId}
-                icon={appIcons.find(a => a.id === windowId)?.icon}
+                title={meta.label}
+                icon={meta.icon}
                 isActive={focusedWindow === windowId}
                 isMinimized={minimizedWindows.includes(windowId)}
                 zIndex={10 + (orderIdx >= 0 ? orderIdx : 0)}
@@ -2466,7 +2519,7 @@ export function DesktopUI({
                   // Window stays in DOM, just mark animation complete
                 }}
                 onClose={() => closeWindow(windowId)}
-                colorClass={appIcons.find(a => a.id === windowId)?.color}
+                colorClass={meta.color}
                 width={size.w}
                 height={size.h}
                 t={t}

@@ -376,7 +376,7 @@ export function registerChatHandler(
           console.log('[ChatHandler] Quick command:', text.slice(0, 60));
           if (quickResult.toolCall) {
             try {
-              const tcResult = await toolRegistry.execute(quickResult.toolCall.name, quickResult.toolCall.arguments, { userId: uid });
+              const tcResult = await toolRegistry.execute(quickResult.toolCall.name, quickResult.toolCall.arguments, { userId: uid, desktopRelay, llmGetters });
               socket.emit("agent:tool_call", { correlationId: `qc-${Date.now()}`, name: quickResult.toolCall.name, arguments: quickResult.toolCall.arguments, result: tcResult?.slice(0, 500) || '' });
             } catch (toolErr: any) {
               socket.emit("agent:tool_call", { correlationId: `qc-${Date.now()}`, name: quickResult.toolCall.name, arguments: quickResult.toolCall.arguments, error: toolErr.message });

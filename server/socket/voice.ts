@@ -400,11 +400,23 @@ async function processVoiceInput(
     if (quickResult?.matched) {
       logger.info(`[Audio] Quick command: "${userText}" → "${quickResult.responseText.slice(0, 50)}"`);
       if (quickResult.toolCall && session.isActive) {
-        socket.emit("agent:tool_call", {
-          correlationId: `qc-${Date.now()}`,
-          name: quickResult.toolCall.name,
-          arguments: quickResult.toolCall.arguments,
-        });
+        const correlationId = `qc-${Date.now()}`;
+        try {
+          const tcResult = await toolRegistry.execute(quickResult.toolCall.name, quickResult.toolCall.arguments, toolContext);
+          socket.emit("agent:tool_call", {
+            correlationId,
+            name: quickResult.toolCall.name,
+            arguments: quickResult.toolCall.arguments,
+            result: tcResult?.slice(0, 500) || '',
+          });
+        } catch (toolErr: any) {
+          socket.emit("agent:tool_call", {
+            correlationId,
+            name: quickResult.toolCall.name,
+            arguments: quickResult.toolCall.arguments,
+            error: toolErr.message,
+          });
+        }
       }
       flushSentence(quickResult.responseText);
       await Promise.allSettled(ttsPromises);
