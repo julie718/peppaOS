@@ -124,6 +124,26 @@ interface NativeFile {
   isDirectory: boolean;
 }
 
+const normalizeNativeFiles = (value: unknown): NativeFile[] => {
+  if (!Array.isArray(value)) return [];
+  return value.map((file: any) => ({
+    name: String(file?.name || ''),
+    path: String(file?.path || ''),
+    isDirectory: Boolean(file?.isDirectory ?? file?.is_directory),
+  })).filter(file => file.name && file.path);
+};
+
+const getParentNativePath = (path: string) => {
+  const trimmed = path.replace(/[\\/]+$/, '');
+  if (!trimmed) return '';
+  const separator = trimmed.includes('\\') ? '\\' : '/';
+  const parts = trimmed.split(/[\\/]/);
+  if (parts.length <= 1) return '';
+  if (/^[A-Za-z]:$/.test(parts[0]) && parts.length <= 2) return `${parts[0]}\\`;
+  parts.pop();
+  return parts.join(separator) || separator;
+};
+
 declare global {
   interface Window {
     lumiElectron?: {
@@ -505,6 +525,131 @@ function DesktopIcon({ label, icon, colorClass, onClick, onContextMenu }: Deskto
         </div>
       </div>
       <span className="desktop-icon-label">{label}</span>
+    </div>
+  );
+}
+
+interface NativeFilesWindowProps {
+  t: any;
+  files: NativeFile[];
+  currentPath: string;
+  isLoading: boolean;
+  error: string | null;
+  onRefresh: () => void;
+  onHome: () => void;
+  onNavigate: (path: string) => void;
+  onOpenItem: (path: string) => void;
+}
+
+function NativeFilesWindow({
+  t,
+  files,
+  currentPath,
+  isLoading,
+  error,
+  onRefresh,
+  onHome,
+  onNavigate,
+  onOpenItem,
+}: NativeFilesWindowProps) {
+  const [query, setQuery] = useState('');
+  const parentPath = getParentNativePath(currentPath);
+  const visibleFiles = files.filter(file => file.name.toLowerCase().includes(query.trim().toLowerCase()));
+
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => parentPath && onNavigate(parentPath)}
+          disabled={!parentPath || isLoading}
+          className="flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-bold text-white/55 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+        >
+          <ArrowLeft size={15} />
+          {t.back || 'Back'}
+        </button>
+        <button
+          onClick={onHome}
+          disabled={isLoading}
+          className="flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-bold text-white/55 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+        >
+          <HardDrive size={15} />
+          Home
+        </button>
+        <button
+          onClick={onRefresh}
+          disabled={isLoading}
+          className="flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-bold text-white/55 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+        >
+          <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} />
+          {t.refresh || 'Refresh'}
+        </button>
+        <button
+          onClick={() => currentPath && onOpenItem(currentPath)}
+          disabled={!currentPath || isLoading}
+          className="ml-auto flex h-10 items-center gap-2 rounded-xl border border-celestial-saturn/25 bg-celestial-saturn/10 px-3 text-xs font-black text-celestial-saturn transition-colors hover:bg-celestial-saturn/18 disabled:cursor-not-allowed disabled:opacity-30"
+        >
+          <Folder size={15} />
+          {t.open || 'Open'}
+        </button>
+      </div>
+
+      <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
+        <Folder size={17} className="shrink-0 text-celestial-saturn" />
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white/72">{currentPath || 'Home'}</span>
+        <span className="text-[11px] font-black uppercase tracking-[0.18em] text-white/28">{visibleFiles.length} items</span>
+      </div>
+
+      <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+        <Search size={16} className="shrink-0 text-white/35" />
+        <input
+          value={query}
+          onChange={event => setQuery(event.target.value)}
+          placeholder={t.search || 'Search'}
+          className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-white outline-none placeholder:text-white/25"
+        />
+      </div>
+
+      {error && (
+        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-300">
+          {error}
+        </div>
+      )}
+
+      <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-black/20">
+        {isLoading ? (
+          <div className="flex h-full items-center justify-center text-sm font-bold text-white/35">
+            {t.loading || 'Loading...'}
+          </div>
+        ) : visibleFiles.length === 0 ? (
+          <div className="flex h-full items-center justify-center text-sm font-bold text-white/30">
+            {query ? (t.noResults || 'No results') : (t.noFilesYet || 'No files yet')}
+          </div>
+        ) : (
+          <div className="h-full overflow-y-auto custom-scrollbar">
+            {visibleFiles.map(file => (
+              <button
+                key={file.path}
+                onClick={() => file.isDirectory ? onNavigate(file.path) : onOpenItem(file.path)}
+                className="group grid w-full grid-cols-[minmax(0,1fr)_96px] items-center gap-3 border-b border-white/[0.04] px-4 py-3 text-left transition-colors hover:bg-white/[0.05]"
+              >
+                <span className="flex min-w-0 items-center gap-3">
+                  {file.isDirectory ? (
+                    <Folder size={18} className="shrink-0 text-celestial-saturn" />
+                  ) : (
+                    <FileText size={18} className="shrink-0 text-white/35" />
+                  )}
+                  <span className="min-w-0 truncate text-sm font-semibold text-white/68 group-hover:text-white">
+                    {file.name}
+                  </span>
+                </span>
+                <span className="justify-self-end rounded-lg border border-white/8 bg-white/[0.03] px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-white/30">
+                  {file.isDirectory ? (t.folder || 'Folder') : (t.file || 'File')}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -992,6 +1137,9 @@ export function DesktopUI({
     document.documentElement.setAttribute('data-mode', isLightMode ? 'light' : 'dark');
   }, [isLightMode]);
   const [nativeFiles, setNativeFiles] = useState<NativeFile[]>([]);
+  const [nativePath, setNativePath] = useState('');
+  const [nativeFilesLoading, setNativeFilesLoading] = useState(false);
+  const [nativeFilesError, setNativeFilesError] = useState<string | null>(null);
   const [isControlCenterOpen, setIsControlCenterOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState('general');
@@ -1035,6 +1183,40 @@ export function DesktopUI({
     };
     reader.readAsDataURL(file);
   };
+
+  const loadNativeFiles = useCallback(async (path?: string) => {
+    setNativeFilesLoading(true);
+    setNativeFilesError(null);
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      let targetPath = path ?? nativePath;
+      if (!targetPath) {
+        const info: any = await invoke('get_system_info');
+        targetPath = String(info?.home_dir || '');
+      }
+      const files = targetPath
+        ? await invoke('list_directory', { path: targetPath })
+        : await invoke('list_home_files');
+      setNativePath(targetPath);
+      setNativeFiles(normalizeNativeFiles(files));
+    } catch (err: any) {
+      const message = err?.message || String(err || 'Failed to list files');
+      setNativeFilesError(message);
+      toast.error(message);
+    } finally {
+      setNativeFilesLoading(false);
+    }
+  }, [nativePath]);
+
+  const openNativeItem = useCallback(async (path: string) => {
+    if (!path) return;
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('open_item', { target: path });
+    } catch (err: any) {
+      toast.error(err?.message || String(err || 'Failed to open item'));
+    }
+  }, []);
 
   const handleWindowMinimize = async () => {
     try {
@@ -1566,6 +1748,11 @@ export function DesktopUI({
     setActiveTab(tab);
   };
 
+  const openNativeFilesWindow = () => {
+    toggleWindow('files');
+    void loadNativeFiles();
+  };
+
   const closeWindow = (tab: string) => {
     try { sounds.playClick(); } catch {}
     const nextWindows = openWindows.filter(w => w !== tab);
@@ -1624,6 +1811,7 @@ export function DesktopUI({
     color: def.colorClass,
   }));
   const utilityAppEntries = [
+    { id: 'files', label: t.files || 'Files', icon: <Folder size={24} />, color: 'from-celestial-saturn to-amber-600' },
     { id: 'knowledge', label: t.knowledgeBase || 'Knowledge Base', icon: <BrainCircuit size={24} />, color: 'from-cyan-400 to-blue-600' },
     { id: 'notifications', label: t.notificationsLabel || 'Notifications', icon: <Bell size={24} />, color: 'from-amber-500 to-orange-600' },
     { id: 'terminal', label: t.terminal || 'Terminal', icon: <TerminalIcon size={24} />, color: 'from-green-500 to-emerald-600' },
@@ -1656,6 +1844,7 @@ export function DesktopUI({
     if (windowId === 'generate') return { w: '1050px', h: '720px' };
     if (windowId === 'music') return { w: '1050px', h: '720px' };
     if (windowId === 'music-center') return { w: '800px', h: '600px' };
+    if (windowId === 'files') return { w: '920px', h: '640px' };
     if (windowId === 'tools') return { w: '850px', h: '620px' };
     if (windowId === 'team') return { w: '900px', h: '700px' };
     if (windowId === 'github-mcp') return { w: '850px', h: '620px' };
@@ -1942,19 +2131,9 @@ export function DesktopUI({
             <div className="h-4 w-px bg-white/10" />
             <div className="flex gap-4">
               <TopMenuButton label={t.file || 'File'}>
-                <button onClick={async () => {
-                  try {
-                    const invoke = (window as any).__TAURI__?.core?.invoke || (window as any).__TAURI_INTERNALS__?.invoke;
-                    if (invoke) {
-                      const files = await invoke('list_home_files');
-                      setNativeFiles(Array.isArray(files) ? files : []);
-                      toggleWindow('github-mcp');
-                    } else {
-                      toast.info(t.desktopOnly || 'File browse requires desktop app');
-                    }
-                  } catch (err: any) { toast.error(err.message || 'Failed to list files'); }
-                }} className="w-full text-left px-4 py-2 text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors">{t.openFiles || 'Open Files'}</button>
+                <button onClick={openNativeFilesWindow} className="w-full text-left px-4 py-2 text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors">{t.openFiles || 'Open Files'}</button>
                 <button onClick={() => { toggleWindow('settings'); }} className="w-full text-left px-4 py-2 text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors">{t.settings || 'Settings'}</button>
+                <button onClick={() => { setShowOnboarding(true); }} className="w-full text-left px-4 py-2 text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors">{t.showTutorial || 'Show Tutorial'}</button>
                 <button onClick={onExit} className="w-full text-left px-4 py-2 text-xs text-red-400/70 hover:text-red-400 hover:bg-white/10 transition-colors">{t.exit || 'Exit'}</button>
               </TopMenuButton>
               <TopMenuButton label={t.edit || 'Edit'}>
@@ -2422,20 +2601,6 @@ export function DesktopUI({
                 </GlassCard>
               )}
 
-              {nativeFiles.length > 0 && (
-                <GlassCard className="p-6 w-full md:w-80 rounded-3xl space-y-4 border-white/5 bg-black/10">
-                  <h4 className="text-xs font-black uppercase tracking-widest text-white/45">{t.nativeVaultEntry || 'Native Vault Entry'}</h4>
-                  <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-2">
-                    {nativeFiles.map((file, idx) => (
-                      <div key={idx} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-all cursor-pointer group">
-                        {file.isDirectory ? <Folder size={14} className="text-celestial-saturn" /> : <FileText size={14} className="text-white/40" />}
-                        <span className="text-xs text-white/60 truncate group-hover:text-white transition-colors">{file.name}</span>
-                      </div>
-                    ))}
-                  </div>
-                </GlassCard>
-              )}
-
             </div>
         </div>
       </div>
@@ -2552,6 +2717,18 @@ export function DesktopUI({
                     <MusicCenter isOpen={true} onClose={() => toggleWindow('music-center')} />
                   ) : windowId === 'personality' ? (
                     <PersonalityEditor t={t} />
+                  ) : windowId === 'files' ? (
+                    <NativeFilesWindow
+                      t={t}
+                      files={nativeFiles}
+                      currentPath={nativePath}
+                      isLoading={nativeFilesLoading}
+                      error={nativeFilesError}
+                      onRefresh={() => void loadNativeFiles(nativePath)}
+                      onHome={() => void loadNativeFiles('')}
+                      onNavigate={(path) => void loadNativeFiles(path)}
+                      onOpenItem={(path) => void openNativeItem(path)}
+                    />
                   ) : windowId === 'tools' ? (
                     <ToolPanel />
                   ) : windowId === 'team' ? (

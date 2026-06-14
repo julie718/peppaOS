@@ -51,6 +51,33 @@ pub struct NativeFile {
     pub is_directory: bool,
 }
 
+fn read_native_files(dir: &Path) -> Vec<NativeFile> {
+    let entries = std::fs::read_dir(dir);
+    let mut files: Vec<NativeFile> = match entries {
+        Ok(iter) => iter
+            .filter_map(|e| e.ok())
+            .map(|e| {
+                let path = e.path();
+                let is_dir = path.is_dir();
+                NativeFile {
+                    name: e.file_name().to_string_lossy().to_string(),
+                    path: path.to_string_lossy().to_string(),
+                    is_directory: is_dir,
+                }
+            })
+            .collect(),
+        Err(_) => vec![],
+    };
+
+    files.sort_by(|a, b| {
+        b.is_directory
+            .cmp(&a.is_directory)
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
+    files.truncate(200);
+    files
+}
+
 #[tauri::command]
 fn get_system_info() -> SystemInfo {
     use sysinfo::System;
@@ -213,23 +240,17 @@ fn get_live_stats() -> LiveStats {
 #[tauri::command]
 fn list_home_files() -> Vec<NativeFile> {
     let home = dirs_next::home_dir().unwrap_or_default();
-    let entries = std::fs::read_dir(&home);
-    match entries {
-        Ok(iter) => iter
-            .filter_map(|e| e.ok())
-            .take(50)
-            .map(|e| {
-                let path = e.path();
-                let is_dir = path.is_dir();
-                NativeFile {
-                    name: e.file_name().to_string_lossy().to_string(),
-                    path: path.to_string_lossy().to_string(),
-                    is_directory: is_dir,
-                }
-            })
-            .collect(),
-        Err(_) => vec![],
-    }
+    read_native_files(&home)
+}
+
+#[tauri::command]
+fn list_directory(path: String) -> Vec<NativeFile> {
+    let dir = if path.trim().is_empty() {
+        dirs_next::home_dir().unwrap_or_default()
+    } else {
+        PathBuf::from(path)
+    };
+    read_native_files(&dir)
 }
 
 #[tauri::command]
@@ -1207,6 +1228,7 @@ pub fn run() {
             get_system_info,
             get_live_stats,
             list_home_files,
+            list_directory,
             run_command,
             open_item,
             set_wallpaper_mode,
