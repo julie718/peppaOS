@@ -19,7 +19,7 @@ export function CanvasCard({ card, onRetry }: CanvasCardProps) {
     left: card.x,
     top: card.y,
     width: card.width,
-    minHeight: card.height,
+    height: card.height,
   };
 
   const typeConfig = getTypeConfig(card);
@@ -32,10 +32,10 @@ export function CanvasCard({ card, onRetry }: CanvasCardProps) {
       style={style}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className={`rounded-xl border overflow-hidden shadow-lg backdrop-blur-sm group ${typeConfig.bg} ${typeConfig.border}`}
+      className={`group flex flex-col overflow-hidden rounded-xl border shadow-lg backdrop-blur-sm ${typeConfig.bg} ${typeConfig.border}`}
     >
       {/* Header */}
-      <div className={`flex items-center gap-2 px-4 py-2.5 border-b ${typeConfig.headerBg}`}>
+      <div className={`flex shrink-0 items-center gap-2 border-b px-4 py-2.5 ${typeConfig.headerBg}`}>
         <span className={typeConfig.iconColor}>{typeConfig.icon}</span>
         <span className="text-xs font-semibold tracking-wide uppercase text-white/70">{typeConfig.label}</span>
         {card.status && <StatusBadge status={card.status} />}
@@ -50,7 +50,7 @@ export function CanvasCard({ card, onRetry }: CanvasCardProps) {
       </div>
 
       {/* Body */}
-      <div className="px-4 py-3">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         {card.type === 'tool_call' ? (
           <div>
             <div className="text-sm font-medium text-white/90">{card.text}</div>
@@ -94,7 +94,7 @@ export function CanvasCard({ card, onRetry }: CanvasCardProps) {
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-1.5 text-[10px] text-white/25 border-t border-white/[0.03] flex items-center justify-between">
+      <div className="flex shrink-0 items-center justify-between border-t border-white/[0.03] px-4 py-1.5 text-[10px] text-white/25">
         <span>{new Date(card.timestamp).toLocaleTimeString()}</span>
         <span className="opacity-0 group-hover:opacity-100 transition-opacity text-white/15 text-[9px]">#{card.id.slice(-6)}</span>
       </div>

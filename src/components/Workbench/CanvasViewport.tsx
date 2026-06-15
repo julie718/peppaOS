@@ -1,52 +1,104 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { GitBranch, Trash2, X } from 'lucide-react';
 import { useCanvasPanZoom } from './useCanvasPanZoom';
 import { computeLayout, computeEdges } from './canvasLayout';
 import { CanvasCard as CanvasCardComponent } from './CanvasCard';
 import { CanvasCard, CanvasEdge, PositionedCard } from './types';
-import { RefreshCw, Trash2 } from 'lucide-react';
 
 interface CanvasViewportProps {
   cards: CanvasCard[];
   edges: CanvasEdge[];
   onRetry?: (cardId: string) => void;
   onClear?: () => void;
+  selectedEdgeId?: string | null;
+  onEdgeSelect?: (edge: CanvasEdge | null) => void;
+  onEdgeModify?: (edge: CanvasEdge, instruction: string) => void;
 }
 
-function EdgeLine({ edge, cards }: { edge: CanvasEdge; cards: PositionedCard[] }) {
+function getCardLabel(card?: PositionedCard | null): string {
+  if (!card) return 'Unknown step';
+  const label = card.metadata?.toolName || card.metadata?.agentName || card.text || card.id;
+  return label.length > 72 ? `${label.slice(0, 72)}...` : label;
+}
+
+function EdgeLine({
+  edge,
+  cards,
+  selected,
+  onSelect,
+}: {
+  edge: CanvasEdge;
+  cards: PositionedCard[];
+  selected?: boolean;
+  onSelect?: (edge: CanvasEdge) => void;
+}) {
   const src = cards.find(c => c.id === edge.sourceId);
   const tgt = cards.find(c => c.id === edge.targetId);
   if (!src || !tgt) return null;
 
-  const x1 = src.x + src.width / 2;
-  const y1 = src.y + src.height;
-  const x2 = tgt.x + tgt.width / 2;
-  const y2 = tgt.y;
-  const midY = (y1 + y2) / 2;
-
-  const color = edge.color || (edge.dashed ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.25)');
-  const d = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+  const x1 = src.x + src.width;
+  const y1 = src.y + src.height / 2;
+  const x2 = tgt.x;
+  const y2 = tgt.y + tgt.height / 2;
+  const direction = x2 >= x1 ? 1 : -1;
+  const curve = Math.max(80, Math.abs(x2 - x1) * 0.42);
+  const color = selected
+    ? 'rgba(45,212,191,0.95)'
+    : edge.color || (edge.dashed ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.28)');
+  const d = `M ${x1} ${y1} C ${x1 + curve * direction} ${y1}, ${x2 - curve * direction} ${y2}, ${x2} ${y2}`;
+  const arrowPoints = `${x2 - direction * 10},${y2 - 5} ${x2},${y2} ${x2 - direction * 10},${y2 + 5}`;
 
   return (
-    <g>
+    <g data-no-pan>
+      <path
+        d={d}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={24}
+        strokeLinecap="round"
+        style={{ cursor: onSelect ? 'pointer' : 'default', pointerEvents: 'stroke' }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect?.(edge);
+        }}
+      />
       <path
         d={d}
         fill="none"
         stroke={color}
-        strokeWidth={1.5}
+        strokeWidth={selected ? 3 : 1.8}
         strokeDasharray={edge.dashed ? '5,5' : undefined}
         strokeLinecap="round"
+        style={{ pointerEvents: 'none' }}
       />
-      {/* Arrowhead */}
-      <polygon
-        points={`${x2 - 4},${y2 - 8} ${x2},${y2} ${x2 + 4},${y2 - 8}`}
-        fill={color}
-      />
+      <polygon points={arrowPoints} fill={color} style={{ pointerEvents: 'none' }} />
+      {edge.label && (
+        <text
+          x={(x1 + x2) / 2}
+          y={(y1 + y2) / 2 - 10}
+          fill={selected ? 'rgba(153,246,228,0.95)' : 'rgba(255,255,255,0.38)'}
+          fontSize={11}
+          textAnchor="middle"
+          style={{ pointerEvents: 'none' }}
+        >
+          {edge.label}
+        </text>
+      )}
     </g>
   );
 }
 
-export function CanvasViewport({ cards, edges, onRetry, onClear }: CanvasViewportProps) {
+export function CanvasViewport({
+  cards,
+  edges,
+  onRetry,
+  onClear,
+  selectedEdgeId,
+  onEdgeSelect,
+  onEdgeModify,
+}: CanvasViewportProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [edgeInstruction, setEdgeInstruction] = useState('');
   const { scale, viewportStyle, resetView } = useCanvasPanZoom(containerRef);
 
   const positioned = useMemo(() => {
@@ -54,22 +106,27 @@ export function CanvasViewport({ cards, edges, onRetry, onClear }: CanvasViewpor
     return computeLayout(cards, viewportWidth / scale);
   }, [cards, scale]);
 
-  // Filter edges to only those whose endpoints exist
   const visibleEdges = useMemo(() => {
     const cardIds = new Set(positioned.map(c => c.id));
     return computeEdges(cards, edges).filter(e => cardIds.has(e.sourceId) && cardIds.has(e.targetId));
   }, [cards, edges, positioned]);
 
+  const selectedEdge = useMemo(
+    () => visibleEdges.find(edge => edge.id === selectedEdgeId) || null,
+    [selectedEdgeId, visibleEdges],
+  );
+  const selectedSource = selectedEdge ? positioned.find(card => card.id === selectedEdge.sourceId) : null;
+  const selectedTarget = selectedEdge ? positioned.find(card => card.id === selectedEdge.targetId) : null;
+
+  useEffect(() => {
+    setEdgeInstruction('');
+  }, [selectedEdgeId]);
+
   const svgWidth = 8000;
   const svgHeight = 8000;
 
   return (
-    <div
-      ref={containerRef}
-      className="absolute inset-0 overflow-hidden"
-      style={{ cursor: 'grab' }}
-    >
-      {/* Dot grid background */}
+    <div ref={containerRef} className="absolute inset-0 overflow-hidden" style={{ cursor: 'grab' }}>
       <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ opacity: 0.2 }}>
         <defs>
           <pattern id="canvas-dots" x="0" y="0" width={40 * scale} height={40 * scale} patternUnits="userSpaceOnUse">
@@ -79,58 +136,120 @@ export function CanvasViewport({ cards, edges, onRetry, onClear }: CanvasViewpor
         <rect width="100%" height="100%" fill="url(#canvas-dots)" />
       </svg>
 
-      {/* Controls */}
-      <div data-no-pan className="absolute bottom-24 right-6 z-40 flex items-center gap-1 bg-black/60 backdrop-blur-xl rounded-xl border border-white/[0.08] p-1">
+      <div data-no-pan className="absolute bottom-24 right-6 z-40 flex items-center gap-1 rounded-xl border border-white/[0.08] bg-black/60 p-1 backdrop-blur-xl">
         <button
           onClick={() => containerRef.current?.dispatchEvent(new WheelEvent('wheel', { deltaY: 100, ctrlKey: true }))}
-          className="w-8 h-8 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 rounded-lg text-sm transition-colors"
-        >−</button>
-        <span className="text-xs text-white/50 min-w-[40px] text-center tabular-nums">
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-sm text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+        >
+          -
+        </button>
+        <span className="min-w-[40px] text-center text-xs tabular-nums text-white/50">
           {Math.round(scale * 100)}%
         </span>
         <button
           onClick={() => containerRef.current?.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, ctrlKey: true }))}
-          className="w-8 h-8 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 rounded-lg text-sm transition-colors"
-        >+</button>
-        <div className="w-px h-5 bg-white/[0.08] mx-0.5" />
-        <button onClick={resetView} className="px-2 h-8 text-[10px] text-white/50 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-sm text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+        >
+          +
+        </button>
+        <div className="mx-0.5 h-5 w-px bg-white/[0.08]" />
+        <button onClick={resetView} className="h-8 rounded-lg px-2 text-[10px] text-white/50 transition-colors hover:bg-white/10 hover:text-white">
           Reset
         </button>
         {onClear && cards.length > 0 && (
           <>
-            <div className="w-px h-5 bg-white/[0.08] mx-0.5" />
+            <div className="mx-0.5 h-5 w-px bg-white/[0.08]" />
             <button
               onClick={onClear}
               title="Clear canvas"
-              className="w-8 h-8 flex items-center justify-center text-red-400/60 hover:text-red-400 hover:bg-red-500/10 rounded-lg text-sm transition-colors"
-            ><Trash2 size={14} /></button>
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-sm text-red-400/60 transition-colors hover:bg-red-500/10 hover:text-red-400"
+            >
+              <Trash2 size={14} />
+            </button>
           </>
         )}
       </div>
 
-      {/* Transformed canvas — text "Drag to pan, scroll to zoom, Ctrl+Scroll to scale" */}
+      {selectedEdge && (
+        <div
+          data-no-pan
+          className="absolute right-6 top-16 z-50 w-[360px] rounded-xl border border-teal-300/20 bg-black/75 p-4 text-white shadow-2xl backdrop-blur-xl"
+        >
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-400/10 text-teal-200">
+                <GitBranch size={16} />
+              </span>
+              <div className="min-w-0">
+                <div className="text-xs font-semibold uppercase tracking-wide text-teal-100/80">Path Edit</div>
+                <div className="text-[11px] text-white/35">Modify this step without leaving the canvas</div>
+              </div>
+            </div>
+            <button
+              onClick={() => onEdgeSelect?.(null)}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white/45 hover:bg-white/10 hover:text-white"
+              aria-label="Close path editor"
+            >
+              <X size={14} />
+            </button>
+          </div>
+          <div className="space-y-2 rounded-lg border border-white/[0.06] bg-white/[0.03] p-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-white/30">From</div>
+              <div className="truncate text-xs text-white/70">{getCardLabel(selectedSource)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-white/30">To</div>
+              <div className="truncate text-xs text-white/70">{getCardLabel(selectedTarget)}</div>
+            </div>
+          </div>
+          <textarea
+            value={edgeInstruction}
+            onChange={(e) => setEdgeInstruction(e.target.value)}
+            placeholder="Tell Lumi what to change in this step..."
+            className="mt-3 h-24 w-full resize-none rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white outline-none placeholder:text-white/25 focus:border-teal-300/35"
+          />
+          <button
+            onClick={() => {
+              const instruction = edgeInstruction.trim();
+              if (!instruction || !selectedEdge) return;
+              onEdgeModify?.(selectedEdge, instruction);
+              setEdgeInstruction('');
+            }}
+            disabled={!edgeInstruction.trim()}
+            className="mt-3 h-9 w-full rounded-lg bg-teal-300 text-sm font-semibold text-slate-950 transition hover:bg-teal-200 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30"
+          >
+            Apply to this path
+          </button>
+        </div>
+      )}
+
       <div
         className="absolute"
         style={{
           ...viewportStyle,
           width: `${svgWidth}px`,
           height: `${svgHeight}px`,
-          pointerEvents: 'none',
+          pointerEvents: 'auto',
         }}
       >
-        {/* SVG layer for edges */}
         <svg
-          className="absolute inset-0 pointer-events-none"
+          className="absolute inset-0"
           width={svgWidth}
           height={svgHeight}
           style={{ overflow: 'visible' }}
         >
           {visibleEdges.map(edge => (
-            <EdgeLine key={edge.id} edge={edge} cards={positioned} />
+            <EdgeLine
+              key={edge.id}
+              edge={edge}
+              cards={positioned}
+              selected={edge.id === selectedEdgeId}
+              onSelect={onEdgeSelect || undefined}
+            />
           ))}
         </svg>
 
-        {/* Cards */}
         {positioned.map(card => (
           <div key={card.id} data-canvas-card style={{ pointerEvents: 'auto' }}>
             <CanvasCardComponent
@@ -140,12 +259,11 @@ export function CanvasViewport({ cards, edges, onRetry, onClear }: CanvasViewpor
           </div>
         ))}
 
-        {/* Empty state */}
         {cards.length === 0 && (
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
-            <div className="text-5xl mb-4 opacity-20">∞</div>
-            <p className="text-white/30 text-sm">Tell me what to do — I'll work here</p>
-            <p className="text-white/15 text-xs mt-2">Drag to pan · Scroll to zoom · Click empty space to drag</p>
+          <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
+            <div className="mb-4 text-5xl opacity-20">+</div>
+            <p className="text-sm text-white/30">Tell me what to do. I will build the path here.</p>
+            <p className="mt-2 text-xs text-white/15">Drag to pan / Scroll to zoom / Click a path line to edit a step</p>
           </div>
         )}
       </div>

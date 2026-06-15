@@ -380,7 +380,14 @@
   }
 
   .os-window-content {
-    @apply flex-1 overflow-auto;
+    @apply min-h-0 flex-1 overflow-hidden;
+    overscroll-behavior: contain;
+  }
+
+  .os-window-body {
+    @apply h-full min-h-0 overflow-y-auto p-6 md:p-7;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
   }
 
   .window-control {
@@ -403,19 +410,56 @@
   }
 
   .desktop-icon {
-    @apply flex flex-col items-center gap-2 p-2 rounded-xl border border-transparent hover:bg-white/5 hover:border-white/10 transition-all cursor-pointer w-[90px];
+    @apply flex flex-col items-center gap-2 p-2 rounded-2xl border border-transparent transition-all cursor-pointer w-[98px];
+    background: rgba(255, 255, 255, 0.012);
+    transform: translateZ(0);
   }
 
-  .desktop-icon:hover .desktop-icon-img {
-    @apply scale-110;
+  .desktop-icon:hover,
+  .desktop-icon:focus-visible {
+    @apply border-white/10 bg-white/5;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03), 0 12px 28px rgba(0,0,0,0.22);
+  }
+
+  .desktop-icon:hover .desktop-icon-img,
+  .desktop-icon:focus-visible .desktop-icon-img {
+    @apply scale-105;
+    box-shadow: 0 12px 26px rgba(0,0,0,0.36), inset 0 1px 0 rgba(255,255,255,0.22);
   }
 
   .desktop-icon-img {
-    @apply w-14 h-14 rounded-2xl bg-gradient-to-br flex items-center justify-center shadow-lg transition-transform;
+    @apply relative w-14 h-14 rounded-2xl bg-gradient-to-br flex items-center justify-center shadow-lg transition-all;
+    border: 1px solid rgba(255,255,255,0.16);
   }
 
   .desktop-icon-label {
-    @apply text-xs text-center font-bold tracking-tight text-white/85 select-none;
+    @apply max-w-full text-xs text-center font-bold text-white/85 select-none;
+    line-height: 1.15;
+    text-shadow: 0 1px 8px rgba(0,0,0,0.7);
+  }
+
+  .desktop-icon-focused {
+    background: rgba(255, 255, 255, 0.065);
+    border-color: rgba(255, 255, 255, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04), 0 14px 30px rgba(0,0,0,0.28);
+  }
+
+  .desktop-icon-open .desktop-icon-img::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -9px;
+    width: 18px;
+    height: 2px;
+    border-radius: 999px;
+    background: rgba(255, 204, 0, 0.82);
+    box-shadow: 0 0 10px rgba(255, 204, 0, 0.45);
+    transform: translateX(-50%);
+  }
+
+  .desktop-icon:focus-visible {
+    outline: 2px solid rgba(255, 204, 0, 0.34);
+    outline-offset: 2px;
   }
 }
 
@@ -476,20 +520,25 @@
 /* ── Minimal dark scrollbar ── */
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  overscroll-behavior: contain;
 }
 .custom-scrollbar::-webkit-scrollbar {
-  width: 5px;
+  width: 8px;
+  height: 8px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.13);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.24);
+  background-clip: padding-box;
 }
 
 /* Hide scrollbar entirely but keep scrolling */

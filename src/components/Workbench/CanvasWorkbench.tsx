@@ -26,6 +26,7 @@ export function CanvasWorkbench({ isOpen, onClose, t, user, domain = 'personal' 
   const [showSessionPanel, setShowSessionPanel] = useState(false);
   const [statusText, setStatusText] = useState('');
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cardsRef = useRef<CanvasCard[]>([]);
   const edgesRef = useRef<CanvasEdge[]>([]);
@@ -118,6 +119,7 @@ export function CanvasWorkbench({ isOpen, onClose, t, user, domain = 'personal' 
       setCurrentSessionId(session.id);
       setCards([]);
       setEdges([]);
+      setSelectedEdgeId(null);
       setSaveState('saved');
       setSessions(prev => [
         { id: session.id, title: session.title, taskText: session.taskText, status: session.status, cardCount: 0, createdAt: session.createdAt, updatedAt: session.updatedAt },
@@ -137,6 +139,7 @@ export function CanvasWorkbench({ isOpen, onClose, t, user, domain = 'personal' 
       setCurrentSessionId(session.id);
       setCards(session.cards || []);
       setEdges(session.edges || []);
+      setSelectedEdgeId(null);
       setSaveState('saved');
       setShowSessionPanel(false);
     } catch (err: any) {
@@ -153,6 +156,7 @@ export function CanvasWorkbench({ isOpen, onClose, t, user, domain = 'personal' 
         setCurrentSessionId(null);
         setCards([]);
         setEdges([]);
+        setSelectedEdgeId(null);
         setSaveState('idle');
       }
       toast.success('Canvas deleted');
@@ -162,6 +166,7 @@ export function CanvasWorkbench({ isOpen, onClose, t, user, domain = 'personal' 
   }, [currentSessionId, scopedCanvasUrl]);
 
   const handleClearCanvas = useCallback(() => {
+    setSelectedEdgeId(null);
     clearCards();
   }, [clearCards]);
 
@@ -194,6 +199,29 @@ export function CanvasWorkbench({ isOpen, onClose, t, user, domain = 'personal' 
 
     submitTask(text);
   }, [currentSessionId, submitTask, scopedCanvasUrl]);
+
+  const handleEdgeSelect = useCallback((edge: CanvasEdge | null) => {
+    setSelectedEdgeId(edge?.id || null);
+  }, []);
+
+  const handleEdgeModify = useCallback((edge: CanvasEdge, instruction: string) => {
+    const source = cardsRef.current.find(card => card.id === edge.sourceId);
+    const target = cardsRef.current.find(card => card.id === edge.targetId);
+    const prompt = [
+      'Revise only the selected canvas path step.',
+      `Source step:\n${source?.text || edge.sourceId}`,
+      `Current step:\n${target?.text || edge.targetId}`,
+      `User instruction:\n${instruction}`,
+      'Keep unrelated canvas work intact. Return the revised step, the changed output, and any tool actions needed.',
+    ].join('\n\n');
+
+    submitTask(prompt, {
+      parentCardId: edge.targetId,
+      edgeLabel: 'revise',
+    });
+    setSelectedEdgeId(null);
+    toast.success('Revision added to canvas path');
+  }, [submitTask]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -254,6 +282,9 @@ export function CanvasWorkbench({ isOpen, onClose, t, user, domain = 'personal' 
             edges={edges}
             onRetry={retryFromCard}
             onClear={handleClearCanvas}
+            selectedEdgeId={selectedEdgeId}
+            onEdgeSelect={handleEdgeSelect}
+            onEdgeModify={handleEdgeModify}
           />
 
           <CanvasSessionPanel

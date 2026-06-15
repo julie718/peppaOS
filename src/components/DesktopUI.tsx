@@ -317,7 +317,7 @@ function OSWindow({
           </div>
         </div>
         <div
-          className="os-window-content bg-[#05050a]/98 backdrop-blur-3xl custom-scrollbar h-full"
+          className="os-window-content bg-[#05050a]/98 backdrop-blur-3xl h-full"
           style={isDragging ? { backdropFilter: 'none' } : undefined}
         >
           {children}
@@ -589,6 +589,7 @@ interface NativeFilesWindowProps {
   error: string | null;
   onRefresh: () => void;
   onHome: () => void;
+  onPickDirectory: () => void;
   onNavigate: (path: string) => void;
   onOpenItem: (path: string) => void;
 }
@@ -602,6 +603,7 @@ function NativeFilesWindow({
   error,
   onRefresh,
   onHome,
+  onPickDirectory,
   onNavigate,
   onOpenItem,
 }: NativeFilesWindowProps) {
@@ -644,12 +646,20 @@ function NativeFilesWindow({
           {t.refresh || 'Refresh'}
         </button>
         <button
-          onClick={() => currentPath && onOpenItem(currentPath)}
-          disabled={!currentPath || isLoading}
-          className="ml-auto flex h-10 items-center gap-2 rounded-xl border border-celestial-saturn/25 bg-celestial-saturn/10 px-3 text-xs font-black text-celestial-saturn transition-colors hover:bg-celestial-saturn/18 disabled:cursor-not-allowed disabled:opacity-30"
+          onClick={onPickDirectory}
+          disabled={isLoading}
+          className="ml-auto flex h-10 items-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-3 text-xs font-black text-cyan-200 transition-colors hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-30"
         >
           <Folder size={15} />
-          {t.open || 'Open'}
+          {t.chooseFolder || 'Choose Folder'}
+        </button>
+        <button
+          onClick={() => currentPath && onOpenItem(currentPath)}
+          disabled={!currentPath || isLoading}
+          className="flex h-10 items-center gap-2 rounded-xl border border-celestial-saturn/25 bg-celestial-saturn/10 px-3 text-xs font-black text-celestial-saturn transition-colors hover:bg-celestial-saturn/18 disabled:cursor-not-allowed disabled:opacity-30"
+        >
+          <Folder size={15} />
+          {t.openInExplorer || 'Open in Explorer'}
         </button>
       </div>
 
@@ -747,7 +757,7 @@ function NativeFilesWindow({
                   className="justify-self-end rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-white/40 transition-colors hover:border-celestial-saturn/30 hover:bg-celestial-saturn/10 hover:text-celestial-saturn"
                   title={file.path}
                 >
-                  {t.open || 'Open'}
+                  {file.isDirectory ? (t.explorer || 'Explorer') : (t.open || 'Open')}
                 </button>
               </div>
             ))}
@@ -1342,9 +1352,9 @@ export function DesktopUI({
   // Desktop icon layout: absolute positioning, 4 columns, fixed spacing
   const isOrgAdmin = orgConnection?.connected && (orgConnection.orgRole === 'owner' || orgConnection.orgRole === 'admin');
   const desktopIcons = [
+    { id: 'files', labelKey: 'files', icon: <Folder size={24} />, colorClass: 'from-celestial-saturn to-amber-600', windowId: 'files' },
     { id: 'workbench', labelKey: 'orgWorkbench', icon: <Briefcase size={24} />, colorClass: 'from-blue-500 to-indigo-600', windowId: 'org' as const },
     { id: 'tools', labelKey: 'tools', icon: <Wrench size={24} />, colorClass: 'from-amber-500 to-orange-600', windowId: 'tools' },
-    { id: 'github-mcp', labelKey: 'githubMCP', icon: <Globe size={24} />, colorClass: 'from-purple-500 to-violet-600', windowId: 'github-mcp' },
     { id: 'skills', labelKey: 'skills', icon: <Sparkles size={24} />, colorClass: 'from-emerald-500 to-teal-600', windowId: 'skills' },
     { id: 'memory-avatar', labelKey: 'memoryAvatars', icon: <Castle size={24} />, colorClass: 'from-fuchsia-500 to-purple-600', windowId: 'memory-avatar' },
     { id: 'avatar-studio', labelKey: 'avatarStudio', icon: <Brush size={24} />, colorClass: 'from-cyan-400 to-blue-600', windowId: 'avatar-studio' },
@@ -1402,6 +1412,18 @@ export function DesktopUI({
       toast.error(err?.message || String(err || 'Failed to open item'));
     }
   }, []);
+
+  const pickNativeDirectory = useCallback(async () => {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const path = await invoke<string | null>('pick_directory');
+      if (path) {
+        await loadNativeFiles(path);
+      }
+    } catch (err: any) {
+      toast.error(err?.message || String(err || 'Failed to choose folder'));
+    }
+  }, [loadNativeFiles]);
 
   const handleWindowMinimize = async () => {
     try {
@@ -2035,7 +2057,8 @@ export function DesktopUI({
         toggleWindow('terminal');
         break;
       case 'open':
-        if (context?.targetId) toggleWindow(context.targetId);
+        if (context?.targetId === 'files') openNativeFilesWindow();
+        else if (context?.targetId) toggleWindow(context.targetId);
         break;
       case 'properties':
         break;
@@ -2776,9 +2799,22 @@ export function DesktopUI({
                 const x = saved?.x ?? defaultX;
                 const y = saved?.y ?? defaultY;
                 const label = (t as any)[def.labelKey] || def.labelKey;
+                const isIconOpen =
+                  def.windowId === 'org'
+                    ? activeTab === 'org'
+                    : def.windowId === 'canvas'
+                      ? canvasOpen
+                      : openWindows.includes(def.windowId);
+                const isIconFocused =
+                  def.windowId === 'org'
+                    ? activeTab === 'org'
+                    : def.windowId === 'canvas'
+                      ? canvasOpen
+                      : focusedWindow === def.windowId;
                 const handleClick = () => {
                   if (editMode) return;
-                  if (def.id === 'workbench') setActiveTab('org');
+                  if (def.id === 'files') openNativeFilesWindow();
+                  else if (def.id === 'workbench') setActiveTab('org');
                   else toggleWindow(def.windowId);
                 };
                 return (
@@ -2805,7 +2841,7 @@ export function DesktopUI({
                     initial={editMode ? false : { opacity: 0, scale: 0.8 }}
                     animate={editMode ? { opacity: 1 } : { opacity: 1, scale: 1 }}
                     style={{ position: 'absolute', left: x, top: y }}
-                    className={`desktop-icon group z-10 select-none ${
+                    className={`desktop-icon group z-10 select-none ${isIconOpen ? 'desktop-icon-open' : ''} ${isIconFocused ? 'desktop-icon-focused' : ''} ${
                       editMode
                         ? 'cursor-grab active:cursor-grabbing ring-2 ring-celestial-saturn/50 rounded-xl p-1'
                         : 'cursor-pointer'
@@ -2953,7 +2989,7 @@ export function DesktopUI({
                 height={size.h}
                 t={t}
               >
-                <div className="p-8 h-full">
+                <div className="os-window-body custom-scrollbar">
                   {windowId === 'kernel' ? (
                     <KernelMonitorApp t={t} />
                   ) : windowId === 'settings' ? (
@@ -2991,6 +3027,7 @@ export function DesktopUI({
                       error={nativeFilesError}
                       onRefresh={() => void loadNativeFiles(nativePath)}
                       onHome={() => void loadNativeFiles('')}
+                      onPickDirectory={() => void pickNativeDirectory()}
                       onNavigate={(path) => void loadNativeFiles(path)}
                       onOpenItem={(path) => void openNativeItem(path)}
                     />

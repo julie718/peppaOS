@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, ShoppingBag, Cpu, Download, Trash2, Power, PowerOff, RefreshCw, Star, Wrench, CheckCircle, Globe, Search, Zap, Tag, ChevronDown, Upload, Palette, Terminal, Monitor, Film, Key, Users, ExternalLink } from 'lucide-react';
+import { Sparkles, ShoppingBag, Cpu, Download, Trash2, Power, PowerOff, RefreshCw, Star, Wrench, CheckCircle, Globe, Search, Zap, Tag, ChevronDown, Upload, Palette, Terminal, Monitor, Film, Key, Users, ExternalLink, Github } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { toast } from 'sonner';
 import { useSocket } from '@/hooks/useSocket';
+import { GitHubMCPBrowser } from './GitHubMCPBrowser';
 
 const ICON_CLASSES: Record<string, string> = {
   CloudSun: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
@@ -62,7 +63,7 @@ interface ExternalResult {
   npmPackage?: string; repoUrl?: string;
 }
 
-export type SkillCenterTab = 'featured' | 'marketplace' | 'installed' | 'generate';
+export type SkillCenterTab = 'featured' | 'marketplace' | 'installed' | 'mcp' | 'generate';
 type SortKey = 'downloads' | 'rating' | 'newest';
 
 const FEATURED_SKILLS = [
@@ -335,6 +336,7 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
     { id: 'featured', label: t.featuredTab || 'Featured', icon: <Sparkles size={14} /> },
     { id: 'marketplace', label: t.marketplaceTab || 'Marketplace', icon: <ShoppingBag size={14} /> },
     { id: 'installed', label: t.installedTab || 'Installed', icon: <Cpu size={14} /> },
+    { id: 'mcp', label: t.mcp || 'MCP', icon: <Github size={14} /> },
     { id: 'generate', label: t.generateTab || 'Generate', icon: <Sparkles size={14} /> },
   ];
 
@@ -763,6 +765,12 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
                 </motion.div>
               )}
             </AnimatePresence>
+          </motion.div>
+        )}
+
+        {activeTab === 'mcp' && (
+          <motion.div key="mcp" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }} className="overflow-hidden rounded-3xl border border-white/5 bg-white/[0.03]">
+            <GitHubMCPBrowser t={t} embedded />
           </motion.div>
         )}
 

@@ -23,7 +23,7 @@
         "decorations": false,
         "resizable": true,
         "center": true,
-        "alwaysOnTop": true,
+        "alwaysOnTop": false,
         "alwaysOnBottom": false,
         "skipTaskbar": false,
         "shadow": false

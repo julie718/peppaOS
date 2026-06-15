@@ -12,6 +12,11 @@ interface UseCanvasSocketOptions {
   onStatusChange: (status: string) => void;
 }
 
+interface SubmitTaskOptions {
+  parentCardId?: string;
+  edgeLabel?: string;
+}
+
 export function useCanvasSocket({ socket, cards, edges, domain = 'personal', onCards, onEdges, onStatusChange }: UseCanvasSocketOptions) {
   const cardsRef = useRef<CanvasCard[]>([]);
   const edgesRef = useRef<CanvasEdge[]>([]);
@@ -41,13 +46,14 @@ export function useCanvasSocket({ socket, cards, edges, domain = 'personal', onC
     });
   }, [flush]);
 
-  const addEdge = useCallback((sourceId: string, targetId: string, opts?: { dashed?: boolean; color?: string }) => {
+  const addEdge = useCallback((sourceId: string, targetId: string, opts?: { dashed?: boolean; color?: string; label?: string }) => {
     const existing = edgesRef.current.find(e => e.sourceId === sourceId && e.targetId === targetId);
     if (existing) return;
     edgesRef.current = [...edgesRef.current, {
       id: `edge_${sourceId}_${targetId}`,
       sourceId,
       targetId,
+      label: opts?.label,
       dashed: opts?.dashed,
       color: opts?.color,
     }];
@@ -142,12 +148,32 @@ export function useCanvasSocket({ socket, cards, edges, domain = 'personal', onC
       }
     };
 
-    const onTool = (data: { name: string; args?: any; arguments?: any; result?: string; error?: string }) => {
+    const onTool = (data: { correlationId?: string; toolCallId?: string; name: string; args?: any; arguments?: any; result?: string; error?: string }) => {
       const toolName = data.name || 'unknown_tool';
-      const toolArgs = data.args || data.arguments;
+      const toolArgs = data.args ?? data.arguments;
       const argsStr = toolArgs ? JSON.stringify(toolArgs).slice(0, 200) : '';
+      const stableKey = data.correlationId || data.toolCallId || `${toolName}:${argsStr}`;
+      const id = `tool_${groupIdRef.current}_${stableKey}`.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 128);
+      const status = data.error ? 'error' : (data.result !== undefined ? 'done' : 'running');
+      const existing = cardsRef.current.find(c => c.id === id);
+      const metadata = {
+        ...(existing?.metadata || {}),
+        toolName,
+        args: toolArgs,
+        result: data.result !== undefined ? data.result?.slice(0, 500) : existing?.metadata?.result,
+        error: data.error !== undefined ? data.error : existing?.metadata?.error,
+        correlationId: data.correlationId || existing?.metadata?.correlationId,
+      };
 
-      const id = `tool_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      if (existing) {
+        updateCard(id, {
+          text: toolName,
+          detail: argsStr || existing.detail,
+          status,
+          metadata,
+        });
+        return;
+      }
 
       addCard({
         id,
@@ -156,12 +182,12 @@ export function useCanvasSocket({ socket, cards, edges, domain = 'personal', onC
         detail: argsStr,
         timestamp: Date.now(),
         groupId: groupIdRef.current,
-        status: data.error ? 'error' : (data.result ? 'done' : 'running'),
-        metadata: { toolName, args: toolArgs, result: data.result?.slice(0, 500), error: data.error },
+        status,
+        metadata,
       });
     };
 
-    const onToolCall = (data: { name: string; arguments?: any; result?: string; error?: string }) => {
+    const onToolCall = (data: { correlationId?: string; toolCallId?: string; name: string; arguments?: any; result?: string; error?: string }) => {
       onTool(data);
     };
 
@@ -245,7 +271,7 @@ export function useCanvasSocket({ socket, cards, edges, domain = 'personal', onC
     };
   }, [socket, addCard, updateCard, scheduleFlush, onStatusChange, addEdge]);
 
-  const submitTask = useCallback((text: string) => {
+  const submitTask = useCallback((text: string, options: SubmitTaskOptions = {}) => {
     if (!text.trim()) return;
 
     // Start a new group WITHOUT clearing old cards — canvas accumulates
@@ -274,6 +300,13 @@ export function useCanvasSocket({ socket, cards, edges, domain = 'personal', onC
 
     // Add user card after emit to avoid clearing race
     addCard(userCard);
+    if (options.parentCardId) {
+      addEdge(options.parentCardId, userCard.id, {
+        dashed: true,
+        color: 'rgba(45,212,191,0.45)',
+        label: options.edgeLabel,
+      });
+    }
 
     // REST fallback after 4s
     const fallbackTimer = setTimeout(async () => {
@@ -300,7 +333,7 @@ export function useCanvasSocket({ socket, cards, edges, domain = 'personal', onC
     const onSocketDone = () => { clearTimeout(fallbackTimer); };
     socket?.once('agent:response', onSocketDone);
     socket?.once('agent:error', onSocketDone);
-  }, [socket, newGroupId, addCard]);
+  }, [socket, newGroupId, addCard, addEdge, domain]);
 
   const retryFromCard = useCallback((cardId: string) => {
     // Find the card and its group, re-submit the user request for that group

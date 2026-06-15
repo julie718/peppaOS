@@ -4,6 +4,7 @@ use std::process::{Child, Command};
 use std::sync::Mutex;
 use std::time::SystemTime;
 use tauri::Manager;
+use tauri_plugin_dialog::DialogExt;
 
 struct SpawnConfig {
     exe: PathBuf,
@@ -391,8 +392,25 @@ fn spawn_hidden(cmd: &mut Command) -> std::io::Result<Child> {
 }
 
 #[tauri::command]
-fn open_item(target: String) -> CommandResult {
+fn open_item(target: String, window: tauri::WebviewWindow) -> CommandResult {
     // Open file, folder, app, or URL with the OS default handler
+    let _ = window.set_always_on_top(false);
+
+    if cfg!(target_os = "windows") && Path::new(&target).is_dir() {
+        let mut cmd = Command::new("explorer.exe");
+        cmd.arg(&target);
+        return match cmd.spawn() {
+            Ok(_) => CommandResult {
+                success: true,
+                output: format!("Opened folder: {}", target),
+            },
+            Err(e) => CommandResult {
+                success: false,
+                output: e.to_string(),
+            },
+        };
+    }
+
     let result = if cfg!(target_os = "windows") {
         let mut cmd = Command::new("cmd");
         cmd.args(["/C", "start", "", &target]);
@@ -420,6 +438,22 @@ fn open_item(target: String) -> CommandResult {
 }
 
 #[tauri::command]
+fn pick_directory(window: tauri::WebviewWindow) -> Result<Option<String>, String> {
+    let _ = window.set_always_on_top(false);
+    let picked = window
+        .dialog()
+        .file()
+        .blocking_pick_folder()
+        .map(|path| {
+            path.into_path()
+                .map(|p| p.to_string_lossy().to_string())
+                .map_err(|e| e.to_string())
+        })
+        .transpose()?;
+    Ok(picked)
+}
+
+#[tauri::command]
 fn set_wallpaper_mode(
     enabled: bool,
     state: tauri::State<'_, Mutex<WallpaperState>>,
@@ -431,6 +465,10 @@ fn set_wallpaper_mode(
     match window.set_ignore_cursor_events(enabled) {
         Ok(_) => println!("[LumiOS] set_ignore_cursor_events({}) succeeded", enabled),
         Err(e) => eprintln!("[LumiOS] set_ignore_cursor_events({}) FAILED: {}", enabled, e),
+    }
+    match window.set_always_on_top(enabled) {
+        Ok(_) => println!("[LumiOS] set_always_on_top({}) succeeded", enabled),
+        Err(e) => eprintln!("[LumiOS] set_always_on_top({}) FAILED: {}", enabled, e),
     }
 
     println!("[LumiOS] Wallpaper mode: {}", if enabled { "ON (click-through)" } else { "OFF" });
@@ -1231,6 +1269,7 @@ pub fn run() {
             list_directory,
             run_command,
             open_item,
+            pick_directory,
             set_wallpaper_mode,
             minimize_window,
             toggle_maximize_window,

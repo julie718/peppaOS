@@ -17,7 +17,7 @@ type SearchSource = 'github' | 'npm';
 
 const LANGUAGES = ['TypeScript', 'Python', 'JavaScript', 'Go', 'Rust', 'Java'];
 
-export function GitHubMCPBrowser({ t }: { t?: any }) {
+export function GitHubMCPBrowser({ t, embedded = false }: { t?: any; embedded?: boolean }) {
   const [source, setSource] = useState<SearchSource>('github');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<MCPSearchResult[]>([]);
@@ -87,7 +87,7 @@ export function GitHubMCPBrowser({ t }: { t?: any }) {
     : filtered;
 
   return (
-    <div className="h-full flex flex-col bg-zinc-950/60 backdrop-blur-xl text-white overflow-y-auto">
+    <div className={`${embedded ? 'min-h-[620px]' : 'h-full bg-zinc-950/60 backdrop-blur-xl'} flex flex-col text-white overflow-y-auto`}>
       {/* Header */}
       <div className="flex items-center gap-3 px-6 py-4 border-b border-white/5">
         <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
