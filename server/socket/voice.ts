@@ -20,6 +20,7 @@ import { queryMemories, addMemory } from "../memory/store";
 import { matchQuickCommand } from "../cognition/quick_commands";
 import { recordTokenUsage } from "../llm/token_tracker";
 import { getOperationModeConfig } from "../cognition/operation_modes";
+import { shouldAllowToolUseForTurn, shouldExposeAgentWork } from "../cognition/tool_intent";
 import { updatePresence } from "../biometrics/presence";
 
 interface AudioSession {
@@ -211,7 +212,7 @@ async function processVoiceInput(
 
   // ── Unified personality prompt + voice-specific overlay ──
   // Same core prompt as text chat — one Lumi, one framework.
-  const voiceOverlay = [
+  const toolVoiceOverlay = [
     '\n## Voice Mode',
     '- You are SPEAKING, not typing. Be conversational and natural, like talking to a friend.',
     '- Keep spoken responses concise — the user is listening, not reading.',
@@ -234,6 +235,12 @@ async function processVoiceInput(
     '- Only when all tool actions are complete should you summarize the results.',
   ].join('\n');
 
+  const baseVoiceOverlay = [
+    '\n## Voice Mode',
+    '- You are SPEAKING, not typing. Be conversational and natural, like talking to a friend.',
+    '- Keep spoken responses concise; the user is listening, not reading.',
+  ].join('\n');
+
   // Inject topic context if available
   let topicContext = '';
   try {
@@ -252,9 +259,15 @@ async function processVoiceInput(
   })();
 
   const opModeConfigV = getOperationModeConfig(operationMode);
-  const opModeOverlay = opModeConfigV ? '\n\n' + opModeConfigV.promptOverlay : '';
+  const allowToolUseForTurn = shouldAllowToolUseForTurn(userText, undefined, operationMode);
+  const exposeAgentWork = shouldExposeAgentWork(userText);
+  logger.info(`[Audio] tool gate: ${allowToolUseForTurn ? 'enabled' : 'chat-only'} mode=${operationMode}`);
+  const opModeOverlay = opModeConfigV && allowToolUseForTurn ? '\n\n' + opModeConfigV.promptOverlay : '';
+  const interactionOverlay = allowToolUseForTurn
+    ? toolVoiceOverlay
+    : baseVoiceOverlay + '\n\n## Interaction Mode\nThis turn is chat-only. Do not call tools, operate the desktop, assemble a team, or claim that you are taking actions. Answer naturally unless the user gives an explicit command.';
 
-  const voiceSystemPrompt = fullPersonalityPrompt + voiceOverlay + opModeOverlay + topicContext;
+  const voiceSystemPrompt = fullPersonalityPrompt + interactionOverlay + opModeOverlay + topicContext;
 
   const DEFAULT_MODELS: Record<string, string> = {
     deepseek: 'deepseek-v4-pro', qwen: 'qwen-plus', openai: 'gpt-4o',
@@ -329,7 +342,9 @@ async function processVoiceInput(
     llmGetters,
     ...(operationMode === 'desktop_control' ? { requestConfirmation } : {}),
     isCancelled: () => pipelineAbort?.signal.aborted ?? false,
-    ...(opModeConfigV ? { toolPolicy: opModeConfigV.toolPolicy } : {}),
+    ...(allowToolUseForTurn && opModeConfigV
+      ? { toolPolicy: opModeConfigV.toolPolicy }
+      : { toolPolicy: { allowedTools: [], requireConfirmation: [], forbiddenTools: ['*'], maxIterations: 0 } }),
   };
   const ttsProvider = getTTSProvider();
   // Emotion-adaptive voice: map mood to speech parameters, preserve user's chosen voiceId
@@ -519,9 +534,12 @@ async function processVoiceInput(
     // ── Orchestrator: complex/moderate tasks → multi-agent decomposition ──
     let usedOrchestrator = false;
     const complexity = classifyComplexity(userText, { userId: session.userId, personalityId: session.personalityId });
-    if (complexity === 'complex' || complexity === 'moderate') {
+    if (allowToolUseForTurn && (complexity === 'complex' || complexity === 'moderate')) {
       try {
-        flushSentence("收到，正在组建团队处理这个任务。");
+        const voiceLeadIn = exposeAgentWork
+          ? "\u6536\u5230\uff0c\u6b63\u5728\u8ba9\u56e2\u961f\u534f\u4f5c\u5904\u7406\u8fd9\u4e2a\u4efb\u52a1\u3002"
+          : "\u6536\u5230\uff0c\u6211\u6765\u5904\u7406\u3002";
+        flushSentence(voiceLeadIn);
         session.isOrchestrating = true;
 
         const orchResult = await runOrchestratedTask(
@@ -535,7 +553,7 @@ async function processVoiceInput(
             getAnthropic: llmGetters.getAnthropic,
             getQwen: llmGetters.getQwen,
           },
-          (msg) => socket.emit("agent:chunk", { text: msg, agentName: "Lumi" }),
+          exposeAgentWork ? (msg) => socket.emit("agent:chunk", { text: msg, agentName: "Lumi" }) : undefined,
         );
         if (orchResult) {
           usedOrchestrator = true;
@@ -577,7 +595,7 @@ async function processVoiceInput(
       if (pipelineAbort?.signal.aborted) break;
 
       logger.info(`[Audio] LLM iter ${iter + 1}/${maxIterations}: provider=${provider} model=${effectiveModel}`);
-      const toolDeclarations = toolRegistry.getToolDeclarations();
+      const toolDeclarations = allowToolUseForTurn ? toolRegistry.getToolDeclarations() : [];
 
       const streamResult = await makeLLMCallStreaming(
         messages as NormalizedMessage[],

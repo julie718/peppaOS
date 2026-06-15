@@ -174,6 +174,18 @@ export function useCanvasSocket({ socket, cards, edges, domain = 'personal', onC
         pendingChunkRef.current = '';
       }
 
+      const existingOutput = cardsRef.current.find(
+        c => c.groupId === groupIdRef.current && c.type === 'final_output'
+      );
+      if (existingOutput) {
+        updateCard(existingOutput.id, {
+          text: data.text,
+          status: 'done',
+          metadata: { ...existingOutput.metadata, agentName: data.agentName },
+        });
+        return;
+      }
+
       addCard({
         id: `output_${Date.now()}`,
         type: 'final_output',

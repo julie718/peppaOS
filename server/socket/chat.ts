@@ -5,11 +5,12 @@ import { Socket } from "socket.io";
 import jwt from "jsonwebtoken";
 import { readDB, writeDB } from "../../db_layer";
 import { pushNotification } from "../routes/notifications";
-import { NormalizedMessage, makeLLMCall, StreamCallback } from "../llm/providers";
+import { NormalizedMessage, makeLLMCall, makeLLMCallStreaming, StreamCallback } from "../llm/providers";
 import { LLMUsage } from "../tools/types";
 import { toolRegistry } from "../tools/registry";
 import { runWithTools } from "../llm/adapter";
 import { getOperationModeConfig } from "../cognition/operation_modes";
+import { shouldAllowToolUseForTurn, shouldExposeAgentWork } from "../cognition/tool_intent";
 import { queryMemories, queryMemoriesVector, addMemory, addReminder, extractMemories } from "../memory";
 import { loadEmotionalState, saveEmotionalState, updateEmotionalState, updateEmotionalStateWithHIM, loadHIMState, saveHIMState, generateContextualGreeting, vectorMemoryBias } from "../personality/state";
 import { buildModeOverlay } from "../personality/engine";
@@ -313,8 +314,13 @@ export function registerChatHandler(
 
       // Inject operation mode prompt overlay
       const opModeConfig = getOperationModeConfig(operationMode);
-      if (opModeConfig) {
+      const allowToolUseForTurn = shouldAllowToolUseForTurn(text, source, operationMode);
+      const exposeAgentWork = shouldExposeAgentWork(text);
+      console.log('[ChatHandler] tool gate:', allowToolUseForTurn ? 'enabled' : 'chat-only', 'operationMode:', operationMode);
+      if (opModeConfig && allowToolUseForTurn) {
         effectiveSystemPrompt += '\n\n' + opModeConfig.promptOverlay;
+      } else {
+        effectiveSystemPrompt += '\n\n## Interaction Mode\nThis turn is chat-only. Do not call tools, operate the desktop, or claim that you are taking actions. Answer naturally unless the user gives an explicit command.';
       }
 
       // Canvas mode: full-power assistant with visual plan-first workflow
@@ -547,17 +553,17 @@ export function registerChatHandler(
         }
       }
 
-      if (!responseText && !isSanctuary && (cognition.intent.category === 'command' || cognition.intent.category === 'code' || cognition.intent.category === 'question')) {
+      if (!responseText && allowToolUseForTurn && !isSanctuary && (cognition.intent.category === 'command' || cognition.intent.category === 'code' || cognition.intent.category === 'question')) {
         // Path B: Orchestrator — decompose tasks into sub-tasks for worker agents
         // (Skipped for sanctuary agents — they stay in their territory)
         try {
-          socket.emit("agent:status", { status: "thinking", agentName: "Lumi Orchestrator" });
+          socket.emit("agent:status", { status: "thinking", agentName: exposeAgentWork ? "Lumi Orchestrator" : personality.name });
           const orchResult = await runOrchestratedTask(
             text,
             { userId: uid, personalityId, desktopRelay },
             { provider: activeProvider, model: activeModel },
             llmGetters,
-            (msg) => socket.emit("agent:chunk", { text: msg, agentName: "Lumi" }),
+            exposeAgentWork ? (msg) => socket.emit("agent:chunk", { text: msg, agentName: "Lumi" }) : undefined,
           );
           if (orchResult) {
             responseText = orchResult.responseText;
@@ -584,7 +590,7 @@ export function registerChatHandler(
       const allToolRecords: { name: string; args: string; result?: string; error?: string }[] = [];
 
       // Path B2: NL Task Chainer — for office workflows that chain tools (search→read→create etc.)
-      if (!responseText && shouldChainTask(text)) {
+      if (!responseText && allowToolUseForTurn && shouldChainTask(text)) {
         // Pre-flight: auto-install any matching uninstalled/outdated skills
         await autoInstallForTask(text, { emit: (event, data) => socket.emit(event, data) });
 
@@ -639,7 +645,7 @@ export function registerChatHandler(
         ];
 
         try {
-          console.log('[ChatHandler] Calling runWithTools (Path C) with provider:', activeProvider, 'model:', activeModel);
+          console.log('[ChatHandler] Calling Path C with provider:', activeProvider, 'model:', activeModel, 'tools:', allowToolUseForTurn && !isSanctuary ? 'enabled' : 'off');
           const streamChunks: string[] = [];
           const onChunk: StreamCallback = (chunk) => {
             streamChunks.push(chunk);
@@ -647,7 +653,48 @@ export function registerChatHandler(
           };
 
           // Sanctuary agents get zero tool access — they can only talk
-          const maxIterations = isSanctuary ? 0 : (personality.toolPolicy.maxIterations || 25);
+          if (!allowToolUseForTurn || isSanctuary) {
+            const response = await makeLLMCallStreaming(
+              messages,
+              [],
+              { provider: activeProvider, model: activeModel, userId: uid, signal: abortController.signal },
+              onChunk,
+              llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
+              llmGetters.getOllama, llmGetters.getLmStudio,
+            );
+
+            responseText = response.text || streamChunks.join('') || '';
+            llmWasCalled = true;
+            if (response.usage) {
+              recordTokenUsage(uid, activeProvider, activeModel, {
+                promptTokens: response.usage.promptTokens,
+                completionTokens: response.usage.completionTokens,
+                totalTokens: response.usage.totalTokens,
+              }, interactionId);
+            }
+            const tokens = estimateTokens(text + ' ' + responseText);
+            const subStatus = recordUsage(uid, tokens);
+            const totalUsage = response.usage?.totalTokens || 0;
+            socket.emit('token:usage_update', {
+              userId: uid,
+              provider: activeProvider,
+              totalTokens: totalUsage,
+              mode: 'chat',
+              timestamp: new Date().toISOString(),
+            });
+            if (subStatus) {
+              socket.emit('token:quota_update', { used: subStatus.used, cap: subStatus.cap, remaining: subStatus.remaining });
+              const pct = subStatus.used / subStatus.cap;
+              if (pct >= 0.9) {
+                socket.emit('agent:notification', { type: 'token_warning', level: 'critical', message: `Token usage at ${Math.round(pct * 100)}% (${subStatus.used.toLocaleString()} / ${subStatus.cap.toLocaleString()})` });
+                pushNotification(uid, { type: 'token_warning', title: 'Token Quota Critical', message: `Token usage at ${Math.round(pct * 100)}% (${subStatus.used.toLocaleString()} / ${subStatus.cap.toLocaleString()})` });
+              } else if (pct >= 0.8) {
+                socket.emit('agent:notification', { type: 'token_warning', level: 'warning', message: `Token usage at ${Math.round(pct * 100)}%` });
+                pushNotification(uid, { type: 'token_warning', title: 'Token Quota Warning', message: `Token usage at ${Math.round(pct * 100)}%` });
+              }
+            }
+          } else {
+            const maxIterations = personality.toolPolicy.maxIterations || 25;
 
           // Collect tool calls for persistence
 
@@ -738,11 +785,35 @@ export function registerChatHandler(
               pushNotification(uid, { type: 'token_warning', title: 'Token Quota Warning', message: `Token usage at ${Math.round(pct * 100)}%` });
             }
           }
+          }
         } catch (llmErr: any) {
           console.error(`[Cognition] LLM '${activeProvider}/${activeModel}' failed: ${llmErr.message}`);
           // Try fallback provider
           if (llmErr.message?.includes('not configured') && activeProvider !== 'gemini') {
             try {
+              if (!allowToolUseForTurn || isSanctuary) {
+                const fallbackChunks: string[] = [];
+                const fallback = await makeLLMCallStreaming(
+                  messages,
+                  [],
+                  { provider: 'gemini', model: DEFAULT_MODELS.gemini, userId: uid, signal: abortController.signal },
+                  (chunk) => {
+                    fallbackChunks.push(chunk);
+                    socket.emit("agent:chunk", { text: chunk, agentName: personality.name });
+                  },
+                  llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
+                  llmGetters.getOllama, llmGetters.getLmStudio,
+                );
+                responseText = fallback.text || fallbackChunks.join('') || '';
+                llmWasCalled = true;
+                if (fallback.usage) {
+                  recordTokenUsage(uid, 'gemini', DEFAULT_MODELS.gemini, {
+                    promptTokens: fallback.usage.promptTokens,
+                    completionTokens: fallback.usage.completionTokens,
+                    totalTokens: fallback.usage.totalTokens,
+                  }, interactionId);
+                }
+              } else {
               const fallback = await runWithTools(
                 messages, toolRegistry,
                 { provider: 'gemini', model: DEFAULT_MODELS.gemini, userId: uid },
@@ -779,6 +850,7 @@ export function registerChatHandler(
               llmWasCalled = true;
               for (const u of fallback.usageRecords) {
                 recordTokenUsage(uid, u.provider, u.model, { promptTokens: u.promptTokens, completionTokens: u.completionTokens, totalTokens: u.totalTokens }, interactionId);
+              }
               }
             } catch (fallbackErr: any) {
               // Both primary and fallback LLMs failed — use cognitive fallback

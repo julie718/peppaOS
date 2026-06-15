@@ -7,6 +7,7 @@ import { CanvasViewport } from './CanvasViewport';
 import { CanvasSessionPanel } from './CanvasSessionPanel';
 import { CanvasInputBar } from './CanvasInputBar';
 import { CanvasCard, CanvasEdge, CanvasSessionSummary } from './types';
+import { toast } from 'sonner';
 
 interface CanvasWorkbenchProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ export function CanvasWorkbench({ isOpen, onClose, t, user, domain = 'personal' 
   const [edges, setEdges] = useState<CanvasEdge[]>([]);
   const [showSessionPanel, setShowSessionPanel] = useState(false);
   const [statusText, setStatusText] = useState('');
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cardsRef = useRef<CanvasCard[]>([]);
   const edgesRef = useRef<CanvasEdge[]>([]);
@@ -61,9 +63,12 @@ export function CanvasWorkbench({ isOpen, onClose, t, user, domain = 'personal' 
 
   const loadSessions = useCallback(() => {
     fetch(scopedCanvasUrl('/api/canvas/sessions'))
-      .then(r => r.json())
+      .then(async r => {
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Failed to load canvas sessions');
+        return r.json();
+      })
       .then(data => setSessions(data.sessions || []))
-      .catch(() => {});
+      .catch((err) => toast.error(err.message || 'Failed to load canvas sessions'));
   }, [scopedCanvasUrl]);
 
   // Load session list
@@ -76,20 +81,24 @@ export function CanvasWorkbench({ isOpen, onClose, t, user, domain = 'personal' 
     if (!currentSessionId) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
+      setSaveState('saving');
       try {
         const res = await fetch(scopedCanvasUrl(`/api/canvas/sessions/${currentSessionId}`), {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ cards: cardsRef.current, edges: edgesRef.current }),
         });
-        if (res.ok) {
-          setSessions(prev => prev.map(s =>
-            s.id === currentSessionId
-              ? { ...s, cardCount: cardsRef.current.length, updatedAt: new Date().toISOString() }
-              : s
-          ));
-        }
-      } catch {}
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Canvas autosave failed');
+        setSaveState('saved');
+        setSessions(prev => prev.map(s =>
+          s.id === currentSessionId
+            ? { ...s, cardCount: cardsRef.current.length, updatedAt: new Date().toISOString() }
+            : s
+        ));
+      } catch (err: any) {
+        setSaveState('error');
+        toast.error(err.message || 'Canvas autosave failed');
+      }
     }, 2000);
   }, [currentSessionId, scopedCanvasUrl]);
 
@@ -104,39 +113,52 @@ export function CanvasWorkbench({ isOpen, onClose, t, user, domain = 'personal' 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed to create canvas');
       const session = await res.json();
       setCurrentSessionId(session.id);
       setCards([]);
       setEdges([]);
+      setSaveState('saved');
       setSessions(prev => [
         { id: session.id, title: session.title, taskText: session.taskText, status: session.status, cardCount: 0, createdAt: session.createdAt, updatedAt: session.updatedAt },
         ...prev,
       ]);
       setShowSessionPanel(false);
-    } catch {}
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create canvas');
+    }
   }, [scopedCanvasUrl]);
 
   const handleLoadSession = useCallback(async (id: string) => {
     try {
       const res = await fetch(scopedCanvasUrl(`/api/canvas/sessions/${id}`));
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed to load canvas');
       const session = await res.json();
       setCurrentSessionId(session.id);
       setCards(session.cards || []);
       setEdges(session.edges || []);
+      setSaveState('saved');
       setShowSessionPanel(false);
-    } catch {}
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to load canvas');
+    }
   }, [scopedCanvasUrl]);
 
   const handleDeleteSession = useCallback(async (id: string) => {
     try {
-      await fetch(scopedCanvasUrl(`/api/canvas/sessions/${id}`), { method: 'DELETE' });
+      const res = await fetch(scopedCanvasUrl(`/api/canvas/sessions/${id}`), { method: 'DELETE' });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed to delete canvas');
       setSessions(prev => prev.filter(s => s.id !== id));
       if (currentSessionId === id) {
         setCurrentSessionId(null);
         setCards([]);
         setEdges([]);
+        setSaveState('idle');
       }
-    } catch {}
+      toast.success('Canvas deleted');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete canvas');
+    }
   }, [currentSessionId, scopedCanvasUrl]);
 
   const handleClearCanvas = useCallback(() => {
@@ -151,8 +173,10 @@ export function CanvasWorkbench({ isOpen, onClose, t, user, domain = 'personal' 
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ taskText: text, title: text.slice(0, 60) }),
         });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed to create canvas');
         const session = await res.json();
         setCurrentSessionId(session.id);
+        setSaveState('saving');
         setSessions(prev => [
           { id: session.id, title: session.title, taskText: session.taskText, status: session.status, cardCount: 0, createdAt: session.createdAt, updatedAt: session.updatedAt },
           ...prev,
@@ -162,7 +186,10 @@ export function CanvasWorkbench({ isOpen, onClose, t, user, domain = 'personal' 
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title: text.slice(0, 60), taskText: text }),
         }).catch(() => {});
-      } catch { return; }
+      } catch (err: any) {
+        toast.error(err.message || 'Failed to create canvas');
+        return;
+      }
     }
 
     submitTask(text);
@@ -199,6 +226,20 @@ export function CanvasWorkbench({ isOpen, onClose, t, user, domain = 'personal' 
                 <span className="text-[10px] text-amber-400/70 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                   {statusText}
+                </span>
+              )}
+              {saveState !== 'idle' && (
+                <span className={`text-[10px] flex items-center gap-1 ${
+                  saveState === 'error' ? 'text-red-400/80' :
+                  saveState === 'saving' ? 'text-cyan-300/70' :
+                  'text-emerald-300/70'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    saveState === 'error' ? 'bg-red-400' :
+                    saveState === 'saving' ? 'bg-cyan-300 animate-pulse' :
+                    'bg-emerald-300'
+                  }`} />
+                  {saveState === 'saving' ? 'Saving...' : saveState === 'error' ? 'Save failed' : 'Saved'}
                 </span>
               )}
             </div>

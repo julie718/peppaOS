@@ -8,6 +8,27 @@ import { SpriteAnimator, PetAvatar } from './SpriteAnimator';
 import { ALL_ACCESSORIES, AccessoryDef, AccessoryCategory } from '../pets/accessories';
 
 const BUILTIN_ANIMATIONS = ['idle', 'run', 'wave', 'jump', 'waiting'];
+const CUSTOM_PETS_KEY = 'lumi_custom_pets';
+
+function loadCustomPets(): PetConfig[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_PETS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((pet: any) => pet?.id && pet?.name && pet?.atlas && pet?.spritesheet);
+  } catch {
+    return [];
+  }
+}
+
+function storeCustomPets(pets: PetConfig[]) {
+  try {
+    localStorage.setItem(CUSTOM_PETS_KEY, JSON.stringify(pets.slice(0, 30)));
+  } catch {
+    toast.error('Failed to save custom avatars locally');
+  }
+}
 
 const PET_ICONS: Record<string, React.ReactNode> = {
   'lumi-cat': <Cat size={16} />,
@@ -52,10 +73,10 @@ export function AvatarStudio({
   onChangeAccessories?: (ids: string[]) => void;
 }) {
   const pets = getDefaultPets();
-  const [customPets, setCustomPets] = useState<PetConfig[]>([]);
+  const [customPets, setCustomPets] = useState<PetConfig[]>(loadCustomPets);
   const allPets = [...pets, ...customPets];
-  const [activePet, setActivePet] = useState<PetConfig>(
-    pets.find(p => p.id === selectedPetId) || pets[0],
+  const [activePet, setActivePet] = useState<PetConfig>(() =>
+    pets.find(p => p.id === selectedPetId) || loadCustomPets().find(p => p.id === selectedPetId) || pets[0],
   );
   const [previewAnim, setPreviewAnim] = useState('idle');
   const [animKey, setAnimKey] = useState(0);
@@ -69,6 +90,10 @@ export function AvatarStudio({
   // Color editing state
   const [editPalette, setEditPalette] = useState<PetPalette>(activePet.palette || BUILTIN_PALETTES.cat);
   const [activeColorSlot, setActiveColorSlot] = useState<keyof PetPalette>('body');
+
+  useEffect(() => {
+    storeCustomPets(customPets);
+  }, [customPets]);
 
   // Sync palette when activePet changes
   useEffect(() => {
@@ -87,6 +112,7 @@ export function AvatarStudio({
     setEditPalette(newPalette);
     const recolored = recolorPet(activePet, newPalette);
     setActivePet(recolored);
+    setCustomPets(prev => [recolored, ...prev.filter(p => p.id !== recolored.id && p.id !== activePet.id)]);
     onSelectPet(recolored);
     setAnimKey(k => k + 1);
   }, [editPalette, activePet, onSelectPet]);
@@ -104,7 +130,7 @@ export function AvatarStudio({
       if (!res.ok) throw new Error((await res.json()).error || 'Generation failed');
       const result = await res.json();
       const newPet = generateCustomPet(result.petName, result.tags as CustomPetTags);
-      setCustomPets(prev => [newPet, ...prev]);
+      setCustomPets(prev => [newPet, ...prev.filter(p => p.id !== newPet.id)]);
       setActivePet(newPet);
       onSelectPet(newPet);
       setTab('gallery');
@@ -163,6 +189,7 @@ export function AvatarStudio({
           tags: manifest.tags,
         };
         if (!importedPet.spritesheet) throw new Error('Missing spritesheet');
+        setCustomPets(prev => [importedPet, ...prev.filter(p => p.id !== importedPet.id)]);
         handleSelectPet(importedPet);
         toast.success(`已导入 ${importedPet.name}`);
       } catch {

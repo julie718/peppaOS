@@ -66,10 +66,22 @@ interface InkParticle {
   size: number;
 }
 
+const DEFAULT_SCENE: MusicScene = {
+  colors: { bg: '#f3eadf', primary: '#2a2418', secondary: '#8f5f35', accent: '#b86b36' },
+  scene: 'ambient',
+  particles: 'dust',
+  lyricsStyle: 'ink',
+  intensity: 0.45,
+  reason: 'Default local playback mood layer',
+  terrainColors: ['#f3eadf', '#d8c4a8', '#8f5f35'],
+  emotion: { valence: 0.25, arousal: 0.42 },
+};
+
 // ── Main ──
 
 export function MusicMoodLayer() {
   const { visible, isPlaying, track, progress, duration, lyrics, scene, play, pause, hide } = useMusicPlayer();
+  const activeScene = scene || DEFAULT_SCENE;
 
   const [parsedLyrics, setParsedLyrics] = useState<MusicLyricLine[]>([]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -82,8 +94,8 @@ export function MusicMoodLayer() {
     else if (typeof (lyrics as any) === 'string') setParsedLyrics(parseLRC(lyrics as any));
   }, [lyrics]);
 
-  const palette = useMemo(() => paletteFromScene(scene), [scene]);
-  const intensity = scene?.intensity ?? 0.5;
+  const palette = useMemo(() => paletteFromScene(activeScene), [activeScene]);
+  const intensity = activeScene.intensity ?? 0.5;
   const currentLyricIdx = useMemo(() => getCurrentLyricIndex(parsedLyrics, progress), [parsedLyrics, progress]);
 
   // ── Keyboard ──
@@ -289,11 +301,11 @@ export function MusicMoodLayer() {
 
     frameRef.current = requestAnimationFrame(render);
     return () => { running = false; cancelAnimationFrame(frameRef.current); };
-  }, [visible, palette, isPlaying, intensity, parsedLyrics, currentLyricIdx, progress, duration, scene]);
+  }, [visible, palette, isPlaying, intensity, parsedLyrics, currentLyricIdx, progress, duration, activeScene]);
 
   useEffect(() => { if (!visible) particlesRef.current = []; }, [visible]);
 
-  if (!visible || !scene) return null;
+  if (!visible) return null;
 
   return (
     <motion.div

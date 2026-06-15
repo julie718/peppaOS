@@ -64,7 +64,7 @@ export function mountMcpRoutes(router: Router) {
       const configPath = path.join(__dirname, '..', 'mcp', 'config.json');
       const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
       config.remoteDevices = devices;
-      fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+      fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
       res.json({ success: true, devices: config.remoteDevices });
     } catch (err: any) {
       res.status(500).json({ error: err.message });

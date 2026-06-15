@@ -14,6 +14,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_SCRIPT = path.join(__dirname, 'server.ts');
+const TSX_CLI = path.join(__dirname, 'node_modules', 'tsx', 'dist', 'cli.mjs');
 
 const UPGRADE_EXIT_CODE = 42;
 const MAX_CRASH_RETRIES = 3;
@@ -138,8 +139,7 @@ function restartServer(): ChildProcess {
   clearStaleProjectPortOwners();
   console.log(`[Launcher] Starting server: tsx ${path.basename(SERVER_SCRIPT)}`);
 
-  const npxBin = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-  const child = spawn(npxBin, ['tsx', SERVER_SCRIPT], {
+  const child = spawn(process.execPath, [TSX_CLI, SERVER_SCRIPT], {
     cwd: __dirname,
     stdio: 'inherit',
     shell: false,

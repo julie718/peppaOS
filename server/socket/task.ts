@@ -17,6 +17,7 @@ import { processInput, handleLLMFailure, extractSentiment, CognitiveContext, Cog
 import { classifyComplexity, decomposeTask, matchWorkers, executeWorkflow, aggregateWithLLM, recordWorkflowPattern, shouldDistillSkill, buildSkillDescription } from "../agents/orchestrator";
 import { getMessagesByTokenBudget, addMessage, extractTopics, trackTopic, getTopicContext } from "../conversation/manager";
 import { loadHIMState, saveHIMState, updateEmotionalStateWithHIM } from "../personality/state";
+import { shouldExposeAgentWork } from "../cognition/tool_intent";
 
 export function registerTaskHandler(
   socket: Socket,
@@ -33,6 +34,7 @@ export function registerTaskHandler(
   socket.on("agent:task", async (data: { text: string; history?: any[]; personalityId?: string; conversationId?: string }) => {
     const uid = userIdFn(socket);
     const interactionId = crypto.randomUUID();
+    const exposeAgentWork = shouldExposeAgentWork(data.text);
 
     // Retrieve personality vector early to bias memory retrieval (cross-system fusion: vector→memory)
     const personalityPreConfig = personalityRegistry.get(data.personalityId || 'lumi');
@@ -184,12 +186,12 @@ export function registerTaskHandler(
           const availableAgents = (db.agents || []).filter((a: any) => a.status !== 'offline');
           if (availableAgents.length >= 1) {
             try {
-              socket.emit("agent:status", { status: "thinking", agentName: "Lumi Orchestrator" });
+              socket.emit("agent:status", { status: "thinking", agentName: exposeAgentWork ? "Lumi Orchestrator" : personality.name });
               const subTasks = await decomposeTask(data.text, { provider: activeProvider, model: activeModel }, { userId: uid, personalityId: data.personalityId || 'lumi' }, llmGetters);
-              socket.emit("task:chunk", { text: `[Orchestrator] Decomposed into ${subTasks.length} sub-tasks\n`, agentName: "Lumi" });
+              if (exposeAgentWork) socket.emit("task:chunk", { text: `[Orchestrator] Decomposed into ${subTasks.length} sub-tasks\n`, agentName: "Lumi" });
 
               const assignments = matchWorkers(subTasks, availableAgents);
-              socket.emit("task:chunk", { text: `[Orchestrator] Assigned to ${assignments.length} worker(s)\n`, agentName: "Lumi" });
+              if (exposeAgentWork) socket.emit("task:chunk", { text: `[Orchestrator] Assigned to ${assignments.length} worker(s)\n`, agentName: "Lumi" });
 
               const workflowResult = await executeWorkflow(assignments, { userId: uid, personalityId: data.personalityId || 'lumi', desktopRelay }, { provider: activeProvider, model: activeModel }, llmGetters);
               const aggregated = await aggregateWithLLM(workflowResult, data.text, { provider: activeProvider, model: activeModel }, llmGetters);
@@ -207,7 +209,9 @@ export function registerTaskHandler(
                   timestamp: new Date().toISOString(),
                 });
               }
+              if (exposeAgentWork) {
               socket.emit("task:chunk", { text: `\n[Orchestrator] Workflow complete — ${workflowResult.totalAgentsUsed} agent(s) used\n`, agentName: "Lumi" });
+              }
             } catch (orchErr: any) {
               console.error('[Orchestrator] Task workflow failed, falling back to normal execution:', orchErr.message);
             }

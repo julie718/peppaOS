@@ -106,7 +106,7 @@ class MCPClientManager {
   saveConfig(servers: Record<string, MCPServerConfig>): void {
     const dir = path.dirname(this.configPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(this.configPath, JSON.stringify({ mcpServers: servers }, null, 2));
+    fs.writeFileSync(this.configPath, `${JSON.stringify({ mcpServers: servers }, null, 2)}\n`);
   }
 
   // ── Local skill directory management ──

@@ -139,6 +139,13 @@ export function useMusicPlayer() {
     const onState = (data: any) => {
       setState(prev => ({
         ...prev,
+        track: data.trackName ? {
+          name: data.trackName,
+          artists: data.artists || [],
+          album: data.album,
+          coverUrl: data.coverUrl,
+          duration: data.duration,
+        } : prev.track,
         isPlaying: data.playing ?? prev.isPlaying,
         progress: data.progress != null ? data.progress : prev.progress,
         duration: data.duration ? data.duration / 1000 : prev.duration,
@@ -211,11 +218,9 @@ export function useMusicPlayer() {
     setState(prev => ({ ...prev, visible: true }));
   }, []);
   const hide = useCallback(() => {
-    audioRef.current?.pause();
-    socket?.emit('music:pause');
     setMusicVisible(false);
-    setState(prev => ({ ...prev, visible: false, isPlaying: false }));
-  }, [socket]);
+    setState(prev => ({ ...prev, visible: false }));
+  }, []);
 
   return {
     ...state,

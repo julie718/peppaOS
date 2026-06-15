@@ -10,6 +10,7 @@
  */
 
 import { spawn } from 'child_process';
+import os from 'os';
 
 export interface ExternalAgentConfig {
   /** CLI command template. {task} is replaced with the task text. */
@@ -25,6 +26,30 @@ export interface ExternalResult {
   output: string;
   exitCode: number | null;
   durationMs: number;
+}
+
+function quoteForPosix(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function quoteForCmd(value: string): string {
+  const escaped = value
+    .replace(/\r?\n/g, ' ')
+    .replace(/"/g, "'")
+    .replace(/[%!^&|<>()]/g, '^$&');
+  return `"${escaped}"`;
+}
+
+function quoteForShell(value: string): string {
+  return os.platform() === 'win32' ? quoteForCmd(value) : quoteForPosix(value);
+}
+
+function buildCommand(command: string, task: string): string {
+  const quotedTask = quoteForShell(task.slice(0, 4000));
+  return command
+    .replace(/"\{task\}"/g, quotedTask)
+    .replace(/'\{task\}'/g, quotedTask)
+    .replace(/\{task\}/g, quotedTask);
 }
 
 /**
@@ -44,9 +69,8 @@ export async function executeExternalAgent(
   const startTime = Date.now();
   const timeout = config.timeout || 120_000;
 
-  // Build the command by substituting {task}
-  const safeTask = task.slice(0, 4000); // cap task length
-  const commandStr = config.command.replace(/\{task\}/g, safeTask);
+  // Build the command by substituting {task} as a single shell argument.
+  const commandStr = buildCommand(config.command, task);
 
   return new Promise((resolve) => {
     let stdout = '';

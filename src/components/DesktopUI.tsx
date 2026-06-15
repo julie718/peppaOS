@@ -118,6 +118,27 @@ import { UserSwitchPrompt } from './biometrics/UserSwitchPrompt';
 import { systemService } from '@/services/systemService';
 import { usePlatform } from '@/hooks/usePlatform';
 
+function resolvePetPreference(pet: any): PetConfig | null {
+  if (!pet) return null;
+  if (pet.atlas && pet.spritesheet) return pet as PetConfig;
+  const defaults = getDefaultPets();
+  return defaults.find(d => d.id === pet.id) || null;
+}
+
+function serializePetPreference(pet: PetConfig | null) {
+  if (!pet) return null;
+  return {
+    id: pet.id,
+    name: pet.name,
+    author: pet.author,
+    atlas: pet.atlas,
+    spritesheet: pet.spritesheet,
+    thumbnail: pet.thumbnail,
+    palette: pet.palette,
+    tags: pet.tags,
+  };
+}
+
 // Define the shape of the native API
 interface NativeFile {
   name: string;
@@ -1262,11 +1283,7 @@ export function DesktopUI({
       const saved = localStorage.getItem('lumi_selected_pet');
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Rehydrate spritesheet from defaults if possible
-        const defaults = getDefaultPets();
-        const found = defaults.find(d => d.id === parsed.id);
-        if (!found?.atlas && !parsed?.atlas) return null;
-        return found || parsed;
+        return resolvePetPreference(parsed);
       }
     } catch {}
     return null;
@@ -1275,9 +1292,10 @@ export function DesktopUI({
   // Ref to prevent echoing our own preference changes back via socket
   const petPrefsSavingRef = useRef(false);
   const savePetPrefsToServer = useCallback(async (pet: PetConfig | null, accessories: string[]) => {
+    const storedPet = serializePetPreference(pet);
     localStorage.setItem('lumi_accessories', JSON.stringify(accessories));
-    if (pet) {
-      localStorage.setItem('lumi_selected_pet', JSON.stringify({ id: pet.id, name: pet.name, author: pet.author }));
+    if (storedPet) {
+      localStorage.setItem('lumi_selected_pet', JSON.stringify(storedPet));
     } else {
       localStorage.removeItem('lumi_selected_pet');
     }
@@ -1287,7 +1305,7 @@ export function DesktopUI({
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          pet: pet ? { id: pet.id, name: pet.name, author: pet.author } : null,
+          pet: storedPet,
           accessories,
         }),
         credentials: 'include',
@@ -1590,14 +1608,6 @@ export function DesktopUI({
           text: t.workflowAnalyzing || 'Analyzing your request...',
           time: Date.now(),
         }]);
-        // Auto-open canvas when orchestrator or multi-agent workflow kicks in
-        if (data.agentName && (
-          data.agentName.includes('Orchestrator') ||
-          data.agentName.includes('Office') ||
-          data.agentName.startsWith('Step')
-        )) {
-          setCanvasOpen(true);
-        }
       } else if (data.status === 'idle') {
         setAgentStatus('done');
         setWorkflowSteps(prev => [...prev, {
@@ -1722,11 +1732,10 @@ export function DesktopUI({
       if (data.key === 'pet' && data.value) {
         const { pet, accessories } = data.value;
         if (pet) {
-          const defaults = getDefaultPets();
-          const found = defaults.find(d => d.id === pet.id);
-          if (found || pet?.atlas) {
-            setSelectedPet(found || pet);
-            localStorage.setItem('lumi_selected_pet', JSON.stringify(pet));
+          const resolved = resolvePetPreference(pet);
+          if (resolved) {
+            setSelectedPet(resolved);
+            localStorage.setItem('lumi_selected_pet', JSON.stringify(serializePetPreference(resolved)));
           }
         } else {
           setSelectedPet(null);
@@ -1812,12 +1821,11 @@ export function DesktopUI({
         if (res.ok) {
           const data = await res.json();
           if (data.pet) {
-            const defaults = getDefaultPets();
-            const found = defaults.find(d => d.id === data.pet.id);
-            if (found || data.pet?.atlas) {
-              setSelectedPet(found || data.pet);
+            const resolved = resolvePetPreference(data.pet);
+            if (resolved) {
+              setSelectedPet(resolved);
+              localStorage.setItem('lumi_selected_pet', JSON.stringify(serializePetPreference(resolved)));
             }
-            localStorage.setItem('lumi_selected_pet', JSON.stringify(data.pet));
           }
           if (data.accessories?.length > 0) {
             setEquippedAccessories(data.accessories);
@@ -1922,6 +1930,14 @@ export function DesktopUI({
     if (tab === 'org') {
       setActiveTab('org');
       return;
+    }
+    if (tab === 'memory') {
+      setKnowledgeOpen(true);
+      setActiveTab('knowledge');
+      return;
+    }
+    if (tab === 'sync') {
+      tab = 'devices';
     }
 
     // Knowledge base, Chat, and Canvas open fullscreen, not as windows
@@ -2942,7 +2958,7 @@ export function DesktopUI({
                       </div>
                     </div>
                   ) : windowId === 'music-center' ? (
-                    <MusicCenter isOpen={true} onClose={() => toggleWindow('music-center')} />
+                    <MusicCenter isOpen={true} onClose={() => closeWindow('music-center')} t={t} />
                   ) : windowId === 'personality' ? (
                     <PersonalityEditor t={t} />
                   ) : windowId === 'files' ? (
