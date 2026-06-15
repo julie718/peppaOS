@@ -116,6 +116,8 @@ const COMMON_APP_MATCHERS = [
   { id: 'python', label: 'Python', patterns: [/python/i] },
   { id: 'wps', label: 'WPS / Office', patterns: [/wps/i, /microsoft office/i, /word/i, /powerpoint/i, /excel/i] },
   { id: 'wechat', label: 'WeChat', patterns: [/wechat/i, /weixin/i, /wechat work/i] },
+  { id: 'cad', label: 'CAD', patterns: [/autocad/i, /\bcad\b/i, /zwcad/i, /solidworks/i] },
+  { id: 'ai_apps', label: 'Local AI Apps', patterns: [/chatgpt/i, /claude/i, /cursor/i, /ollama/i, /lm studio/i, /anythingllm/i] },
   { id: 'netease', label: 'NetEase Music', patterns: [/netease/i, /cloud music/i, /music\.163/i] },
 ];
 
@@ -167,6 +169,8 @@ function buildReport(
   const pythonReady = Boolean(latest?.software?.pythonVersion) || detectedApps.some(a => a.id === 'python');
   const hasOffice = detectedApps.some(a => a.id === 'wps');
   const hasComms = detectedApps.some(a => a.id === 'wechat');
+  const hasCad = detectedApps.some(a => a.id === 'cad');
+  const hasAiApps = detectedApps.some(a => a.id === 'ai_apps');
   const hasMusic = detectedApps.some(a => a.id === 'netease');
 
   const capabilities: CapabilityItem[] = [
@@ -229,6 +233,18 @@ function buildReport(
       label: 'Messaging apps',
       status: hasComms ? 'ready' : 'partial',
       detail: hasComms ? 'WeChat/enterprise messaging app detected.' : 'Messaging app not detected yet.',
+    },
+    {
+      id: 'cad',
+      label: 'CAD drafting',
+      status: hasCad ? 'ready' : 'partial',
+      detail: hasCad ? 'CAD app detected. Lumi can generate DXF drafts for review.' : 'No CAD app detected; Lumi can still generate DXF draft files.',
+    },
+    {
+      id: 'external_ai',
+      label: 'External AI apps',
+      status: hasAiApps ? 'ready' : 'partial',
+      detail: hasAiApps ? 'Local AI app detected. Prefer MCP/file/browser handoff before visual control.' : 'No local AI app detected; Lumi can still coordinate through browser and MCP.',
     },
     {
       id: 'music',
@@ -658,6 +674,11 @@ export function SystemExplorer({ t, onSectionChange }: { t?: any; onSectionChang
             title="Developer work"
             detail={detectedAppGroups.some(group => group.id === 'vscode' || group.id === 'git') ? 'Developer tools were detected.' : 'Install VS Code/Git/Node for stronger local dev workflows.'}
             ready={detectedAppGroups.some(group => group.id === 'vscode' || group.id === 'git')}
+          />
+          <WorkflowTile
+            title="External apps"
+            detail={detectedAppGroups.some(group => group.id === 'wechat' || group.id === 'cad' || group.id === 'ai_apps') ? 'Messaging/CAD/AI app handoff is visible in the adapter map.' : 'Lumi can still prepare drafts and files before external app control is enabled.'}
+            ready={detectedAppGroups.some(group => group.id === 'wechat' || group.id === 'cad' || group.id === 'ai_apps')}
           />
           <WorkflowTile
             title="Music mode"

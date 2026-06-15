@@ -1089,15 +1089,59 @@ function RelayProviderRow({ t }: { t?: any }) {
   );
 }
 
+type AutonomyGateConfig = {
+  alwaysOnline: boolean;
+  autoProcessEnabled: boolean;
+  externalAppAutomationEnabled: boolean;
+  messagingSendRequiresConfirmation: boolean;
+  maxConsecutiveTasks: number;
+  allowedHours: { start: number; end: number }[];
+  requireIdle: boolean;
+  minIdleSeconds: number;
+  maxTokensPerHour: number;
+  quietHoursEnabled?: boolean;
+  quietHoursStart?: number;
+  quietHoursEnd?: number;
+};
+
+type NativeRuntimeStatus = {
+  platform: string;
+  autostart_supported: boolean;
+  autostart_enabled: boolean;
+  autostart_entry: string;
+  close_to_background: boolean;
+  started_in_background: boolean;
+  backend_node_running: boolean;
+  backend_python_running: boolean;
+  node_restarts: number;
+  python_restarts: number;
+  global_shortcut: string;
+  notes: string[];
+};
+
+const DEFAULT_AUTONOMY_GATE: AutonomyGateConfig = {
+  alwaysOnline: true,
+  autoProcessEnabled: false,
+  externalAppAutomationEnabled: false,
+  messagingSendRequiresConfirmation: true,
+  maxConsecutiveTasks: 1,
+  allowedHours: [{ start: 8, end: 22 }],
+  requireIdle: true,
+  minIdleSeconds: 120,
+  maxTokensPerHour: 3000,
+};
+
 function AutonomousSettingsPanel({ t, operationMode, setOperationMode }: { t: any; operationMode: OperationMode; setOperationMode: (m: OperationMode) => void }) {
-  const [gateConfig, setGateConfig] = useState({ allowedHours: [{ start: 8, end: 22 }], requireIdle: true, minIdleSeconds: 120, maxTokensPerHour: 3000 });
+  const [gateConfig, setGateConfig] = useState<AutonomyGateConfig>(DEFAULT_AUTONOMY_GATE);
+  const [nativeRuntime, setNativeRuntime] = useState<NativeRuntimeStatus | null>(null);
+  const [nativeRuntimeError, setNativeRuntimeError] = useState('');
   const [taskList, setTaskList] = useState<any[]>([]);
   const [tasksExpanded, setTasksExpanded] = useState(false);
 
   useEffect(() => {
     fetch('/api/autonomy/gate_config')
       .then(r => r.json())
-      .then(d => setGateConfig(d))
+      .then(d => setGateConfig({ ...DEFAULT_AUTONOMY_GATE, ...(d || {}) }))
       .catch(() => {});
     fetch('/api/scheduler/tasks')
       .then(r => r.json())
@@ -1105,13 +1149,81 @@ function AutonomousSettingsPanel({ t, operationMode, setOperationMode }: { t: an
       .catch(() => {});
   }, []);
 
-  const updateGate = (partial: Record<string, any>) => {
+  useEffect(() => {
+    let cancelled = false;
+    let timer: number | undefined;
+    const loadNativeRuntime = async () => {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const status = await invoke<NativeRuntimeStatus>('get_runtime_resilience_status');
+        if (!cancelled) {
+          setNativeRuntime(status);
+          setNativeRuntimeError('');
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setNativeRuntime(null);
+          setNativeRuntimeError(err?.message || 'Native runtime controls are only available in the desktop client.');
+        }
+      }
+    };
+    void loadNativeRuntime();
+    timer = window.setInterval(loadNativeRuntime, 30000);
+    return () => {
+      cancelled = true;
+      if (timer) window.clearInterval(timer);
+    };
+  }, []);
+
+  const updateGate = (partial: Partial<AutonomyGateConfig>) => {
     const updated = { ...gateConfig, ...partial };
     setGateConfig(updated);
     fetch('/api/autonomy/gate_config', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(partial),
-    }).catch(() => {});
+    })
+      .then(async r => {
+        const data = await r.json().catch(() => null);
+        if (!r.ok) throw new Error(data?.error || 'Failed to update autonomy settings');
+        if (data) setGateConfig({ ...DEFAULT_AUTONOMY_GATE, ...data });
+      })
+      .catch((err: any) => {
+        setGateConfig(gateConfig);
+        toast.error(err?.message || 'Failed to update autonomy settings');
+      });
+  };
+
+  const refreshNativeRuntime = async () => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const status = await invoke<NativeRuntimeStatus>('get_runtime_resilience_status');
+    setNativeRuntime(status);
+    setNativeRuntimeError('');
+    return status;
+  };
+
+  const updateNativeRuntime = async (kind: 'autostart' | 'closeToBackground', enabled: boolean) => {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      if (kind === 'autostart') {
+        await invoke('set_autostart_enabled', { enabled });
+      } else {
+        localStorage.setItem('lumi_close_to_background', String(enabled));
+        await invoke('set_close_to_background', { enabled });
+      }
+      await refreshNativeRuntime();
+      toast.success(enabled ? 'Enabled' : 'Disabled');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to update native runtime setting');
+    }
+  };
+
+  const invokeRuntimeAction = async (action: 'hide' | 'quit') => {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke(action === 'hide' ? 'hide_to_background' : 'quit_app');
+    } catch (err: any) {
+      toast.error(err?.message || 'Runtime action failed');
+    }
   };
 
   const toggleTask = async (taskId: string) => {
@@ -1123,6 +1235,33 @@ function AutonomousSettingsPanel({ t, operationMode, setOperationMode }: { t: an
   };
 
   const isAutonomous = operationMode === 'autonomous';
+  const isAllDay = gateConfig.allowedHours?.length === 1 && gateConfig.allowedHours[0]?.start === 0 && gateConfig.allowedHours[0]?.end === 24;
+  const ToggleRow = ({
+    label,
+    desc,
+    checked,
+    onClick,
+    danger,
+  }: {
+    label: string;
+    desc: string;
+    checked: boolean;
+    onClick: () => void;
+    danger?: boolean;
+  }) => (
+    <div className="flex items-center justify-between gap-4 rounded-xl bg-black/18 px-3 py-3">
+      <div>
+        <div className="text-xs font-bold text-white/72">{label}</div>
+        <div className="mt-1 text-[11px] leading-relaxed text-white/36">{desc}</div>
+      </div>
+      <button
+        onClick={onClick}
+        className={`h-5 w-10 shrink-0 rounded-full transition-all ${checked ? (danger ? 'bg-amber-400' : 'bg-cyan-500') : 'bg-white/10'}`}
+      >
+        <div className={`h-3 w-3 rounded-full bg-white transition-transform ${checked ? 'translate-x-[22px]' : 'translate-x-[2px]'}`} />
+      </button>
+    </div>
+  );
 
   return (
     <div className="space-y-4">
@@ -1148,6 +1287,110 @@ function AutonomousSettingsPanel({ t, operationMode, setOperationMode }: { t: an
         )}
       </div>
 
+      {/* Always Online */}
+      <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-3">
+        <div>
+          <div className="text-xs font-black uppercase tracking-widest text-white/60">Always Online</div>
+          <p className="text-xs text-white/40 mt-1">Lumi can stay ready while the desktop client or background server is running. Automatic processing is controlled separately.</p>
+        </div>
+        <ToggleRow
+          label="Keep Lumi ready"
+          desc="Allows background scans, state relay, schedulers, and pending workflow checks while the app is online."
+          checked={gateConfig.alwaysOnline}
+          onClick={() => updateGate({ alwaysOnline: !gateConfig.alwaysOnline })}
+        />
+        <ToggleRow
+          label="Auto-process confirmed workflows"
+          desc="Lets Lumi execute queued background work only after the user has agreed to that workflow."
+          checked={gateConfig.autoProcessEnabled}
+          onClick={() => updateGate({ autoProcessEnabled: !gateConfig.autoProcessEnabled })}
+          danger
+        />
+        <ToggleRow
+          label="24-hour work window"
+          desc="When enabled, the safety gate permits automatic work at any hour; idle, budget, and confirmation gates still apply."
+          checked={isAllDay}
+          onClick={() => updateGate({ allowedHours: isAllDay ? [{ start: 8, end: 22 }] : [{ start: 0, end: 24 }] })}
+        />
+        <div className="rounded-xl border border-white/8 bg-black/18 p-3">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <div className="text-xs font-bold text-white/72">Native resident runtime</div>
+              <div className="mt-1 text-[11px] leading-relaxed text-white/36">
+                Controls whether the installed desktop client starts with Windows and stays alive when the window is closed.
+              </div>
+            </div>
+            <button
+              onClick={() => refreshNativeRuntime().catch((err: any) => toast.error(err?.message || 'Runtime refresh failed'))}
+              className="shrink-0 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-white/45 hover:bg-white/[0.08] hover:text-white"
+            >
+              Refresh
+            </button>
+          </div>
+          {nativeRuntime ? (
+            <div className="space-y-2">
+              <ToggleRow
+                label="Launch at login"
+                desc={nativeRuntime.autostart_supported ? 'Starts Lumi with --background for current Windows user installs.' : 'Launch at login is not supported on this platform yet.'}
+                checked={nativeRuntime.autostart_enabled}
+                onClick={() => nativeRuntime.autostart_supported && updateNativeRuntime('autostart', !nativeRuntime.autostart_enabled)}
+              />
+              <ToggleRow
+                label="Close button hides to background"
+                desc="The top close button and Alt+F4 hide Lumi instead of stopping the backend. Use tray Quit to fully exit."
+                checked={nativeRuntime.close_to_background}
+                onClick={() => updateNativeRuntime('closeToBackground', !nativeRuntime.close_to_background)}
+              />
+              <div className="grid grid-cols-2 gap-2 text-[11px] text-white/42">
+                <div className="rounded-lg bg-white/[0.03] px-3 py-2">Platform: {nativeRuntime.platform}</div>
+                <div className="rounded-lg bg-white/[0.03] px-3 py-2">Shortcut: {nativeRuntime.global_shortcut}</div>
+                <div className="rounded-lg bg-white/[0.03] px-3 py-2">Backend: {nativeRuntime.backend_node_running ? 'Running' : 'Dev / not spawned'}</div>
+                <div className="rounded-lg bg-white/[0.03] px-3 py-2">Restarts: {nativeRuntime.node_restarts}</div>
+              </div>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  onClick={() => invokeRuntimeAction('hide')}
+                  className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white/50 hover:bg-white/[0.08] hover:text-white"
+                >
+                  Hide Now
+                </button>
+                <button
+                  onClick={() => invokeRuntimeAction('quit')}
+                  className="rounded-lg border border-red-400/20 bg-red-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-red-200/70 hover:bg-red-400/15 hover:text-red-100"
+                >
+                  Quit Lumi
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-lg bg-white/[0.03] px-3 py-2 text-xs text-white/38">
+              {nativeRuntimeError || 'Native runtime status is loading...'}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* External Apps */}
+      <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-3">
+        <div>
+          <div className="text-xs font-black uppercase tracking-widest text-white/60">External Apps</div>
+          <p className="text-xs text-white/40 mt-1">Browser, WeChat, CAD, and other AI apps are routed through adapters before Lumi uses visual control.</p>
+        </div>
+        <ToggleRow
+          label="Allow external app automation"
+          desc="Required before Lumi opens or controls external apps through adapters. Keep off for draft-only behavior."
+          checked={gateConfig.externalAppAutomationEnabled}
+          onClick={() => updateGate({ externalAppAutomationEnabled: !gateConfig.externalAppAutomationEnabled })}
+          danger
+        />
+        <ToggleRow
+          label="Confirm before message sending"
+          desc="Lumi may prepare and copy message drafts, but sending should remain user-confirmed."
+          checked={gateConfig.messagingSendRequiresConfirmation}
+          onClick={() => updateGate({ messagingSendRequiresConfirmation: !gateConfig.messagingSendRequiresConfirmation })}
+        />
+      </div>
+
       {/* Safety Gates */}
       <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-4">
         <div className="text-xs font-black uppercase tracking-widest text-white/60">Safety Gates</div>
@@ -1169,6 +1412,17 @@ function AutonomousSettingsPanel({ t, operationMode, setOperationMode }: { t: an
           <input
             type="range" min={30} max={600} step={30} value={gateConfig.minIdleSeconds}
             onChange={e => updateGate({ minIdleSeconds: parseInt(e.target.value) })}
+            className="w-full accent-cyan-500"
+          />
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-white/50">Max consecutive tasks: {gateConfig.maxConsecutiveTasks}</span>
+          </div>
+          <input
+            type="range" min={1} max={10} step={1} value={gateConfig.maxConsecutiveTasks}
+            onChange={e => updateGate({ maxConsecutiveTasks: parseInt(e.target.value) })}
             className="w-full accent-cyan-500"
           />
         </div>

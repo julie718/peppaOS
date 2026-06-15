@@ -1,5 +1,7 @@
 import { ToolRegistry } from '../registry';
 import { getClientCapabilities, getClientState } from '../../client/self_model';
+import { getGateConfig } from '../../autonomy/safety_gate';
+import { listAutonomousWorkflows } from '../../autonomy/workflows';
 
 const ACTIONS = [
   'open_app',
@@ -39,6 +41,8 @@ export function registerClientSelfTools(registry: ToolRegistry): void {
       return JSON.stringify({
         capabilities: getClientCapabilities(),
         state: getClientState(context?.userId || 'anonymous'),
+        autonomyGate: getGateConfig(),
+        autonomyWorkflows: listAutonomousWorkflows(context?.userId || 'anonymous'),
       }, null, 2);
     },
     permission: 'user',

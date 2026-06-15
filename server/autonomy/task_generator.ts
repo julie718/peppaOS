@@ -4,6 +4,7 @@
  */
 import { isAutonomousWorkAllowed } from './safety_gate';
 import { enqueue } from './task_queue';
+import { listEnabledAutonomousWorkflows } from './workflows';
 import { readDB } from '../../db_layer';
 import { makeLLMCall, NormalizedMessage } from '../llm/providers';
 import { getRecentActivity } from '../context/activity_stream';
@@ -16,6 +17,14 @@ interface LLMGetters {
   getQwen?: () => any;
 }
 
+type GeneratedAutonomousTask = {
+  title: string;
+  description: string;
+  mode: 'desktop' | 'terminal' | 'analysis';
+  priority: number;
+  workflowId?: string;
+};
+
 export async function generateAutonomousTasks(
   userId: string,
   getters: LLMGetters,
@@ -26,6 +35,24 @@ export async function generateAutonomousTasks(
     console.log(`[AutoTasks] Gate blocked: ${gate.reason}`);
     return 0;
   }
+
+  const workflows = listEnabledAutonomousWorkflows(userId);
+  if (workflows.length === 0) {
+    console.log(`[AutoTasks] No enabled confirmed workflows for ${userId}`);
+    return 0;
+  }
+  const workflowById = new Map(workflows.map(workflow => [workflow.id, workflow]));
+  const workflowContext = workflows
+    .map(workflow => [
+      `- id=${workflow.id}`,
+      `title=${workflow.title}`,
+      `trigger=${workflow.trigger || 'manual/implicit'}`,
+      `modes=${workflow.allowedModes.join(',')}`,
+      `externalApps=${workflow.externalAppsAllowed ? 'allowed' : 'not_allowed'}`,
+      `actions=${workflow.allowedActions.join(',') || 'not specified'}`,
+      `description=${workflow.description}`,
+    ].join(' | '))
+    .join('\n');
 
   // Build context
   const contextParts: string[] = [];
@@ -96,10 +123,17 @@ export async function generateAutonomousTasks(
   const prompt = `你是 Lumi 的后台自主任务规划器。根据用户当前的上下文，建议 1-3 个你可以自主完成的小任务。
 
 要求：
+- 只能基于下面“已确认且启用的自动工作流”生成任务
+- 每个任务必须填写 workflowId，且 workflowId 必须来自下面的工作流列表
+- 任务 mode 必须在对应工作流的 allowedModes 内
+- 如果任务需要外部应用，而工作流 externalApps=not_allowed，则不要生成该任务
 - 安全无害（不删除文件、不执行危险命令）
 - 快速完成（2分钟内，不要需要多轮交互）
 - 真正有用（根据上下文判断）
 - 自包含（不需要追问用户）
+
+已确认且启用的自动工作流:
+${workflowContext}
 
 上下文:
 ${contextParts.join('\n')}
@@ -107,6 +141,7 @@ ${contextParts.join('\n')}
 返回 JSON 数组（不要 markdown，不要解释）:
 [
   {
+    "workflowId": "来自上方工作流列表的 id",
     "title": "任务简短标题",
     "description": "详细执行描述，作为LLM执行提示词",
     "mode": "desktop" | "terminal" | "analysis",
@@ -130,7 +165,7 @@ ${contextParts.join('\n')}
     const text = (result.text || '').replace(/```json|```/g, '').trim();
     if (!text || text === '[]') return 0;
 
-    let tasks: { title: string; description: string; mode: 'desktop' | 'terminal' | 'analysis'; priority: number }[];
+    let tasks: GeneratedAutonomousTask[];
     try {
       tasks = JSON.parse(text);
     } catch {
@@ -143,13 +178,24 @@ ${contextParts.join('\n')}
     let enqueued = 0;
     for (const t of tasks) {
       if (!t.title || !t.description) continue;
+      if (!t.workflowId || !workflowById.has(t.workflowId)) {
+        console.log(`[AutoTasks] Skipped task without enabled workflow: ${t.title}`);
+        continue;
+      }
+      const workflow = workflowById.get(t.workflowId)!;
+      const requestedMode = t.mode === 'desktop' || t.mode === 'terminal' ? t.mode : 'analysis';
+      if (!workflow.allowedModes.includes(requestedMode)) {
+        console.log(`[AutoTasks] Skipped task with disallowed mode ${requestedMode} for workflow ${workflow.id}`);
+        continue;
+      }
       const task = enqueue({
         userId,
+        workflowId: workflow.id,
         title: t.title.slice(0, 120),
         description: t.description.slice(0, 500),
         source: 'curiosity',
         priority: Math.max(1, Math.min(10, t.priority || 5)),
-        mode: t.mode === 'desktop' || t.mode === 'terminal' ? t.mode : 'analysis',
+        mode: requestedMode,
       });
       if (task) enqueued++;
     }

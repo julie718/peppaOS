@@ -21,6 +21,7 @@ import { cleanupEphemeralAgents } from './agents/orchestrator';
 import { getRecentActivity } from './context/activity_stream';
 import { runDailyScan, isFirstBootComplete } from './autonomy/system_explorer';
 import { getTodayPlanSummary } from './autonomy/planner';
+import { getGateConfig } from './autonomy/safety_gate';
 import { parseStoredOperationMode } from './cognition/operation_modes';
 
 interface ScheduledTask {
@@ -1629,10 +1630,14 @@ Output ONLY the prediction message — no preamble, no labels.`;
           const generated = await generateAutonomousTasks(userId, getters);
           totalGenerated += generated;
 
-          // Execute next pending task
+          // Execute pending tasks, bounded by the current safety gate.
           const { executeNextAutonomousTask } = await import('./autonomy/task_executor');
-          const result = await executeNextAutonomousTask(scheduler.io!, getters);
-          if (result.executed) totalExecuted++;
+          const maxTasks = Math.max(1, Math.min(10, getGateConfig().maxConsecutiveTasks || 1));
+          for (let i = 0; i < maxTasks; i++) {
+            const result = await executeNextAutonomousTask(scheduler.io!, getters);
+            if (!result.executed) break;
+            totalExecuted++;
+          }
         } catch (err: any) {
           console.warn(`[AutoWorkCycle] Failed for ${userId}:`, err.message);
         }

@@ -3,7 +3,11 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::sync::Mutex;
 use std::time::SystemTime;
-use tauri::Manager;
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    Manager,
+};
 use tauri_plugin_dialog::DialogExt;
 
 struct SpawnConfig {
@@ -24,6 +28,28 @@ struct BackendProcesses {
 /// Track whether wallpaper (click-through) mode is active
 struct WallpaperState {
     enabled: bool,
+}
+
+struct ResidentState {
+    close_to_background: bool,
+    started_in_background: bool,
+    force_quit: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RuntimeResilienceStatus {
+    pub platform: String,
+    pub autostart_supported: bool,
+    pub autostart_enabled: bool,
+    pub autostart_entry: String,
+    pub close_to_background: bool,
+    pub started_in_background: bool,
+    pub backend_node_running: bool,
+    pub backend_python_running: bool,
+    pub node_restarts: u32,
+    pub python_restarts: u32,
+    pub global_shortcut: String,
+    pub notes: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -520,11 +546,265 @@ fn toggle_maximize_window(window: tauri::WebviewWindow) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn close_window(window: tauri::WebviewWindow) -> Result<(), String> {
-    window.close().map_err(|e| e.to_string())
+fn close_window(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, Mutex<ResidentState>>,
+) -> Result<(), String> {
+    let should_hide = state
+        .lock()
+        .map_err(|e| e.to_string())?
+        .close_to_background;
+    if should_hide {
+        window.hide().map_err(|e| e.to_string())
+    } else {
+        window.close().map_err(|e| e.to_string())
+    }
 }
 
 // ── Screen Monitoring Commands ──
+
+#[tauri::command]
+fn hide_to_background(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.hide().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    show_main_window_impl(&app)
+}
+
+#[tauri::command]
+fn quit_app(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<ResidentState>>,
+) -> Result<(), String> {
+    {
+        let mut resident = state.lock().map_err(|e| e.to_string())?;
+        resident.force_quit = true;
+    }
+    app.exit(0);
+    Ok(())
+}
+
+#[tauri::command]
+fn set_close_to_background(
+    enabled: bool,
+    state: tauri::State<'_, Mutex<ResidentState>>,
+) -> Result<bool, String> {
+    let mut resident = state.lock().map_err(|e| e.to_string())?;
+    resident.close_to_background = enabled;
+    Ok(enabled)
+}
+
+#[tauri::command]
+fn get_autostart_enabled() -> Result<bool, String> {
+    get_autostart_entry().map(|entry| entry.enabled)
+}
+
+#[tauri::command]
+fn set_autostart_enabled(enabled: bool) -> Result<bool, String> {
+    set_autostart_entry(enabled)?;
+    get_autostart_enabled()
+}
+
+#[tauri::command]
+fn get_runtime_resilience_status(
+    processes: tauri::State<'_, Mutex<BackendProcesses>>,
+    resident: tauri::State<'_, Mutex<ResidentState>>,
+) -> Result<RuntimeResilienceStatus, String> {
+    let mut procs = processes.lock().map_err(|e| e.to_string())?;
+    let resident = resident.lock().map_err(|e| e.to_string())?;
+    let autostart = get_autostart_entry()?;
+
+    let node_running = child_is_running(&mut procs.node);
+    let python_running = child_is_running(&mut procs.python);
+    let mut notes = vec![
+        "Alt+Space shows or hides Lumi when it is running in the background.".to_string(),
+        "Automatic work still depends on Lumi's safety gate, idle gate, and user-confirmed workflows.".to_string(),
+    ];
+    if !autostart.supported {
+        notes.push("Launch at login is currently implemented for Windows current-user installs.".to_string());
+    }
+    if cfg!(debug_assertions) {
+        notes.push("Dev mode uses the development server; packaged release mode supervises the bundled backend process.".to_string());
+    }
+
+    Ok(RuntimeResilienceStatus {
+        platform: std::env::consts::OS.to_string(),
+        autostart_supported: autostart.supported,
+        autostart_enabled: autostart.enabled,
+        autostart_entry: autostart.value,
+        close_to_background: resident.close_to_background,
+        started_in_background: resident.started_in_background,
+        backend_node_running: node_running,
+        backend_python_running: python_running,
+        node_restarts: procs.node_restarts,
+        python_restarts: procs.python_restarts,
+        global_shortcut: "Alt+Space".to_string(),
+        notes,
+    })
+}
+
+struct AutostartEntry {
+    supported: bool,
+    enabled: bool,
+    value: String,
+}
+
+fn child_is_running(child: &mut Option<Child>) -> bool {
+    match child.as_mut() {
+        Some(process) => matches!(process.try_wait(), Ok(None)),
+        None => false,
+    }
+}
+
+#[cfg(target_os = "windows")]
+const WINDOWS_RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+#[cfg(target_os = "windows")]
+const AUTOSTART_VALUE_NAME: &str = "LumiOS";
+
+#[cfg(target_os = "windows")]
+fn hidden_output(cmd: &mut Command) -> std::io::Result<std::process::Output> {
+    use std::os::windows::process::CommandExt;
+    cmd.creation_flags(0x08000000u32);
+    cmd.output()
+}
+
+#[cfg(target_os = "windows")]
+fn get_autostart_entry() -> Result<AutostartEntry, String> {
+    let mut cmd = Command::new("reg");
+    cmd.args(["query", WINDOWS_RUN_KEY, "/v", AUTOSTART_VALUE_NAME]);
+    let output = hidden_output(&mut cmd).map_err(|e| e.to_string())?;
+    if !output.status.success() {
+        return Ok(AutostartEntry {
+            supported: true,
+            enabled: false,
+            value: String::new(),
+        });
+    }
+
+    let text = String::from_utf8_lossy(&output.stdout).to_string();
+    let exe = std::env::current_exe()
+        .ok()
+        .map(|p| p.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    let normalized = text.to_lowercase();
+    Ok(AutostartEntry {
+        supported: true,
+        enabled: !exe.is_empty() && normalized.contains(&exe),
+        value: text.trim().to_string(),
+    })
+}
+
+#[cfg(not(target_os = "windows"))]
+fn get_autostart_entry() -> Result<AutostartEntry, String> {
+    Ok(AutostartEntry {
+        supported: false,
+        enabled: false,
+        value: String::new(),
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn set_autostart_entry(enabled: bool) -> Result<(), String> {
+    if enabled {
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        let value = format!("\"{}\" --background", exe.to_string_lossy());
+        let mut cmd = Command::new("reg");
+        cmd.args([
+            "add",
+            WINDOWS_RUN_KEY,
+            "/v",
+            AUTOSTART_VALUE_NAME,
+            "/t",
+            "REG_SZ",
+            "/d",
+            &value,
+            "/f",
+        ]);
+        let output = hidden_output(&mut cmd).map_err(|e| e.to_string())?;
+        if output.status.success() {
+            Ok(())
+        } else {
+            Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+        }
+    } else {
+        let mut cmd = Command::new("reg");
+        cmd.args(["delete", WINDOWS_RUN_KEY, "/v", AUTOSTART_VALUE_NAME, "/f"]);
+        let output = hidden_output(&mut cmd).map_err(|e| e.to_string())?;
+        let stderr = String::from_utf8_lossy(&output.stderr).to_lowercase();
+        if output.status.success() || stderr.contains("unable to find") || stderr.contains("not found") {
+            Ok(())
+        } else {
+            Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn set_autostart_entry(_enabled: bool) -> Result<(), String> {
+    Err("Launch at login is currently implemented for Windows builds.".to_string())
+}
+
+fn show_main_window_impl(app: &tauri::AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main window not found".to_string())?;
+    window.show().map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn hide_main_window_impl(app: &tauri::AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main window not found".to_string())?;
+    window.hide().map_err(|e| e.to_string())
+}
+
+fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
+    let show = MenuItem::with_id(app, "show", "Show Lumi", true, None::<&str>)?;
+    let hide = MenuItem::with_id(app, "hide", "Hide to Background", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Lumi", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&show, &hide, &quit])?;
+
+    let mut builder = TrayIconBuilder::with_id("main")
+        .tooltip("Lumi OS is ready")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "show" => {
+                let _ = show_main_window_impl(app);
+            }
+            "hide" => {
+                let _ = hide_main_window_impl(app);
+            }
+            "quit" => {
+                let state = app.state::<Mutex<ResidentState>>();
+                if let Ok(mut resident) = state.lock() {
+                    resident.force_quit = true;
+                }
+                app.exit(0);
+            }
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                let _ = show_main_window_impl(tray.app_handle());
+            }
+        });
+
+    if let Some(icon) = app.default_window_icon() {
+        builder = builder.icon(icon.clone());
+    }
+    builder.build(app)?;
+    Ok(())
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ActiveWindowInfo {
@@ -1252,6 +1532,9 @@ fn mouse_right_click_at(x: f64, y: f64) -> Result<String, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let started_in_background = std::env::args()
+        .any(|arg| arg == "--background" || arg == "--hidden" || arg == "--minimized");
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
@@ -1262,6 +1545,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Mutex::new(BackendProcesses { node: None, python: None, node_restarts: 0, python_restarts: 0, node_config: None, python_config: None }))
         .manage(Mutex::new(WallpaperState { enabled: false }))
+        .manage(Mutex::new(ResidentState { close_to_background: started_in_background, started_in_background, force_quit: false }))
         .invoke_handler(tauri::generate_handler![
             get_system_info,
             get_live_stats,
@@ -1274,6 +1558,13 @@ pub fn run() {
             minimize_window,
             toggle_maximize_window,
             close_window,
+            hide_to_background,
+            show_main_window,
+            quit_app,
+            set_close_to_background,
+            get_autostart_enabled,
+            set_autostart_enabled,
+            get_runtime_resilience_status,
             get_active_window_info,
             get_running_processes,
             capture_screen,
@@ -1294,7 +1585,7 @@ pub fn run() {
             mouse_double_click_at,
             mouse_right_click_at,
         ])
-        .setup(|app| {
+        .setup(move |app| {
             let resource_dir = app
                 .path()
                 .resource_dir()
@@ -1302,6 +1593,9 @@ pub fn run() {
 
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.center();
+                if started_in_background {
+                    let _ = window.hide();
+                }
                 #[cfg(target_os = "macos")]
                 {
                     // macOS: fullscreen:true + decorations:false creates new Space.
@@ -1314,6 +1608,10 @@ pub fn run() {
                         let _ = window.set_size(tauri::PhysicalSize::new(s.width, s.height));
                     }
                 }
+            }
+
+            if let Err(e) = setup_tray(app) {
+                eprintln!("[LumiOS] Failed to create tray icon: {}", e);
             }
 
             // Ensure WebView2Loader.dll is alongside the EXE (Windows only)
@@ -1548,17 +1846,37 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building Lumi OS")
         .run(|app, event| {
-            if let tauri::RunEvent::Exit = event {
-                let state = app.state::<Mutex<BackendProcesses>>();
-                let mut procs = state.lock().unwrap();
-                if let Some(child) = procs.node.as_mut() {
-                    println!("[LumiOS] Stopping Node backend...");
-                    let _ = child.kill();
+            match event {
+                tauri::RunEvent::WindowEvent {
+                    label,
+                    event: tauri::WindowEvent::CloseRequested { api, .. },
+                    ..
+                } => {
+                    let resident = app.state::<Mutex<ResidentState>>();
+                    let should_hide = resident
+                        .lock()
+                        .map(|state| state.close_to_background && !state.force_quit)
+                        .unwrap_or(false);
+                    if label == "main" && should_hide {
+                        api.prevent_close();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.hide();
+                        }
+                    }
                 }
-                if let Some(child) = procs.python.as_mut() {
-                    println!("[LumiOS] Stopping GPT-SoVITS API...");
-                    let _ = child.kill();
+                tauri::RunEvent::Exit => {
+                    let state = app.state::<Mutex<BackendProcesses>>();
+                    let mut procs = state.lock().unwrap();
+                    if let Some(child) = procs.node.as_mut() {
+                        println!("[LumiOS] Stopping Node backend...");
+                        let _ = child.kill();
+                    }
+                    if let Some(child) = procs.python.as_mut() {
+                        println!("[LumiOS] Stopping GPT-SoVITS API...");
+                        let _ = child.kill();
+                    }
                 }
+                _ => {}
             }
         });
 }

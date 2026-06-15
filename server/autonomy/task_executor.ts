@@ -3,7 +3,7 @@
  * Executes tasks via runWithTools with tighter safety policy than user-initiated autonomous mode.
  */
 import { dequeue, markRunning, markCompleted, markFailed, getRunningTask } from './task_queue';
-import { isAutonomousWorkAllowed, recordAutonomousTokens } from './safety_gate';
+import { isAutonomousWorkAllowed, isExternalAppAutomationAllowed, recordAutonomousTokens } from './safety_gate';
 import { runWithTools } from '../llm/adapter';
 import { toolRegistry } from '../tools/registry';
 import { ToolContext } from '../tools/types';
@@ -54,6 +54,13 @@ function isDesktopTool(name: string): boolean {
   return /^(desktop_|mouse_|keyboard_|computer_|get_|capture_|read_|ocr_)/.test(name);
 }
 
+function isExternalAutomationTool(name: string): boolean {
+  return name === 'desktop_open'
+    || name.startsWith('mouse_')
+    || name.startsWith('keyboard_')
+    || name.startsWith('computer_');
+}
+
 export async function executeNextAutonomousTask(
   io: SocketIOServer,
   getters: LLMGetters,
@@ -65,6 +72,11 @@ export async function executeNextAutonomousTask(
 
   const task = dequeue();
   if (!task) return { executed: false };
+
+  const gate = isAutonomousWorkAllowed(task.userId);
+  if (!gate.allowed) {
+    return { executed: false, taskId: task.id, result: `Blocked by safety gate: ${gate.reason || 'not allowed'}` };
+  }
 
   const running = markRunning(task.id);
   if (!running) return { executed: false };
@@ -82,6 +94,9 @@ export async function executeNextAutonomousTask(
       // Only allow safe desktop tools in autonomous mode
       if (!ALLOWED_DESKTOP_TOOLS.includes(toolName) && isDesktopTool(toolName)) {
         throw new Error(`Autonomous safety: desktop tool "${toolName}" is not allowed`);
+      }
+      if (isExternalAutomationTool(toolName) && !isExternalAppAutomationAllowed()) {
+        throw new Error(`Autonomous safety: external app automation is disabled for "${toolName}"`);
       }
       return new Promise((resolve, reject) => {
         const cid = `autonomous_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;

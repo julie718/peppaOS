@@ -5,6 +5,11 @@
 import { readDB, writeDB } from '../../db_layer';
 
 export interface SafetyGateConfig {
+  alwaysOnline: boolean;
+  autoProcessEnabled: boolean;
+  externalAppAutomationEnabled: boolean;
+  messagingSendRequiresConfirmation: boolean;
+  maxConsecutiveTasks: number;
   allowedHours: { start: number; end: number }[];  // e.g. [{start:9, end:18}]
   requireIdle: boolean;
   minIdleSeconds: number;      // default 120 (2 min)
@@ -15,6 +20,11 @@ export interface SafetyGateConfig {
 }
 
 const DEFAULT_CONFIG: SafetyGateConfig = {
+  alwaysOnline: true,
+  autoProcessEnabled: false,
+  externalAppAutomationEnabled: false,
+  messagingSendRequiresConfirmation: true,
+  maxConsecutiveTasks: 1,
   allowedHours: [{ start: 8, end: 22 }],
   requireIdle: true,
   minIdleSeconds: 120,
@@ -35,7 +45,7 @@ export function loadGateConfig(): SafetyGateConfig {
     const db = readDB();
     const setting = (db.settings || []).find((s: any) => s.key === DB_KEY);
     if (setting?.value) {
-      config = { ...DEFAULT_CONFIG, ...JSON.parse(setting.value) };
+      config = normalizeGateConfig({ ...DEFAULT_CONFIG, ...JSON.parse(setting.value) });
     }
   } catch {}
   return { ...config };
@@ -46,7 +56,7 @@ export function getGateConfig(): SafetyGateConfig {
 }
 
 export function saveGateConfig(partial: Partial<SafetyGateConfig>): SafetyGateConfig {
-  config = { ...config, ...partial };
+  config = normalizeGateConfig({ ...config, ...partial });
   try {
     const db = readDB();
     let setting = (db.settings || []).find((s: any) => s.key === DB_KEY);
@@ -62,6 +72,30 @@ export function saveGateConfig(partial: Partial<SafetyGateConfig>): SafetyGateCo
   return { ...config };
 }
 
+function normalizeGateConfig(input: Partial<SafetyGateConfig>): SafetyGateConfig {
+  const next = { ...DEFAULT_CONFIG, ...input };
+  next.allowedHours = Array.isArray(next.allowedHours) && next.allowedHours.length > 0
+    ? next.allowedHours
+        .map(range => ({
+          start: Math.max(0, Math.min(23, Number(range?.start) || 0)),
+          end: Math.max(0, Math.min(24, Number(range?.end) || 24)),
+        }))
+        .filter(range => range.end > range.start)
+    : DEFAULT_CONFIG.allowedHours;
+  next.minIdleSeconds = Math.max(0, Math.min(3600, Number(next.minIdleSeconds) || DEFAULT_CONFIG.minIdleSeconds));
+  next.maxTokensPerHour = Math.max(100, Math.min(100000, Number(next.maxTokensPerHour) || DEFAULT_CONFIG.maxTokensPerHour));
+  next.maxConsecutiveTasks = Math.max(1, Math.min(10, Number(next.maxConsecutiveTasks) || DEFAULT_CONFIG.maxConsecutiveTasks));
+  next.alwaysOnline = Boolean(next.alwaysOnline);
+  next.autoProcessEnabled = Boolean(next.autoProcessEnabled);
+  next.externalAppAutomationEnabled = Boolean(next.externalAppAutomationEnabled);
+  next.messagingSendRequiresConfirmation = next.messagingSendRequiresConfirmation !== false;
+  next.requireIdle = Boolean(next.requireIdle);
+  next.quietHoursEnabled = Boolean(next.quietHoursEnabled);
+  next.quietHoursStart = Math.max(0, Math.min(23, Number(next.quietHoursStart) || DEFAULT_CONFIG.quietHoursStart));
+  next.quietHoursEnd = Math.max(0, Math.min(23, Number(next.quietHoursEnd) || DEFAULT_CONFIG.quietHoursEnd));
+  return next;
+}
+
 /** Called from ambient poller socket handler to record latest idle state */
 export function reportIdleState(userId: string, idleSeconds: number) {
   userLastIdle.set(userId, { idleSeconds, timestamp: Date.now() });
@@ -72,6 +106,14 @@ export function isAutonomousWorkAllowed(userId?: string): { allowed: boolean; re
   const cfg = config;
   const now = new Date();
   const hour = now.getHours();
+
+  if (!cfg.alwaysOnline) {
+    return { allowed: false, reason: 'Always Online is disabled' };
+  }
+
+  if (!cfg.autoProcessEnabled) {
+    return { allowed: false, reason: 'Automatic processing is disabled until the user confirms a workflow' };
+  }
 
   // 1. Time-of-day gate
   const inAllowedHours = cfg.allowedHours.some(
@@ -104,6 +146,14 @@ export function isAutonomousWorkAllowed(userId?: string): { allowed: boolean; re
   }
 
   return { allowed: true };
+}
+
+export function isExternalAppAutomationAllowed(): boolean {
+  return Boolean(config.externalAppAutomationEnabled);
+}
+
+export function isMessagingSendConfirmationRequired(): boolean {
+  return config.messagingSendRequiresConfirmation !== false;
 }
 
 /** Record token usage for budget tracking */

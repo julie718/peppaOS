@@ -1,3 +1,6 @@
+import { getGateConfig } from '../autonomy/safety_gate';
+import { listAutonomousWorkflows } from '../autonomy/workflows';
+
 export type ClientMode = 'chat' | 'assistant' | 'autonomous' | 'meeting' | 'music';
 export type ClientCapabilityKind =
   | 'mode'
@@ -11,7 +14,8 @@ export type ClientCapabilityKind =
   | 'canvas'
   | 'settings'
   | 'permission'
-  | 'system';
+  | 'system'
+  | 'external_app';
 
 export interface ClientCapability {
   id: string;
@@ -81,6 +85,25 @@ export interface ClientStateSnapshot {
     workflowStepCount?: number;
     runningWorkflowSteps?: number;
     mcpActivityCount?: number;
+  };
+  runtime?: {
+    autostartSupported?: boolean;
+    autostartEnabled?: boolean;
+    closeToBackground?: boolean;
+    startedInBackground?: boolean;
+    backendNodeRunning?: boolean;
+    backendPythonRunning?: boolean;
+    nodeRestarts?: number;
+    pythonRestarts?: number;
+    globalShortcut?: string;
+    lastError?: string;
+  };
+  autonomy?: {
+    alwaysOnline?: boolean;
+    autoProcessEnabled?: boolean;
+    externalAppAutomationEnabled?: boolean;
+    messagingSendRequiresConfirmation?: boolean;
+    maxConsecutiveTasks?: number;
   };
   errors?: Array<{ source: string; message: string; code?: string; at?: number }>;
   updatedAt?: number;
@@ -251,6 +274,51 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     stateKeys: ['permissions', 'tools', 'windows'],
   },
   {
+    id: 'system.always_online',
+    label: 'Always Online and autonomous work',
+    kind: 'system',
+    actions: ['open_settings:autonomy', 'autonomy_get_policy', 'autonomy_update_policy', 'autonomy_list_workflows', 'autonomy_register_workflow', 'autonomy_set_workflow_enabled'],
+    notes: 'Lumi can stay ready while the desktop/server is running. The desktop client can launch at login, hide to tray/background, and supervise bundled backend processes; background execution still requires the autonomy gate plus an enabled user-confirmed workflow.',
+    requiresConfirmation: true,
+    stateKeys: ['mode', 'autonomy', 'runtime'],
+  },
+  {
+    id: 'external.browser',
+    label: 'Browser and web work adapter',
+    kind: 'external_app',
+    actions: ['browser_open_task', 'web_search', 'url_fetch'],
+    notes: 'Lumi can research with web tools and open a browser task after confirmation. Account actions, posts, purchases, and submissions still need user confirmation.',
+    requiresConfirmation: true,
+    stateKeys: ['permissions', 'tools'],
+  },
+  {
+    id: 'external.messaging',
+    label: 'WeChat and messaging adapter',
+    kind: 'external_app',
+    actions: ['wechat_prepare_reply', 'wechat_copy_reply_draft'],
+    notes: 'Lumi can prepare and copy message drafts. It should not claim to send messages unless a future confirmed integration explicitly supports sending.',
+    requiresConfirmation: true,
+    stateKeys: ['permissions', 'tools'],
+  },
+  {
+    id: 'external.cad',
+    label: 'CAD drafting adapter',
+    kind: 'external_app',
+    actions: ['cad_generate_dxf'],
+    notes: 'Lumi can generate simple DXF draft files and open them after confirmation. Production drawings still require user review.',
+    requiresConfirmation: true,
+    stateKeys: ['permissions', 'tools'],
+  },
+  {
+    id: 'external.ai_apps',
+    label: 'Other local AI and agent tools',
+    kind: 'external_app',
+    actions: ['external_app_list_adapters', 'desktop_open', 'computer_use'],
+    notes: 'Lumi can coordinate other AI apps through files, browser, clipboard, MCP, and confirmed computer-use sessions. Prefer explicit integrations before visual control.',
+    requiresConfirmation: true,
+    stateKeys: ['permissions', 'tools', 'windows'],
+  },
+  {
     id: 'system.wallpaper',
     label: 'Wallpaper mode',
     kind: 'system',
@@ -292,6 +360,9 @@ export function getClientState(userId: string): ClientStateSnapshot | null {
 export function formatClientSelfPrompt(userId: string): string {
   const state = getClientState(userId);
   const stateAge = state?.updatedAt ? Math.round((Date.now() - state.updatedAt) / 1000) : null;
+  const gate = getGateConfig();
+  const workflows = listAutonomousWorkflows(userId);
+  const enabledWorkflows = workflows.filter(workflow => workflow.enabled);
   const capabilityLines = CLIENT_CAPABILITIES.map(cap => (
     `- ${cap.label} [${cap.kind}]: ${cap.notes} Actions: ${cap.actions.join(', ')}${cap.requiresConfirmation ? ' (confirmation-sensitive)' : ''}`
   ));
@@ -311,6 +382,9 @@ export function formatClientSelfPrompt(userId: string): string {
     `- Canvas: open=${Boolean(state.canvas?.open)}, session=${state.canvas?.sessionId || 'none'}, cards=${state.canvas?.cardCount || 0}, running=${state.canvas?.runningCount || 0}, errors=${state.canvas?.errorCount || 0}, save=${state.canvas?.saveState || 'unknown'}`,
     `- Permissions: ${formatStateObject(state.permissions)}`,
     `- Tools: agent=${state.tools?.agentStatus || 'idle'}, workflowSteps=${state.tools?.workflowStepCount || 0}, runningSteps=${state.tools?.runningWorkflowSteps || 0}`,
+    `- Native runtime: autostart=${Boolean(state.runtime?.autostartEnabled)}, closeToBackground=${Boolean(state.runtime?.closeToBackground)}, backend=${state.runtime?.backendNodeRunning ? 'running' : 'dev/not-spawned'}, shortcut=${state.runtime?.globalShortcut || 'Alt+Space'}${state.runtime?.lastError ? `, error=${state.runtime.lastError}` : ''}`,
+    `- Autonomy gate: alwaysOnline=${gate.alwaysOnline}, autoProcess=${gate.autoProcessEnabled}, externalAppAutomation=${gate.externalAppAutomationEnabled}, messagingSendRequiresConfirmation=${gate.messagingSendRequiresConfirmation}, maxConsecutiveTasks=${gate.maxConsecutiveTasks}`,
+    `- Confirmed autonomous workflows: enabled=${enabledWorkflows.length}, total=${workflows.length}${enabledWorkflows.length ? `, titles=${enabledWorkflows.map(workflow => workflow.title).slice(0, 5).join(', ')}` : ''}`,
     `- Recent errors: ${state.errors?.length ? state.errors.map(e => `${e.source}: ${e.message}`).slice(-3).join(' | ') : 'none'}`,
     `- State age: ${stateAge}s`,
   ] : ['- No live desktop client state has been reported yet.'];
@@ -321,6 +395,9 @@ export function formatClientSelfPrompt(userId: string): string {
     'Use the client_action tool for UI/client actions when tools are available. Do not pretend a window changed if you did not call the action or ask the user.',
     'Prefer explicit client actions such as open_music_center, start_meeting_mode, open_canvas_task, show_knowledge_base, open_settings, and set_wallpaper_mode instead of mouse/keyboard control for Lumi UI.',
     'Ask for explicit user confirmation before changing wallpaper mode, starting autonomous execution, starting/stopping meeting capture, or requesting sensor/permission changes.',
+    'For 24-hour availability: Lumi can stay ready only while the desktop client/server is running. Use launch-at-login and close-to-background for resident desktop behavior; autonomous background work still requires auto processing plus time, idle, token, and confirmed-workflow gates.',
+    'Do not create autonomous background work from ambient context alone. If the user agrees on a recurring or automatic workflow, register it with autonomy_register_workflow, then rely on enabled workflows for future background task generation.',
+    'For external apps such as WeChat, CAD, browsers, and other AI tools: use explicit adapters first. Prepare drafts/files/plans before controlling UI. Never claim a message was sent or a production drawing was finalized unless an explicit confirmed integration did it.',
     'Respect modes: chat is conversational, meeting is transcription/reporting, music is listening/playback atmosphere, assistant is guided work, autonomous is visible multi-step execution.',
     '',
     '### Client Capabilities',

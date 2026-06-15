@@ -163,6 +163,18 @@ interface ClientCanvasRuntime {
 }
 
 type ClientPermissionSnapshot = Record<string, string | boolean | number | null | undefined>;
+type ClientRuntimeSnapshot = {
+  autostartSupported?: boolean;
+  autostartEnabled?: boolean;
+  closeToBackground?: boolean;
+  startedInBackground?: boolean;
+  backendNodeRunning?: boolean;
+  backendPythonRunning?: boolean;
+  nodeRestarts?: number;
+  pythonRestarts?: number;
+  globalShortcut?: string;
+  lastError?: string;
+};
 
 const normalizeNativeFiles = (value: unknown): NativeFile[] => {
   if (!Array.isArray(value)) return [];
@@ -1358,6 +1370,7 @@ export function DesktopUI({
   const [nativeFilesLoading, setNativeFilesLoading] = useState(false);
   const [nativeFilesError, setNativeFilesError] = useState<string | null>(null);
   const [clientPermissions, setClientPermissions] = useState<ClientPermissionSnapshot>({});
+  const [clientRuntime, setClientRuntime] = useState<ClientRuntimeSnapshot>({});
   const [canvasRuntime, setCanvasRuntime] = useState<ClientCanvasRuntime>({ open: false });
   const [isControlCenterOpen, setIsControlCenterOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -1367,6 +1380,7 @@ export function DesktopUI({
   const [time, setTime] = useState(new Date());
   const [isWallpaperMode, setIsWallpaperMode] = useState(false);
   const isWallpaperModeRef = useRef(false);
+  const closeToBackgroundSyncRef = useRef(false);
   const wallpaperAutomationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wallpaperWasEnabledBeforeAutomationRef = useRef(false);
   const [editMode, setEditMode] = useState(false);
@@ -1687,6 +1701,61 @@ export function DesktopUI({
       window.clearInterval(interval);
     };
   }, [isTauri, sensorPrimerSeen, wakeEnabled]);
+
+  useEffect(() => {
+    if (!isTauri) {
+      setClientRuntime({ lastError: 'Native runtime unavailable outside desktop client' });
+      return;
+    }
+    let disposed = false;
+    const refreshRuntime = async () => {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const status: any = await invoke('get_runtime_resilience_status');
+        if (disposed) return;
+        setClientRuntime({
+          autostartSupported: Boolean(status.autostart_supported),
+          autostartEnabled: Boolean(status.autostart_enabled),
+          closeToBackground: Boolean(status.close_to_background),
+          startedInBackground: Boolean(status.started_in_background),
+          backendNodeRunning: Boolean(status.backend_node_running),
+          backendPythonRunning: Boolean(status.backend_python_running),
+          nodeRestarts: Number(status.node_restarts || 0),
+          pythonRestarts: Number(status.python_restarts || 0),
+          globalShortcut: String(status.global_shortcut || 'Alt+Space'),
+          lastError: '',
+        });
+      } catch (err: any) {
+        if (disposed) return;
+        setClientRuntime({ lastError: err?.message || 'Native runtime status unavailable' });
+      }
+    };
+    void refreshRuntime();
+    const interval = window.setInterval(refreshRuntime, 30000);
+    return () => {
+      disposed = true;
+      window.clearInterval(interval);
+    };
+  }, [isTauri]);
+
+  useEffect(() => {
+    if (!isTauri || closeToBackgroundSyncRef.current) return;
+    closeToBackgroundSyncRef.current = true;
+    const syncClosePreference = async () => {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const status: any = await invoke('get_runtime_resilience_status');
+        const saved = localStorage.getItem('lumi_close_to_background');
+        if (status?.started_in_background) {
+          localStorage.setItem('lumi_close_to_background', 'true');
+          await invoke('set_close_to_background', { enabled: true });
+        } else if (saved === 'true' || saved === 'false') {
+          await invoke('set_close_to_background', { enabled: saved === 'true' });
+        }
+      } catch {}
+    };
+    void syncClosePreference();
+  }, [isTauri]);
 
   const wakeWord = useWakeWord({
     socket,
@@ -2719,6 +2788,7 @@ export function DesktopUI({
           ).length,
           mcpActivityCount: mcpActivities.length,
         },
+        runtime: clientRuntime,
         errors: recentErrors,
       });
     };
@@ -2732,6 +2802,7 @@ export function DesktopUI({
     canvasRuntime,
     chatOpen,
     clientPermissions,
+    clientRuntime,
     callError,
     focusedWindow,
     agentStatus,
