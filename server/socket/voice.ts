@@ -22,6 +22,7 @@ import { recordTokenUsage } from "../llm/token_tracker";
 import { getOperationModeConfig, parseStoredOperationMode } from "../cognition/operation_modes";
 import { shouldAllowToolUseForTurn, shouldExposeAgentWork } from "../cognition/tool_intent";
 import { updatePresence } from "../biometrics/presence";
+import { getVoiceprints } from "../biometrics/store";
 import { formatClientSelfPrompt } from "../client/self_model";
 
 interface AudioSession {
@@ -58,6 +59,8 @@ interface AudioSession {
   /** Voiceprint verification: true when owner's voice is recognized */
   voiceprintMatched: boolean;
   voiceprintConfidence: number;
+  voiceprintRequired: boolean;
+  voiceprintLastAt: number;
   /** Meeting mode: STT only, no LLM/TTS/tool processing. */
   transcriptionOnly: boolean;
 }
@@ -152,10 +155,26 @@ function getAudioSession(socket: Socket): AudioSession {
       agentId: 'lumi',
       voiceprintMatched: true,  // default: allow (no voiceprints enrolled yet)
       voiceprintConfidence: 0,
+      voiceprintRequired: false,
+      voiceprintLastAt: 0,
       transcriptionOnly: false,
     };
   }
   return socket.data.audioSession as AudioSession;
+}
+
+function isVoiceprintGateOpen(session: AudioSession): boolean {
+  if (!session.voiceprintRequired || session.transcriptionOnly) return true;
+  const fresh = Date.now() - session.voiceprintLastAt < 3500;
+  return fresh && session.voiceprintMatched && session.voiceprintConfidence >= 0.55;
+}
+
+function blockUnverifiedVoice(socket: Socket, session: AudioSession, reason: string): void {
+  logger.info(`[Voiceprint] ${reason} (required=${session.voiceprintRequired}, matched=${session.voiceprintMatched}, conf=${session.voiceprintConfidence.toFixed(2)})`);
+  session.isSpeaking = false;
+  session.isProcessing = false;
+  session.accumulatedText = '';
+  socket.emit('audio:status', { status: 'listening' });
 }
 
 async function processVoiceInput(
@@ -171,10 +190,15 @@ async function processVoiceInput(
   },
   sensoryFn: (uid: string) => any,
 ): Promise<void> {
+  if (!isVoiceprintGateOpen(session)) {
+    blockUnverifiedVoice(socket, session, 'Rejected voice command from unverified speaker');
+    return;
+  }
+
   // ── Voiceprint gate: ignore speech from unrecognized speakers ──
   // Only active when voiceprints are enrolled for this user AND at least one
   // recent voiceprint:result has been received with confidence data.
-  if (session.voiceprintMatched === false && session.voiceprintConfidence > 0) {
+  if (session.voiceprintRequired && session.voiceprintMatched === false && session.voiceprintConfidence > 0) {
     logger.info(`[Voiceprint] Stranger voice detected (conf=${session.voiceprintConfidence.toFixed(2)}) — ignoring`);
     session.isSpeaking = false;
     session.isProcessing = false;
@@ -774,6 +798,11 @@ export function registerVoiceHandlers(
     session.userId = getUserId(socket);
     session.agentId = data.agentId || 'lumi';
     session.transcriptionOnly = data.transcriptionOnly === true;
+    const enrolledVoiceprints = session.userId ? getVoiceprints(session.userId) : [];
+    session.voiceprintRequired = !session.transcriptionOnly && enrolledVoiceprints.length > 0;
+    session.voiceprintMatched = !session.voiceprintRequired;
+    session.voiceprintConfidence = 0;
+    session.voiceprintLastAt = 0;
     const personalityCfg = personalityRegistry.get(data.personalityId || 'lumi');
     // Use explicit voiceId, then personality's TTS voice, then null (TTS provider default)
     session.currentVoiceId = data.voiceId || personalityCfg?.ttsVoiceId || null;
@@ -828,6 +857,12 @@ export function registerVoiceHandlers(
             const hasContent = /[a-zA-Z一-鿿㐀-䶿\d]/.test(text);
             if (!hasContent) {
               logger.info(`[Audio] Ignored pure noise: "${text}"`);
+              return;
+            }
+
+            if (!isVoiceprintGateOpen(session)) {
+              blockUnverifiedVoice(socket, session, 'Ignored transcript before command/barge-in');
+              resetSilenceTimer(session, socket);
               return;
             }
 
@@ -931,6 +966,7 @@ export function registerVoiceHandlers(
     const session = getAudioSession(socket);
     session.voiceprintMatched = data.isOwnerSpeaking;
     session.voiceprintConfidence = data.confidence;
+    session.voiceprintLastAt = Date.now();
   });
 
   // ── Presence: periodic heartbeat from usePresence hook ──

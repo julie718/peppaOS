@@ -22,6 +22,9 @@ interface UseWakeWordOptions {
   agentId?: string;
   /** Called when wake word is detected (before startCall) */
   onDetection?: () => void;
+  /** Return false to ignore wake audio/detections, e.g. when voiceprint says this is not the owner. */
+  canAcceptWake?: () => boolean;
+  canSendWakeAudio?: () => boolean;
   /** If provided and returns true, skip starting a new call (e.g. already in a call) */
   isCallActive?: () => boolean;
   /** Called to interrupt an active call when wake word fires during one */
@@ -50,6 +53,8 @@ export function useWakeWord({
   personalityId,
   agentId,
   onDetection,
+  canAcceptWake,
+  canSendWakeAudio,
   isCallActive,
   onInterrupt,
 }: UseWakeWordOptions): UseWakeWordReturn {
@@ -137,6 +142,7 @@ export function useWakeWord({
 
       processor.onaudioprocess = (event) => {
         if (!enabledRef.current) return;
+        if (canSendWakeAudio && !canSendWakeAudio()) return;
         try {
           const input = event.inputBuffer.getChannelData(0);
           const pcm = new Int16Array(input.length);
@@ -154,6 +160,10 @@ export function useWakeWord({
       removeWakeHandlers();
 
       const onDetected = (data: { keyword: string; timestamp: string }) => {
+        if (canAcceptWake && !canAcceptWake()) {
+          console.log('[WakeWord-Qwen] Ignored detection: voice gate closed');
+          return;
+        }
         console.log('[WakeWord-Qwen] Detected:', data.keyword);
         setLastDetection(data.timestamp);
         onDetection?.();
@@ -192,7 +202,7 @@ export function useWakeWord({
         setError(msg);
       }
     }
-  }, [voiceId, personalityId, agentId, startCallRef, cleanupAudio, removeWakeHandlers, onDetection, isCallActive, onInterrupt]);
+  }, [voiceId, personalityId, agentId, startCallRef, cleanupAudio, removeWakeHandlers, onDetection, canAcceptWake, canSendWakeAudio, isCallActive, onInterrupt]);
 
   // ── Picovoice on-device detection (fallback) ──
 
@@ -211,6 +221,7 @@ export function useWakeWord({
       };
 
       const detectionCallback = (_detection: any) => {
+        if (canAcceptWake && !canAcceptWake()) return;
         setLastDetection(new Date().toISOString());
         onDetection?.();
         if (isCallActive?.()) {
@@ -289,7 +300,7 @@ export function useWakeWord({
         setError(msg);
       }
     }
-  }, [accessKey, keyword, sensitivity, voiceId, personalityId, agentId, startCallRef, cleanupAudio]);
+  }, [accessKey, keyword, sensitivity, voiceId, personalityId, agentId, startCallRef, cleanupAudio, canAcceptWake]);
 
   const enable = useCallback(async () => {
     // Stop any existing session first

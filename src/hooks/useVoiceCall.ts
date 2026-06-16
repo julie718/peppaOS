@@ -6,13 +6,15 @@ interface UseVoiceCallOptions {
   socket: any;
   onTranscript?: (text: string, isFinal: boolean) => void;
   onResponse?: (text: string) => void;
+  canInterruptFromVoice?: () => boolean;
+  canSendMicAudio?: () => boolean;
 }
 
 interface StartCallOptions {
   transcriptionOnly?: boolean;
 }
 
-export function useVoiceCall({ socket, onTranscript, onResponse }: UseVoiceCallOptions) {
+export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFromVoice, canSendMicAudio }: UseVoiceCallOptions) {
   const [callState, setCallState] = useState<CallState>('idle');
   const [audioLevel, setAudioLevel] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +41,13 @@ export function useVoiceCall({ socket, onTranscript, onResponse }: UseVoiceCallO
   const disconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevCallState = useRef<CallState>('idle');
   const transcriptionOnlyRef = useRef(false);
+  const canInterruptFromVoiceRef = useRef(canInterruptFromVoice);
+  const canSendMicAudioRef = useRef(canSendMicAudio);
+  const ttsPreRollChunks = useRef<Uint8Array[]>([]);
+  const flushTtsPreRollOnNextAudio = useRef(false);
+
+  useEffect(() => { canInterruptFromVoiceRef.current = canInterruptFromVoice; }, [canInterruptFromVoice]);
+  useEffect(() => { canSendMicAudioRef.current = canSendMicAudio; }, [canSendMicAudio]);
 
   const updateAudioLevel = useCallback(() => {
     if (!analyser.current) return;
@@ -143,6 +152,8 @@ export function useVoiceCall({ socket, onTranscript, onResponse }: UseVoiceCallO
     playbackStartTime.current = 0;
     // Clear sentence audio queue
     audioQueue.current = [];
+    ttsPreRollChunks.current = [];
+    flushTtsPreRollOnNextAudio.current = false;
     // Stop direct Audio element
     if (audioElementRef.current) {
       try {
@@ -433,10 +444,6 @@ export function useVoiceCall({ socket, onTranscript, onResponse }: UseVoiceCallO
 
       scriptProcessor.onaudioprocess = (event) => {
         if (!socket?.connected) return;
-        // Skip mic audio while TTS is playing to prevent Lumi from
-        // hearing its own voice through external speakers (echo loop).
-        // audioLevel from AnalyserNode still works for barge-in detection.
-        if (isTtsPlaying.current) return;
         const input = event.inputBuffer.getChannelData(0);
         // Convert float32 [-1,1] to int16 PCM
         const int16 = new Int16Array(input.length);
@@ -444,7 +451,34 @@ export function useVoiceCall({ socket, onTranscript, onResponse }: UseVoiceCallO
           const s = Math.max(-1, Math.min(1, input[i]));
           int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
         }
-        socket.emit('audio:chunk', new Uint8Array(int16.buffer));
+        const chunk = new Uint8Array(int16.buffer);
+
+        // While Lumi is speaking, keep a tiny pre-roll instead of streaming
+        // speaker echo into STT. If the owner truly barges in, we flush this
+        // short tail after playback stops so the first words are less likely
+        // to be clipped.
+        if (isTtsPlaying.current) {
+          ttsPreRollChunks.current.push(chunk);
+          if (ttsPreRollChunks.current.length > 6) ttsPreRollChunks.current.shift();
+          return;
+        }
+
+        const micAllowed = transcriptionOnlyRef.current || (canSendMicAudioRef.current?.() ?? true);
+        if (!micAllowed) {
+          ttsPreRollChunks.current = [];
+          flushTtsPreRollOnNextAudio.current = false;
+          return;
+        }
+
+        if (flushTtsPreRollOnNextAudio.current && ttsPreRollChunks.current.length > 0) {
+          for (const preRollChunk of ttsPreRollChunks.current) {
+            socket.emit('audio:chunk', preRollChunk);
+          }
+          ttsPreRollChunks.current = [];
+          flushTtsPreRollOnNextAudio.current = false;
+        }
+
+        socket.emit('audio:chunk', chunk);
       };
 
       source.connect(scriptProcessor);
@@ -558,8 +592,12 @@ export function useVoiceCall({ socket, onTranscript, onResponse }: UseVoiceCallO
       ttsStartedAt.current > 0 &&
       Date.now() - ttsStartedAt.current > minTtsDuration
     ) {
+      if (!(canInterruptFromVoiceRef.current?.() ?? true)) return;
+      const preRoll = [...ttsPreRollChunks.current];
       socket?.emit('audio:interrupt');
       stopAllPlayback();
+      ttsPreRollChunks.current = preRoll;
+      flushTtsPreRollOnNextAudio.current = true;
       ttsStartedAt.current = 0;
       setCallState('listening');
     }

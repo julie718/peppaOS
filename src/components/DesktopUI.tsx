@@ -1680,11 +1680,40 @@ export function DesktopUI({
   const socket = useSocket();
   const musicVisible = useMusicVisible();
   const musicSnapshot = useMusicPlayerSnapshot();
+  const voiceprint = useVoiceprint({ socket });
+  const ownerVoiceGateOpen = useCallback(() => {
+    if (!voiceprint.templatesLoaded) return false;
+    if (voiceprint.enrolledCount === 0) return true;
+    if (!voiceprint.hasUsableTemplates) return false;
+    return voiceprint.result.isOwnerSpeaking && voiceprint.result.confidence >= 0.55;
+  }, [
+    voiceprint.enrolledCount,
+    voiceprint.hasUsableTemplates,
+    voiceprint.result.confidence,
+    voiceprint.result.isOwnerSpeaking,
+    voiceprint.templatesLoaded,
+  ]);
   useAmbientPoller(socket); // Ambient awareness: polls window, clipboard, idle state
   const { callState, audioLevel, startCall, startCallRef, endCall, error: callError, transcript, interrupt, toggleMute, isMuted, switchPersonality } = useVoiceCall({
     socket,
     onTranscript: appendMeetingTranscript,
+    canInterruptFromVoice: ownerVoiceGateOpen,
+    canSendMicAudio: ownerVoiceGateOpen,
   });
+  useEffect(() => {
+    void voiceprint.loadTemplates();
+  }, [voiceprint.loadTemplates]);
+  useEffect(() => {
+    if (!voiceprint.templatesLoaded || voiceprint.enrolledCount === 0 || !voiceprint.hasUsableTemplates) return;
+    void voiceprint.startListening();
+    return () => voiceprint.stopListening();
+  }, [
+    voiceprint.enrolledCount,
+    voiceprint.hasUsableTemplates,
+    voiceprint.startListening,
+    voiceprint.stopListening,
+    voiceprint.templatesLoaded,
+  ]);
   const meetingStartAttemptRef = useRef(0);
 
   const startStandardVoiceCall = useCallback(() => {
@@ -1866,6 +1895,8 @@ export function DesktopUI({
     personalityId: 'lumi',
     agentId: 'lumi',
     onDetection: () => sounds.playWakeChime(),
+    canAcceptWake: ownerVoiceGateOpen,
+    canSendWakeAudio: ownerVoiceGateOpen,
     isCallActive: () => callState !== 'idle',
     onInterrupt: () => interrupt(),
   });
@@ -1874,7 +1905,6 @@ export function DesktopUI({
   const { facePresent } = useGestureDetector({ enabled: sensorPrimerSeen });
 
   // ── Biometrics: voiceprint + face recognition + presence ──
-  const voiceprint = useVoiceprint({ socket });
   const faceRecognition = useFaceRecognition({ enabled: sensorPrimerSeen, socket });
   const presence = usePresence({
     socket,

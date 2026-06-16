@@ -304,7 +304,13 @@ export function mountAuthRoutes(router: Router, jwtSecret: string, getCookieOpti
     if (!token) return res.status(401).json({ error: "Not authenticated" });
     try {
       const decoded: any = jwt.verify(token, jwtSecret);
-      const voiceprints = getVoiceprints(decoded.uid).map(v => ({ id: v.voiceprintId, label: v.label, sampleCount: v.sampleCount, createdAt: v.createdAt }));
+      const voiceprints = getVoiceprints(decoded.uid).map(v => ({
+        id: v.voiceprintId,
+        label: v.label,
+        sampleCount: v.sampleCount,
+        createdAt: v.createdAt,
+        mfccFeatures: v.mfccFeatures,
+      }));
       const faces = getFaces(decoded.uid).map(f => ({ id: f.faceId, label: f.label, createdAt: f.createdAt }));
       res.json({ voiceprints, faces });
     } catch (e) {

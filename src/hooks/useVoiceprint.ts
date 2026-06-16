@@ -203,6 +203,9 @@ export function useVoiceprint(options?: UseVoiceprintOptions) {
     threshold: 'reject',
     rms: 0,
   });
+  const [enrolledCount, setEnrolledCount] = useState(0);
+  const [templateFrameCount, setTemplateFrameCount] = useState(0);
+  const [templatesLoaded, setTemplatesLoaded] = useState(false);
 
   const templatesRef = useRef<VoiceprintTemplate[]>([]);
   const frameBufferRef = useRef<Float32Array[]>([]);
@@ -221,14 +224,23 @@ export function useVoiceprint(options?: UseVoiceprintOptions) {
       const res = await fetch('/api/auth/biometric/list', { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
-        templatesRef.current = data.voiceprints.map((vp: any) => ({
+        const templates = (data.voiceprints || []).map((vp: any) => ({
           uid: 'owner',
           label: vp.label,
           voiceprintId: vp.id,
-          mfccFrames: [], // server stores full MFCC; will load on demand
+          mfccFrames: Array.isArray(vp.mfccFeatures) ? vp.mfccFeatures : [],
         }));
+        templatesRef.current = templates;
+        setEnrolledCount(templates.length);
+        setTemplateFrameCount(templates.reduce((sum: number, tpl: VoiceprintTemplate) => sum + tpl.mfccFrames.length, 0));
       }
-    } catch {}
+    } catch {
+      templatesRef.current = [];
+      setEnrolledCount(0);
+      setTemplateFrameCount(0);
+    } finally {
+      setTemplatesLoaded(true);
+    }
   }, []);
 
   // ── Start microphone capture independently for voiceprint ──
@@ -386,6 +398,8 @@ export function useVoiceprint(options?: UseVoiceprintOptions) {
           voiceprintId: data.voiceprint.id,
           mfccFrames: frames,
         });
+        setEnrolledCount(templatesRef.current.length);
+        setTemplateFrameCount(prev => prev + frames.length);
         return { success: true, voiceprintId: data.voiceprint.id };
       }
       return { success: false };
@@ -416,6 +430,9 @@ export function useVoiceprint(options?: UseVoiceprintOptions) {
     startEnrollment,
     cancelEnrollment,
     onResult,
+    enrolledCount,
+    hasUsableTemplates: templateFrameCount > 0,
+    templatesLoaded,
     isListening: !!audioContextRef.current,
     isEnrolling: isEnrollingRef.current,
   };
