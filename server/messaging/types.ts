@@ -13,8 +13,24 @@ export interface IncomingMessage {
   chatType: 'private' | 'group';
   messageId: string;       // platform message ID
   text: string;            // plain text content
+  attachments?: IncomingAttachment[];
+  boundUserId?: string;
+  boundOrgId?: string;
   raw: Record<string, any>; // raw platform payload
   timestamp: string;
+}
+
+export interface IncomingAttachment {
+  id: string;
+  type: 'file' | 'image' | 'media' | 'audio' | 'unknown';
+  fileName: string;
+  fileSize?: number;
+  mimeType?: string;
+  resourceKey?: string;
+  resourceType?: string;
+  localPath?: string;
+  extractedText?: string;
+  parseError?: string;
 }
 
 export interface OutgoingMessage {

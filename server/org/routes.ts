@@ -11,6 +11,7 @@ import { requireAuth, requireOrgRole, requireOrgMember, optionalAuth } from '../
 import * as Org from './org';
 import * as EDB from './db';
 import * as KB from './kb';
+import * as LegalCases from './legal_cases';
 import { persistRole } from '../runtime/role';
 import * as Templates from './templates';
 import * as Audit from './audit';
@@ -213,6 +214,51 @@ export function mountOrgRoutes(router: Router, io?: SocketIOServer) {
   });
 
   // ── Agent Templates ───────────────────────────────────────────────────
+
+  router.get('/org/legal/cases', requireAuth, requireOrgMember, (req: Request, res: Response) => {
+    const query = String(req.query.query || '');
+    const limit = Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 200);
+    res.json({ cases: LegalCases.listCases(req.user!.orgId!, query, limit) });
+  });
+
+  router.get('/org/legal/cases/:caseId', requireAuth, requireOrgMember, (req: Request, res: Response) => {
+    const caseFile = LegalCases.getCase(req.user!.orgId!, req.params.caseId);
+    if (!caseFile) {
+      res.status(404).json({ error: 'Legal case not found' });
+      return;
+    }
+    res.json(caseFile);
+  });
+
+  router.post('/org/legal/cases', requireAuth, requireOrgMember, (req: Request, res: Response) => {
+    const caseFile = LegalCases.createCase(req.user!.orgId!, req.user!.uid, req.body || {});
+    res.status(201).json(caseFile);
+  });
+
+  router.put('/org/legal/cases/:caseId', requireAuth, requireOrgMember, (req: Request, res: Response) => {
+    const caseFile = LegalCases.updateCase(req.user!.orgId!, req.user!.uid, req.params.caseId, req.body || {});
+    if (!caseFile) {
+      res.status(404).json({ error: 'Legal case not found' });
+      return;
+    }
+    res.json(caseFile);
+  });
+
+  router.post('/org/legal/cases/:caseId/materials', requireAuth, requireOrgMember, (req: Request, res: Response) => {
+    const material = LegalCases.addMaterial(req.user!.orgId!, req.user!.uid, req.params.caseId, {
+      type: req.body?.type || 'note',
+      title: req.body?.title || '案件材料',
+      content: req.body?.content || '',
+      fileName: req.body?.fileName,
+      localPath: req.body?.localPath,
+      source: req.body?.source || 'manual',
+    });
+    if (!material) {
+      res.status(404).json({ error: 'Legal case not found' });
+      return;
+    }
+    res.status(201).json(material);
+  });
 
   router.get('/org/templates', requireAuth, requireOrgMember, (req: Request, res: Response) => {
     const templates = Templates.listTemplates(req.user!.orgId!, {

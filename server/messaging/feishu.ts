@@ -15,6 +15,7 @@ import type {
   OutgoingMessage,
   CardPayload,
   MessagingPlatform,
+  IncomingAttachment,
 } from './types';
 
 export interface FeishuConfig {
@@ -90,11 +91,14 @@ export class FeishuAdapter implements MessageAdapter {
     const message = event?.message;
     if (!message) return null;
 
-    // Only handle text messages for now
-    if (message.message_type !== 'text') return null;
-
-    const textContent = this.parseTextContent(message.content);
-    if (!textContent) return null;
+    const parsedContent = this.parseMessageContent(message.content);
+    const attachments = this.parseAttachments(message.message_type, parsedContent);
+    const textContent = message.message_type === 'text'
+      ? (parsedContent.text || '')
+      : attachments.length > 0
+        ? attachments.map(att => `[附件] ${att.fileName}`).join('\n')
+        : '';
+    if (!textContent && attachments.length === 0) return null;
 
     const chatId = message.chat_id || '';
     const isGroup = chatId.startsWith('oc_');
@@ -107,18 +111,50 @@ export class FeishuAdapter implements MessageAdapter {
       chatType: isGroup ? 'group' : 'private',
       messageId: message.message_id || `${Date.now()}`,
       text: textContent,
+      attachments: attachments.length > 0 ? attachments : undefined,
       raw: { event: eventData, message },
       timestamp: new Date(Number(message.create_time) || Date.now()).toISOString(),
     };
   }
 
-  private parseTextContent(content: string): string {
+  private parseMessageContent(content: string): Record<string, any> {
     try {
-      const parsed = JSON.parse(content);
-      return parsed.text || '';
+      return JSON.parse(content || '{}');
     } catch {
-      return content;
+      return { text: content || '' };
     }
+  }
+
+  private parseAttachments(messageType: string, content: Record<string, any>): IncomingAttachment[] {
+    const attachmentType = messageType === 'file' || messageType === 'image' || messageType === 'media' || messageType === 'audio'
+      ? messageType
+      : 'unknown';
+    const resourceKey = content.file_key || content.image_key || content.media_key || content.audio_key || content.key || '';
+    if (!resourceKey) return [];
+    const fileName = content.file_name || content.name || `${attachmentType}-${resourceKey}`;
+    const resourceType = attachmentType === 'image' ? 'image' : attachmentType === 'media' ? 'file' : attachmentType === 'audio' ? 'file' : 'file';
+    return [{
+      id: `${attachmentType}_${resourceKey}`,
+      type: attachmentType,
+      fileName,
+      fileSize: Number(content.file_size || content.size || 0) || undefined,
+      mimeType: content.mime_type || content.mimetype || undefined,
+      resourceKey,
+      resourceType,
+    }];
+  }
+
+  async downloadMessageResource(messageId: string, resourceKey: string, resourceType = 'file'): Promise<Buffer> {
+    const token = await this.getTenantToken();
+    const url = `https://open.feishu.cn/open-apis/im/v1/messages/${encodeURIComponent(messageId)}/resources/${encodeURIComponent(resourceKey)}?type=${encodeURIComponent(resourceType)}`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Feishu resource download failed: ${res.status} ${text.slice(0, 160)}`);
+    }
+    return Buffer.from(await res.arrayBuffer());
   }
 
   // ── Send Message ──

@@ -1,0 +1,279 @@
+export type LegalCaseStage = 'consultation' | 'filing' | 'trial' | 'judgment' | 'enforcement' | 'closed';
+
+export type LegalCaseMaterialType = 'consultation' | 'evidence' | 'pleading' | 'judgment' | 'contract' | 'note';
+
+export interface LegalCaseMaterial {
+  id: string;
+  type: LegalCaseMaterialType;
+  title: string;
+  createdAt: string;
+  content?: string;
+  source?: 'manual' | 'meeting' | 'notice' | 'tool';
+}
+
+export interface LegalCaseFile {
+  id: string;
+  title: string;
+  caseNumber: string;
+  party: string;
+  cause: string;
+  court: string;
+  judge: string;
+  stage: LegalCaseStage;
+  hearingDate: string;
+  judgmentDate: string;
+  appealDeadline: string;
+  enforcementDeadline: string;
+  notes: string;
+  materials: LegalCaseMaterial[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MeetingNoteLike {
+  id?: string;
+  text: string;
+  time: number;
+}
+
+export const LEGAL_CASES_STORAGE = 'lumi_legal_cases_v1';
+export const ACTIVE_LEGAL_CASE_STORAGE = 'lumi_legal_active_case_v1';
+export const LEGAL_CONSULTATION_CASE_STORAGE = 'lumi_legal_consultation_case_v1';
+export const LEGAL_CASES_CHANGED_EVENT = 'lumi:legal-cases-changed';
+
+function canUseStorage() {
+  return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+}
+
+function newId(prefix: string) {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+export function createEmptyLegalCase(): LegalCaseFile {
+  const now = new Date().toISOString();
+  return {
+    id: newId('case'),
+    title: '',
+    caseNumber: '',
+    party: '',
+    cause: '',
+    court: '',
+    judge: '',
+    stage: 'consultation',
+    hearingDate: '',
+    judgmentDate: '',
+    appealDeadline: '',
+    enforcementDeadline: '',
+    notes: '',
+    materials: [],
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function normalizeCaseFile(value: any): LegalCaseFile | null {
+  if (!value || typeof value !== 'object' || !value.id) return null;
+  return {
+    id: String(value.id),
+    title: String(value.title || ''),
+    caseNumber: String(value.caseNumber || ''),
+    party: String(value.party || ''),
+    cause: String(value.cause || ''),
+    court: String(value.court || ''),
+    judge: String(value.judge || ''),
+    stage: (['consultation', 'filing', 'trial', 'judgment', 'enforcement', 'closed'].includes(value.stage) ? value.stage : 'consultation') as LegalCaseStage,
+    hearingDate: String(value.hearingDate || ''),
+    judgmentDate: String(value.judgmentDate || ''),
+    appealDeadline: String(value.appealDeadline || ''),
+    enforcementDeadline: String(value.enforcementDeadline || ''),
+    notes: String(value.notes || ''),
+    materials: Array.isArray(value.materials) ? value.materials.map((item: any) => ({
+      id: String(item?.id || newId('mat')),
+      type: (['consultation', 'evidence', 'pleading', 'judgment', 'contract', 'note'].includes(item?.type) ? item.type : 'note') as LegalCaseMaterialType,
+      title: String(item?.title || 'Material'),
+      createdAt: String(item?.createdAt || new Date().toISOString()),
+      content: item?.content ? String(item.content) : undefined,
+      source: item?.source,
+    })) : [],
+    createdAt: String(value.createdAt || new Date().toISOString()),
+    updatedAt: String(value.updatedAt || value.createdAt || new Date().toISOString()),
+  };
+}
+
+export function readLegalCaseFiles(): LegalCaseFile[] {
+  if (!canUseStorage()) return [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(LEGAL_CASES_STORAGE) || '[]');
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(normalizeCaseFile).filter(Boolean) as LegalCaseFile[];
+  } catch {
+    return [];
+  }
+}
+
+export function getActiveLegalCaseId(): string {
+  if (!canUseStorage()) return '';
+  return localStorage.getItem(ACTIVE_LEGAL_CASE_STORAGE) || '';
+}
+
+export function getLegalConsultationCaseId(): string {
+  if (!canUseStorage()) return '';
+  return localStorage.getItem(LEGAL_CONSULTATION_CASE_STORAGE) || '';
+}
+
+export function setActiveLegalCaseId(caseId: string) {
+  if (!canUseStorage()) return;
+  if (caseId) localStorage.setItem(ACTIVE_LEGAL_CASE_STORAGE, caseId);
+  else localStorage.removeItem(ACTIVE_LEGAL_CASE_STORAGE);
+  emitLegalCasesChanged();
+}
+
+export function setLegalConsultationCaseId(caseId: string) {
+  if (!canUseStorage()) return;
+  if (caseId) localStorage.setItem(LEGAL_CONSULTATION_CASE_STORAGE, caseId);
+  else localStorage.removeItem(LEGAL_CONSULTATION_CASE_STORAGE);
+}
+
+export function clearLegalConsultationCaseId() {
+  if (!canUseStorage()) return;
+  localStorage.removeItem(LEGAL_CONSULTATION_CASE_STORAGE);
+}
+
+export function writeLegalCaseFiles(cases: LegalCaseFile[], activeCaseId?: string) {
+  if (!canUseStorage()) return;
+  localStorage.setItem(LEGAL_CASES_STORAGE, JSON.stringify(cases));
+  if (activeCaseId) localStorage.setItem(ACTIVE_LEGAL_CASE_STORAGE, activeCaseId);
+  emitLegalCasesChanged();
+}
+
+export function getLegalCaseById(caseId: string): LegalCaseFile | null {
+  if (!caseId) return null;
+  return readLegalCaseFiles().find(item => item.id === caseId) || null;
+}
+
+export function updateLegalCase(caseId: string, patch: Partial<LegalCaseFile>): LegalCaseFile | null {
+  const cases = readLegalCaseFiles();
+  let updated: LegalCaseFile | null = null;
+  const next = cases.map(item => {
+    if (item.id !== caseId) return item;
+    updated = { ...item, ...patch, updatedAt: new Date().toISOString() };
+    return updated;
+  });
+  if (!updated) return null;
+  writeLegalCaseFiles(next, caseId);
+  return updated;
+}
+
+export function addLegalCaseMaterial(
+  caseId: string,
+  material: Omit<LegalCaseMaterial, 'id' | 'createdAt'> & Partial<Pick<LegalCaseMaterial, 'id' | 'createdAt'>>,
+): LegalCaseMaterial | null {
+  const current = getLegalCaseById(caseId);
+  if (!current) return null;
+  const nextMaterial: LegalCaseMaterial = {
+    id: material.id || newId('mat'),
+    type: material.type,
+    title: material.title,
+    createdAt: material.createdAt || new Date().toISOString(),
+    content: material.content,
+    source: material.source || 'manual',
+  };
+  updateLegalCase(caseId, { materials: [nextMaterial, ...(current.materials || [])] });
+  return nextMaterial;
+}
+
+export function getLegalCaseLabel(caseFile: LegalCaseFile | null): string {
+  if (!caseFile) return '';
+  return caseFile.title || caseFile.party || caseFile.caseNumber || '未命名案件';
+}
+
+export function getActiveLegalCase(): LegalCaseFile | null {
+  const cases = readLegalCaseFiles();
+  const activeId = getActiveLegalCaseId();
+  return cases.find(item => item.id === activeId) || cases[0] || null;
+}
+
+export function getLegalConsultationCase(): LegalCaseFile | null {
+  const consultationId = getLegalConsultationCaseId();
+  return consultationId ? getLegalCaseById(consultationId) : null;
+}
+
+export function archiveLegalMeetingToConsultationCase({
+  report,
+  notes,
+  startedAt,
+  endedAt,
+}: {
+  report: string;
+  notes: MeetingNoteLike[];
+  startedAt: number | null;
+  endedAt: number;
+}): { caseFile: LegalCaseFile; material: LegalCaseMaterial } | null {
+  const caseId = getLegalConsultationCaseId();
+  const caseFile = caseId ? getLegalCaseById(caseId) : null;
+  if (!caseFile) return null;
+
+  const started = startedAt ? new Date(startedAt) : new Date(endedAt);
+  const ended = new Date(endedAt);
+  const transcript = notes
+    .map(note => {
+      const time = note.time ? new Date(note.time).toLocaleTimeString() : '';
+      const text = String(note.text || '').trim();
+      return text ? `- [${time}] ${text}` : '';
+    })
+    .filter(Boolean)
+    .join('\n');
+
+  const title = `当事人会谈 ${started.toLocaleString()}`;
+  const content = [
+    `# ${title}`,
+    '',
+    `案件：${getLegalCaseLabel(caseFile)}`,
+    `开始：${started.toLocaleString()}`,
+    `结束：${ended.toLocaleString()}`,
+    '',
+    '## Lumi 会谈整理',
+    '',
+    report || '暂无整理结果。',
+    '',
+    '## 原始转写',
+    '',
+    transcript || '暂无转写。',
+    '',
+    '## 安全边界',
+    '',
+    '本记录用于辅助律师分析，最终法律意见与对外文书由执业律师确认。',
+  ].join('\n');
+
+  const material = addLegalCaseMaterial(caseFile.id, {
+    type: 'consultation',
+    title,
+    content,
+    source: 'meeting',
+  });
+  if (!material) return null;
+
+  const updatedCase = getLegalCaseById(caseFile.id) || caseFile;
+  const nextNotes = [
+    updatedCase.notes,
+    '',
+    `【会谈归档 ${ended.toLocaleString()}】`,
+    report || transcript,
+  ].filter(Boolean).join('\n').trim();
+  updateLegalCase(caseFile.id, { notes: nextNotes, stage: updatedCase.stage === 'consultation' ? 'consultation' : updatedCase.stage });
+  clearLegalConsultationCaseId();
+
+  const finalCase = getLegalCaseById(caseFile.id) || updatedCase;
+  return { caseFile: finalCase, material };
+}
+
+export function emitLegalCasesChanged() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(LEGAL_CASES_CHANGED_EVENT, {
+    detail: {
+      cases: readLegalCaseFiles(),
+      activeCaseId: getActiveLegalCaseId(),
+      consultationCaseId: getLegalConsultationCaseId(),
+    },
+  }));
+}

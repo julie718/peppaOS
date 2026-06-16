@@ -115,6 +115,75 @@ export function isEchoText(transcript: string): boolean {
   return false;
 }
 
+function normalizeSpeechText(text: string): string {
+  return text
+    .replace(/\s+/g, '')
+    .replace(/[。！？.!?，,、；;：:“”"'‘’（）()\[\]【】~～]/g, '')
+    .toLowerCase();
+}
+
+function isExplicitInterruptCommand(text: string): boolean {
+  const normalized = normalizeSpeechText(text);
+  if (!normalized) return false;
+  return /^(停|停下|停止|打断|闭嘴|别说|不要说|先别说|别讲|不要讲|等下|等一下|暂停|好了|行了|够了|stop|wait|pause|interrupt|holdon|shutup)$/.test(normalized)
+    || /^(停一下|停一停|先停|先停一下|别说了|不要说了|先别说了|别讲了|不要讲了|打断一下|等我一下|暂停一下|可以了|不用说了|先这样)$/.test(normalized)
+    || /(停一下|先停|别说了|不要说了|打断一下|等我一下|暂停一下|不用说了|别讲了|stop|hold on|wait a second|pause)/i.test(text);
+}
+
+function isPureInterruptCommand(text: string): boolean {
+  const normalized = normalizeSpeechText(text);
+  return /^(停|停下|停止|打断|闭嘴|别说|不要说|先别说|别讲|不要讲|等下|等一下|暂停|好了|行了|够了|停一下|停一停|先停|先停一下|别说了|不要说了|先别说了|别讲了|不要讲了|打断一下|等我一下|暂停一下|可以了|不用说了|先这样|stop|wait|pause|interrupt|holdon|shutup)$/.test(normalized);
+}
+
+function cancelActiveVoiceTurn(session: AudioSession): void {
+  session.bgGeneration++;
+  session.isSpeaking = false;
+  session.isProcessing = false;
+  session.isOrchestrating = false;
+  session.inputQueue = [];
+  session.accumulatedText = '';
+  if (session.bargeinTimer) {
+    clearTimeout(session.bargeinTimer);
+    session.bargeinTimer = null;
+  }
+  if (session.ttsAbortController) {
+    session.ttsAbortController.abort();
+    session.ttsAbortController = null;
+  }
+  if (session.pipelineAbortController) {
+    session.pipelineAbortController.abort();
+    session.pipelineAbortController = null;
+  }
+  const pendingDecayCount = session.ttsDecayTimers.length;
+  for (const t of session.ttsDecayTimers) clearTimeout(t);
+  session.ttsDecayTimers = [];
+  if (pendingDecayCount > 0) {
+    ttsSpeakingCount = Math.max(0, ttsSpeakingCount - pendingDecayCount);
+  }
+}
+
+function normalizeVoiceHistoryRecord(m: any): NormalizedMessage[] {
+  if (m?.role === 'tool' || m?.mode === 'proactive') return [];
+  const role = m?.role === 'assistant' ? 'assistant' : m?.role === 'user' ? 'user' : '';
+  if (!role) return [];
+  const message = typeof m?.message === 'string' ? m.message.trim() : '';
+  const response = typeof m?.response === 'string' ? m.response.trim() : '';
+  const entries: NormalizedMessage[] = [];
+  if (message) entries.push({ role, content: message });
+  if (response && role === 'user') entries.push({ role: 'assistant', content: response });
+  return entries;
+}
+
+function buildVoiceReplyStyleOverlay(): string {
+  return [
+    '\n\n## Spoken Reply Style',
+    '- Never speak hidden reasoning, chain-of-thought, private deliberation, or phrases like “我得想想 / 我需要分析 / 好的，毛先生这是在…”.',
+    '- Say the final answer only.',
+    '- Default to one short sentence. For simple confirmations, use 2-6 Chinese characters.',
+    '- If the user interrupts or says you are verbose, stop immediately and do not explain.',
+  ].join('\n');
+}
+
 function getAmbientNoise(): number | null {
   if (Date.now() - ambientRmsLastUpdate > 15000) return null; // stale
   return ambientRms;
@@ -304,7 +373,7 @@ async function processVoiceInput(
     : baseVoiceOverlay + '\n\n## Interaction Mode\nThis turn is chat-only. Do not call tools, operate the desktop, assemble a team, or claim that you are taking actions. Answer naturally unless the user gives an explicit command.';
 
   const clientSelfPrompt = '\n\n' + formatClientSelfPrompt(session.userId);
-  const voiceSystemPrompt = fullPersonalityPrompt + interactionOverlay + opModeOverlay + clientSelfPrompt + topicContext;
+  const voiceSystemPrompt = fullPersonalityPrompt + interactionOverlay + opModeOverlay + buildVoiceReplyStyleOverlay() + clientSelfPrompt + topicContext;
 
   const DEFAULT_MODELS: Record<string, string> = {
     deepseek: 'deepseek-v4-pro', qwen: 'qwen-plus', openai: 'gpt-4o',
@@ -661,11 +730,7 @@ async function processVoiceInput(
       // Include both user & assistant messages with correct roles
       const conv = getOrCreateActiveConversation(session.userId, session.agentId);
       const recentMsgs = getMessagesByTokenBudget(conv.id);
-      const voiceHistory: NormalizedMessage[] = [];
-      for (const m of recentMsgs) {
-        if (m.message) voiceHistory.push({ role: 'user', content: m.message });
-        if (m.response) voiceHistory.push({ role: 'assistant', content: m.response });
-      }
+      const voiceHistory: NormalizedMessage[] = recentMsgs.flatMap(normalizeVoiceHistoryRecord);
 
       const messages: any[] = [
         { role: 'system', content: voiceSystemPrompt },
@@ -924,38 +989,35 @@ export function registerVoiceHandlers(
             }
 
             if (session.isProcessing || session.isSpeaking) {
+              const explicitInterrupt = isExplicitInterruptCommand(text);
               // Speaking (TTS playing): only long or explicit speech → barge-in
               // Short fragments (< 4 chars) are likely speaker echo, not user speech
               if (session.isSpeaking) {
-                if (isEchoText(text)) {
+                if (!explicitInterrupt && isEchoText(text)) {
                   logger.info(`[Audio] Echo cancelled during speech: "${text}"`);
                   return;
                 }
                 logger.info(`[Audio] Barge-in during speech: "${text}" — aborting`);
-                if (session.ttsAbortController) {
-                  session.ttsAbortController.abort();
-                  session.ttsAbortController = null;
-                }
-                if (session.pipelineAbortController) {
-                  session.pipelineAbortController.abort();
-                  session.pipelineAbortController = null;
-                }
-                session.isSpeaking = false;
-                session.isProcessing = false;
+                cancelActiveVoiceTurn(session);
                 socket.emit("audio:status", { status: "interrupted" });
                 socket.emit("audio:interrupt-ack", {});
+                if (isPureInterruptCommand(text)) {
+                  socket.emit("audio:status", { status: "listening" });
+                  resetSilenceTimer(session, socket);
+                  return;
+                }
               } else {
                 // Processing but not speaking (LLM thinking / tool exec):
                 // Any real speech → barge-in, abort current pipeline
                 logger.info(`[Audio] Barge-in during processing: "${text}" — aborting`);
-                if (session.pipelineAbortController) {
-                  session.pipelineAbortController.abort();
-                  session.pipelineAbortController = null;
-                }
-                session.isProcessing = false;
-                session.isSpeaking = false;
+                cancelActiveVoiceTurn(session);
                 socket.emit("audio:status", { status: "interrupted" });
                 socket.emit("audio:interrupt-ack", {});
+                if (isPureInterruptCommand(text)) {
+                  socket.emit("audio:status", { status: "listening" });
+                  resetSilenceTimer(session, socket);
+                  return;
+                }
                 // Fall through to processInput with new speech
               }
             }
@@ -1036,16 +1098,8 @@ export function registerVoiceHandlers(
   socket.on("audio:interrupt", () => {
     logger.info(`[Audio] Interrupt from ${socket.id}`);
     const session = getAudioSession(socket);
-    session.isSpeaking = false;
-    session.accumulatedText = '';
-    if (session.ttsAbortController) {
-      session.ttsAbortController.abort();
-      // DON'T null — the TTS flushSentence queue checks signal.aborted
-    }
-    if (session.pipelineAbortController) {
-      session.pipelineAbortController.abort();
-      // DON'T null — the LLM iteration loop checks signal.aborted
-    }
+    cancelActiveVoiceTurn(session);
+    socket.emit("audio:status", { status: "interrupted" });
     socket.emit("audio:interrupt-ack", {});
   });
 
@@ -1053,24 +1107,14 @@ export function registerVoiceHandlers(
     logger.info(`[Audio] Voice call ended by ${socket.id}`);
     const session = getAudioSession(socket);
     session.isActive = false;
-    session.isSpeaking = false;
-    session.isProcessing = false;
-    session.inputQueue = [];
-    session.accumulatedText = '';
     session.transcriptionOnly = false;
+    cancelActiveVoiceTurn(session);
     if (session.silenceTimer) { clearTimeout(session.silenceTimer); session.silenceTimer = null; }
-    if (session.ttsAbortController) {
-      session.ttsAbortController.abort();
-      session.ttsAbortController = null;
-    }
     if (session.sttSession) {
       session.sttSession.end();
       session.sttSession = null;
     }
     // Clear tracked timers to prevent post-session mutations
-    if (session.bargeinTimer) { clearTimeout(session.bargeinTimer); session.bargeinTimer = null; }
-    for (const t of session.ttsDecayTimers) { clearTimeout(t); }
-    session.ttsDecayTimers = [];
     socket.emit("audio:status", { status: "idle" });
   });
 

@@ -144,17 +144,22 @@ export async function runWithTools(
       };
     }
 
+    const normalizedToolCalls = response.toolCalls.map((tc, index) => ({
+      ...tc,
+      id: tc.id || `call_${iteration}_${index}_${Date.now().toString(36)}`,
+    }));
+
     // Check for duplicate tool calls (prevents infinite loops within maxIterations)
     const lastAssistantMsg = conversationHistory
       .filter(m => m.role === 'assistant')
       .slice(-1)[0];
     if (lastAssistantMsg?.toolCalls) {
       const sameTools = lastAssistantMsg.toolCalls.every((tc, i) =>
-        response.toolCalls![i] &&
-        tc.name === response.toolCalls![i].name &&
-        JSON.stringify(tc.arguments) === JSON.stringify(response.toolCalls![i].arguments)
+        normalizedToolCalls[i] &&
+        tc.name === normalizedToolCalls[i].name &&
+        JSON.stringify(tc.arguments) === JSON.stringify(normalizedToolCalls[i].arguments)
       );
-      if (sameTools && lastAssistantMsg.toolCalls.length === response.toolCalls.length) {
+      if (sameTools && lastAssistantMsg.toolCalls.length === normalizedToolCalls.length) {
         recordWorkflowIfToolsUsed(executionLog, messages, config.userId);
         return {
           text: response.text || 'The same tools were called repeatedly. Breaking the loop to prevent infinite execution.',
@@ -167,11 +172,11 @@ export async function runWithTools(
     conversationHistory.push({
       role: 'assistant',
       content: response.text,
-      toolCalls: response.toolCalls,
+      toolCalls: normalizedToolCalls,
       reasoningContent: response.reasoningContent,
     });
 
-    for (const tc of response.toolCalls) {
+    for (const tc of normalizedToolCalls) {
       let result: string;
       let error: string | undefined;
 

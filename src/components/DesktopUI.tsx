@@ -117,6 +117,13 @@ import { useMusicPlayerSnapshot, useMusicVisible } from '../hooks/useMusicPlayer
 import { useVoiceprint } from '../hooks/useVoiceprint';
 import { useFaceRecognition } from '../hooks/useFaceRecognition';
 import { usePresence } from '../hooks/usePresence';
+import {
+  archiveLegalMeetingToConsultationCase,
+  clearLegalConsultationCaseId,
+  getLegalCaseLabel,
+  getLegalConsultationCase,
+  getLegalConsultationCaseId,
+} from '@/lib/legalCaseStore';
 import { PresenceIndicator } from './biometrics/PresenceIndicator';
 import { UserSwitchPrompt } from './biometrics/UserSwitchPrompt';
 import { systemService } from '@/services/systemService';
@@ -1756,15 +1763,27 @@ export function DesktopUI({
   });
   const [meetingReport, setMeetingReport] = useState<string>(() => localStorage.getItem('lumi_meeting_report') || '');
   const [meetingReportGenerating, setMeetingReportGenerating] = useState(false);
+  const [legalMeetingCaseTitle, setLegalMeetingCaseTitle] = useState(() => getLegalCaseLabel(getLegalConsultationCase()));
   const meetingModeRef = useRef(operationMode === 'meeting');
   const meetingVoiceActiveRef = useRef(false);
   const lastMeetingTranscriptRef = useRef<{ text: string; at: number }>({ text: '', at: 0 });
+  const lastLegalMeetingArchiveRef = useRef('');
   useEffect(() => {
     meetingModeRef.current = operationMode === 'meeting';
   }, [operationMode]);
 
   const persistMeetingNotes = useCallback((notes: MeetingNote[]) => {
     localStorage.setItem('lumi_meeting_notes', JSON.stringify(notes.slice(-300)));
+  }, []);
+
+  const resetMeetingCapture = useCallback((startedAt = Date.now()) => {
+    setMeetingNotes([]);
+    setMeetingReport('');
+    setMeetingStartedAt(startedAt);
+    localStorage.setItem('lumi_meeting_notes', '[]');
+    localStorage.removeItem('lumi_meeting_report');
+    localStorage.setItem('lumi_meeting_started_at', String(startedAt));
+    lastMeetingTranscriptRef.current = { text: '', at: 0 };
   }, []);
 
   const appendMeetingTranscript = useCallback((text: string, isFinal: boolean) => {
@@ -2063,6 +2082,7 @@ export function DesktopUI({
       `# Lumi Meeting Notes`,
       '',
       `Started: ${started.toLocaleString()}`,
+      ...(legalMeetingCaseTitle ? [`Case: ${legalMeetingCaseTitle}`] : []),
       '',
       ...(meetingReport ? ['## Lumi Report', '', meetingReport, ''] : []),
       '## Transcript',
@@ -2071,14 +2091,45 @@ export function DesktopUI({
       '',
     ];
     return lines.join('\n');
-  }, [formatMeetingTime, meetingNotes, meetingReport, meetingStartedAt]);
+  }, [formatMeetingTime, legalMeetingCaseTitle, meetingNotes, meetingReport, meetingStartedAt]);
 
   const buildFallbackMeetingReport = useCallback(() => {
     const started = meetingStartedAt ? new Date(meetingStartedAt).toLocaleString() : new Date().toLocaleString();
+    const legalCase = getLegalConsultationCase();
     const actionHints = meetingNotes
-      .filter(note => /(todo|action|next|follow|owner|deadline|需要|安排|确认|推进|负责|下周|明天|今天|完成|决定|风险|问题)/i.test(note.text))
+      .filter(note => /(todo|action|next|follow|owner|deadline|需要|安排|确认|推进|负责|下周|明天|今天|完成|决定|风险|问题|证据|材料|开庭|上诉|法院|法官)/i.test(note.text))
       .slice(-8)
       .map(note => `- [${formatMeetingTime(note.time)}] ${note.text}`);
+    if (legalCase) {
+      return [
+        lang === 'zh' ? '# Lumi 律所会谈纪要' : '# Lumi Legal Consultation Memo',
+        '',
+        `${lang === 'zh' ? '案件' : 'Case'}: ${getLegalCaseLabel(legalCase)}`,
+        `${lang === 'zh' ? '开始时间' : 'Started'}: ${started}`,
+        `${lang === 'zh' ? '记录条数' : 'Transcript items'}: ${meetingNotes.length}`,
+        '',
+        `## ${lang === 'zh' ? '会谈纪要' : 'Consultation Summary'}`,
+        meetingNotes.length > 0
+          ? (lang === 'zh' ? `本次会谈共收录 ${meetingNotes.length} 条转写。LLM 分析暂不可用，以下为本地基础整理。` : `Captured ${meetingNotes.length} transcript items. LLM analysis was unavailable; this is a local structured memo.`)
+          : (lang === 'zh' ? '本次会谈没有收录到可整理的转写。' : 'No transcript was captured for this consultation.'),
+        '',
+        `## ${lang === 'zh' ? '事实摘要' : 'Fact Summary'}`,
+        ...(meetingNotes.slice(-6).map(note => `- ${note.text}`)),
+        ...(meetingNotes.length === 0 ? [`- ${lang === 'zh' ? '暂无事实摘要。' : 'No fact summary yet.'}`] : []),
+        '',
+        `## ${lang === 'zh' ? '争议焦点' : 'Issues'}`,
+        `- ${lang === 'zh' ? '请律师结合案由、证据和对方主张进一步确认。' : 'Counsel should confirm issues against claims, evidence, and procedural posture.'}`,
+        '',
+        `## ${lang === 'zh' ? '待补材料' : 'Missing Materials'}`,
+        ...(actionHints.length > 0 ? actionHints : [`- ${lang === 'zh' ? '暂未检测到明确待补材料。' : 'No clear missing materials detected.'}`]),
+        '',
+        `## ${lang === 'zh' ? '下一步建议' : 'Next Steps'}`,
+        `- ${lang === 'zh' ? '复核会谈转写，补充证据清单、责任人和期限。' : 'Review the transcript and add evidence list, owners, and deadlines.'}`,
+        '',
+        `## ${lang === 'zh' ? '安全边界' : 'Safety Boundary'}`,
+        `- ${lang === 'zh' ? '本纪要仅辅助律师分析，最终法律意见和对外文书由执业律师确认。' : 'This memo assists legal analysis only; final legal advice and filings require licensed counsel review.'}`,
+      ].join('\n');
+    }
     return [
       lang === 'zh' ? '# Lumi 会议报告' : '# Lumi Meeting Report',
       '',
@@ -2098,7 +2149,7 @@ export function DesktopUI({
     ].join('\n');
   }, [formatMeetingTime, lang, meetingNotes, meetingStartedAt]);
 
-  const analyzeMeetingNotes = useCallback(async () => {
+  const analyzeMeetingNotes = useCallback(async (endedAt = Date.now()) => {
     if (meetingNotes.length === 0) {
       const fallback = buildFallbackMeetingReport();
       setMeetingReport(fallback);
@@ -2109,6 +2160,7 @@ export function DesktopUI({
 
     setMeetingReportGenerating(true);
     try {
+      const legalCase = getLegalConsultationCase();
       const res = await fetch('/api/meeting/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2118,8 +2170,19 @@ export function DesktopUI({
           model: aiConfig?.model,
           notes: meetingNotes,
           startedAt: meetingStartedAt,
-          endedAt: Date.now(),
+          endedAt,
           language: lang,
+          purpose: legalCase ? 'legal_consultation' : 'meeting',
+          legalCase: legalCase ? {
+            title: legalCase.title,
+            caseNumber: legalCase.caseNumber,
+            party: legalCase.party,
+            cause: legalCase.cause,
+            court: legalCase.court,
+            judge: legalCase.judge,
+            stage: legalCase.stage,
+            notes: legalCase.notes,
+          } : undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -2140,11 +2203,81 @@ export function DesktopUI({
     }
   }, [aiConfig?.model, aiConfig?.provider, buildFallbackMeetingReport, lang, meetingNotes, meetingStartedAt]);
 
+  const archiveLegalMeetingReport = useCallback(async (report: string, endedAt: number) => {
+    const consultationCaseId = getLegalConsultationCaseId();
+    if (!consultationCaseId || meetingNotes.length === 0) return;
+    const lastNote = meetingNotes[meetingNotes.length - 1];
+    const archiveKey = `${consultationCaseId}:${meetingStartedAt || ''}:${lastNote?.id || meetingNotes.length}`;
+    if (lastLegalMeetingArchiveRef.current === archiveKey) return;
+
+    if (workDomain === 'work' && orgConnection?.connected) {
+      const started = meetingStartedAt ? new Date(meetingStartedAt) : new Date(endedAt);
+      const transcript = meetingNotes
+        .map(note => `- [${formatMeetingTime(note.time)}] ${note.text}`)
+        .join('\n');
+      const content = [
+        `# 当事人会谈 ${started.toLocaleString()}`,
+        '',
+        '## Lumi 会谈整理',
+        '',
+        report,
+        '',
+        '## 原始转写',
+        '',
+        transcript,
+        '',
+        '## 安全边界',
+        '',
+        '本记录用于辅助律师分析，最终法律意见与对外文书由执业律师确认。',
+      ].join('\n');
+      try {
+        const res = await fetch(`/api/org/legal/cases/${encodeURIComponent(consultationCaseId)}/materials`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            type: 'consultation',
+            title: `当事人会谈 ${started.toLocaleString()}`,
+            content,
+            source: 'meeting',
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Failed to archive consultation');
+        lastLegalMeetingArchiveRef.current = archiveKey;
+        clearLegalConsultationCaseId();
+        setLegalMeetingCaseTitle('');
+        window.dispatchEvent(new CustomEvent('lumi:org-legal-cases-changed'));
+        toast.success(lang === 'zh' ? '会谈已归档到组织案件' : 'Consultation archived to organization case');
+        return;
+      } catch (err: any) {
+        toast.error(err?.message || (lang === 'zh' ? '会谈归档到组织案件失败' : 'Failed to archive consultation to organization case'));
+        return;
+      }
+    }
+
+    const archived = archiveLegalMeetingToConsultationCase({
+      report,
+      notes: meetingNotes,
+      startedAt: meetingStartedAt,
+      endedAt,
+    });
+    if (!archived) {
+      toast.error(lang === 'zh' ? '会谈归档失败，请检查当前案件' : 'Failed to archive consultation to the case');
+      return;
+    }
+    lastLegalMeetingArchiveRef.current = archiveKey;
+    setLegalMeetingCaseTitle('');
+    toast.success(lang === 'zh' ? `会谈已归档到案件：${getLegalCaseLabel(archived.caseFile)}` : `Consultation archived to case: ${getLegalCaseLabel(archived.caseFile)}`);
+  }, [formatMeetingTime, lang, meetingNotes, meetingStartedAt, orgConnection?.connected, workDomain]);
+
   const endMeetingAndReport = useCallback(async () => {
+    const endedAt = Date.now();
     stopMeetingAudio();
     setMeetingNotesOpen(true);
-    await analyzeMeetingNotes();
-  }, [analyzeMeetingNotes, stopMeetingAudio]);
+    const report = await analyzeMeetingNotes(endedAt);
+    await archiveLegalMeetingReport(report, endedAt);
+  }, [analyzeMeetingNotes, archiveLegalMeetingReport, stopMeetingAudio]);
 
   const endVoiceCallFromUI = useCallback(() => {
     if (operationMode === 'meeting') {
@@ -2193,6 +2326,8 @@ export function DesktopUI({
     localStorage.setItem('lumi_meeting_notes', '[]');
     localStorage.removeItem('lumi_meeting_report');
     localStorage.setItem('lumi_meeting_started_at', String(now));
+    lastMeetingTranscriptRef.current = { text: '', at: 0 };
+    lastLegalMeetingArchiveRef.current = '';
     toast.success(lang === 'zh' ? '会议笔记已清空' : 'Meeting notes cleared');
   }, [lang]);
 
@@ -2906,6 +3041,9 @@ export function DesktopUI({
         }
         if (action === 'start_meeting_mode') {
           if (!confirmed) throw new Error('start_meeting_mode requires explicit user confirmation');
+          if (detail.resetNotes) resetMeetingCapture();
+          if (detail.legalCaseTitle) setLegalMeetingCaseTitle(String(detail.legalCaseTitle));
+          else if (!getLegalConsultationCaseId()) setLegalMeetingCaseTitle('');
           setClientMode('meeting');
           respond({ ok: true, action, mode: 'meeting' });
           return;
@@ -3011,6 +3149,7 @@ export function DesktopUI({
     endMeetingAndReport,
     loadNativeFiles,
     musicSnapshot.track,
+    resetMeetingCapture,
     setActiveTab,
     setOperationMode,
     showModeHintBriefly,
@@ -4206,6 +4345,11 @@ export function DesktopUI({
                       ? (lang === 'zh' ? '正在自动语音转文字并收录笔记' : 'Recording speech-to-text notes automatically')
                       : (lang === 'zh' ? '会议笔记已暂停' : 'Meeting notes paused')}
                   </p>
+                  {legalMeetingCaseTitle && (
+                    <p className="mt-1 text-[11px] leading-relaxed text-cyan-200/70">
+                      {lang === 'zh' ? `归档到案件：${legalMeetingCaseTitle}` : `Archiving to case: ${legalMeetingCaseTitle}`}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-1">
                   <button

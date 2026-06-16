@@ -124,7 +124,7 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
   router.post("/chat", optionalAuth, handleChat);
 
   router.post("/meeting/analyze", optionalAuth, asyncHandler(async (req, res) => {
-    const { provider = "gemini", model, notes, startedAt, endedAt, language = "zh" } = req.body || {};
+    const { provider = "gemini", model, notes, startedAt, endedAt, language = "zh", purpose = "meeting", legalCase } = req.body || {};
     const userId = req.user?.uid || 'anonymous';
     const noteItems = Array.isArray(notes) ? notes : [];
     const transcript = noteItems
@@ -148,23 +148,59 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
     const started = startedAt ? new Date(startedAt).toLocaleString() : 'unknown';
     const ended = endedAt ? new Date(endedAt).toLocaleString() : new Date().toLocaleString();
     const outputLanguage = language === 'zh' ? 'Chinese' : 'English';
-    const prompt = [
-      `You are Lumi acting as a meeting analyst. Output in ${outputLanguage}.`,
-      'Do not call tools. Analyze only the transcript below.',
-      'Create a practical meeting report with these sections:',
-      '1. Meeting summary',
-      '2. Key decisions',
-      '3. Action items with owner if mentioned, otherwise mark owner as unassigned',
-      '4. Risks / open questions',
-      '5. Follow-up suggestions',
-      '6. Raw transcript highlights',
-      '',
-      `Started: ${started}`,
-      `Ended: ${ended}`,
-      '',
-      'Transcript:',
-      transcript,
-    ].join('\n');
+    const isLegalConsultation = purpose === 'legal_consultation';
+    const caseContext = legalCase && typeof legalCase === 'object'
+      ? [
+          `Case title: ${legalCase.title || ''}`,
+          `Case number: ${legalCase.caseNumber || ''}`,
+          `Party: ${legalCase.party || ''}`,
+          `Cause: ${legalCase.cause || ''}`,
+          `Court: ${legalCase.court || ''}`,
+          `Judge: ${legalCase.judge || ''}`,
+          `Stage: ${legalCase.stage || ''}`,
+          `Existing notes: ${legalCase.notes || ''}`,
+        ].filter(line => !line.endsWith(': '))
+      : [];
+    const prompt = isLegalConsultation
+      ? [
+          `You are Lumi assisting a law firm with a client consultation memo. Output in ${outputLanguage}.`,
+          'Do not call tools. Analyze only the case context and transcript below.',
+          'Create a practical legal-work memo for lawyer review with these sections:',
+          '1. Consultation summary',
+          '2. Fact summary',
+          '3. Disputed issues / legal questions',
+          '4. Missing materials / evidence to request',
+          '5. Next steps with owners/deadlines if mentioned',
+          '6. Risks and open questions',
+          '7. Raw transcript highlights',
+          'Add a short safety boundary: this assists lawyers and does not replace licensed legal judgment.',
+          '',
+          `Started: ${started}`,
+          `Ended: ${ended}`,
+          '',
+          'Case context:',
+          ...(caseContext.length > 0 ? caseContext : ['No case context provided.']),
+          '',
+          'Transcript:',
+          transcript,
+        ].join('\n')
+      : [
+          `You are Lumi acting as a meeting analyst. Output in ${outputLanguage}.`,
+          'Do not call tools. Analyze only the transcript below.',
+          'Create a practical meeting report with these sections:',
+          '1. Meeting summary',
+          '2. Key decisions',
+          '3. Action items with owner if mentioned, otherwise mark owner as unassigned',
+          '4. Risks / open questions',
+          '5. Follow-up suggestions',
+          '6. Raw transcript highlights',
+          '',
+          `Started: ${started}`,
+          `Ended: ${ended}`,
+          '',
+          'Transcript:',
+          transcript,
+        ].join('\n');
 
     const result = await makeLLMCall(
       [{ role: 'user', content: prompt }],

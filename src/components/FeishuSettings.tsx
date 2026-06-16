@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MessagesSquare, Save, Key, ExternalLink, CheckCircle, AlertCircle } from 'lucide-react';
+import { MessagesSquare, Save, Key, ExternalLink, CheckCircle, AlertCircle, Copy } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { toast } from 'sonner';
@@ -14,6 +14,9 @@ export function FeishuSettings({ t }: { t?: any }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
+  const [bindingCode, setBindingCode] = useState('');
+  const [bindingExpiresAt, setBindingExpiresAt] = useState('');
+  const [bindingLoading, setBindingLoading] = useState(false);
 
   useEffect(() => {
     fetch('/api/feishu/config')
@@ -58,6 +61,38 @@ export function FeishuSettings({ t }: { t?: any }) {
     }
   };
 
+  const generateBindingCode = async () => {
+    setBindingLoading(true);
+    try {
+      const res = await fetch('/api/feishu/bindings/code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to generate binding code');
+      setBindingCode(data.code || '');
+      setBindingExpiresAt(data.expiresAt || '');
+      toast.success(ui('飞书绑定码已生成', 'Feishu binding code generated'));
+    } catch (err: any) {
+      toast.error(err?.message || ui('绑定码生成失败，请确认已切换到组织工作域', 'Failed to generate binding code. Switch to work domain first.'));
+    } finally {
+      setBindingLoading(false);
+    }
+  };
+
+  const copyBindingCommand = async () => {
+    if (!bindingCode) return;
+    const command = `绑定 Lumi ${bindingCode}`;
+    try {
+      await navigator.clipboard.writeText(command);
+      toast.success(ui('绑定命令已复制', 'Binding command copied'));
+    } catch {
+      toast.info(command);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -83,6 +118,39 @@ export function FeishuSettings({ t }: { t?: any }) {
           <CheckCircle size={16} className="text-green-500 ml-auto" />
         ) : (
           <AlertCircle size={16} className="text-white/45 ml-auto" />
+        )}
+      </div>
+
+      <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
+        <div className="flex items-center gap-2 text-xs font-bold text-white/60">
+          <MessagesSquare size={14} />
+          {ui('飞书远程身份绑定', 'Feishu Remote Identity Binding')}
+        </div>
+        <p className="text-xs leading-relaxed text-white/40">
+          {ui('生成一次性绑定码后，在飞书里发送“绑定 Lumi 绑定码”。绑定后，Lumi 才能通过飞书安全地查询组织知识库、查案件或归档案件文件。', 'Generate a one-time code, then send “绑定 Lumi CODE” in Feishu. After binding, Lumi can securely query org KB, search cases, and archive case files from Feishu.')}
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            onClick={generateBindingCode}
+            disabled={bindingLoading}
+            className="h-9 bg-white/10 hover:bg-white/15 border border-white/10 text-xs font-black uppercase tracking-widest"
+          >
+            {bindingLoading ? ui('生成中...', 'Generating...') : ui('生成绑定码', 'Generate Code')}
+          </Button>
+          {bindingCode && (
+            <button
+              onClick={copyBindingCommand}
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-3 text-xs font-bold text-cyan-200 hover:bg-cyan-400/15"
+            >
+              <Copy size={13} />
+              {`绑定 Lumi ${bindingCode}`}
+            </button>
+          )}
+        </div>
+        {bindingExpiresAt && (
+          <div className="text-[11px] text-white/32">
+            {ui('过期时间：', 'Expires: ')}{new Date(bindingExpiresAt).toLocaleString()}
+          </div>
         )}
       </div>
 

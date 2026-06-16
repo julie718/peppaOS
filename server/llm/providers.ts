@@ -25,6 +25,124 @@ interface ToolDeclaration {
   };
 }
 
+type OpenAICompatibleMessage = {
+  role: string;
+  content: MessageContent;
+  tool_calls?: any;
+  tool_call_id?: string;
+  name?: string;
+};
+
+function contentToText(content: MessageContent): string {
+  if (typeof content === 'string') return content;
+  if (!content) return '';
+  return content
+    .map(part => part.type === 'text' ? part.text : '[image]')
+    .join('\n')
+    .trim();
+}
+
+function hasMeaningfulContent(content: MessageContent): boolean {
+  if (typeof content === 'string') return content.trim().length > 0;
+  if (!content) return false;
+  return content.length > 0;
+}
+
+function toolResultAsUserMessage(m: NormalizedMessage): OpenAICompatibleMessage | null {
+  const text = contentToText(m.content).trim();
+  if (!text) return null;
+  const name = m.name ? ` ${m.name}` : '';
+  return {
+    role: 'user',
+    content: `[Tool result${name}]\n${text}`,
+  };
+}
+
+function buildOpenAICompatibleMessages(messages: NormalizedMessage[]): OpenAICompatibleMessage[] {
+  const raw: OpenAICompatibleMessage[] = [];
+
+  for (const m of messages) {
+    const roleMap: Record<string, string> = { assistant: 'assistant', tool: 'tool', system: 'system', user: 'user' };
+    const role = roleMap[m.role] || 'user';
+
+    if (role === 'tool') {
+      if (!m.toolCallId) {
+        const fallback = toolResultAsUserMessage(m);
+        if (fallback) raw.push(fallback);
+        continue;
+      }
+      raw.push({
+        role: 'tool',
+        content: m.content ?? '',
+        tool_call_id: m.toolCallId,
+        ...(m.name ? { name: m.name } : {}),
+      });
+      continue;
+    }
+
+    const validToolCalls = (m.toolCalls || [])
+      .filter(tc => tc?.id && tc?.name)
+      .map(tc => ({
+        id: tc.id,
+        type: 'function',
+        function: { name: tc.name, arguments: JSON.stringify(tc.arguments || {}) },
+      }));
+
+    if (!hasMeaningfulContent(m.content) && validToolCalls.length === 0) continue;
+
+    raw.push({
+      role,
+      content: m.content ?? '',
+      ...(validToolCalls.length > 0 ? { tool_calls: validToolCalls } : {}),
+    });
+  }
+
+  const sanitized: OpenAICompatibleMessage[] = [];
+  const expectedToolIds = new Set<string>();
+
+  for (let i = 0; i < raw.length; i++) {
+    const entry = raw[i];
+
+    if (entry.role === 'assistant' && Array.isArray(entry.tool_calls) && entry.tool_calls.length > 0) {
+      const ids = entry.tool_calls.map((tc: any) => tc.id).filter(Boolean);
+      const following = raw.slice(i + 1, i + 1 + ids.length);
+      const hasImmediateResults =
+        ids.length === entry.tool_calls.length &&
+        following.length === ids.length &&
+        following.every(next => next.role === 'tool' && next.tool_call_id && ids.includes(next.tool_call_id));
+
+      if (hasImmediateResults) {
+        sanitized.push(entry);
+        ids.forEach(id => expectedToolIds.add(id));
+      } else if (hasMeaningfulContent(entry.content)) {
+        const { tool_calls, ...plainAssistant } = entry;
+        sanitized.push(plainAssistant);
+      }
+      continue;
+    }
+
+    if (entry.role === 'tool') {
+      if (entry.tool_call_id && expectedToolIds.has(entry.tool_call_id)) {
+        sanitized.push(entry);
+        expectedToolIds.delete(entry.tool_call_id);
+      } else {
+        const fallback = toolResultAsUserMessage({
+          role: 'tool',
+          content: entry.content,
+          toolCallId: entry.tool_call_id,
+          name: entry.name,
+        });
+        if (fallback) sanitized.push(fallback);
+      }
+      continue;
+    }
+
+    sanitized.push(entry);
+  }
+
+  return sanitized;
+}
+
 // ── DeepSeek (OpenAI-compatible) ──
 
 export function formatDeepSeekRequest(params: {
@@ -41,22 +159,7 @@ export function formatDeepSeekRequest(params: {
   max_tokens?: number;
   user?: string;
 } {
-  const openaiMessages = params.messages.map(m => {
-    const roleMap: Record<string, string> = { assistant: 'assistant', tool: 'tool', system: 'system' };
-    const entry: any = { role: roleMap[m.role] || 'user' };
-    if (m.content !== null) entry.content = m.content;
-    if (m.reasoningContent) entry.reasoning_content = m.reasoningContent;
-    if (m.toolCalls) {
-      entry.tool_calls = m.toolCalls.map(tc => ({
-        id: tc.id,
-        type: 'function',
-        function: { name: tc.name, arguments: JSON.stringify(tc.arguments) },
-      }));
-    }
-    if (m.toolCallId) entry.tool_call_id = m.toolCallId;
-    if (m.name) entry.name = m.name;
-    return entry;
-  });
+  const openaiMessages = buildOpenAICompatibleMessages(params.messages);
 
   const hasTools = params.toolDeclarations.length > 0;
 
@@ -83,8 +186,9 @@ export function parseDeepSeekResponse(rawResponse: any): NormalizedLLMResponse {
   const message = rawResponse.choices?.[0]?.message;
   if (!message) return { text: null, toolCalls: null };
 
-  // Reasoning models (v4-pro, v4-flash, reasoner) put output in reasoning_content; content may be empty
-  const text = message.content || message.reasoning_content || null;
+  // Keep hidden reasoning hidden. `reasoning_content` is useful for diagnostics
+  // and follow-up model calls, but it must never become user-visible text/TTS.
+  const text = message.content || null;
   const reasoningContent = message.reasoning_content || null;
   const usage = extractUsage(rawResponse);
 
@@ -246,22 +350,7 @@ export function formatQwenRequest(params: {
   tool_choice?: string;
   max_tokens?: number;
 } {
-  const openaiMessages = params.messages.map(m => {
-    const roleMap: Record<string, string> = { assistant: 'assistant', tool: 'tool', system: 'system' };
-    const entry: any = { role: roleMap[m.role] || 'user' };
-    if (m.content !== null) entry.content = m.content;
-    if (m.reasoningContent) entry.reasoning_content = m.reasoningContent;
-    if (m.toolCalls) {
-      entry.tool_calls = m.toolCalls.map(tc => ({
-        id: tc.id,
-        type: 'function',
-        function: { name: tc.name, arguments: JSON.stringify(tc.arguments) },
-      }));
-    }
-    if (m.toolCallId) entry.tool_call_id = m.toolCallId;
-    if (m.name) entry.name = m.name;
-    return entry;
-  });
+  const openaiMessages = buildOpenAICompatibleMessages(params.messages);
 
   const hasTools = params.toolDeclarations.length > 0;
 
@@ -603,8 +692,6 @@ export async function makeLLMCallStreaming(
 
         if (delta.reasoning_content) {
           accumulatedReasoning.push(delta.reasoning_content);
-          // Reasoning model → stream thinking as visible output when content is empty
-          if (!delta.content) onChunk(delta.reasoning_content);
         }
 
         if (delta.tool_calls) {
@@ -625,7 +712,7 @@ export async function makeLLMCallStreaming(
 
     const usage = extractUsage({ usage: streamUsage });
 
-    const text = accumulatedText.length > 0 ? accumulatedText.join('') : (accumulatedReasoning.length > 0 ? accumulatedReasoning.join('') : null);
+    const text = accumulatedText.length > 0 ? accumulatedText.join('') : null;
     const reasoningContent = accumulatedReasoning.length > 0 ? accumulatedReasoning.join('') : null;
     if (toolCallAccumulators.size > 0) {
       const toolCalls: ParsedToolCall[] = [...toolCallAccumulators.values()].map(acc => {

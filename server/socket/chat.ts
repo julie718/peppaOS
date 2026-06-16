@@ -36,6 +36,49 @@ import { analyzeLikedMusicProfile, formatMusicProfileReport, isMusicProfileAnaly
 
 const JWT_SECRET = process.env.JWT_SECRET || 'lumiOS_default_jwt_secret_2026_local';
 
+function normalizeChatHistoryRecord(m: any): NormalizedMessage[] {
+  const role = m?.role === 'assistant' ? 'assistant' : m?.role === 'system' ? 'system' : m?.role === 'user' ? 'user' : '';
+  const source = typeof m?.source === 'string' ? m.source : '';
+  const uiOnlySources = new Set(['error', 'proactive', 'canvas_redirect', 'canvas_suggestion']);
+  if (
+    !role ||
+    m?.role === 'tool' ||
+    m?.type === 'tool' ||
+    m?.mode === 'proactive' ||
+    uiOnlySources.has(source) ||
+    m?.toolCalls ||
+    m?.tool_call_id
+  ) return [];
+
+  const entries: NormalizedMessage[] = [];
+  const message = typeof m?.message === 'string' ? m.message.trim() : '';
+  const content = typeof m?.content === 'string' ? m.content.trim() : '';
+  const response = typeof m?.response === 'string' ? m.response.trim() : '';
+  const primaryText = message || content;
+  const isUiErrorText = /^(Request failed|请求失败|出错了|Failed to route)/i.test(primaryText);
+
+  if (primaryText && !isUiErrorText) {
+    entries.push({ role, content: primaryText });
+  }
+  if (response && role === 'user') {
+    entries.push({ role: 'assistant', content: response });
+  }
+  return entries;
+}
+
+function buildNaturalReplyStyleOverlay(source?: string): string {
+  const voiceLine = source === 'voice'
+    ? '- In voice, default to one short sentence. If the user asks a simple question, answer in under 20 Chinese characters when possible.'
+    : '- Default to concise replies. Use detail only when the user asks for analysis, implementation, or a report.';
+  return [
+    '## Reply Style',
+    '- Never reveal hidden reasoning, chain-of-thought, private deliberation, or “I need to think/analyze” narration.',
+    '- Give the final answer directly. Do not describe how you are deciding unless the user explicitly asks for reasoning.',
+    '- If corrected for being verbose, reply with only the correction or confirmation.',
+    voiceLine,
+  ].join('\n');
+}
+
 export function registerChatHandler(
   socket: Socket,
   llmGetters: {
@@ -233,6 +276,7 @@ export function registerChatHandler(
           effectiveSystemPrompt += '\n\n' + modeOverlay;
         }
       }
+      effectiveSystemPrompt += '\n\n' + buildNaturalReplyStyleOverlay(eventSource);
 
       // Inject company knowledge base context when in work domain
       if (kbContext) {
@@ -679,18 +723,13 @@ export function registerChatHandler(
           const conv = getOrCreateActiveConversation(uid, conversationAgentId, resolvedDomain, resolvedOrgId);
           const msgs = getMessagesByTokenBudget(conv.id);
           persistedHistory = msgs
-            .filter((m: any) => m.message || m.response)
-            .flatMap((m: any) => {
-              const entries: NormalizedMessage[] = [];
-              if (m.message) entries.push({ role: m.role || 'user', content: m.message });
-              if (m.response) entries.push({ role: 'assistant', content: m.response });
-              return entries;
-            });
+            .filter((m: any) => m.message || m.content || m.response)
+            .flatMap(normalizeChatHistoryRecord);
         }
 
         const conversationHistory = persistedHistory.length > 0
           ? persistedHistory
-          : (history ? history.map((m: any) => ({ role: m.role, content: m.content })) : []);
+          : (history ? history.flatMap(normalizeChatHistoryRecord) : []);
 
         // Tell Lumi which model is currently active so it can self-identify correctly
         const selfAwareness = `\n\n[System note: You are currently running on ${activeProvider} provider, model: ${activeModel}. If asked, mention this exact model.]`;

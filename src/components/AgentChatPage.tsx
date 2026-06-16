@@ -36,6 +36,25 @@ function shouldUseCanvasForTask(text: string): boolean {
 const CHAT_HISTORY_LIMIT = 2000;
 const CHAT_SEARCH_LIMIT = 200;
 
+function getDisplayText(message: any): string {
+  if (typeof message?.text === 'string') return message.text;
+  if (message?.text == null) return '';
+  return String(message.text);
+}
+
+function buildChatHistoryPayload(messages: any[]) {
+  return messages.flatMap((m) => {
+    const text = getDisplayText(m).trim();
+    if (!text) return [];
+    if (m.type === 'tool') return [];
+    if (['error', 'proactive', 'canvas_redirect', 'canvas_suggestion'].includes(m.source)) return [];
+    if (/^(Request failed|请求失败|出错了|Failed to route)/i.test(text)) return [];
+    if (m.type === 'agent') return [{ role: 'assistant', content: text }];
+    if (m.type === 'user' || m.type === 'file_context') return [{ role: 'user', content: text }];
+    return [];
+  }).slice(-80);
+}
+
 export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage, onPrefillConsumed, onOpenCanvas }: { t: any; user: any; agent?: any; isOpen: boolean; onClose: () => void; prefillMessage?: string; onPrefillConsumed?: () => void; onOpenCanvas?: (task?: string) => void }) {
   const [messages, setMessages] = useState<any[]>([]);
   const [agentMetadata, setAgentMetadata] = useState<Partial<AgentResponse>>({});
@@ -625,7 +644,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     // Always try socket first
     socket.emit("agent:chat", {
       text,
-      history: messages.map(m => ({ role: m.type === 'agent' ? 'assistant' : 'user', content: m.text })),
+      history: buildChatHistoryPayload(messages),
       personalityId: 'lumi',
       category: agentCategory,
       agentId,
@@ -1046,13 +1065,14 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                 >
                   {/* Image / File previews — parse tool results and detect in mid-text agent replies */}
                   {(() => {
+                    const messageText = getDisplayText(msg);
                     let imageUrls: string[] = [];
                     try {
-                      const parsed = JSON.parse(msg.text || '');
+                      const parsed = JSON.parse(messageText || '');
                       if (parsed.images && Array.isArray(parsed.images)) imageUrls = parsed.images;
                       if (parsed.image_base64) imageUrls = [`data:image/png;base64,${parsed.image_base64}`];
                     } catch {}
-                    const fileMatch = msg.text?.match(/(?:Saved|created|generated|written).*?:\s*(.+?\.(?:pdf|pptx|docx|xlsx|txt|ts|js|py|json|png|jpg|gif))(?:\s|$)/i);
+                    const fileMatch = messageText.match(/(?:Saved|created|generated|written).*?:\s*(.+?\.(?:pdf|pptx|docx|xlsx|txt|ts|js|py|json|png|jpg|gif))(?:\s|$)/i);
                     const filePath = fileMatch?.[1];
                     if (imageUrls.length === 0 && !filePath) return null;
                     return (
@@ -1089,7 +1109,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                       ? 'bg-celestial-saturn/10 text-celestial-saturn border border-celestial-saturn/20 rounded-tl-none'
                       : 'bg-white/5 text-white/80 border border-white/10 rounded-tr-none'
                   }`}>
-                    <span className="whitespace-pre-wrap">{msg.text}</span>
+                    <span className="whitespace-pre-wrap">{getDisplayText(msg)}</span>
                     {msg.source === 'canvas_suggestion' && msg.canvasTask && onOpenCanvas && (
                       <button
                         onClick={() => onOpenCanvas(msg.canvasTask)}
@@ -1099,9 +1119,9 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                         {t.openInCanvas || 'Open in Canvas'}
                       </button>
                     )}
-                    {msg.text && (
+                    {getDisplayText(msg) && (
                       <button
-                        onClick={() => handleCopyMessage(msg.text, msg.id)}
+                        onClick={() => handleCopyMessage(getDisplayText(msg), msg.id)}
                         className={`absolute top-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-lg hover:bg-white/10 ${
                           msg.type === 'agent' ? 'right-2' : 'left-2'
                         }`}
