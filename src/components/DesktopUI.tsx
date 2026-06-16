@@ -94,7 +94,7 @@ import { MeshSyncSelector } from './MeshSyncSelector';
 import { useSocket } from '@/hooks/useSocket';
 import { useAmbientPoller } from '@/hooks/useAmbientPoller';
 import { useVoiceCall } from '@/hooks/useVoiceCall';
-import { useApp } from '@/contexts/AppContext';
+import { useApp, type OperationMode } from '@/contexts/AppContext';
 import { AutonomousFeed } from './AutonomousFeed';
 const NexusGlobe = lazy(() => import('./NexusGlobe/NexusGlobe').then(m => ({ default: m.NexusGlobe })));
 const InkWorldLazy = lazy(() => import('./InkWorld').then(m => ({ default: m.InkWorld })));
@@ -638,6 +638,12 @@ function NativeFilesWindow({
   onOpenItem,
 }: NativeFilesWindowProps) {
   const [query, setQuery] = useState('');
+  const [pathInput, setPathInput] = useState(currentPath);
+  const [sortBy, setSortBy] = useState<'name' | 'kind'>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  useEffect(() => {
+    setPathInput(currentPath);
+  }, [currentPath]);
   const parentPath = getParentNativePath(currentPath);
   const pathCrumbs = getNativePathCrumbs(currentPath);
   const quickLocations = [
@@ -646,10 +652,45 @@ function NativeFilesWindow({
     { id: 'documents', label: t.documentsFolder || 'Documents', path: homePath ? joinNativePath(homePath, 'Documents') : '', icon: <FileText size={15} /> },
     { id: 'downloads', label: t.downloadsFolder || 'Downloads', path: homePath ? joinNativePath(homePath, 'Downloads') : '', icon: <Folder size={15} /> },
   ].filter(location => location.id === 'home' || location.path);
-  const visibleFiles = files.filter(file => file.name.toLowerCase().includes(query.trim().toLowerCase()));
+  const queryText = query.trim().toLowerCase();
+  const visibleFiles = files
+    .filter(file => file.name.toLowerCase().includes(queryText))
+    .sort((a, b) => {
+      const direction = sortDirection === 'asc' ? 1 : -1;
+      if (sortBy === 'kind' && a.isDirectory !== b.isDirectory) {
+        return a.isDirectory ? -1 * direction : 1 * direction;
+      }
+      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+      return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }) * direction;
+    });
+  const folderCount = files.filter(file => file.isDirectory).length;
+  const fileCount = files.length - folderCount;
+  const handlePathSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const nextPath = pathInput.trim();
+    if (nextPath) onNavigate(nextPath);
+    else onHome();
+  };
+  const copyCurrentPath = async () => {
+    if (!currentPath) return;
+    try {
+      await navigator.clipboard.writeText(currentPath);
+      toast.success(t.pathCopied || 'Path copied');
+    } catch {
+      toast.error(t.copyFailed || 'Copy failed');
+    }
+  };
+  const toggleSort = (nextSort: 'name' | 'kind') => {
+    if (sortBy === nextSort) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+      return;
+    }
+    setSortBy(nextSort);
+    setSortDirection('asc');
+  };
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
+    <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <button
           onClick={() => parentPath && onNavigate(parentPath)}
@@ -693,6 +734,33 @@ function NativeFilesWindow({
         </button>
       </div>
 
+      <form onSubmit={handlePathSubmit} className="flex items-center gap-2 rounded-2xl border border-white/10 bg-black/25 px-3 py-2">
+        <Folder size={16} className="shrink-0 text-celestial-saturn" />
+        <input
+          value={pathInput}
+          onChange={event => setPathInput(event.target.value)}
+          placeholder={t.enterPath || 'Enter a folder path'}
+          disabled={isLoading}
+          className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-white/72 outline-none placeholder:text-white/25 disabled:opacity-40"
+        />
+        <button
+          type="button"
+          onClick={copyCurrentPath}
+          disabled={!currentPath || isLoading}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-white/42 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+          title={t.copyPath || 'Copy path'}
+        >
+          <Copy size={14} />
+        </button>
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="h-8 shrink-0 rounded-lg border border-celestial-saturn/25 bg-celestial-saturn/10 px-3 text-[10px] font-black uppercase tracking-[0.14em] text-celestial-saturn transition-colors hover:bg-celestial-saturn/18 disabled:cursor-not-allowed disabled:opacity-30"
+        >
+          {t.go || 'Go'}
+        </button>
+      </form>
+
       <div className="grid gap-2 sm:grid-cols-4">
         {quickLocations.map(location => (
           <button
@@ -730,17 +798,38 @@ function NativeFilesWindow({
             <span className="text-sm font-semibold text-white/72">Home</span>
           )}
         </div>
-        <span className="text-[11px] font-black uppercase tracking-[0.18em] text-white/28">{visibleFiles.length} items</span>
+        <span className="text-[11px] font-black uppercase tracking-[0.18em] text-white/28">
+          {visibleFiles.length}/{files.length} items
+        </span>
       </div>
 
-      <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-        <Search size={16} className="shrink-0 text-white/35" />
-        <input
-          value={query}
-          onChange={event => setQuery(event.target.value)}
-          placeholder={t.search || 'Search'}
-          className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-white outline-none placeholder:text-white/25"
-        />
+      <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 sm:flex-row sm:items-center">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <Search size={16} className="shrink-0 text-white/35" />
+          <input
+            value={query}
+            onChange={event => setQuery(event.target.value)}
+            placeholder={t.search || 'Search'}
+            className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-white outline-none placeholder:text-white/25"
+          />
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {(['name', 'kind'] as const).map(option => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => toggleSort(option)}
+              className={`h-8 rounded-lg border px-3 text-[10px] font-black uppercase tracking-[0.14em] transition-colors ${
+                sortBy === option
+                  ? 'border-celestial-saturn/30 bg-celestial-saturn/10 text-celestial-saturn'
+                  : 'border-white/10 bg-black/20 text-white/32 hover:bg-white/10 hover:text-white/60'
+              }`}
+            >
+              {option === 'name' ? (t.name || 'Name') : (t.kind || 'Kind')}
+              {sortBy === option ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : ''}
+            </button>
+          ))}
+        </div>
       </div>
 
       {error && (
@@ -760,6 +849,11 @@ function NativeFilesWindow({
           </div>
         ) : (
           <div className="h-full overflow-y-auto custom-scrollbar">
+            <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_88px_72px] gap-3 border-b border-white/[0.06] bg-black/70 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/28 backdrop-blur-xl">
+              <span>{t.name || 'Name'}</span>
+              <span className="justify-self-end">{t.kind || 'Kind'}</span>
+              <span className="justify-self-end">{t.action || 'Action'}</span>
+            </div>
             {visibleFiles.map(file => (
               <div
                 key={file.path}
@@ -793,6 +887,11 @@ function NativeFilesWindow({
             ))}
           </div>
         )}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-[11px] font-bold text-white/30">
+        <span>{folderCount} {t.folders || 'folders'} · {fileCount} {t.filesLower || 'files'}</span>
+        <span className="max-w-full truncate">{currentPath || homePath || (t.home || 'Home')}</span>
       </div>
     </div>
   );
@@ -1534,6 +1633,7 @@ export function DesktopUI({
   const [showMcpPanel, setShowMcpPanel] = useState(false);
   const [agentStatus, setAgentStatus] = useState<'idle' | 'thinking' | 'background' | 'executing' | 'waiting_confirmation' | 'done' | 'error'>('idle');
   const [workflowSteps, setWorkflowSteps] = useState<WorkflowStep[]>([]);
+  const [pendingOperationMode, setPendingOperationMode] = useState<OperationMode | null>(null);
   const seenWorkflowToolEvents = useRef<Set<string>>(new Set());
   const [meetingNotesOpen, setMeetingNotesOpen] = useState(false);
   const [meetingStartedAt, setMeetingStartedAt] = useState<number | null>(() => {
@@ -1954,6 +2054,22 @@ export function DesktopUI({
     localStorage.setItem('lumi_meeting_started_at', String(now));
     toast.success(lang === 'zh' ? '会议笔记已清空' : 'Meeting notes cleared');
   }, [lang]);
+
+  const requestOperationModeChange = useCallback((nextMode: OperationMode) => {
+    if (nextMode === operationMode) return;
+    if (nextMode === 'meeting' || nextMode === 'autonomous') {
+      setPendingOperationMode(nextMode);
+      return;
+    }
+    setOperationMode(nextMode);
+  }, [operationMode, setOperationMode]);
+
+  const confirmOperationModeChange = useCallback(() => {
+    if (!pendingOperationMode) return;
+    setOperationMode(pendingOperationMode);
+    if (pendingOperationMode === 'meeting') setMeetingNotesOpen(true);
+    setPendingOperationMode(null);
+  }, [pendingOperationMode, setOperationMode]);
 
   // Listen for org navigation events
   useEffect(() => {
@@ -2666,6 +2782,21 @@ export function DesktopUI({
           respond({ ok: true, action, target: 'settings', section: 'computer' });
           return;
         }
+        if (action === 'open_avatar_studio') {
+          openSurface('avatar-studio');
+          respond({ ok: true, action, target: 'avatar-studio' });
+          return;
+        }
+        if (action === 'open_sound_studio') {
+          openSurface('sound');
+          respond({ ok: true, action, target: 'sound' });
+          return;
+        }
+        if (action === 'open_memory_avatar') {
+          openSurface('memory-avatar');
+          respond({ ok: true, action, target: 'memory-avatar' });
+          return;
+        }
         if (action === 'open_skills' || action === 'open_tools' || action === 'open_team' || action === 'open_chat') {
           const mapped = action === 'open_skills'
             ? 'skills'
@@ -2776,6 +2907,12 @@ export function DesktopUI({
           domain: canvasRuntime.domain || workDomain,
           updatedAt: canvasRuntime.updatedAt,
         },
+        files: {
+          currentPath: nativePath,
+          itemCount: nativeFiles.length,
+          loading: nativeFilesLoading,
+          error: nativeFilesError || '',
+        },
         permissions: clientPermissions,
         tools: {
           agentStatus,
@@ -2819,7 +2956,10 @@ export function DesktopUI({
     minimizedWindows,
     musicSnapshot,
     musicVisible,
+    nativeFiles.length,
     nativeFilesError,
+    nativeFilesLoading,
+    nativePath,
     openWindows,
     operationMode,
     orgConnection?.connected,
@@ -2975,33 +3115,122 @@ export function DesktopUI({
     },
   ];
   const currentOperationMode = operationModeOptions.find(m => m.id === operationMode) || operationModeOptions[0];
+  const pendingOperationModeOption = pendingOperationMode
+    ? operationModeOptions.find(m => m.id === pendingOperationMode)
+    : null;
+  const operationModeControl: Record<OperationMode, {
+    level: string;
+    input: string;
+    tools: string;
+    execution: string;
+    tone: string;
+    dot: string;
+    selected: string;
+  }> = {
+    chat: {
+      level: t.modeLevelChat || 'Conversation',
+      input: t.modeInputTextVoice || 'Text / voice',
+      tools: t.modeToolsOff || 'Tools off',
+      execution: t.modeExecutionOff || 'Execution off',
+      tone: 'border-sky-400/20 bg-sky-400/10 text-sky-200',
+      dot: 'bg-sky-300',
+      selected: 'border-sky-400/30 bg-sky-400/20 text-sky-100 shadow-sky-500/10',
+    },
+    meeting: {
+      level: t.modeLevelMeeting || 'Capture',
+      input: t.modeInputStt || 'Speech-to-text',
+      tools: t.modeToolsOff || 'Tools off',
+      execution: t.modeExecutionNotes || 'Notes only',
+      tone: 'border-cyan-400/20 bg-cyan-400/10 text-cyan-200',
+      dot: 'bg-cyan-300',
+      selected: 'border-cyan-400/30 bg-cyan-400/20 text-cyan-100 shadow-cyan-500/10',
+    },
+    music: {
+      level: t.modeLevelMusic || 'Atmosphere',
+      input: t.modeInputMusic || 'Music intent',
+      tools: t.modeToolsMusic || 'Music tools',
+      execution: t.modeExecutionMood || 'Mood layer',
+      tone: 'border-rose-400/20 bg-rose-400/10 text-rose-200',
+      dot: 'bg-rose-300',
+      selected: 'border-rose-400/30 bg-rose-400/20 text-rose-100 shadow-rose-500/10',
+    },
+    assistant: {
+      level: t.modeLevelAssistant || 'Guided',
+      input: t.modeInputTask || 'Task request',
+      tools: t.modeToolsConfirm || 'Tools with intent',
+      execution: t.modeExecutionGuided || 'Guided work',
+      tone: 'border-violet-400/20 bg-violet-400/10 text-violet-200',
+      dot: 'bg-violet-300',
+      selected: 'border-violet-400/30 bg-violet-400/20 text-violet-100 shadow-violet-500/10',
+    },
+    autonomous: {
+      level: t.modeLevelAutonomous || 'Autonomous',
+      input: t.modeInputWorkflow || 'Workflow goal',
+      tools: t.modeToolsAuto || 'Tools + teams',
+      execution: t.modeExecutionVisible || 'Visible execution',
+      tone: 'border-amber-400/20 bg-amber-400/10 text-amber-200',
+      dot: 'bg-amber-300',
+      selected: 'border-amber-400/30 bg-amber-400/20 text-amber-100 shadow-amber-500/10',
+    },
+  };
+  const currentModeControl = operationModeControl[currentOperationMode.id];
+  const workflowHasExecution = workflowSteps.some(step =>
+    step.type === 'background' ||
+    step.type === 'confirmation' ||
+    step.type === 'tool_start' ||
+    step.type === 'tool_result' ||
+    step.type === 'error'
+  );
+  const workflowPanelVisible =
+    agentStatus === 'background' ||
+    agentStatus === 'executing' ||
+    agentStatus === 'waiting_confirmation' ||
+    agentStatus === 'error' ||
+    (operationMode === 'autonomous' && agentStatus !== 'idle') ||
+    workflowHasExecution;
   const renderOperationModeSelector = (compact = false) => (
     <div className={`flex flex-col items-center ${compact ? 'gap-1.5' : 'gap-2'}`}>
       <div className={`flex flex-wrap items-center justify-center ${compact ? 'gap-1.5' : 'gap-2'}`}>
         {operationModeOptions.map(m => (
           <button
             key={m.id}
-            onClick={() => setOperationMode(m.id)}
-            className={`flex items-center ${compact ? 'gap-1 px-2.5 py-1 text-[11px]' : 'gap-2 px-4 py-2 text-sm'} rounded-full font-bold uppercase tracking-wider transition-all ${
+            onClick={() => requestOperationModeChange(m.id)}
+            className={`flex items-center ${compact ? 'gap-1 px-2.5 py-1 text-[11px]' : 'min-w-[118px] gap-2 px-3 py-2 text-sm'} rounded-2xl border font-bold transition-all ${
               operationMode === m.id
-                ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 shadow-sm shadow-cyan-500/10'
-                : 'bg-white/5 text-white/45 border border-white/5 hover:bg-white/10 hover:text-white/60'
+                ? `${operationModeControl[m.id].selected} shadow-sm`
+                : 'border-white/10 bg-white/[0.035] text-white/45 hover:bg-white/[0.075] hover:text-white/70'
             }`}
             title={`${m.title}: ${m.description}`}
           >
-            {React.isValidElement(m.icon)
-              ? React.cloneElement(m.icon as React.ReactElement<any>, { size: compact ? 12 : 16 })
-              : m.icon}
-            {m.label}
+            <span className={`flex shrink-0 items-center justify-center rounded-lg ${compact ? 'h-5 w-5' : 'h-7 w-7'} ${operationMode === m.id ? 'bg-white/10' : 'bg-black/20'}`}>
+              {React.isValidElement(m.icon)
+                ? React.cloneElement(m.icon as React.ReactElement<any>, { size: compact ? 12 : 15 })
+                : m.icon}
+            </span>
+            <span className="min-w-0 text-left">
+              <span className={`block truncate ${compact ? 'text-[11px]' : 'text-xs'} font-black uppercase tracking-[0.12em]`}>{m.label}</span>
+              {!compact && <span className="mt-0.5 block truncate text-[10px] font-semibold text-white/32">{m.hint}</span>}
+            </span>
           </button>
         ))}
       </div>
-      <div className={`rounded-2xl border border-cyan-500/15 bg-black/35 backdrop-blur-xl text-center ${compact ? 'max-w-[260px] px-3 py-1.5' : 'max-w-[360px] px-4 py-2'}`}>
-        <div className="flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-cyan-400">
-          <Circle size={7} fill="currentColor" />
-          <span>{t.currentMode || 'Current mode'} · {currentOperationMode.title}</span>
+      <div className={`rounded-2xl border bg-black/35 backdrop-blur-xl ${currentModeControl.tone} ${compact ? 'max-w-[300px] px-3 py-2' : 'max-w-[460px] px-4 py-3'}`}>
+        <div className="flex flex-wrap items-center justify-center gap-2 text-center">
+          <span className="flex items-center gap-2 rounded-full border border-white/10 bg-black/25 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em]">
+            <Circle size={7} className={currentModeControl.dot} fill="currentColor" />
+            {currentModeControl.level}
+          </span>
+          <span className="text-[11px] font-black uppercase tracking-[0.18em] text-white/65">
+            {t.currentMode || 'Current mode'} · {currentOperationMode.title}
+          </span>
         </div>
-        <div className="mt-1 text-[10px] font-black uppercase tracking-[0.16em] text-white/32">{currentOperationMode.hint}</div>
+        {!compact && (
+          <div className="mt-2 grid grid-cols-3 gap-2 text-center text-[10px] font-bold text-white/42">
+            <span className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1">{currentModeControl.input}</span>
+            <span className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1">{currentModeControl.tools}</span>
+            <span className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1">{currentModeControl.execution}</span>
+          </div>
+        )}
         <p className={`${compact ? 'text-[11px]' : 'text-[12px]'} mt-1 leading-relaxed text-white/55`}>{currentOperationMode.description}</p>
       </div>
     </div>
@@ -3871,8 +4100,60 @@ export function DesktopUI({
       </AnimatePresence>
 
       {/* Workflow Status Panel — breathing lights + step log */}
+      <AnimatePresence>
+        {pendingOperationModeOption && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[99990] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm"
+            onClick={() => setPendingOperationMode(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.96 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-2xl border border-cyan-400/20 bg-zinc-950/95 p-5 shadow-2xl"
+            >
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300">
+                  {pendingOperationModeOption.icon}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-300">
+                    {t.confirmModeSwitch || 'Confirm mode switch'}
+                  </div>
+                  <h3 className="mt-1 text-lg font-black text-white">{pendingOperationModeOption.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-white/60">{pendingOperationModeOption.description}</p>
+                  <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs leading-relaxed text-white/45">
+                    {pendingOperationMode === 'meeting'
+                      ? (t.modeMeetingConfirmNote || 'Meeting mode starts microphone speech-to-text, records notes, and can generate a report when you end it.')
+                      : (t.modeAutoConfirmNote || 'Auto Execute can use tools, canvas, teams, commands, and desktop control with visible progress and confirmations for sensitive actions.')}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-5 flex items-center justify-end gap-2">
+                <button
+                  onClick={() => setPendingOperationMode(null)}
+                  className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-xs font-black uppercase tracking-widest text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+                >
+                  {t.cancel || 'Cancel'}
+                </button>
+                <button
+                  onClick={confirmOperationModeChange}
+                  className="rounded-lg border border-cyan-400/25 bg-cyan-400/15 px-4 py-2 text-xs font-black uppercase tracking-widest text-cyan-200 transition-colors hover:bg-cyan-400/25"
+                >
+                  {t.enterMode || 'Enter mode'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <WorkflowPanel
-        visible={agentStatus !== 'idle' || workflowSteps.length > 0}
+        visible={workflowPanelVisible}
         agentStatus={agentStatus}
         steps={workflowSteps}
         t={t}
@@ -4008,7 +4289,7 @@ export function DesktopUI({
                       }}
                     />
                   ) : windowId === 'sound' ? (
-                    <SoundPanel t={t} />
+                    <SoundPanel t={t} onOpenAvatarStudio={() => toggleWindow('avatar-studio')} />
                   ) : windowId === 'terminal' ? (
                     <TerminalWindow t={t} onClose={() => closeWindow('terminal')} isActive={focusedWindow === 'terminal'} />
                   ) : windowId === 'chat' ? (
@@ -4121,7 +4402,8 @@ export function DesktopUI({
   );
 }
 
-function SoundPanel({ t }: { t?: any }) {
+function SoundPanel({ t, onOpenAvatarStudio }: { t?: any; onOpenAvatarStudio?: () => void }) {
+  const { selectedVoiceId } = useApp();
   const [designPrompt, setDesignPrompt] = useState('');
   const [designName, setDesignName] = useState('');
   const [designing, setDesigning] = useState(false);
@@ -4183,6 +4465,37 @@ function SoundPanel({ t }: { t?: any }) {
     }
   };
 
+  const voiceIdentitySteps = [
+    {
+      id: 'design',
+      label: t?.voiceFlowDesign || 'Design',
+      desc: t?.voiceFlowDesignDesc || 'Generate a voice from description',
+      active: designing,
+      done: voices.cloned.length + voices.premade.length > 0,
+    },
+    {
+      id: 'clone',
+      label: t?.voiceFlowClone || 'Clone',
+      desc: t?.voiceFlowCloneDesc || 'Record or upload real samples',
+      active: false,
+      done: voices.cloned.length > 0,
+    },
+    {
+      id: 'select',
+      label: t?.voiceFlowSelect || 'Enable',
+      desc: t?.voiceFlowSelectDesc || 'Choose Lumi voice',
+      active: false,
+      done: Boolean(selectedVoiceId),
+    },
+    {
+      id: 'avatar',
+      label: t?.voiceFlowAvatar || 'Avatar',
+      desc: t?.voiceFlowAvatarDesc || 'Match voice with appearance',
+      active: false,
+      done: false,
+    },
+  ];
+
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 h-full flex flex-col">
       <div className="flex items-center gap-3 shrink-0">
@@ -4196,6 +4509,35 @@ function SoundPanel({ t }: { t?: any }) {
         <div className="ml-auto">
           <VoicePicker t={t} direction="down" refreshTrigger={voiceRefresh} />
         </div>
+      </div>
+
+      <div className="grid shrink-0 grid-cols-4 gap-2 rounded-2xl border border-white/5 bg-white/[0.02] p-2">
+        {voiceIdentitySteps.map((step, index) => (
+          <button
+            key={step.id}
+            onClick={step.id === 'avatar' ? onOpenAvatarStudio : undefined}
+            disabled={step.id !== 'avatar'}
+            className={`group min-w-0 rounded-xl border px-3 py-2 text-left transition-colors ${
+              step.done
+                ? 'border-emerald-400/20 bg-emerald-400/10'
+                : step.active
+                  ? 'border-sky-400/30 bg-sky-400/10'
+                  : step.id === 'avatar'
+                    ? 'border-cyan-400/20 bg-cyan-400/10 hover:bg-cyan-400/20'
+                    : 'border-white/5 bg-black/20'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-black ${
+                step.done ? 'bg-emerald-300 text-black' : step.active ? 'bg-sky-300 text-black' : 'bg-white/10 text-white/45'
+              }`}>
+                {step.done ? '✓' : index + 1}
+              </span>
+              <span className="truncate text-[11px] font-black uppercase tracking-[0.12em] text-white/72">{step.label}</span>
+            </div>
+            <p className="mt-1 truncate text-[10px] font-semibold text-white/35">{step.desc}</p>
+          </button>
+        ))}
       </div>
 
       <div className="flex-1 grid grid-cols-2 gap-4 overflow-hidden">

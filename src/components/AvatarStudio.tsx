@@ -277,6 +277,27 @@ export function AvatarStudio({
         </div>
       </div>
 
+      <div className="grid grid-cols-4 gap-2 border-b border-white/5 bg-black/20 px-6 py-3">
+        {[
+          ['Voice', 'Choose Lumi voice'],
+          ['Avatar', 'Select body'],
+          ['Style', 'Tune colors'],
+          ['Desktop', 'Save companion'],
+        ].map(([label, desc], index) => (
+          <div key={label} className="min-w-0 rounded-xl border border-white/5 bg-white/[0.025] px-3 py-2">
+            <div className="flex items-center gap-2">
+              <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-black ${
+                index === 1 ? 'bg-cyan-300 text-black' : 'bg-white/10 text-white/45'
+              }`}>
+                {index + 1}
+              </span>
+              <span className="truncate text-[11px] font-black uppercase tracking-[0.12em] text-white/72">{label}</span>
+            </div>
+            <p className="mt-1 truncate text-[10px] font-semibold text-white/35">{desc}</p>
+          </div>
+        ))}
+      </div>
+
       <div className="flex-1 flex min-h-0">
         {/* Left: Gallery / Generate / Wardrobe / Colors Panel */}
         <div className="w-72 flex-shrink-0 border-r border-white/5 overflow-y-auto custom-scrollbar p-4">

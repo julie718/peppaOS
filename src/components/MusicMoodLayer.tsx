@@ -256,10 +256,10 @@ export function MusicMoodLayer() {
         ctx.fillText(cl.text, cx, lyricY);
       } else {
         const markY = cy + inkRadius * 0.8 + 30;
-        ctx.font = `${Math.min(w * 0.06, 40)}px serif`;
-        ctx.fillStyle = 'rgba(42,36,24,0.06)';
+        ctx.font = `${Math.min(w * 0.045, 34)}px serif`;
+        ctx.fillStyle = track ? 'rgba(42,36,24,0.06)' : 'rgba(42,36,24,0.10)';
         ctx.textAlign = 'center';
-        ctx.fillText('♪', cx, markY);
+        ctx.fillText(track ? 'music' : 'standby', cx, markY);
       }
 
       // ── 5. Progress brush line ──
@@ -301,7 +301,7 @@ export function MusicMoodLayer() {
 
     frameRef.current = requestAnimationFrame(render);
     return () => { running = false; cancelAnimationFrame(frameRef.current); };
-  }, [visible, palette, isPlaying, intensity, parsedLyrics, currentLyricIdx, progress, duration, activeScene]);
+  }, [visible, palette, isPlaying, intensity, parsedLyrics, currentLyricIdx, progress, duration, activeScene, track]);
 
   useEffect(() => { if (!visible) particlesRef.current = []; }, [visible]);
 
@@ -318,22 +318,19 @@ export function MusicMoodLayer() {
     >
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
 
-      {/* Track info — bottom right, whisper */}
-      {track && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6, duration: 1 }}
-          className="absolute bottom-14 right-8 text-right"
-        >
-          <p className="text-[11px] tracking-wide font-serif" style={{ color: 'rgba(42,36,24,0.42)' }}>
-            {track.name}
-          </p>
-          <p className="text-[9px] mt-0.5 font-serif" style={{ color: 'rgba(42,36,24,0.22)' }}>
-            {track.artists?.join(' · ') || ''}
-          </p>
-        </motion.div>
-      )}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.6, duration: 1 }}
+        className="absolute bottom-14 right-8 text-right"
+      >
+        <p className="text-[11px] tracking-wide font-serif" style={{ color: 'rgba(42,36,24,0.42)' }}>
+          {track?.name || 'Mood layer standby'}
+        </p>
+        <p className="mt-0.5 max-w-[260px] text-[9px] font-serif" style={{ color: 'rgba(42,36,24,0.22)' }}>
+          {track?.artists?.join(' / ') || 'Open music mode or ask Lumi to play when you are ready.'}
+        </p>
+      </motion.div>
     </motion.div>
   );
 }

@@ -83,6 +83,12 @@ export interface ClientStateSnapshot {
     domain?: string;
     updatedAt?: number;
   };
+  files?: {
+    currentPath?: string;
+    itemCount?: number;
+    loading?: boolean;
+    error?: string;
+  };
   permissions?: Record<string, string | boolean | number | null | undefined>;
   tools?: {
     agentStatus?: string;
@@ -203,7 +209,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     kind: 'window',
     actions: ['open_files'],
     notes: 'Native file browser surface inside the desktop client.',
-    stateKeys: ['windows', 'permissions.nativeFiles'],
+    stateKeys: ['windows', 'files', 'permissions.nativeFiles'],
   },
   {
     id: 'window.device_sync',
@@ -217,7 +223,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     id: 'window.avatar_sound',
     label: 'Avatar, voice, and sound surfaces',
     kind: 'window',
-    actions: ['open_app:avatar-studio', 'open_app:sound', 'open_app:memory-avatar'],
+    actions: ['open_avatar_studio', 'open_sound_studio', 'open_memory_avatar', 'open_app:avatar-studio', 'open_app:sound', 'open_app:memory-avatar'],
     notes: 'Avatar design, voice/sound configuration, and memory avatar lab surfaces.',
     stateKeys: ['windows'],
   },
@@ -395,6 +401,7 @@ export function formatClientSelfPrompt(userId: string): string {
     `- Music: ${state.music?.isPlaying ? 'playing' : 'idle'}${state.music?.trackName ? `, track="${state.music.trackName}"` : ''}${state.music?.volume != null ? `, volume=${state.music.volume}` : ''}, layer=${Boolean(state.music?.layerVisible ?? state.surfaces?.musicLayerVisible)}`,
     `- Meeting: active=${Boolean(state.meeting?.active)}, notes=${state.meeting?.noteCount || 0}, report=${Boolean(state.meeting?.hasReport)}, reportGenerating=${Boolean(state.meeting?.reportGenerating)}`,
     `- Canvas: open=${Boolean(state.canvas?.open)}, session=${state.canvas?.sessionId || 'none'}, cards=${state.canvas?.cardCount || 0}, running=${state.canvas?.runningCount || 0}, errors=${state.canvas?.errorCount || 0}, save=${state.canvas?.saveState || 'unknown'}`,
+    `- Files: path=${state.files?.currentPath || 'unknown'}, items=${state.files?.itemCount ?? 0}, loading=${Boolean(state.files?.loading)}${state.files?.error ? `, error=${state.files.error}` : ''}`,
     `- Permissions: ${formatStateObject(state.permissions)}`,
     `- Tools: agent=${state.tools?.agentStatus || 'idle'}, workflowSteps=${state.tools?.workflowStepCount || 0}, runningSteps=${state.tools?.runningWorkflowSteps || 0}`,
     `- Native runtime: autostart=${Boolean(state.runtime?.autostartEnabled)}, closeToBackground=${Boolean(state.runtime?.closeToBackground)}, backend=${state.runtime?.backendNodeRunning ? 'running' : 'dev/not-spawned'}, shortcut=${state.runtime?.globalShortcut || 'Alt+Space'}${state.runtime?.lastError ? `, error=${state.runtime.lastError}` : ''}`,
@@ -408,7 +415,7 @@ export function formatClientSelfPrompt(userId: string): string {
     '## Lumi Client Self Model',
     'You are Lumi running inside the LumiOS desktop client. Treat the client as your body: know its surfaces, current state, and safe action routes.',
     'Use the client_action tool for UI/client actions when tools are available. Do not pretend a window changed if you did not call the action or ask the user.',
-    'Prefer explicit client actions such as open_music_center, start_meeting_mode, open_canvas_task, show_knowledge_base, open_settings, and set_wallpaper_mode instead of mouse/keyboard control for Lumi UI.',
+    'Prefer explicit client actions such as open_music_center, start_meeting_mode, open_canvas_task, show_knowledge_base, open_avatar_studio, open_sound_studio, open_settings, and set_wallpaper_mode instead of mouse/keyboard control for Lumi UI.',
     'Ask for explicit user confirmation before changing wallpaper mode, starting autonomous execution, starting/stopping meeting capture, or requesting sensor/permission changes.',
     'For 24-hour availability: Lumi can stay ready only while the desktop client/server is running. Use launch-at-login and close-to-background for resident desktop behavior; autonomous background work still requires auto processing plus time, idle, token, and confirmed-workflow gates.',
     'Do not create autonomous background work from ambient context alone. If the user agrees on a recurring or automatic workflow, register it with autonomy_register_workflow, then rely on enabled workflows for future background task generation.',

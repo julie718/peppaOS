@@ -269,6 +269,32 @@ export function CanvasWorkbench({ isOpen, onClose, t, user, domain = 'personal',
     toast.success('Revision added to canvas path');
   }, [submitTask]);
 
+  const handleEdgeBranch = useCallback((edge: CanvasEdge, instruction: string) => {
+    const source = cardsRef.current.find(card => card.id === edge.sourceId);
+    const target = cardsRef.current.find(card => card.id === edge.targetId);
+    const branchInstruction = instruction.trim() || 'Try a useful alternative branch from this step.';
+    const prompt = [
+      'Create a new branch from the selected canvas path.',
+      `Source step:\n${source?.text || edge.sourceId}`,
+      `Branch point:\n${target?.text || edge.targetId}`,
+      `Branch instruction:\n${branchInstruction}`,
+      'Keep the existing canvas route intact. Add the alternative path as a new branch and explain what changed.',
+    ].join('\n\n');
+
+    submitTask(prompt, {
+      parentCardId: edge.targetId,
+      edgeLabel: 'branch',
+    });
+    setSelectedEdgeId(null);
+    toast.success('Branch added to canvas path');
+  }, [submitTask]);
+
+  const handleEdgeRerun = useCallback((edge: CanvasEdge) => {
+    retryFromCard(edge.targetId);
+    setSelectedEdgeId(null);
+    toast.success('Rerunning selected canvas step');
+  }, [retryFromCard]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !showSessionPanel) onClose();
@@ -331,6 +357,8 @@ export function CanvasWorkbench({ isOpen, onClose, t, user, domain = 'personal',
             selectedEdgeId={selectedEdgeId}
             onEdgeSelect={handleEdgeSelect}
             onEdgeModify={handleEdgeModify}
+            onEdgeBranch={handleEdgeBranch}
+            onEdgeRerun={handleEdgeRerun}
           />
 
           <CanvasSessionPanel

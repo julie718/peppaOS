@@ -12,6 +12,51 @@ interface PendingConfirm {
   arguments: Record<string, any>;
 }
 
+type ToolRisk = 'low' | 'medium' | 'high';
+
+function getSensitiveClientAction(args: Record<string, any> = {}): string {
+  const action = String(args.action || '').trim();
+  const mode = String(args.mode || '').trim();
+  if (!action) return '';
+  if (action === 'start_meeting_mode' || action === 'end_meeting_mode' || action === 'set_wallpaper_mode') return action;
+  if ((action === 'set_mode' || action === 'set_client_mode') && (mode === 'meeting' || mode === 'autonomous')) return `${action}:${mode}`;
+  return '';
+}
+
+function getToolRisk(name: string, args: Record<string, any> = {}): ToolRisk {
+  const normalized = name.toLowerCase();
+  const argText = JSON.stringify(args || {}).toLowerCase();
+  if (normalized === 'client_action' && getSensitiveClientAction(args)) return 'high';
+  if (normalized.includes('delete') || normalized.includes('remove') || normalized.includes('rm') || normalized.includes('uninstall')) return 'high';
+  if (/\b(rm\s+-rf|format\b|shutdown\b|reboot\b|reg\s+delete|drop\s+table|delete\s+from)\b/i.test(argText)) return 'high';
+  if (normalized === 'computer_use' || normalized.includes('run_command') || normalized.includes('terminal') || normalized.includes('shell')) return 'high';
+  if (normalized.includes('wechat') || normalized.includes('message') || normalized.includes('desktop_') || normalized.includes('mouse') || normalized.includes('keyboard')) return 'medium';
+  if (normalized.includes('write') || normalized.includes('save') || normalized.includes('publish') || normalized.includes('install')) return 'medium';
+  return 'low';
+}
+
+function getRiskCopy(risk: ToolRisk, t: any) {
+  if (risk === 'high') {
+    return {
+      label: t.highRiskAction || 'High-risk action',
+      note: t.highRiskActionNote || 'Auto-approve and Always Allow are disabled for this request.',
+      className: 'border-red-500/30 bg-red-500/10 text-red-300',
+    };
+  }
+  if (risk === 'medium') {
+    return {
+      label: t.confirmAction || 'Confirm action',
+      note: t.confirmActionNote || 'This may change app state, files, clipboard, or the desktop.',
+      className: 'border-yellow-500/30 bg-yellow-500/10 text-yellow-300',
+    };
+  }
+  return {
+    label: t.lowRiskAction || 'Permission required',
+    note: t.lowRiskActionNote || 'Review the request before allowing Lumi to continue.',
+    className: 'border-white/10 bg-white/5 text-white/55',
+  };
+}
+
 /**
  * Tool confirmation dialog with session-level auto-approve and global allow-all toggle.
  * When allowAll is enabled, all confirm tools auto-pass without showing the dialog.
@@ -48,12 +93,14 @@ export function ToolConfirmDialog({ socket, isWallpaperMode = false }: { socket:
 
     const handleConfirm = (data: { correlationId: string; name: string; arguments: Record<string, any> }) => {
       // 1. Global allow-all — auto pass
-      if (allowAll) {
+      const risk = getToolRisk(data.name, data.arguments || {});
+      const canAutoApprove = risk !== 'high';
+      if (allowAll && canAutoApprove) {
         socket.emit(`tool:confirm_result:${data.correlationId}`, { correlationId: data.correlationId, allowed: true });
         return;
       }
       // 2. Session-level auto-approve for this tool
-      if (autoApproved.has(data.name)) {
+      if (autoApproved.has(data.name) && canAutoApprove) {
         socket.emit(`tool:confirm_result:${data.correlationId}`, { correlationId: data.correlationId, allowed: true });
         return;
       }
@@ -71,10 +118,14 @@ export function ToolConfirmDialog({ socket, isWallpaperMode = false }: { socket:
   }, [socket]);
 
   const allowAlways = useCallback((correlationId: string, toolName: string) => {
-    setAutoApproved(prev => new Set(prev).add(toolName));
+    const request = pending.find(p => p.correlationId === correlationId);
+    const risk = getToolRisk(toolName, request?.arguments || {});
+    if (risk !== 'high') {
+      setAutoApproved(prev => new Set(prev).add(toolName));
+    }
     socket?.emit(`tool:confirm_result:${correlationId}`, { correlationId, allowed: true });
     setPending(prev => prev.filter(p => p.correlationId !== correlationId));
-  }, [socket]);
+  }, [pending, socket]);
 
   // Sync allowAll from other tabs (storage event)
   useEffect(() => {
@@ -88,6 +139,9 @@ export function ToolConfirmDialog({ socket, isWallpaperMode = false }: { socket:
   }, []);
 
   const current = pending[0];
+  const currentRisk = current ? getToolRisk(current.name, current.arguments || {}) : 'low';
+  const riskCopy = getRiskCopy(currentRisk, t);
+  const canAlwaysAllow = currentRisk !== 'high';
 
   const dialog = (
     <AnimatePresence>
@@ -120,6 +174,7 @@ export function ToolConfirmDialog({ socket, isWallpaperMode = false }: { socket:
               {/* Global allow-all toggle */}
               <button
                 onClick={toggleAllowAll}
+                title={currentRisk === 'high' ? (t.highRiskAutoApproveDisabled || 'Auto-approve does not apply to high-risk actions') : undefined}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${allowAll ? 'bg-emerald-500' : 'bg-white/10'}`}
               >
                 <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${allowAll ? 'translate-x-6' : 'translate-x-1'}`} />
@@ -129,6 +184,11 @@ export function ToolConfirmDialog({ socket, isWallpaperMode = false }: { socket:
             <p className="text-[12px] text-white/40 mb-4">
               {t.autoApproveDesc || 'Enable to auto-approve all tools. Disable to restore per-tool confirmations.'}
             </p>
+
+            <div className={`mb-4 rounded-xl border px-3 py-2 text-xs leading-relaxed ${riskCopy.className}`}>
+              <div className="font-black uppercase tracking-widest">{riskCopy.label}</div>
+              <div className="mt-1 opacity-80">{riskCopy.note}</div>
+            </div>
 
             {/* Tool info */}
             <div className="space-y-4">
@@ -166,7 +226,9 @@ export function ToolConfirmDialog({ socket, isWallpaperMode = false }: { socket:
                 </Button>
                 <Button
                   onClick={() => allowAlways(current.correlationId, current.name)}
-                  className="flex-1 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 font-bold text-xs px-3 py-3 rounded-xl border border-emerald-500/30 transition-all"
+                  disabled={!canAlwaysAllow}
+                  title={!canAlwaysAllow ? (t.highRiskAlwaysDisabled || 'High-risk actions cannot be always allowed') : undefined}
+                  className="flex-1 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 font-bold text-xs px-3 py-3 rounded-xl border border-emerald-500/30 transition-all disabled:cursor-not-allowed disabled:bg-white/5 disabled:text-white/25 disabled:border-white/10"
                 >
                   <Infinity size={14} className="mr-1" /> {t.alwaysAllow || 'Always'}
                 </Button>

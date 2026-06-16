@@ -346,21 +346,26 @@ export function useCanvasSocket({ socket, cards, edges, domain = 'personal', onC
     );
     if (userRequest) {
       // Mark all subsequent cards in the group as stale by fading their edges
-      const groupCards = cardsRef.current.filter(c => c.groupId === card.groupId);
+      const groupCards = cardsRef.current
+        .filter(c => c.groupId === card.groupId)
+        .sort((a, b) => a.timestamp - b.timestamp);
       const cardIdx = groupCards.findIndex(c => c.id === cardId);
-      const afterCards = groupCards.slice(cardIdx);
+      const afterCards = groupCards.slice(cardIdx + 1);
+      const afterCardIds = new Set(afterCards.map(c => c.id));
 
-      // Remove cards after the retry point (including the errored card if error)
-      cardsRef.current = cardsRef.current.filter(
-        c => !afterCards.some(ac => ac.id === c.id) || c.id === cardId
-      );
+      // Remove cards after the retry point while preserving the selected node and its incoming route.
+      cardsRef.current = cardsRef.current.filter(c => !afterCardIds.has(c.id));
       // Keep the card being retried, mark it as running
-      updateCard(cardId, { status: 'running', text: card.text + '\n[Retrying...]' });
+      updateCard(cardId, {
+        status: 'running',
+        text: card.text.includes('[Retrying...]') ? card.text : `${card.text}\n[Retrying...]`,
+      });
 
-      // Remove edges to removed cards
+      // Remove edges only for removed downstream cards.
       edgesRef.current = edgesRef.current.filter(
-        e => !afterCards.some(ac => ac.id === e.sourceId || ac.id === e.targetId)
+        e => !afterCardIds.has(e.sourceId) && !afterCardIds.has(e.targetId)
       );
+      groupIdRef.current = card.groupId;
       lastCardIdRef.current = cardId;
 
       scheduleFlush();

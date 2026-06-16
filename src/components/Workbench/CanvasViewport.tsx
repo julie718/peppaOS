@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { GitBranch, Trash2, X } from 'lucide-react';
+import { GitBranch, RefreshCw, Trash2, X } from 'lucide-react';
 import { useCanvasPanZoom } from './useCanvasPanZoom';
 import { computeLayout, computeEdges } from './canvasLayout';
 import { CanvasCard as CanvasCardComponent } from './CanvasCard';
@@ -13,6 +13,8 @@ interface CanvasViewportProps {
   selectedEdgeId?: string | null;
   onEdgeSelect?: (edge: CanvasEdge | null) => void;
   onEdgeModify?: (edge: CanvasEdge, instruction: string) => void;
+  onEdgeBranch?: (edge: CanvasEdge, instruction: string) => void;
+  onEdgeRerun?: (edge: CanvasEdge) => void;
 }
 
 function getCardLabel(card?: PositionedCard | null): string {
@@ -96,6 +98,8 @@ export function CanvasViewport({
   selectedEdgeId,
   onEdgeSelect,
   onEdgeModify,
+  onEdgeBranch,
+  onEdgeRerun,
 }: CanvasViewportProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [edgeInstruction, setEdgeInstruction] = useState('');
@@ -242,20 +246,41 @@ export function CanvasViewport({
           <textarea
             value={edgeInstruction}
             onChange={(e) => setEdgeInstruction(e.target.value)}
-            placeholder="Tell Lumi what to change in this step..."
+            placeholder="Tell Lumi what to change, or describe a branch to try from here..."
             className="mt-3 h-24 w-full resize-none rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white outline-none placeholder:text-white/25 focus:border-teal-300/35"
           />
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              onClick={() => {
+                const instruction = edgeInstruction.trim();
+                if (!instruction || !selectedEdge) return;
+                onEdgeModify?.(selectedEdge, instruction);
+                setEdgeInstruction('');
+              }}
+              disabled={!edgeInstruction.trim()}
+              className="h-9 rounded-lg bg-teal-300 text-sm font-semibold text-slate-950 transition hover:bg-teal-200 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30"
+            >
+              Revise step
+            </button>
+            <button
+              onClick={() => {
+                if (!selectedEdge) return;
+                onEdgeBranch?.(selectedEdge, edgeInstruction.trim());
+                setEdgeInstruction('');
+              }}
+              disabled={!onEdgeBranch}
+              className="h-9 rounded-lg border border-violet-300/25 bg-violet-400/10 text-sm font-semibold text-violet-100 transition hover:bg-violet-400/18 disabled:cursor-not-allowed disabled:opacity-35"
+            >
+              Fork branch
+            </button>
+          </div>
           <button
-            onClick={() => {
-              const instruction = edgeInstruction.trim();
-              if (!instruction || !selectedEdge) return;
-              onEdgeModify?.(selectedEdge, instruction);
-              setEdgeInstruction('');
-            }}
-            disabled={!edgeInstruction.trim()}
-            className="mt-3 h-9 w-full rounded-lg bg-teal-300 text-sm font-semibold text-slate-950 transition hover:bg-teal-200 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30"
+            onClick={() => selectedEdge && onEdgeRerun?.(selectedEdge)}
+            disabled={!onEdgeRerun}
+            className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.04] text-xs font-semibold text-white/55 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
           >
-            Apply to this path
+            <RefreshCw size={13} />
+            Rerun from target step
           </button>
         </div>
       )}

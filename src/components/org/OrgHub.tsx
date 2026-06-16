@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   Building2, BookOpen, Package, Users, Settings,
   ClipboardCheck, ScrollText, MessageSquare, ArrowLeft,
-  Shield, User, Briefcase, Home, Scale, Palette, GitBranch,
+  Shield, User, Briefcase, Home, Scale, Palette, GitBranch, Loader2,
 } from 'lucide-react';
 import { BranchDashboard } from './BranchDashboard';
 import { KnowledgeBaseBrowser } from './KnowledgeBaseBrowser';
@@ -19,6 +19,7 @@ import { DesignHub } from './DesignHub';
 import { OrgBranchPanel } from '../OrgBranchPanel';
 import { useApp } from '../../contexts/AppContext';
 import { useT } from '../../lib/useT';
+import { toast } from 'sonner';
 
 type SubView = 'dashboard' | 'kb' | 'kb-edit' | 'templates' | 'templates-create' | 'review' | 'chat' | 'members' | 'settings' | 'audit' | 'legal' | 'design' | 'branch';
 
@@ -32,6 +33,7 @@ interface NavItem {
 export function OrgHub() {
   const [subView, setSubView] = useState<SubView>('dashboard');
   const [editingArticleId, setEditingArticleId] = useState<string | undefined>(undefined);
+  const [switchBusy, setSwitchBusy] = useState(false);
   const { workDomain, switchDomain, orgConnection } = useApp();
   const t = useT();
 
@@ -72,6 +74,22 @@ export function OrgHub() {
   const orgRole = orgConnection?.orgRole || 'member';
   const visibleItems = allNavItems.filter(item => item.roles.includes(orgRole as any));
   const roleInfo = roleLabel[orgRole] || roleLabel.member;
+  const currentItem = visibleItems.find(item => item.id === subView) || allNavItems.find(item => item.id === subView) || allNavItems[0];
+
+  const openSubView = (view: SubView) => {
+    if (view !== 'kb-edit') setEditingArticleId(undefined);
+    setSubView(view);
+  };
+
+  const handleDomainToggle = async () => {
+    if (switchBusy) return;
+    setSwitchBusy(true);
+    const target = workDomain === 'personal' ? 'work' : 'personal';
+    const result = await switchDomain(target);
+    setSwitchBusy(false);
+    if (result.success) toast.success(result.message || (target === 'work' ? 'Entered work domain' : 'Entered personal domain'));
+    else toast.error(result.message || 'Failed to switch domain');
+  };
 
   const renderView = () => {
     switch (subView) {
@@ -110,15 +128,16 @@ export function OrgHub() {
           </span>
           {/* Domain switch */}
           <button
-            onClick={() => switchDomain(workDomain === 'personal' ? 'work' : 'personal')}
+            onClick={handleDomainToggle}
+            disabled={switchBusy}
             className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all ${
               workDomain === 'work'
                 ? 'bg-blue-500/10 text-blue-400 border border-blue-500/30'
                 : 'bg-white/5 text-white/40 border border-white/5 hover:text-white/60'
-            }`}
+            } disabled:cursor-not-allowed disabled:opacity-50`}
           >
-            {workDomain === 'work' ? <Briefcase size={12} /> : <User size={12} />}
-            {workDomain === 'work' ? t.orgWorkDomain : t.orgPersonalDomain}
+            {switchBusy ? <Loader2 size={12} className="animate-spin" /> : workDomain === 'work' ? <Briefcase size={12} /> : <User size={12} />}
+            {switchBusy ? (t.switching || 'Switching...') : workDomain === 'work' ? t.orgWorkDomain : t.orgPersonalDomain}
           </button>
         </div>
 
@@ -126,7 +145,7 @@ export function OrgHub() {
           {visibleItems.map(item => (
             <button
               key={item.id}
-              onClick={() => setSubView(item.id)}
+              onClick={() => openSubView(item.id)}
               className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all ${
                 subView === item.id
                   ? 'bg-blue-500/10 text-blue-400'
@@ -153,8 +172,24 @@ export function OrgHub() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
-        {renderView()}
+      <div className="min-w-0 flex-1 flex flex-col">
+        <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-white/5 bg-black/30 px-5 py-3 backdrop-blur-xl">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-white/85">
+              <span className="text-blue-300">{currentItem.icon}</span>
+              <h2 className="truncate text-sm font-black uppercase tracking-[0.14em]">{currentItem.label}</h2>
+            </div>
+            <p className="mt-0.5 truncate text-xs text-white/35">
+              {orgConnection?.orgName || t.orgWorkSpace} · {workDomain === 'work' ? t.orgWorkDomain : t.orgPersonalDomain}
+            </p>
+          </div>
+          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] ${roleInfo.color}`}>
+            {roleInfo.label}
+          </span>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+          {renderView()}
+        </div>
       </div>
     </div>
   );

@@ -110,6 +110,15 @@ export function useMusicPlayer() {
     setMusicSnapshot(state);
   }, [state]);
 
+  useEffect(() => {
+    const syncVisible = () => {
+      setState(prev => prev.visible === _musicVisible ? prev : { ...prev, visible: _musicVisible });
+    };
+    _listeners.add(syncVisible);
+    syncVisible();
+    return () => { _listeners.delete(syncVisible); };
+  }, []);
+
   // Create audio element on mount
   useEffect(() => {
     const audio = new Audio();
