@@ -2,6 +2,8 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 
 export type CallState = 'idle' | 'connecting' | 'listening' | 'thinking' | 'speaking' | 'queued' | 'passive';
 
+const THINKING_WATCHDOG_MS = 45000;
+
 interface UseVoiceCallOptions {
   socket: any;
   onTranscript?: (text: string, isFinal: boolean) => void;
@@ -46,9 +48,36 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
   const ttsPreRollChunks = useRef<Uint8Array[]>([]);
   const flushTtsPreRollOnNextAudio = useRef(false);
   const musicDuckingRef = useRef<{ active: boolean; level: number | null }>({ active: false, level: null });
+  const thinkingWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const thinkingWatchdogStartedAt = useRef(0);
+  const callStateRef = useRef<CallState>('idle');
+  const lastPassiveSilenceKeepAlive = useRef(0);
 
   useEffect(() => { canInterruptFromVoiceRef.current = canInterruptFromVoice; }, [canInterruptFromVoice]);
   useEffect(() => { canSendMicAudioRef.current = canSendMicAudio; }, [canSendMicAudio]);
+  useEffect(() => { callStateRef.current = callState; }, [callState]);
+
+  const clearThinkingWatchdog = useCallback(() => {
+    if (thinkingWatchdogRef.current) {
+      clearTimeout(thinkingWatchdogRef.current);
+      thinkingWatchdogRef.current = null;
+    }
+  }, []);
+
+  const scheduleThinkingWatchdog = useCallback(() => {
+    clearThinkingWatchdog();
+    const startedAt = Date.now();
+    thinkingWatchdogStartedAt.current = startedAt;
+    thinkingWatchdogRef.current = setTimeout(() => {
+      if (thinkingWatchdogStartedAt.current !== startedAt) return;
+      console.warn('[VoiceCall] thinking state timed out; returning to listening');
+      setCallState(prev => {
+        if (prev !== 'thinking') return prev;
+        return isCallActive.current ? 'listening' : 'idle';
+      });
+      thinkingWatchdogRef.current = null;
+    }, THINKING_WATCHDOG_MS);
+  }, [clearThinkingWatchdog]);
 
   const updateAudioLevel = useCallback(() => {
     if (!analyser.current) return;
@@ -202,6 +231,8 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
         passive: 'passive',
       };
       const next = map[data.status] || 'idle';
+      if (next === 'thinking') scheduleThinkingWatchdog();
+      else clearThinkingWatchdog();
       setCallState(prev => {
         // Start passive timer when transitioning to listening (server waiting for speech)
         if (next === 'listening' && prev !== 'listening') {
@@ -244,6 +275,8 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
       const ctx = ensureTtsContext();
       isTtsPlaying.current = true;
       if (ttsStartedAt.current === 0) ttsStartedAt.current = Date.now();
+      clearThinkingWatchdog();
+      setCallState(prev => (prev === 'thinking' || prev === 'queued') ? 'speaking' : prev);
 
       ctx.decodeAudioData(buffer.slice(0), (decoded) => {
         if (!isCallActive.current) return;
@@ -278,6 +311,7 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
             playAudioChunk(nextBuffer, nextGain);
           } else {
             isTtsPlaying.current = false;
+            setCallState(prev => prev === 'speaking' ? 'listening' : prev);
           }
         };
 
@@ -327,10 +361,12 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
 
     const onAudioError = (data: { message: string }) => {
       setError(data.message);
+      clearThinkingWatchdog();
       setCallState('idle');
     };
 
     const onAudioInterruptAck = () => {
+      clearThinkingWatchdog();
       stopAllPlayback();
       setCallState('listening');
     };
@@ -399,8 +435,9 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
       socket.off('audio:error', onAudioError);
       socket.off('audio:interrupt-ack', onAudioInterruptAck);
       socket.off('audio:proactive_speak', onAudioProactiveSpeak);
+      clearThinkingWatchdog();
     };
-  }, [socket, onTranscript, onResponse, stopAllPlayback]);
+  }, [socket, onTranscript, onResponse, stopAllPlayback, clearThinkingWatchdog, scheduleThinkingWatchdog]);
 
   // Push audio emotion perception events when call state changes
   useEffect(() => {
@@ -482,11 +519,14 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
         const input = event.inputBuffer.getChannelData(0);
         // Convert float32 [-1,1] to int16 PCM
         const int16 = new Int16Array(input.length);
+        let frameSum = 0;
         for (let i = 0; i < input.length; i++) {
           const s = Math.max(-1, Math.min(1, input[i]));
+          frameSum += s * s;
           int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
         }
         const chunk = new Uint8Array(int16.buffer);
+        const frameRms = Math.sqrt(frameSum / Math.max(1, input.length));
 
         // While Lumi is speaking, keep a tiny pre-roll instead of streaming
         // speaker echo into STT. If the owner truly barges in, we flush this
@@ -503,6 +543,12 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
           ttsPreRollChunks.current = [];
           flushTtsPreRollOnNextAudio.current = false;
           return;
+        }
+
+        if (!transcriptionOnlyRef.current && callStateRef.current === 'passive' && frameRms < 0.004) {
+          const now = Date.now();
+          if (now - lastPassiveSilenceKeepAlive.current < 1500) return;
+          lastPassiveSilenceKeepAlive.current = now;
         }
 
         if (flushTtsPreRollOnNextAudio.current && ttsPreRollChunks.current.length > 0) {
@@ -572,6 +618,7 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
   const endCall = useCallback(() => {
     isCallActive.current = false;
     clearPassiveTimers();
+    clearThinkingWatchdog();
     socket?.emit('audio:stop');
     stopAllPlayback();
 
@@ -603,7 +650,7 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
     cancelAnimationFrame(animationFrame.current);
     setCallState('idle');
     setAudioLevel(0);
-  }, [socket, stopAllPlayback, clearPassiveTimers]);
+  }, [socket, stopAllPlayback, clearPassiveTimers, clearThinkingWatchdog]);
 
   // Barge-in: detect user speaking over TTS via audio level.
   // After TTS starts, wait 400ms before enabling barge-in so Lumi's own

@@ -85,26 +85,36 @@ async function handleDesktopExec(socket: Socket, data: {
       }
       case 'desktop_list_files': {
         const dirPath: string = args.path || '';
-        if (dirPath) {
-          // Use run_command for arbitrary path listing
-          const cmd = isTauri && navigator.platform?.includes('Win')
-            ? `dir "${dirPath}" /B 2>nul`
-            : `ls -la "${dirPath}" 2>/dev/null`;
-          const result: { success: boolean; output: string } = await invoke('run_command', { command: cmd });
-          output = result.output || 'No files found';
-        } else {
-          const files: Array<{ name: string; path: string; is_directory: boolean }> =
-            await invoke('list_home_files');
-          output = JSON.stringify(
-            files.map(f => ({
-              name: f.name,
-              path: f.path,
-              type: f.is_directory ? 'directory' : 'file',
-            })),
-            null,
-            2
-          );
+        const limit = Math.min(Math.max(Number(args.limit) || 100, 1), 1000);
+        const files: Array<{
+          name: string;
+          path: string;
+          is_directory?: boolean;
+          isDirectory?: boolean;
+          size?: number;
+          modified_ms?: number | null;
+        }> = await invoke('list_directory', { path: dirPath, limit });
+        output = JSON.stringify(
+          files.map(f => ({
+            name: f.name,
+            path: f.path,
+            type: (f.is_directory ?? f.isDirectory) ? 'directory' : 'file',
+            size: f.size ?? 0,
+            modifiedMs: f.modified_ms ?? null,
+          })),
+          null,
+          2
+        );
+        break;
+      }
+      case 'desktop_path_info': {
+        const target: string = args.target || args.path || '';
+        if (!target.trim()) {
+          socket.emit(`tool:desktop_result:${correlationId}`, { error: 'No path provided' });
+          return;
         }
+        const info = await invoke('path_info', { target: target.trim() });
+        output = JSON.stringify(info, null, 2);
         break;
       }
       case 'desktop_open': {
@@ -119,11 +129,12 @@ async function handleDesktopExec(socket: Socket, data: {
       }
       case 'desktop_run_command': {
         const cmd: string = args.command || '';
+        const cwd: string = args.cwd || '';
         if (!cmd.trim()) {
           socket.emit(`tool:desktop_result:${correlationId}`, { error: 'No command provided' });
           return;
         }
-        const result: { success: boolean; output: string } = await invoke('run_command', { command: cmd });
+        const result: { success: boolean; output: string } = await invoke('run_command', { command: cmd, cwd: cwd.trim() || null });
         output = (result.success ? '' : '[FAILED] ') + result.output;
         break;
       }

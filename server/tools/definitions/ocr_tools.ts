@@ -1,6 +1,10 @@
 import { ToolRegistry } from '../registry';
 import { analyzeScreen } from '../../llm/adapter';
 import { getUserPreferredVision } from '../../llm/vision_preferences';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import sharp from 'sharp';
 
 function resolveVisionProvider(_args: Record<string, any>, context?: any): 'openai' | 'gemini' | 'ark' | 'qwen' | null {
   const g = context?.llmGetters || {};
@@ -19,6 +23,33 @@ function visionModelFor(provider: 'openai' | 'gemini' | 'ark' | 'qwen'): string 
     : provider === 'ark' ? 'doubao-1-5-vision-pro-32k'
       : provider === 'openai' ? 'gpt-4o'
         : 'gemini-2.0-flash';
+}
+
+function resolveReadableImagePath(input: string): string {
+  const raw = String(input || '').trim();
+  if (!raw) throw new Error('imagePath is required.');
+  const expanded = raw.replace(/^~(?=$|[\\/])/, os.homedir());
+  const resolved = path.resolve(expanded);
+  const normalized = path.normalize(resolved);
+  const allowedRoots = [
+    os.homedir(),
+    process.cwd(),
+    path.resolve(process.cwd(), '..'),
+    os.tmpdir(),
+  ].map(root => path.normalize(root).toLowerCase());
+  const lower = normalized.toLowerCase();
+  const allowed = allowedRoots.some(root => lower === root || lower.startsWith(root + path.sep.toLowerCase()));
+  if (!allowed) {
+    throw new Error(`Access denied: "${normalized}" is outside allowed image paths.`);
+  }
+  if (!fs.existsSync(normalized)) throw new Error(`Image not found: ${normalized}`);
+  const stat = fs.statSync(normalized);
+  if (!stat.isFile()) throw new Error(`Not a file: ${normalized}`);
+  if (stat.size > 25 * 1024 * 1024) throw new Error(`Image too large (${(stat.size / 1024 / 1024).toFixed(1)}MB). Max 25MB.`);
+  if (!/\.(png|jpe?g|webp|bmp|gif|tiff?)$/i.test(normalized)) {
+    throw new Error('Unsupported image type. Use PNG, JPG, WEBP, BMP, GIF, or TIFF.');
+  }
+  return normalized;
 }
 
 async function ocrScreen(args: Record<string, any>, context?: any): Promise<string> {
@@ -67,6 +98,49 @@ async function ocrRegion(args: Record<string, any>, context?: any): Promise<stri
   }
 }
 
+async function ocrImageFile(args: Record<string, any>, context?: any): Promise<string> {
+  const imagePath = resolveReadableImagePath(args.imagePath || args.path || args.filePath);
+  const query = args.query || args.prompt || 'Analyze this image in detail. If it is a drawing, extract dimensions, layout, labels, and any structure that can guide a CAD draft.';
+
+  const g = context?.llmGetters || {};
+  const provider = resolveVisionProvider(args, context);
+  if (!provider) {
+    return JSON.stringify({
+      path: imagePath,
+      note: 'No configured vision model is available. Choose a vision provider and add its API key in Settings -> LLM Providers -> Vision Model.',
+    }, null, 2);
+  }
+
+  const meta = await sharp(imagePath).metadata();
+  const buffer = await sharp(imagePath)
+    .rotate()
+    .resize({ width: 1800, height: 1800, fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 85 })
+    .toBuffer();
+  const base64 = buffer.toString('base64');
+  const model = getUserPreferredVision(context?.userId || 'anonymous').model || visionModelFor(provider);
+  try {
+    const description = await analyzeScreen(base64, query, { provider, model, userId: context?.userId || 'anonymous' }, g.getDeepSeek, g.getGemini, g.getOpenAI, g.getAnthropic, g.getQwen, g.getOllama, g.getLmStudio, g.getArk);
+    return JSON.stringify({
+      path: imagePath,
+      width: meta.width || null,
+      height: meta.height || null,
+      provider,
+      model,
+      analysis: description,
+    }, null, 2);
+  } catch (err: any) {
+    return JSON.stringify({
+      path: imagePath,
+      width: meta.width || null,
+      height: meta.height || null,
+      provider,
+      model,
+      error: err.message,
+    }, null, 2);
+  }
+}
+
 export function registerOCRTools(registry: ToolRegistry): void {
   registry.register({
     name: 'ocr_screen',
@@ -100,6 +174,24 @@ export function registerOCRTools(registry: ToolRegistry): void {
       required: ['x', 'y', 'width', 'height'],
     },
     handler: ocrRegion,
+    permission: 'user',
+    securityLevel: 'safe',
+  });
+
+  registry.register({
+    name: 'ocr_image_file',
+    description:
+      'Analyze a local image file with the configured vision model. Use this for desktop screenshots, drafts, floor plans, CAD reference images, photos, and Chinese-named image files before generating derived documents or DXF files.',
+    parameters: {
+      type: 'object',
+      properties: {
+        imagePath: { type: 'string', description: 'Absolute or home-relative local image path.' },
+        path: { type: 'string', description: 'Alias for imagePath.' },
+        query: { type: 'string', description: 'What to extract from the image.' },
+      },
+      required: [],
+    },
+    handler: ocrImageFile,
     permission: 'user',
     securityLevel: 'safe',
   });

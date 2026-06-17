@@ -93,6 +93,38 @@ let _duckingReasons = new Map<string, number>();
 let _duckingLevel = 1;
 let _playbackWatchdog: ReturnType<typeof setTimeout> | null = null;
 let _playAttempt = 0;
+let _nativeProgressTimer: ReturnType<typeof setInterval> | null = null;
+let _userVolume = DEFAULT_MUSIC_PLAYER_STATE.volume;
+let _nativeVolumeRestoreTimer: ReturnType<typeof setTimeout> | null = null;
+
+function startNativeProgressTicker() {
+  if (_nativeProgressTimer) return;
+  _nativeProgressTimer = setInterval(() => {
+    if (_musicSnapshot.source !== 'netease' || !_musicSnapshot.isPlaying) {
+      stopNativeProgressTicker();
+      return;
+    }
+    setMusicState(prev => {
+      if (prev.source !== 'netease' || !prev.isPlaying) return prev;
+      const nextProgress = prev.duration > 0
+        ? Math.min(prev.duration, prev.progress + 1)
+        : prev.progress + 1;
+      return { ...prev, progress: nextProgress };
+    });
+  }, 1000);
+}
+
+function stopNativeProgressTicker() {
+  if (_nativeProgressTimer) {
+    clearInterval(_nativeProgressTimer);
+    _nativeProgressTimer = null;
+  }
+}
+
+function syncNativeProgressTicker() {
+  if (_musicSnapshot.source === 'netease' && _musicSnapshot.isPlaying) startNativeProgressTicker();
+  else stopNativeProgressTicker();
+}
 
 function notifyMusicState() {
   _listeners.forEach(fn => fn());
@@ -102,6 +134,7 @@ function notifyMusicState() {
 function setMusicState(updater: MusicPlayerState | ((state: MusicPlayerState) => MusicPlayerState)) {
   _musicSnapshot = typeof updater === 'function' ? updater(_musicSnapshot) : updater;
   _musicVisible = _musicSnapshot.visible;
+  syncNativeProgressTicker();
   notifyMusicState();
 }
 
@@ -117,10 +150,26 @@ function applyAudioVolume() {
   if (_audio) _audio.volume = getEffectiveVolume();
 }
 
-function syncNativePlaybackVolume(level = Math.round(_musicSnapshot.volume * _duckingLevel)) {
+function syncNativePlaybackVolume(level = Math.round(_userVolume * _duckingLevel)) {
   if (_musicSnapshot.source === 'netease') {
     _boundSocket?.emit?.('music:volume', { level: Math.max(0, Math.min(100, level)) });
   }
+}
+
+function prevSourceIsNetease() {
+  return _musicSnapshot.source === 'netease';
+}
+
+function scheduleNativeVolumeRestore() {
+  if (_nativeVolumeRestoreTimer) clearTimeout(_nativeVolumeRestoreTimer);
+  if (_musicSnapshot.source !== 'netease' || _duckingReasons.size > 0) return;
+
+  const restore = () => syncNativePlaybackVolume(_userVolume);
+  restore();
+  _nativeVolumeRestoreTimer = setTimeout(() => {
+    restore();
+    _nativeVolumeRestoreTimer = null;
+  }, 800);
 }
 
 function stopLocalAudioForNativePlayback() {
@@ -188,6 +237,7 @@ function setMusicDucking(reason: string, active: boolean, level = 0.32) {
   _duckingLevel = _duckingReasons.size ? Math.min(...Array.from(_duckingReasons.values())) : 1;
   applyAudioVolume();
   syncNativePlaybackVolume();
+  if (_duckingReasons.size === 0) scheduleNativeVolumeRestore();
 }
 
 function getQueueItem(offset: number): { item: MusicQueueItem; index: number } | null {
@@ -327,6 +377,7 @@ function bindMusicSocket(socket: any) {
   };
 
   const onState = (data: any) => {
+    const isNativeState = data.source === 'netease' || (prevSourceIsNetease() && data.source == null);
     if (data.source === 'netease') stopLocalAudioForNativePlayback();
     setMusicState(prev => ({
       ...prev,
@@ -340,10 +391,13 @@ function bindMusicSocket(socket: any) {
       isPlaying: data.playing ?? prev.isPlaying,
       progress: data.progress != null ? data.progress : prev.progress,
       duration: data.duration ? data.duration / 1000 : prev.duration,
-      volume: data.volume ?? prev.volume,
+      volume: isNativeState ? prev.volume : data.volume ?? prev.volume,
       source: data.source ?? prev.source,
     }));
-    if (data.volume != null) applyAudioVolume();
+    if (data.volume != null && !isNativeState) applyAudioVolume();
+    if ((data.source === 'netease' || isNativeState) && (data.playing ?? _musicSnapshot.isPlaying) && _duckingReasons.size === 0) {
+      scheduleNativeVolumeRestore();
+    }
     if (data.audioUrl && data.source !== 'netease') playAudioUrl(data.audioUrl);
   };
 
@@ -415,8 +469,10 @@ export function useMusicPlayer() {
 
   const play = useCallback(() => {
     if (_musicSnapshot.source === 'netease') {
+      scheduleNativeVolumeRestore();
       socket?.emit('music:resume');
       setMusicState(prev => ({ ...prev, isPlaying: true, lastError: undefined }));
+      setTimeout(() => scheduleNativeVolumeRestore(), 1000);
       return;
     }
     const audio = ensureAudio();
@@ -438,6 +494,7 @@ export function useMusicPlayer() {
 
   const next = useCallback(() => {
     if (_musicSnapshot.source === 'netease') {
+      scheduleNativeVolumeRestore();
       socket?.emit('music:next');
       setMusicState(prev => ({ ...prev, progress: 0, isPlaying: true, lastError: undefined }));
       return;
@@ -452,6 +509,7 @@ export function useMusicPlayer() {
 
   const prev = useCallback(() => {
     if (_musicSnapshot.source === 'netease') {
+      scheduleNativeVolumeRestore();
       socket?.emit('music:prev');
       setMusicState(prev => ({ ...prev, progress: 0, isPlaying: true, lastError: undefined }));
       return;
@@ -475,6 +533,7 @@ export function useMusicPlayer() {
 
   const setVolume = useCallback((level: number) => {
     const volume = Math.max(0, Math.min(100, level));
+    _userVolume = volume;
     ensureAudio();
     socket?.emit('music:volume', { level: Math.round(volume * _duckingLevel) });
     setMusicState(prev => ({ ...prev, volume }));

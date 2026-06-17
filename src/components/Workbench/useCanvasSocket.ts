@@ -17,6 +17,138 @@ interface SubmitTaskOptions {
   edgeLabel?: string;
 }
 
+function basename(value: string): string {
+  return value.split(/[\\/]/).filter(Boolean).pop() || value;
+}
+
+function buildCanvasContext(cards: CanvasCard[]): string {
+  const artifacts = cards
+    .filter(card => card.type === 'artifact' && (card.metadata?.content || card.metadata?.preview || card.metadata?.filepath || card.detail))
+    .slice(-8);
+  if (artifacts.length === 0) return '';
+
+  let budget = 18000;
+  const sections: string[] = [];
+  for (const card of artifacts) {
+    if (budget <= 0) break;
+    const title = String(card.metadata?.fileName || card.text || 'Canvas artifact');
+    const path = String(card.metadata?.filepath || card.metadata?.path || '');
+    const content = String(card.metadata?.content || card.metadata?.preview || card.detail || '').trim();
+    const body = content.slice(0, Math.max(0, Math.min(content.length, budget)));
+    budget -= body.length;
+    sections.push([
+      `### ${title}`,
+      path ? `Path: ${path}` : '',
+      body ? `Content:\n${body}` : '',
+    ].filter(Boolean).join('\n'));
+  }
+  return sections.join('\n\n');
+}
+
+function tryParseJson(value: string): any | null {
+  try { return JSON.parse(value); } catch { return null; }
+}
+
+function collectArtifactPaths(value: string, parsed: any): string[] {
+  const paths = new Set<string>();
+  const add = (candidate: any) => {
+    if (typeof candidate !== 'string') return;
+    if (/\.(dxf|dwg|pdf|pptx|docx|xlsx|xls|txt|md|json|csv|png|jpe?g|webp|html|ts|tsx|js|jsx|py)$/i.test(candidate)) {
+      paths.add(candidate);
+    }
+  };
+  if (parsed && typeof parsed === 'object') {
+    const walk = (node: any) => {
+      if (!node) return;
+      if (Array.isArray(node)) {
+        node.forEach(walk);
+        return;
+      }
+      if (typeof node === 'object') {
+        ['path', 'filePath', 'filepath', 'outputPath', 'url'].forEach(key => add(node[key]));
+        Object.values(node).forEach(walk);
+        return;
+      }
+      add(node);
+    };
+    walk(parsed);
+  }
+  const filePathRegex = /[A-Za-z]:\\[^\n\r"']+\.(?:dxf|dwg|pdf|pptx|docx|xlsx|xls|txt|md|json|csv|png|jpe?g|webp|html|ts|tsx|js|jsx|py)/gi;
+  for (const match of value.match(filePathRegex) || []) paths.add(match.trim());
+  return Array.from(paths).slice(0, 6);
+}
+
+function extractArtifactsFromTool(toolName: string, toolArgs: any, result?: string): CanvasCard[] {
+  if (!result?.trim()) return [];
+  const parsed = tryParseJson(result);
+  const paths = collectArtifactPaths(result, parsed);
+  const now = Date.now();
+  const artifacts: CanvasCard[] = [];
+
+  paths.forEach((path, index) => {
+    artifacts.push({
+      id: `artifact_${now}_${index}_${Math.random().toString(36).slice(2, 6)}`,
+      type: 'artifact',
+      text: basename(path),
+      detail: parsed?.note || parsed?.analysis || result.slice(0, 1200),
+      timestamp: now + index,
+      groupId: '',
+      status: 'done',
+      metadata: {
+        artifactKind: 'file',
+        filepath: path,
+        path,
+        toolName,
+        args: toolArgs,
+        preview: parsed?.analysis || parsed?.note || result.slice(0, 1200),
+      },
+    });
+  });
+
+  const content = parsed?.analysis || parsed?.content || parsed?.text || parsed?.summary || parsed?.output;
+  const shouldShowContent = typeof content === 'string' && content.trim().length > 0;
+  if (shouldShowContent && artifacts.length < 3) {
+    artifacts.push({
+      id: `artifact_${now}_content_${Math.random().toString(36).slice(2, 6)}`,
+      type: 'artifact',
+      text: parsed?.title || `${toolName} result`,
+      detail: content.slice(0, 6000),
+      timestamp: now + artifacts.length,
+      groupId: '',
+      status: 'done',
+      metadata: {
+        artifactKind: 'content',
+        toolName,
+        args: toolArgs,
+        content: content.slice(0, 50000),
+        preview: content.slice(0, 1000),
+        filepath: parsed?.path || parsed?.filePath || parsed?.filepath,
+      },
+    });
+  }
+
+  if (artifacts.length === 0 && /^(ocr_image_file|extract_document_text|cad_generate_dxf|create_ppt|generate_image|write_file|desktop_path_info)$/i.test(toolName)) {
+    artifacts.push({
+      id: `artifact_${now}_result_${Math.random().toString(36).slice(2, 6)}`,
+      type: 'artifact',
+      text: `${toolName} result`,
+      detail: result.slice(0, 6000),
+      timestamp: now,
+      groupId: '',
+      status: 'done',
+      metadata: {
+        artifactKind: 'tool_result',
+        toolName,
+        args: toolArgs,
+        content: result.slice(0, 50000),
+        preview: result.slice(0, 1000),
+      },
+    });
+  }
+
+  return artifacts;
+}
+
 export function useCanvasSocket({ socket, cards, edges, domain = 'personal', onCards, onEdges, onStatusChange }: UseCanvasSocketOptions) {
   const cardsRef = useRef<CanvasCard[]>([]);
   const edgesRef = useRef<CanvasEdge[]>([]);
@@ -87,6 +219,50 @@ export function useCanvasSocket({ socket, cards, edges, domain = 'personal', onC
     onCards([]);
     onEdges([]);
   }, [onCards, onEdges]);
+
+  const armRequestTimeout = useCallback((requestId: string, groupId: string) => {
+    if (!socket) return () => {};
+
+    const matches = (data?: { requestId?: string; source?: string }) =>
+      data?.requestId ? data.requestId === requestId : data?.source === 'canvas';
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      socket.off('agent:response', onDone);
+      socket.off('agent:error', onDone);
+      socket.off('agent:status', onStatusDone);
+    };
+
+    const onDone = (data?: { requestId?: string; source?: string }) => {
+      if (!matches(data)) return;
+      cleanup();
+    };
+
+    const onStatusDone = (data?: { status?: string; requestId?: string; source?: string }) => {
+      if (!matches(data)) return;
+      if (data?.status === 'idle' || data?.status === 'error') cleanup();
+    };
+
+    const timeout = setTimeout(() => {
+      addCard({
+        id: `error_${Date.now()}`,
+        type: 'error',
+        text: 'Canvas request timed out. Lumi may still be busy; try rerunning this step if no result appears.',
+        timestamp: Date.now(),
+        groupId,
+        status: 'error',
+      });
+      if (activeCanvasRequestIdRef.current === requestId) {
+        activeCanvasRequestIdRef.current = null;
+      }
+      cleanup();
+    }, 180000);
+
+    socket.on('agent:response', onDone);
+    socket.on('agent:error', onDone);
+    socket.on('agent:status', onStatusDone);
+    return cleanup;
+  }, [socket, addCard]);
 
   const newGroupId = useCallback(() => {
     groupIdRef.current = `group_${Date.now()}`;
@@ -184,6 +360,15 @@ export function useCanvasSocket({ socket, cards, edges, domain = 'personal', onC
           status,
           metadata,
         });
+        if (status === 'done' && data.result !== undefined) {
+          const artifacts = extractArtifactsFromTool(toolName, toolArgs, data.result)
+            .map((card, index) => ({ ...card, groupId: groupIdRef.current, parentId: id, timestamp: Date.now() + index }));
+          for (const artifact of artifacts) {
+            if (cardsRef.current.some(c => c.parentId === id && c.type === 'artifact' && c.text === artifact.text)) continue;
+            addCard(artifact);
+            addEdge(id, artifact.id, { dashed: true, color: 'rgba(34,211,238,0.45)', label: 'result' });
+          }
+        }
         return;
       }
 
@@ -197,6 +382,15 @@ export function useCanvasSocket({ socket, cards, edges, domain = 'personal', onC
         status,
         metadata,
       });
+
+      if (status === 'done' && data.result !== undefined) {
+        const artifacts = extractArtifactsFromTool(toolName, toolArgs, data.result)
+          .map((card, index) => ({ ...card, groupId: groupIdRef.current, parentId: id, timestamp: Date.now() + index + 1 }));
+        for (const artifact of artifacts) {
+          addCard(artifact);
+          addEdge(id, artifact.id, { dashed: true, color: 'rgba(34,211,238,0.45)', label: 'result' });
+        }
+      }
     };
 
     const onToolCall = (data: { correlationId?: string; toolCallId?: string; name: string; arguments?: any; result?: string; error?: string; requestId?: string; source?: string }) => {
@@ -316,43 +510,28 @@ export function useCanvasSocket({ socket, cards, edges, domain = 'personal', onC
       });
     }
 
-    // REST fallback after 4s
-    const fallbackTimer = setTimeout(async () => {
-      try {
-        const r = await fetch('/api/ai/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ provider: 'deepseek', model: 'deepseek-chat', prompt: text.trim() }),
-        });
-        if (r.ok) {
-          const data = await r.json();
-          addCard({
-            id: `output_${Date.now()}`,
-            type: 'final_output',
-            text: data.text || data.error || 'No response',
-            timestamp: Date.now(),
-            groupId,
-            status: data.error ? 'error' : 'done',
-          });
-        }
-      } catch {}
-    }, 4000);
+    if (!socket?.connected) {
+      addCard({
+        id: `error_${Date.now()}`,
+        type: 'error',
+        text: 'Canvas is offline. Reconnect Lumi and run this task again.',
+        timestamp: Date.now(),
+        groupId,
+        status: 'error',
+      });
+      activeCanvasRequestIdRef.current = null;
+      return;
+    }
 
-    const cleanupSocketDone = () => {
-      socket?.off('agent:response', onSocketDone);
-      socket?.off('agent:error', onSocketDone);
-    };
-    const onSocketDone = (data?: { requestId?: string; source?: string }) => {
-      const matches = data?.requestId ? data.requestId === requestId : data?.source === 'canvas';
-      if (!matches) return;
-      clearTimeout(fallbackTimer);
-      cleanupSocketDone();
-    };
-    socket?.on('agent:response', onSocketDone);
-    socket?.on('agent:error', onSocketDone);
+    armRequestTimeout(requestId, groupId);
+
+    const canvasContext = buildCanvasContext(cardsRef.current);
+    const outgoingText = canvasContext
+      ? `${text.trim()}\n\n## Canvas Context\nThe following files/results are already on this canvas. Use them as task context when relevant.\n\n${canvasContext}`
+      : text.trim();
 
     socket?.emit('agent:chat', {
-      text: text.trim(),
+      text: outgoingText,
       history: [],
       personalityId: 'lumi',
       category: undefined,
@@ -362,7 +541,7 @@ export function useCanvasSocket({ socket, cards, edges, domain = 'personal', onC
       source: 'canvas',
       requestId,
     });
-  }, [socket, newGroupId, addCard, addEdge, domain]);
+  }, [socket, newGroupId, addCard, addEdge, domain, armRequestTimeout]);
 
   const retryFromCard = useCallback((cardId: string) => {
     // Find the card and its group, re-submit the user request for that group
@@ -402,8 +581,25 @@ export function useCanvasSocket({ socket, cards, edges, domain = 'personal', onC
       // Re-emit
       const requestId = `canvas_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       activeCanvasRequestIdRef.current = requestId;
+      if (!socket?.connected) {
+        addCard({
+          id: `error_${Date.now()}`,
+          type: 'error',
+          text: 'Canvas is offline. Reconnect Lumi and rerun this step.',
+          timestamp: Date.now(),
+          groupId: card.groupId,
+          status: 'error',
+        });
+        activeCanvasRequestIdRef.current = null;
+        return;
+      }
+      armRequestTimeout(requestId, card.groupId);
+      const canvasContext = buildCanvasContext(cardsRef.current);
+      const outgoingText = canvasContext
+        ? `${userRequest.text}\n\n## Canvas Context\nThe following files/results are already on this canvas. Use them as task context when relevant.\n\n${canvasContext}`
+        : userRequest.text;
       socket?.emit('agent:chat', {
-        text: userRequest.text,
+        text: outgoingText,
         history: [],
         personalityId: 'lumi',
         domain,
@@ -411,7 +607,7 @@ export function useCanvasSocket({ socket, cards, edges, domain = 'personal', onC
         requestId,
       });
     }
-  }, [socket, updateCard, scheduleFlush, domain]);
+  }, [socket, updateCard, scheduleFlush, domain, addCard, armRequestTimeout]);
 
   return { submitTask, clearCards, retryFromCard };
 }

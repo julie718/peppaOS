@@ -129,6 +129,35 @@ router.post('/files/upload', requireAuth, upload.array('files', 20), async (req:
     if (!db.knowledgeFiles) db.knowledgeFiles = [];
 
     const textExts = /\.(txt|md|json|csv|log|xml|yaml|yml|ts|tsx|js|jsx|py|html|css|env|toml|ini|cfg)$/i;
+    const extractableExts = /\.(docx|xlsx|xls|pdf)$/i;
+
+    async function extractPreviewContent(filePath: string, extName: string): Promise<string | null> {
+      try {
+        if (textExts.test(extName)) {
+          return fs.readFileSync(filePath, 'utf-8');
+        }
+        if (/\.docx$/i.test(extName)) {
+          const mammoth = await import('mammoth');
+          return (await mammoth.extractRawText({ path: filePath })).value;
+        }
+        if (/\.xlsx?$/i.test(extName)) {
+          const XLSX = await import('xlsx');
+          const wb = XLSX.readFile(filePath);
+          return wb.SheetNames.map((name: string) => {
+            const csv = XLSX.utils.sheet_to_csv(wb.Sheets[name]);
+            return `[${name}]\n${csv}`;
+          }).join('\n\n');
+        }
+        if (/\.pdf$/i.test(extName)) {
+          const pdfModule: any = await import('pdf-parse');
+          const pdfParse = pdfModule.default || pdfModule;
+          return (await pdfParse(fs.readFileSync(filePath))).text;
+        }
+      } catch (err: any) {
+        console.warn(`[Files] Failed to extract preview for "${path.basename(filePath)}": ${err.message}`);
+      }
+      return null;
+    }
 
     const saved: any[] = [];
     for (const file of uploadedFiles) {
@@ -159,26 +188,29 @@ router.post('/files/upload', requireAuth, upload.array('files', 20), async (req:
         });
       }
 
-      const entry: any = { name: finalName, type: 'file' };
+      const entry: any = { name: finalName, type: 'file', path: dest };
 
       // For text files: return content so the chat can use it immediately
-      if (textExts.test(ext)) {
-        try {
-          const content = fs.readFileSync(dest, 'utf-8');
+      if (textExts.test(ext) || extractableExts.test(ext)) {
+        const content = await extractPreviewContent(dest, ext);
+        if (content) {
           entry.content = content.slice(0, 50000); // cap at 50KB for chat context
           entry.preview = content.slice(0, 1000);
-        } catch {}
+          entry.extracted = true;
+        }
       }
 
       // Only auto-ingest if this is a new file (not a re-upload of existing)
-      if (isNew && textExts.test(ext)) {
+      if (isNew && (textExts.test(ext) || extractableExts.test(ext))) {
         try {
-          const content = fs.readFileSync(dest, 'utf-8');
-          const result = await ingestDocument(userId, 'lumi', finalName, content);
-          const meta = db.knowledgeFiles.find((m: any) => m.filename === finalName);
-          if (meta && !meta.agentIds.includes('lumi')) meta.agentIds.push('lumi');
-          entry.ingested = true;
-          console.log(`[AutoIngest] "${finalName}" → ${result.chunkCount} chunks`);
+          const content = await extractPreviewContent(dest, ext);
+          if (content) {
+            const result = await ingestDocument(userId, 'lumi', finalName, content);
+            const meta = db.knowledgeFiles.find((m: any) => m.filename === finalName);
+            if (meta && !meta.agentIds.includes('lumi')) meta.agentIds.push('lumi');
+            entry.ingested = true;
+            console.log(`[AutoIngest] "${finalName}" → ${result.chunkCount} chunks`);
+          }
         } catch (ingestErr: any) {
           console.warn(`[AutoIngest] Failed for "${finalName}": ${ingestErr.message}`);
         }

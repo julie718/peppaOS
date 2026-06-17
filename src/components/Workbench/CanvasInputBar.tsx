@@ -1,19 +1,32 @@
 // Canvas input bar — fixed bottom input for sending tasks
 import React, { useState, useRef, useCallback } from 'react';
-import { Send, Mic } from 'lucide-react';
+import { Loader2, Mic, Paperclip, Send, Square } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface CanvasInputBarProps {
   onSend: (text: string) => void;
+  onImportFiles?: (files: FileList) => void;
   disabled?: boolean;
   t: any;
 }
 
-export function CanvasInputBar({ onSend, disabled, t }: CanvasInputBarProps) {
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || '').split(',')[1] || '');
+    reader.onerror = () => reject(reader.error || new Error('Failed to read audio'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+export function CanvasInputBar({ onSend, onImportFiles, disabled, t }: CanvasInputBarProps) {
   const [text, setText] = useState('');
-  const [isListening, setIsListening] = useState(false);
+  const [voiceState, setVoiceState] = useState<'idle' | 'recording' | 'transcribing'>('idle');
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const recognitionRef = useRef<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
 
   const resizeInput = useCallback(() => {
     requestAnimationFrame(() => {
@@ -35,53 +48,91 @@ export function CanvasInputBar({ onSend, disabled, t }: CanvasInputBarProps) {
     }
   }, [text, disabled, onSend]);
 
-  const handleVoiceInput = useCallback(() => {
-    if (disabled) return;
-    if (isListening) {
-      recognitionRef.current?.stop?.();
-      setIsListening(false);
+  const appendTranscript = useCallback((transcript: string) => {
+    const next = transcript.trim();
+    if (!next) return;
+    setText(prev => prev.trim() ? `${prev.trim()} ${next}` : next);
+    resizeInput();
+  }, [resizeInput]);
+
+  const cleanupRecording = useCallback(() => {
+    streamRef.current?.getTracks().forEach(track => track.stop());
+    streamRef.current = null;
+    recorderRef.current = null;
+    chunksRef.current = [];
+  }, []);
+
+  const transcribeBlob = useCallback(async (blob: Blob) => {
+    setVoiceState('transcribing');
+    try {
+      const audio = await blobToBase64(blob);
+      const res = await fetch('/api/agents/audio/transcribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ audio, fileName: 'canvas-input.webm' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || t.speechRecognitionFailed || 'Speech recognition failed');
+      if (data.text) appendTranscript(data.text);
+      else toast.error(data.note || data.error || t.speechRecognitionFailed || 'Speech recognition failed');
+    } catch (err: any) {
+      toast.error(err.message || t.speechRecognitionFailed || 'Speech recognition failed');
+    } finally {
+      setVoiceState('idle');
+      cleanupRecording();
+    }
+  }, [appendTranscript, cleanupRecording, t]);
+
+  const handleVoiceInput = useCallback(async () => {
+    if (disabled || voiceState === 'transcribing') return;
+    if (voiceState === 'recording') {
+      recorderRef.current?.stop();
       return;
     }
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
       toast.error(t.speechRecognitionUnsupported || 'Speech recognition is not supported in this browser');
       return;
     }
 
     try {
-      const recognition = new SpeechRecognition();
-      recognitionRef.current = recognition;
-      recognition.lang = navigator.language || 'zh-CN';
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
-
-      recognition.onresult = (event: any) => {
-        const transcript = Array.from(event.results || [])
-          .map((result: any) => result?.[0]?.transcript || '')
-          .join(' ')
-          .trim();
-        if (transcript) {
-          setText(prev => prev.trim() ? `${prev.trim()} ${transcript}` : transcript);
-          resizeInput();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      streamRef.current = stream;
+      chunksRef.current = [];
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+      const recorder = new MediaRecorder(stream, { mimeType });
+      recorderRef.current = recorder;
+      recorder.ondataavailable = (event) => {
+        if (event.data?.size > 0) chunksRef.current.push(event.data);
+      };
+      recorder.onerror = () => {
+        toast.error(t.speechRecognitionFailed || 'Speech recognition failed');
+        setVoiceState('idle');
+        cleanupRecording();
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        if (blob.size < 800) {
+          setVoiceState('idle');
+          cleanupRecording();
+          return;
         }
+        void transcribeBlob(blob);
       };
-      recognition.onerror = (event: any) => {
-        const code = event?.error;
-        const message = code === 'not-allowed'
-          ? (t.microphonePermissionDenied || 'Microphone permission denied')
-          : (t.speechRecognitionFailed || 'Speech recognition failed');
-        toast.error(message);
-        setIsListening(false);
-      };
-      recognition.onend = () => setIsListening(false);
-      recognition.start();
-      setIsListening(true);
+      recorder.start();
+      setVoiceState('recording');
     } catch (err: any) {
-      setIsListening(false);
-      toast.error(err.message || t.speechRecognitionFailed || 'Speech recognition failed');
+      setVoiceState('idle');
+      cleanupRecording();
+      const message = err?.name === 'NotAllowedError'
+        ? (t.microphonePermissionDenied || 'Microphone permission denied')
+        : (err.message || t.speechRecognitionFailed || 'Speech recognition failed');
+      toast.error(message);
     }
-  }, [disabled, isListening, resizeInput, t]);
+  }, [cleanupRecording, disabled, t, transcribeBlob, voiceState]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -101,6 +152,17 @@ export function CanvasInputBar({ onSend, disabled, t }: CanvasInputBarProps) {
   return (
     <div className="absolute bottom-0 left-0 right-0 z-30 p-4">
       <div className="max-w-3xl mx-auto">
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          accept=".txt,.md,.json,.csv,.pdf,.docx,.xlsx,.xls,.ts,.tsx,.js,.jsx,.py,.html,.css,.yaml,.yml,.xml,.log,.png,.jpg,.jpeg,.webp"
+          onChange={(event) => {
+            if (event.target.files?.length) onImportFiles?.(event.target.files);
+            event.currentTarget.value = '';
+          }}
+        />
         <div className="flex items-end gap-2 bg-black/60 backdrop-blur-2xl border border-white/[0.08] rounded-2xl px-4 py-3 shadow-2xl">
           <textarea
             ref={inputRef}
@@ -114,16 +176,24 @@ export function CanvasInputBar({ onSend, disabled, t }: CanvasInputBarProps) {
           />
           <div className="flex items-center gap-1.5">
             <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={disabled || !onImportFiles}
+              className="w-9 h-9 flex items-center justify-center rounded-xl text-white/30 hover:text-white/60 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              title={t.canvasImportFiles || 'Import files'}
+            >
+              <Paperclip size={17} />
+            </button>
+            <button
               onClick={handleVoiceInput}
-              disabled={disabled}
+              disabled={disabled || voiceState === 'transcribing'}
               className={`w-9 h-9 flex items-center justify-center rounded-xl transition-colors ${
-                isListening
+                voiceState === 'recording'
                   ? 'text-teal-300 bg-teal-500/15'
                   : 'text-white/30 hover:text-white/60 hover:bg-white/5'
               } disabled:opacity-30 disabled:cursor-not-allowed`}
-              title={isListening ? (t.stopVoiceInput || 'Stop voice input') : (t.voiceInput || 'Voice input')}
+              title={voiceState === 'recording' ? (t.stopVoiceInput || 'Stop voice input') : (t.voiceInput || 'Voice input')}
             >
-              <Mic size={17} />
+              {voiceState === 'transcribing' ? <Loader2 size={17} className="animate-spin" /> : voiceState === 'recording' ? <Square size={15} /> : <Mic size={17} />}
             </button>
             <button
               onClick={handleSend}

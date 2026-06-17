@@ -26,6 +26,15 @@ async function desktopOpen(args: Record<string, any>, context?: any): Promise<st
   });
 }
 
+async function desktopPathInfo(args: Record<string, any>, context?: any): Promise<string> {
+  if (!context?.desktopRelay) {
+    throw new Error('Desktop tools require a Tauri frontend relay (not available in web mode)');
+  }
+  return context.desktopRelay('desktop_path_info', {
+    target: args.target || args.path || '',
+  });
+}
+
 async function desktopRunCommand(args: Record<string, any>, context?: any): Promise<string> {
   if (!context?.desktopRelay) {
     throw new Error('Desktop tools require a Tauri frontend relay (not available in web mode)');
@@ -54,7 +63,7 @@ export function registerDesktopTools(registry: ToolRegistry): void {
   registry.register({
     name: 'desktop_list_files',
     description:
-      'List files and directories on the user\'s real desktop machine at the given path. Defaults to the home directory. Returns name, path, and type (file/directory).',
+      'List files and directories on the user\'s real desktop machine at the given path using the native desktop client. Prefer this for Desktop/Documents folders, Chinese filenames, file discovery, and verifying that a generated file really exists. Defaults to the home directory. Returns name, path, type, size, and modified time.',
     parameters: {
       type: 'object',
       properties: {
@@ -85,9 +94,26 @@ export function registerDesktopTools(registry: ToolRegistry): void {
   });
 
   registry.register({
+    name: 'desktop_path_info',
+    description:
+      'Check whether an exact file or folder path exists on the user\'s real desktop machine. Use this after creating files, especially CAD/doc/image outputs, before telling the user the file is ready.',
+    parameters: {
+      type: 'object',
+      properties: {
+        target: { type: 'string', description: 'Exact file or folder path to check.' },
+        path: { type: 'string', description: 'Alias for target.' },
+      },
+      required: [],
+    },
+    handler: desktopPathInfo,
+    permission: 'user',
+    securityLevel: 'safe',
+  });
+
+  registry.register({
     name: 'desktop_run_command',
     description:
-      'Execute a shell command on the user\'s real desktop machine. Supports cmd.exe /C on Windows and sh -c on Linux/macOS. Use this for system operations that need real desktop access.',
+      'Execute a shell command on the user\'s real desktop machine. Supports cmd.exe /C on Windows and sh -c on Linux/macOS. Use desktop_list_files for file discovery instead of shell dir/ls, especially for Unicode paths.',
     parameters: {
       type: 'object',
       properties: {

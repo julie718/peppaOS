@@ -5,7 +5,7 @@ const START_Y = 92;
 const NODE_GAP_X = 92;
 const LANE_GAP_Y = 128;
 const MIN_HEIGHT = 92;
-const MAX_HEIGHT = 280;
+const MAX_HEIGHT = 380;
 
 function getCardWidth(card: CanvasCard): number {
   switch (card.type) {
@@ -20,8 +20,9 @@ function getCardWidth(card: CanvasCard): number {
     case 'final_output':
       return 440;
     case 'source_citation':
+      return 300;
     case 'artifact':
-      return 280;
+      return 420;
     case 'error':
       return 340;
     default:
@@ -40,7 +41,7 @@ function getHeightText(card: CanvasCard): string {
 function estimateHeight(card: CanvasCard, width: number): number {
   const charsPerLine = Math.max(20, Math.floor(width / 7));
   const lines = Math.ceil(getHeightText(card).length / charsPerLine);
-  const base = card.type === 'stage_header' ? 84 : card.type === 'tool_call' ? 116 : 104;
+  const base = card.type === 'stage_header' ? 84 : card.type === 'tool_call' ? 116 : card.type === 'artifact' ? 132 : 104;
   return Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, base + lines * 18));
 }
 

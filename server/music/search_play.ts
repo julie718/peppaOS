@@ -7,6 +7,7 @@ import { execFileSync } from 'child_process';
 import { loadEmotionalState } from '../personality/state';
 import { emitMusicAtmosphere } from '../socket/music';
 import { getFallbackScene, MusicScene } from './scene_generator';
+import { getNcmPlaybackStateAsync, runNcmCliAsync } from './ncm_cli';
 
 export type MusicPlayResult = { success: boolean; text?: string; reason?: string };
 
@@ -121,6 +122,33 @@ function playNcmSong(song: any): { ok: boolean; reason?: string } {
   return { ok: true };
 }
 
+async function playNcmSongVerified(song: any): Promise<{ ok: boolean; reason?: string }> {
+  const { encryptedId, originalId } = getSongIds(song);
+  if (!encryptedId || !originalId) {
+    return { ok: false, reason: '这首歌缺少网易云播放 ID，无法启动账号态播放。' };
+  }
+
+  const result = await runNcmCliAsync(['play', '--song', '--encrypted-id', encryptedId, '--original-id', originalId], 22000);
+  const parsed = tryParse(result.stdout);
+  if (!result.ok || parsed?.success === false || parsed?.ok === false) {
+    return {
+      ok: false,
+      reason: result.error || parsed?.message || parsed?.error || '网易云账号态播放启动失败，请检查音乐中心登录、API 凭据和 mpv 播放器。',
+    };
+  }
+
+  const state = await waitForNcmPlayingState();
+  if (state?.status !== 'playing' && state?.playing !== true) {
+    const status = state?.status || 'unknown';
+    return {
+      ok: false,
+      reason: `网易云播放命令已发送，但播放器没有进入播放状态（当前状态：${status}）。请检查 mpv 是否可用，或重新登录网易云音乐。`,
+    };
+  }
+
+  return { ok: true };
+}
+
 function queueNcmSongs(songs: any[]): void {
   const queueCandidates = songs
     .map(song => ({ song, ids: getSongIds(song) }))
@@ -130,7 +158,7 @@ function queueNcmSongs(songs: any[]): void {
 
   setTimeout(() => {
     for (const item of queueCandidates) {
-      runNcmCli([
+      void runNcmCliAsync([
         'queue',
         'add',
         '--encrypted-id',
@@ -142,12 +170,29 @@ function queueNcmSongs(songs: any[]): void {
   }, 0);
 }
 
-function ncmExec(args: string[], timeout = 15000): string {
-  return runNcmCli(args, timeout);
+async function ncmExec(args: string[], timeout = 15000): Promise<string> {
+  const result = await runNcmCliAsync(args, timeout);
+  if (!result.ok) console.warn('[Music] ncm-cli error:', result.error || result.stderr || result.stdout);
+  return result.stdout;
 }
 
 function tryParse(text: string): any {
   try { return JSON.parse(text); } catch { return null; }
+}
+
+function delay(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function waitForNcmPlayingState(attempts = 6, delayMs = 650): Promise<any | null> {
+  let lastState: any | null = null;
+  for (let i = 0; i < attempts; i += 1) {
+    const state = await getNcmPlaybackStateAsync(8000);
+    if (state) lastState = state;
+    if (state?.status === 'playing' || state?.playing === true) return state;
+    await delay(delayMs);
+  }
+  return lastState;
 }
 
 export function isMusicPlaybackRequest(text?: string): boolean {
@@ -164,7 +209,7 @@ export function isMusicAdjustmentRequest(text?: string): boolean {
 
 export function getMusicFailureMessage(reason?: string): string {
   const suffix = reason ? `\n\n${reason}` : '';
-  return `我刚刚收到你的音乐请求了，但没有成功启动播放。请打开音乐中心检查网易云音乐登录、ncm-cli/mpv 播放环境，或者换一个更明确的歌名再试。${suffix}`;
+  return `\u6211\u6536\u5230\u4f60\u7684\u97f3\u4e50\u8bf7\u6c42\u4e86\uff0c\u4f46\u7f51\u6613\u4e91\u4e3b\u64ad\u653e\u94fe\u8def\u6ca1\u6709\u5b8c\u6574\u542f\u52a8\u3002\u8bf7\u5148\u68c0\u67e5\u97f3\u4e50\u4e2d\u5fc3\u7684\u7f51\u6613\u4e91\u767b\u5f55\u3001\u5f00\u653e\u5e73\u53f0 API \u51ed\u636e\u548c mpv \u64ad\u653e\u5668\u3002${suffix}`;
 }
 
 function getSongIds(song: any): { encryptedId: string; originalId: string } {
@@ -198,7 +243,7 @@ function normalizeTrack(song: any) {
 }
 
 async function getLikedPlaylistInfo(): Promise<{ id: string; trackCount: number } | null> {
-  const raw = ncmExec(['playlist', 'created']);
+  const raw = await ncmExec(['playlist', 'created']);
   const data = tryParse(raw);
   const records = data?.data?.records || data?.data || [];
   const liked = records.find((r: any) => r.specialType === 5);
@@ -212,12 +257,12 @@ async function getLikedPlaylistInfo(): Promise<{ id: string; trackCount: number 
 async function getPlaylistSongs(encId: string, limit = 50, totalTracks = 0): Promise<any[]> {
   const maxOffset = Math.max(0, totalTracks - limit);
   const offset = maxOffset > 0 ? Math.floor(Math.random() * (maxOffset + 1)) : 0;
-  const raw = ncmExec(['playlist', 'tracks', '--playlistId', encId, '--limit', String(limit), '--offset', String(offset)]);
+  const raw = await ncmExec(['playlist', 'tracks', '--playlistId', encId, '--limit', String(limit), '--offset', String(offset)]);
   const data = tryParse(raw);
   const tracks = data?.data?.records || data?.data || data?.songs || [];
   const playable = tracks.filter((s: any) => s.playFlag !== false);
   if (playable.length > 0 || offset === 0) return playable;
-  const fallbackRaw = ncmExec(['playlist', 'tracks', '--playlistId', encId, '--limit', String(limit), '--offset', '0']);
+  const fallbackRaw = await ncmExec(['playlist', 'tracks', '--playlistId', encId, '--limit', String(limit), '--offset', '0']);
   const fallbackData = tryParse(fallbackRaw);
   const fallbackTracks = fallbackData?.data?.records || fallbackData?.data || fallbackData?.songs || [];
   return fallbackTracks.filter((s: any) => s.playFlag !== false);
@@ -265,14 +310,14 @@ function getMusicAdjustmentPlan(text: string, fallbackMood: string): MusicAdjust
 }
 
 async function getDailySongs(limit = 30): Promise<any[]> {
-  const raw = ncmExec(['recommend', 'daily', '--limit', String(limit)]);
+  const raw = await ncmExec(['recommend', 'daily', '--limit', String(limit)]);
   const data = tryParse(raw);
   const tracks = data?.data?.records || data?.data || data?.songs || [];
   return tracks.filter((s: any) => s.playFlag !== false);
 }
 
 async function searchSongsByKeyword(keyword: string, limit = 20): Promise<any[]> {
-  const searchRaw = ncmExec(['search', 'song', '--keyword', keyword, '--limit', String(limit)]);
+  const searchRaw = await ncmExec(['search', 'song', '--keyword', keyword, '--limit', String(limit)]);
   const searchData = tryParse(searchRaw);
   return getSongs(searchData);
 }
@@ -315,7 +360,7 @@ async function pickAndPlay(
   const pick = playableWithIds[Math.floor(Math.random() * playableWithIds.length)];
   const { encryptedId, originalId } = getSongIds(pick);
   const trackInfo = normalizeTrack(pick);
-  const nativePlay = playNcmSong(pick);
+  const nativePlay = await playNcmSongVerified(pick);
   if (!nativePlay.ok) return { success: false, reason: nativePlay.reason };
 
   queueNcmSongs(playableWithIds.filter(song => song !== pick));
@@ -337,7 +382,7 @@ async function pickAndPlay(
   const emotionalState = loadEmotionalState(userId);
   let lyricsData: any[] = [];
   try {
-    const lyricRaw = ncmExec(['song', 'lyric', '--songId', encryptedId || originalId], 10000);
+    const lyricRaw = await ncmExec(['song', 'lyric', '--songId', encryptedId || originalId], 10000);
     const lyricJson = tryParse(lyricRaw);
     const lrcText = lyricJson?.data?.lyric || '';
     for (const line of lrcText.split('\n')) {
@@ -359,6 +404,8 @@ async function pickAndPlay(
   const reasonPhrase = moodReasonMap[mood] || '根据你现在的状态';
   const lumiReason = `${reasonPhrase}，给你放一首《${trackInfo.name}》，希望你喜欢。`;
 
+  const safeLumiReason = `${moodReasonMap[mood] || '根据你现在的状态'}，给你放一首《${trackInfo.name}》，希望你喜欢。`;
+
   console.log(`[Music] Scene: ${scene.scene}, particles=${scene.particles}, nativePlayback=true`);
   emitMusicAtmosphere(socket, {
     track: trackInfo,
@@ -367,11 +414,11 @@ async function pickAndPlay(
     queue,
     queueIndex,
     lyrics: lyricsData,
-    lumiReason,
+    lumiReason: safeLumiReason,
     scene,
   });
 
-  return { success: true, text: lumiReason };
+  return { success: true, text: safeLumiReason };
 }
 
 export async function adjustMusicPlayback(
@@ -441,7 +488,7 @@ export async function searchAndPlay(
     const target = extractTarget(userText);
     if (target) {
       console.log(`[Music] User target: "${target}"`);
-      const searchRaw = ncmExec(['search', 'song', '--keyword', target, '--limit', '20']);
+      const searchRaw = await ncmExec(['search', 'song', '--keyword', target, '--limit', '20']);
       const searchData = tryParse(searchRaw);
       const songs = getSongs(searchData);
       if (songs.length > 0) return pickAndPlay(socket, userId, mood, songs, 'search');
@@ -456,7 +503,7 @@ export async function searchAndPlay(
   }
 
   const keyword = moodSearchMap[mood] || '\u63a8\u8350 \u70ed\u95e8';
-  const searchRaw = ncmExec(['search', 'song', '--keyword', keyword, '--limit', '20']);
+  const searchRaw = await ncmExec(['search', 'song', '--keyword', keyword, '--limit', '20']);
   const searchData = tryParse(searchRaw);
   const songs = getSongs(searchData);
   if (songs.length > 0) return pickAndPlay(socket, userId, mood, songs, 'search');

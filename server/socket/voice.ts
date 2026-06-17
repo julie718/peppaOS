@@ -322,7 +322,7 @@ async function processVoiceInput(
     return;
   }
 
-  session.isSpeaking = true;
+  session.isSpeaking = false;
   session.isProcessing = true;
   session.pipelineAbortController = new AbortController();
   socket.emit("agent:status", { status: "thinking", agentName: "Lumi" });
@@ -663,6 +663,51 @@ async function processVoiceInput(
     socket.emit("audio:status", { status: "listening" });
     socket.emit("agent:status", { status: "idle" });
     socket.emit("agent:response", { text: responseText, agentName: "Lumi", source: "music_profile" });
+    return;
+  }
+
+  const immediateMusicAdjustment = isMusicAdjustmentRequest(userText) && effectiveOperationMode === 'music';
+  if (isMusicPlaybackRequest(userText) || immediateMusicAdjustment) {
+    logger.info('[Audio] Music intent matched, acknowledging before playback...');
+    responseText = immediateMusicAdjustment
+      ? '\u597d\uff0c\u6211\u7ed9\u4f60\u6362\u4e00\u4e0b\u3002'
+      : '\u597d\uff0c\u6211\u6765\u653e\u3002';
+    flushSentence(responseText);
+    await Promise.allSettled(ttsPromises);
+
+    const conv = getOrCreateActiveConversation(session.userId, session.agentId);
+    addMessage({ userId: session.userId, agentId: session.agentId, conversationId: conv.id, role: 'user', content: userText, personality: session.personalityId, mode: 'voice' });
+    addMessage({ userId: session.userId, agentId: session.agentId, conversationId: conv.id, role: 'assistant', content: responseText, personality: session.personalityId, mode: 'voice' });
+    session.isProcessing = false;
+    session.isSpeaking = false;
+    session.pipelineAbortController = null;
+    socket.emit('chat:conversation_updated', { conversationId: conv.id, agentId: session.agentId, source: 'voice' });
+    socket.emit("audio:status", { status: "listening" });
+    socket.emit("agent:status", { status: "idle" });
+    socket.emit("agent:response", { text: responseText, agentName: "Lumi", source: "music_voice_ack" });
+
+    const musicUserId = session.userId;
+    void (async () => {
+      void desktopRelay('client_action', { action: 'set_client_mode', mode: 'music' }).catch((err: any) => {
+        logger.warn('[Audio] Failed to sync music client mode:', err.message);
+      });
+
+      try {
+        const result = immediateMusicAdjustment
+          ? await adjustMusicPlayback(musicUserId, socket, userText)
+          : await searchAndPlay(musicUserId, socket, userText);
+        if (!result.success) {
+          const message = getMusicFailureMessage(result.reason);
+          socket.emit('music:error', { message });
+          socket.emit('agent:notification', { type: 'music', level: 'warning', message });
+        }
+      } catch (musicErr: any) {
+        logger.warn('[Audio] Music background playback failed:', musicErr.message);
+        const message = getMusicFailureMessage(musicErr?.message);
+        socket.emit('music:error', { message });
+        socket.emit('agent:notification', { type: 'music', level: 'warning', message });
+      }
+    })();
     return;
   }
 

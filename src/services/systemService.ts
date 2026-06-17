@@ -45,7 +45,7 @@ class SystemService {
       try {
         // Tauri 'run_command' would be a custom command defined in src-tauri/src/main.rs
         const { invoke } = await import('@tauri-apps/api/core');
-        return await invoke('run_command', { command });
+        return await invoke('run_command', { command, cwd: null });
       } catch (err) {
         return { success: false, output: '', error: String(err) };
       }

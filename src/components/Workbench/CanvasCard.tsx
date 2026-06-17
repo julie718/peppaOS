@@ -2,16 +2,17 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import {
   User, Layers, Wrench, Link, FileImage, MessageSquare,
-  AlertCircle, CheckCircle2, Loader2, XCircle, RefreshCw
+  AlertCircle, CheckCircle2, Loader2, XCircle, RefreshCw, Copy, FileText
 } from 'lucide-react';
 import { PositionedCard } from './types';
 
 interface CanvasCardProps {
   card: PositionedCard;
+  t?: any;
   onRetry?: (cardId: string) => void;
 }
 
-export function CanvasCard({ card, onRetry }: CanvasCardProps) {
+export function CanvasCard({ card, t, onRetry }: CanvasCardProps) {
   const [hovered, setHovered] = useState(false);
 
   const style: React.CSSProperties = {
@@ -22,7 +23,7 @@ export function CanvasCard({ card, onRetry }: CanvasCardProps) {
     height: card.height,
   };
 
-  const typeConfig = getTypeConfig(card);
+  const typeConfig = getTypeConfig(card, t);
 
   return (
     <motion.div
@@ -38,13 +39,13 @@ export function CanvasCard({ card, onRetry }: CanvasCardProps) {
       <div className={`flex shrink-0 items-center gap-2 border-b px-4 py-2.5 ${typeConfig.headerBg}`}>
         <span className={typeConfig.iconColor}>{typeConfig.icon}</span>
         <span className="text-xs font-semibold tracking-wide uppercase text-white/70">{typeConfig.label}</span>
-        {card.status && <StatusBadge status={card.status} />}
+        {card.status && <StatusBadge status={card.status} t={t} />}
         {hovered && onRetry && (
           <button
             onClick={(e) => { e.stopPropagation(); onRetry(card.id); }}
             className="ml-auto flex items-center gap-1 text-[10px] text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 rounded-lg px-2 py-1 transition-colors"
           >
-            <RefreshCw size={10} /> Retry from here
+            <RefreshCw size={10} /> {t?.canvasRetryFromHere || 'Retry from here'}
           </button>
         )}
       </div>
@@ -71,14 +72,7 @@ export function CanvasCard({ card, onRetry }: CanvasCardProps) {
             )}
           </div>
         ) : card.type === 'artifact' ? (
-          <div>
-            <div className="text-sm font-medium text-white/90">{card.text}</div>
-            {card.metadata?.filepath && (
-              <div className="mt-1.5 text-xs text-cyan-400/80 font-mono bg-cyan-500/5 rounded-lg p-2">
-                {card.metadata.filepath}
-              </div>
-            )}
-          </div>
+          <ArtifactBody card={card} />
         ) : card.type === 'source_citation' ? (
           <div>
             <div className="text-sm font-medium text-white/90">{card.text}</div>
@@ -102,38 +96,83 @@ export function CanvasCard({ card, onRetry }: CanvasCardProps) {
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function ArtifactBody({ card }: { card: PositionedCard }) {
+  const filePath = String(card.metadata?.filepath || card.metadata?.path || '');
+  const preview = String(card.metadata?.content || card.metadata?.preview || card.detail || '').trim();
+  const isImage = /\.(png|jpe?g|webp|gif)$/i.test(filePath);
+  const copyPath = () => {
+    if (!filePath) return;
+    navigator.clipboard?.writeText(filePath).catch(() => {});
+  };
+
+  return (
+    <div className="space-y-2.5">
+      <div className="flex items-start gap-2">
+        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-300">
+          {isImage ? <FileImage size={16} /> : <FileText size={16} />}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-semibold text-white/90">{card.text}</div>
+          {card.metadata?.toolName && (
+            <div className="mt-0.5 text-[10px] uppercase tracking-wide text-white/30">{card.metadata.toolName}</div>
+          )}
+        </div>
+      </div>
+
+      {filePath && (
+        <div className="flex items-center gap-2 rounded-lg border border-cyan-400/10 bg-cyan-500/5 px-2.5 py-2">
+          <div className="min-w-0 flex-1 truncate font-mono text-[11px] text-cyan-200/75">{filePath}</div>
+          <button
+            onClick={(event) => { event.stopPropagation(); copyPath(); }}
+            className="rounded-md p-1 text-cyan-200/55 transition hover:bg-cyan-400/10 hover:text-cyan-100"
+            title="Copy path"
+          >
+            <Copy size={12} />
+          </button>
+        </div>
+      )}
+
+      {preview && (
+        <div className="max-h-56 overflow-y-auto rounded-lg bg-black/20 p-2.5 text-xs leading-relaxed text-white/70 whitespace-pre-wrap">
+          {preview.length > 6000 ? `${preview.slice(0, 6000)}...` : preview}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatusBadge({ status, t }: { status: string; t?: any }) {
   if (status === 'running') {
     return (
       <span className="ml-auto flex items-center gap-1 text-[10px] text-amber-400">
-        <Loader2 size={10} className="animate-spin" /> Running
+        <Loader2 size={10} className="animate-spin" /> {t?.canvasStatusRunning || 'Running'}
       </span>
     );
   }
   if (status === 'done') {
     return (
       <span className="ml-auto flex items-center gap-1 text-[10px] text-emerald-400">
-        <CheckCircle2 size={10} /> Done
+        <CheckCircle2 size={10} /> {t?.canvasStatusDone || 'Done'}
       </span>
     );
   }
   if (status === 'error') {
     return (
       <span className="ml-auto flex items-center gap-1 text-[10px] text-red-400">
-        <XCircle size={10} /> Error
+        <XCircle size={10} /> {t?.canvasStatusError || 'Error'}
       </span>
     );
   }
   return null;
 }
 
-function getTypeConfig(card: PositionedCard) {
+function getTypeConfig(card: PositionedCard, t?: any) {
   switch (card.type) {
     case 'user_request':
       return {
         icon: <User size={14} />,
         iconColor: 'text-blue-400',
-        label: 'Task',
+        label: t?.canvasCardTask || 'Task',
         bg: 'bg-blue-500/5',
         border: 'border-blue-400/20',
         headerBg: 'border-blue-400/15 bg-blue-500/10',
@@ -142,7 +181,7 @@ function getTypeConfig(card: PositionedCard) {
       return {
         icon: <Layers size={14} />,
         iconColor: 'text-violet-400',
-        label: 'Stage',
+        label: t?.canvasCardStage || 'Stage',
         bg: 'bg-violet-500/5',
         border: 'border-violet-400/20',
         headerBg: 'border-violet-400/15 bg-violet-500/10',
@@ -151,7 +190,7 @@ function getTypeConfig(card: PositionedCard) {
       return {
         icon: <Wrench size={14} />,
         iconColor: 'text-amber-400',
-        label: 'Tool',
+        label: t?.canvasCardTool || 'Tool',
         bg: 'bg-amber-500/5',
         border: card.status === 'error' ? 'border-red-400/30' : card.status === 'done' ? 'border-emerald-400/20' : 'border-amber-400/20',
         headerBg: card.status === 'error' ? 'border-red-400/15 bg-red-500/10' : card.status === 'done' ? 'border-emerald-400/15 bg-emerald-500/10' : 'border-amber-400/15 bg-amber-500/10',
@@ -160,7 +199,7 @@ function getTypeConfig(card: PositionedCard) {
       return {
         icon: <Link size={14} />,
         iconColor: 'text-blue-300',
-        label: 'Source',
+        label: t?.canvasCardSource || 'Source',
         bg: 'bg-blue-500/5',
         border: 'border-blue-400/15',
         headerBg: 'border-blue-400/10 bg-blue-500/8',
@@ -169,7 +208,7 @@ function getTypeConfig(card: PositionedCard) {
       return {
         icon: <FileImage size={14} />,
         iconColor: 'text-cyan-400',
-        label: 'Artifact',
+        label: t?.canvasCardArtifact || 'Artifact',
         bg: 'bg-cyan-500/5',
         border: 'border-cyan-400/20',
         headerBg: 'border-cyan-400/15 bg-cyan-500/10',
@@ -178,7 +217,7 @@ function getTypeConfig(card: PositionedCard) {
       return {
         icon: <MessageSquare size={14} />,
         iconColor: 'text-white/50',
-        label: 'Reasoning',
+        label: t?.canvasCardProgress || 'Progress',
         bg: 'bg-white/[0.02]',
         border: 'border-white/[0.06]',
         headerBg: 'border-white/[0.04] bg-white/[0.02]',
@@ -187,7 +226,7 @@ function getTypeConfig(card: PositionedCard) {
       return {
         icon: <CheckCircle2 size={14} />,
         iconColor: 'text-emerald-400',
-        label: 'Output',
+        label: t?.canvasCardOutput || 'Output',
         bg: 'bg-emerald-500/8',
         border: 'border-emerald-400/25',
         headerBg: 'border-emerald-400/20 bg-emerald-500/10',
@@ -196,7 +235,7 @@ function getTypeConfig(card: PositionedCard) {
       return {
         icon: <AlertCircle size={14} />,
         iconColor: 'text-red-400',
-        label: 'Error',
+        label: t?.canvasCardError || 'Error',
         bg: 'bg-red-500/5',
         border: 'border-red-400/25',
         headerBg: 'border-red-400/15 bg-red-500/10',
@@ -205,7 +244,7 @@ function getTypeConfig(card: PositionedCard) {
       return {
         icon: <MessageSquare size={14} />,
         iconColor: 'text-white/50',
-        label: 'Card',
+        label: t?.canvasCardGeneric || 'Card',
         bg: 'bg-white/[0.02]',
         border: 'border-white/[0.06]',
         headerBg: 'border-white/[0.04] bg-white/[0.02]',

@@ -204,6 +204,78 @@ export function CanvasWorkbench({ isOpen, onClose, t, user, domain = 'personal',
     clearCards();
   }, [clearCards]);
 
+  const handleImportFiles = useCallback(async (files: FileList) => {
+    const fileList = Array.from(files || []);
+    if (fileList.length === 0) return;
+
+    try {
+      if (!currentSessionId) {
+        const res = await fetch(scopedCanvasUrl('/api/canvas/sessions'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ taskText: 'Imported files', title: 'Imported files' }),
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed to create canvas');
+        const session = await res.json();
+        setCurrentSessionId(session.id);
+        setSaveState('saving');
+        setSessions(prev => [
+          { id: session.id, title: session.title, taskText: session.taskText, status: session.status, cardCount: 0, createdAt: session.createdAt, updatedAt: session.updatedAt },
+          ...prev,
+        ]);
+      }
+
+      const formData = new FormData();
+      fileList.forEach(file => formData.append('files', file));
+      const res = await fetch('/api/files/upload', { method: 'POST', body: formData, credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || t.uploadFailed || 'Upload failed');
+
+      const groupId = `import_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const importedCards: CanvasCard[] = (data.files || []).map((file: any, index: number) => {
+        const content = String(file.content || file.preview || '').trim();
+        return {
+          id: `artifact_import_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 6)}`,
+          type: 'artifact',
+          text: file.name || file.fileName || `File ${index + 1}`,
+          detail: content || (file.path || ''),
+          timestamp: Date.now() + index,
+          groupId,
+          status: 'done',
+          metadata: {
+            artifactKind: 'imported_file',
+            fileName: file.name || file.fileName,
+            filepath: file.path,
+            path: file.path,
+            preview: file.preview || content.slice(0, 1000),
+            content,
+            ingested: Boolean(file.ingested),
+            extracted: Boolean(file.extracted),
+          },
+        };
+      });
+
+      setCards(prev => [...prev, ...importedCards]);
+      setEdges(prev => {
+        const next = [...prev];
+        for (let i = 1; i < importedCards.length; i++) {
+          next.push({
+            id: `edge_${importedCards[i - 1].id}_${importedCards[i].id}`,
+            sourceId: importedCards[i - 1].id,
+            targetId: importedCards[i].id,
+            label: 'import',
+            dashed: true,
+            color: 'rgba(34,211,238,0.35)',
+          });
+        }
+        return next;
+      });
+      toast.success(t.canvasFilesImported || `${importedCards.length} file(s) imported to canvas`);
+    } catch (err: any) {
+      toast.error(err.message || t.uploadFailed || 'Upload failed');
+    }
+  }, [currentSessionId, scopedCanvasUrl, t]);
+
   const handleTaskSubmit = useCallback(async (text: string) => {
     if (!currentSessionId) {
       try {
@@ -352,6 +424,7 @@ export function CanvasWorkbench({ isOpen, onClose, t, user, domain = 'personal',
           <CanvasViewport
             cards={cards}
             edges={edges}
+            t={t}
             onRetry={retryFromCard}
             onClear={handleClearCanvas}
             selectedEdgeId={selectedEdgeId}
@@ -374,6 +447,7 @@ export function CanvasWorkbench({ isOpen, onClose, t, user, domain = 'personal',
 
           <CanvasInputBar
             onSend={handleTaskSubmit}
+            onImportFiles={handleImportFiles}
             disabled={statusText !== ''}
             t={t}
           />

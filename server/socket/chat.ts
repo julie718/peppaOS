@@ -123,6 +123,8 @@ export function registerChatHandler(
     const { text, history, personalityId = "lumi", category, agentId, mode: payloadMode, source } = data;
     const requestId = typeof data.requestId === 'string' ? data.requestId.slice(0, 120) : undefined;
     const eventSource = source || 'chat';
+    const toolResultPreviewLimit = eventSource === 'canvas' ? 5000 : 500;
+    const formatToolResultForUi = (value?: string) => value?.slice(0, toolResultPreviewLimit) || '';
     const emitAgent = (event: string, payload: Record<string, any> = {}) => {
       socket.emit(event, {
         ...payload,
@@ -354,7 +356,7 @@ export function registerChatHandler(
               return;
             }
             const output = data.output || '';
-            emitToolLifecycle({ correlationId: uiCid, name: toolName, arguments: args, result: output.slice(0, 500) });
+            emitToolLifecycle({ correlationId: uiCid, name: toolName, arguments: args, result: formatToolResultForUi(output) });
             resolve(output);
           };
 
@@ -397,6 +399,7 @@ export function registerChatHandler(
 
       // Canvas mode: full-power assistant with visual plan-first workflow
       if (source === 'canvas') {
+        effectiveSystemPrompt += '\n\n## Canvas File Verification\nFor any task that creates or modifies CAD drawings, documents, images, code, or other files, verify the final file path before saying the task is complete. Use desktop_path_info for exact desktop paths, desktop_list_files for Desktop/Documents/user folders and Chinese filenames, and read_file or the creating tool result for server-side files. For image-based drafting tasks, locate the image first and use ocr_image_file before generating a CAD/document output. Do not claim a desktop file exists unless you verified it. If verification fails, say what failed and keep working.';
         effectiveSystemPrompt += '\n\n## Canvas Workbench\nYou are working inside the Canvas Workbench — a visual workspace where the user sees your thought process as cards.\n- You have FULL access to all tools including desktop control, file system, commands, mouse/keyboard.\n- Before executing destructive or desktop-modifying actions, show a plan card first so the user can see what you intend to do.\n- After each major step, summarize the result as a card.\n- When generating code, assets, or analysis, put the final output in the canvas as well.\n- The canvas is your visual trace — not a sandbox.';
       }
 
@@ -501,7 +504,7 @@ export function registerChatHandler(
                   correlationId: toolCid,
                   name: quickResult.toolCall.name,
                   arguments: quickResult.toolCall.arguments,
-                  result: tcResult?.slice(0, 500) || '',
+                  result: formatToolResultForUi(tcResult),
                 });
               }
             } catch (toolErr: any) {
@@ -796,7 +799,7 @@ export function registerChatHandler(
                 name: record.name,
                 arguments: record.arguments,
                 args: record.arguments,
-                result: record.result?.slice(0, 500),
+                result: formatToolResultForUi(record.result),
                 error: record.error,
               };
               emitAgent("agent:tool_call", toolPayload);
@@ -923,7 +926,7 @@ export function registerChatHandler(
                     correlationId: record.id || `tool-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                     name: record.name,
                     arguments: record.arguments,
-                    result: record.result?.slice(0, 500),
+                    result: formatToolResultForUi(record.result),
                     error: record.error,
                   });
                 },

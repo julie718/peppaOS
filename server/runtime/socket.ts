@@ -98,7 +98,13 @@ export function initSocketRuntime({ io, jwtSecret, llm }: SocketContext) {
         const correlationId = event.slice('tool:desktop_result:'.length);
         handleAutonomousDesktopResult(correlationId, args[0] || {});
       }
-      if (event !== 'device:register') {
+      const noisyEvents = new Set([
+        'audio:chunk',
+        'ambient:noise_level',
+        'client:state',
+        'presence:heartbeat',
+      ]);
+      if (event !== 'device:register' && !noisyEvents.has(event)) {
         console.log(`[Socket:${socket.id}] event: ${event} args:`, JSON.stringify(args).slice(0, 200));
       }
     });

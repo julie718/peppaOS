@@ -76,20 +76,51 @@ pub struct NativeFile {
     pub name: String,
     pub path: String,
     pub is_directory: bool,
+    pub size: u64,
+    pub modified_ms: Option<u64>,
 }
 
-fn read_native_files(dir: &Path) -> Vec<NativeFile> {
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NativePathInfo {
+    pub exists: bool,
+    pub name: String,
+    pub path: String,
+    pub is_directory: bool,
+    pub size: u64,
+    pub modified_ms: Option<u64>,
+}
+
+fn system_time_to_ms(time: std::io::Result<SystemTime>) -> Option<u64> {
+    time.ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis().min(u64::MAX as u128) as u64)
+}
+
+fn read_native_files(dir: &Path, limit: Option<usize>) -> Vec<NativeFile> {
     let entries = std::fs::read_dir(dir);
     let mut files: Vec<NativeFile> = match entries {
         Ok(iter) => iter
             .filter_map(|e| e.ok())
             .map(|e| {
                 let path = e.path();
-                let is_dir = path.is_dir();
+                let metadata = e.metadata().ok();
+                let is_dir = metadata
+                    .as_ref()
+                    .map(|m| m.is_dir())
+                    .unwrap_or_else(|| path.is_dir());
+                let modified_ms = metadata
+                    .as_ref()
+                    .and_then(|m| system_time_to_ms(m.modified()));
                 NativeFile {
                     name: e.file_name().to_string_lossy().to_string(),
                     path: path.to_string_lossy().to_string(),
                     is_directory: is_dir,
+                    size: metadata
+                        .as_ref()
+                        .filter(|m| !m.is_dir())
+                        .map(|m| m.len())
+                        .unwrap_or(0),
+                    modified_ms,
                 }
             })
             .collect(),
@@ -101,7 +132,7 @@ fn read_native_files(dir: &Path) -> Vec<NativeFile> {
             .cmp(&a.is_directory)
             .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
     });
-    files.truncate(200);
+    files.truncate(limit.unwrap_or(200).clamp(1, 1000));
     files
 }
 
@@ -267,17 +298,45 @@ fn get_live_stats() -> LiveStats {
 #[tauri::command]
 fn list_home_files() -> Vec<NativeFile> {
     let home = dirs_next::home_dir().unwrap_or_default();
-    read_native_files(&home)
+    read_native_files(&home, None)
 }
 
 #[tauri::command]
-fn list_directory(path: String) -> Vec<NativeFile> {
+fn list_directory(path: String, limit: Option<usize>) -> Vec<NativeFile> {
     let dir = if path.trim().is_empty() {
         dirs_next::home_dir().unwrap_or_default()
     } else {
         PathBuf::from(path)
     };
-    read_native_files(&dir)
+    read_native_files(&dir, limit)
+}
+
+#[tauri::command]
+fn path_info(target: String) -> NativePathInfo {
+    let path = if target.trim().is_empty() {
+        dirs_next::home_dir().unwrap_or_default()
+    } else {
+        PathBuf::from(target)
+    };
+    let metadata = std::fs::metadata(&path).ok();
+    let is_directory = metadata.as_ref().map(|m| m.is_dir()).unwrap_or(false);
+    NativePathInfo {
+        exists: metadata.is_some(),
+        name: path
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_default(),
+        path: path.to_string_lossy().to_string(),
+        is_directory,
+        size: metadata
+            .as_ref()
+            .filter(|m| !m.is_dir())
+            .map(|m| m.len())
+            .unwrap_or(0),
+        modified_ms: metadata
+            .as_ref()
+            .and_then(|m| system_time_to_ms(m.modified())),
+    }
 }
 
 fn sanitize_child_name(name: &str) -> Result<String, String> {
@@ -435,17 +494,26 @@ fn delete_item(target: String) -> CommandResult {
 }
 
 #[tauri::command]
-fn run_command(command: String) -> CommandResult {
+fn run_command(command: String, cwd: Option<String>) -> CommandResult {
     let now = SystemTime::now();
-    let truncated: String = if command.len() > 500 {
-        format!("{}... (truncated, {} bytes total)", &command[..500], command.len())
+    let truncated: String = if command.chars().count() > 500 {
+        let head: String = command.chars().take(500).collect();
+        format!("{}... (truncated, {} bytes total)", head, command.len())
     } else {
         command.clone()
     };
+    let cwd_path = cwd
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from);
 
     let output = if cfg!(target_os = "windows") {
         let mut cmd = Command::new("cmd");
         cmd.args(["/C", &command]);
+        if let Some(path) = cwd_path.as_ref() {
+            cmd.current_dir(path);
+        }
         #[cfg(target_os = "windows")]
         {
             use std::os::windows::process::CommandExt;
@@ -453,7 +521,12 @@ fn run_command(command: String) -> CommandResult {
         }
         cmd.output()
     } else {
-        Command::new("sh").args(["-c", &command]).output()
+        let mut cmd = Command::new("sh");
+        cmd.args(["-c", &command]);
+        if let Some(path) = cwd_path.as_ref() {
+            cmd.current_dir(path);
+        }
+        cmd.output()
     };
 
     match output {
@@ -462,12 +535,24 @@ fn run_command(command: String) -> CommandResult {
             let stderr = String::from_utf8_lossy(&out.stderr).to_string();
             let success = out.status.success();
             eprintln!(
-                "[LumiOS Audit] ts={:?} ok={} cmd={}",
-                now, success, truncated
+                "[LumiOS Audit] ts={:?} ok={} cwd={} cmd={}",
+                now,
+                success,
+                cwd_path
+                    .as_ref()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_default(),
+                truncated
             );
             CommandResult {
                 success,
-                output: if stdout.is_empty() { stderr } else { stdout },
+                output: if stderr.is_empty() {
+                    stdout
+                } else if stdout.is_empty() {
+                    stderr
+                } else {
+                    format!("{}\n{}", stdout, stderr)
+                },
             }
         }
         Err(e) => {
@@ -1705,6 +1790,7 @@ pub fn run() {
             get_live_stats,
             list_home_files,
             list_directory,
+            path_info,
             create_directory,
             rename_item,
             delete_item,

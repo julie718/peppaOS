@@ -3,6 +3,11 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import {
+  configureNcmCredentials,
+  normalizeNcmAppId,
+  normalizeNcmPrivateKey,
+} from '../../../music/ncm_cli';
 
 const execAsync = promisify(exec);
 
@@ -53,13 +58,10 @@ function err(message: string) {
 // ── Auto-configure ncm-cli from env/stored keys ─────────────────────────────
 
 async function autoConfigureFromEnv() {
-  const appId = process.env.NETEASE_APP_ID || '';
-  const privateKey = process.env.NETEASE_PRIVATE_KEY || '';
-  if (appId) {
-    await execAsync(`npx @music163/ncm-cli config set appId "${appId}"`, { timeout: 10000 }).catch(() => {});
-  }
-  if (privateKey) {
-    await execAsync(`npx @music163/ncm-cli config set privateKey "${privateKey.replace(/\n/g, '\\n')}"`, { timeout: 10000 }).catch(() => {});
+  const appId = normalizeNcmAppId(process.env.NETEASE_APP_ID);
+  const privateKey = normalizeNcmPrivateKey(process.env.NETEASE_PRIVATE_KEY);
+  if (appId && privateKey) {
+    await configureNcmCredentials(appId, privateKey, 10000).catch(() => {});
   }
 }
 
@@ -71,12 +73,11 @@ const server = new McpServer({ name: 'netease-music', version: '1.0.0' }, { capa
 
 async function setupHandler(args: any) {
   try {
-    const appId = args.appId?.trim();
-    const privateKey = args.privateKey?.trim();
+    const appId = normalizeNcmAppId(args.appId);
+    const privateKey = normalizeNcmPrivateKey(args.privateKey);
     if (!appId || !privateKey) return err('appId and privateKey are required. Get them from developer.music.163.com');
 
-    await ncm(`config set appId "${appId}"`);
-    await ncm(`config set privateKey "${privateKey}"`);
+    await configureNcmCredentials(appId, privateKey, 10000);
     return ok({ configured: true, message: 'Credentials configured. Run netease_login to log in.' });
   } catch (e: any) {
     return err(`Setup failed: ${e.message}`);

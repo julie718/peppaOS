@@ -1639,7 +1639,7 @@ export function DesktopUI({
         setNativeHomePath(targetPath);
       }
       const files = targetPath
-        ? await invoke('list_directory', { path: targetPath })
+        ? await invoke('list_directory', { path: targetPath, limit: 500 })
         : await invoke('list_home_files');
       setNativePath(targetPath);
       setNativeFiles(normalizeNativeFiles(files));

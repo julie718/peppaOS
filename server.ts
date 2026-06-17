@@ -33,6 +33,11 @@ import voiceRoutes from "./routes/voice";
 import fileRoutes from "./routes/files";
 import { subscriptionRoutes } from "./server/subscription/routes";
 import { resolveRole } from "./server/runtime/role";
+import {
+  configureNcmCredentials,
+  normalizeNcmAppId as normalizeStoredNcmAppId,
+  normalizeNcmPrivateKey as normalizeStoredNcmPrivateKey,
+} from "./server/music/ncm_cli";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -79,18 +84,6 @@ async function runNcmCli(args: string[], timeout = 15000): Promise<{ stdout: str
   return { stdout: String(result.stdout || ''), stderr: String(result.stderr || '') };
 }
 
-function normalizeNcmAppId(value: unknown): string | null {
-  const appId = String(value ?? '').trim();
-  return /^\d{1,32}$/.test(appId) ? appId : null;
-}
-
-function normalizeNcmPrivateKey(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const privateKey = value.trim();
-  if (privateKey.length < 16 || privateKey.length > 12000) return null;
-  return privateKey.replace(/\r\n/g, '\n').replace(/\n/g, '\\n');
-}
-
 async function checkNcmLoginStatus(timeout = 8000): Promise<boolean> {
   try {
     const check = await runNcmCli(['login', '--check', '--output', 'json'], timeout);
@@ -113,13 +106,12 @@ async function checkNcmLoginStatus(timeout = 8000): Promise<boolean> {
 apiRouter.post('/ncm/configure', async (req, res) => {
   try {
     const { appId, privateKey } = req.body || {};
-    const safeAppId = normalizeNcmAppId(appId);
-    const safePrivateKey = normalizeNcmPrivateKey(privateKey);
+    const safeAppId = normalizeStoredNcmAppId(appId);
+    const safePrivateKey = normalizeStoredNcmPrivateKey(privateKey);
     if (!safeAppId || !safePrivateKey) {
       return res.json({ success: false, error: 'appId and privateKey are required' });
     }
-    await runNcmCli(['config', 'set', 'appId', safeAppId], 10000);
-    await runNcmCli(['config', 'set', 'privateKey', safePrivateKey], 10000);
+    await configureNcmCredentials(safeAppId, safePrivateKey, 10000);
     const { saveKeys } = await import('./server/config/keys');
     saveKeys({ NETEASE_APP_ID: safeAppId, NETEASE_PRIVATE_KEY: safePrivateKey });
     console.log('[NCM] Credentials configured.');
@@ -133,7 +125,7 @@ apiRouter.get('/ncm/configure/status', async (_req, res) => {
   let hasStoredKeys = false;
   try {
     const { getKey } = await import('./server/config/keys');
-    hasStoredKeys = Boolean(normalizeNcmAppId(getKey('NETEASE_APP_ID')) && normalizeNcmPrivateKey(getKey('NETEASE_PRIVATE_KEY')));
+    hasStoredKeys = Boolean(normalizeStoredNcmAppId(getKey('NETEASE_APP_ID')) && normalizeStoredNcmPrivateKey(getKey('NETEASE_PRIVATE_KEY')));
     const result = await runNcmCli(['config', 'list'], 8000);
     const stdout = result.stdout || '';
     const hasAppId = stdout.includes('appId:') && !stdout.includes('appId: (未配置)');
@@ -180,11 +172,10 @@ apiRouter.post('/ncm/login', async (_req, res) => {
     console.log(`[NCM] Player configured: ${mpvPath}`);
 
     const { getKey } = await import('./server/config/keys');
-    const appId = normalizeNcmAppId(getKey('NETEASE_APP_ID'));
-    const privateKey = normalizeNcmPrivateKey(getKey('NETEASE_PRIVATE_KEY'));
+    const appId = normalizeStoredNcmAppId(getKey('NETEASE_APP_ID'));
+    const privateKey = normalizeStoredNcmPrivateKey(getKey('NETEASE_PRIVATE_KEY'));
     if (appId && privateKey) {
-      await runNcmCli(['config', 'set', 'appId', appId], 10000).catch(() => {});
-      await runNcmCli(['config', 'set', 'privateKey', privateKey], 10000).catch(() => {});
+      await configureNcmCredentials(appId, privateKey, 10000).catch(() => {});
     }
     if (await checkNcmLoginStatus(10000)) {
       console.log('[NCM] Already logged in from previous session.');

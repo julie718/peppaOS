@@ -8,6 +8,7 @@ import { CanvasCard, CanvasEdge, PositionedCard } from './types';
 interface CanvasViewportProps {
   cards: CanvasCard[];
   edges: CanvasEdge[];
+  t?: any;
   onRetry?: (cardId: string) => void;
   onClear?: () => void;
   selectedEdgeId?: string | null;
@@ -93,6 +94,7 @@ function EdgeLine({
 export function CanvasViewport({
   cards,
   edges,
+  t,
   onRetry,
   onClear,
   selectedEdgeId,
@@ -201,7 +203,7 @@ export function CanvasViewport({
             <div className="mx-0.5 h-5 w-px bg-white/[0.08]" />
             <button
               onClick={onClear}
-              title="Clear canvas"
+              title={t?.canvasClearCanvas || 'Clear canvas'}
               className="flex h-8 w-8 items-center justify-center rounded-lg text-sm text-red-400/60 transition-colors hover:bg-red-500/10 hover:text-red-400"
             >
               <Trash2 size={14} />
@@ -221,8 +223,8 @@ export function CanvasViewport({
                 <GitBranch size={16} />
               </span>
               <div className="min-w-0">
-                <div className="text-xs font-semibold uppercase tracking-wide text-teal-100/80">Path Edit</div>
-                <div className="text-[11px] text-white/35">Modify this step without leaving the canvas</div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-teal-100/80">{t?.canvasPathEdit || 'Path Edit'}</div>
+                <div className="text-[11px] text-white/35">{t?.canvasPathEditDesc || 'Modify this step without leaving the canvas'}</div>
               </div>
             </div>
             <button
@@ -235,18 +237,18 @@ export function CanvasViewport({
           </div>
           <div className="space-y-2 rounded-lg border border-white/[0.06] bg-white/[0.03] p-3">
             <div>
-              <div className="text-[10px] uppercase tracking-wide text-white/30">From</div>
+              <div className="text-[10px] uppercase tracking-wide text-white/30">{t?.canvasPathFrom || 'From'}</div>
               <div className="truncate text-xs text-white/70">{getCardLabel(selectedSource)}</div>
             </div>
             <div>
-              <div className="text-[10px] uppercase tracking-wide text-white/30">To</div>
+              <div className="text-[10px] uppercase tracking-wide text-white/30">{t?.canvasPathTo || 'To'}</div>
               <div className="truncate text-xs text-white/70">{getCardLabel(selectedTarget)}</div>
             </div>
           </div>
           <textarea
             value={edgeInstruction}
             onChange={(e) => setEdgeInstruction(e.target.value)}
-            placeholder="Tell Lumi what to change, or describe a branch to try from here..."
+            placeholder={t?.canvasPathInstructionPlaceholder || 'Tell Lumi what to change, or describe a branch to try from here...'}
             className="mt-3 h-24 w-full resize-none rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white outline-none placeholder:text-white/25 focus:border-teal-300/35"
           />
           <div className="mt-3 grid grid-cols-2 gap-2">
@@ -260,7 +262,7 @@ export function CanvasViewport({
               disabled={!edgeInstruction.trim()}
               className="h-9 rounded-lg bg-teal-300 text-sm font-semibold text-slate-950 transition hover:bg-teal-200 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30"
             >
-              Revise step
+              {t?.canvasReviseStep || 'Revise step'}
             </button>
             <button
               onClick={() => {
@@ -271,7 +273,7 @@ export function CanvasViewport({
               disabled={!onEdgeBranch}
               className="h-9 rounded-lg border border-violet-300/25 bg-violet-400/10 text-sm font-semibold text-violet-100 transition hover:bg-violet-400/18 disabled:cursor-not-allowed disabled:opacity-35"
             >
-              Fork branch
+              {t?.canvasForkBranch || 'Fork branch'}
             </button>
           </div>
           <button
@@ -280,7 +282,7 @@ export function CanvasViewport({
             className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.04] text-xs font-semibold text-white/55 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
           >
             <RefreshCw size={13} />
-            Rerun from target step
+            {t?.canvasRerunFromStep || 'Rerun from target step'}
           </button>
         </div>
       )}
@@ -315,6 +317,7 @@ export function CanvasViewport({
           <div key={card.id} data-canvas-card style={{ pointerEvents: 'auto' }}>
             <CanvasCardComponent
               card={card}
+              t={t}
               onRetry={card.status === 'error' || card.type === 'tool_call' ? onRetry : undefined}
             />
           </div>
@@ -323,8 +326,8 @@ export function CanvasViewport({
         {cards.length === 0 && (
           <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
             <div className="mb-4 text-5xl opacity-20">+</div>
-            <p className="text-sm text-white/30">Tell me what to do. I will build the path here.</p>
-            <p className="mt-2 text-xs text-white/15">Drag to pan / Scroll to zoom / Click a path line to edit a step</p>
+            <p className="text-sm text-white/30">{t?.canvasEmptyTitle || 'Tell me what to do. I will build the path here.'}</p>
+            <p className="mt-2 text-xs text-white/15">{t?.canvasEmptyHint || 'Drag to pan / Scroll to zoom / Click a path line to edit a step'}</p>
           </div>
         )}
       </div>

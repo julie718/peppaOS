@@ -1,4 +1,5 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { ToolRegistry } from '../registry';
 import { ToolContext } from '../types';
@@ -51,10 +52,19 @@ function buildMessageDraft(args: Record<string, any>): string {
 }
 
 function safeFileName(value: string): string {
-  return (value || 'cad_drawing')
-    .replace(/[^a-zA-Z0-9_-]+/g, '_')
+  const cleaned = (value || 'cad_drawing')
+    .replace(/[<>:"/\\|?*\x00-\x1f]+/g, '_')
+    .replace(/\s+/g, '_')
+    .replace(/^\.+|\.+$/g, '')
     .replace(/^_+|_+$/g, '')
-    .slice(0, 64) || 'cad_drawing';
+    .trim();
+  return Array.from(cleaned || 'cad_drawing').slice(0, 64).join('') || 'cad_drawing';
+}
+
+function safeLayer(value: any, fallback: string): string {
+  return String(value || fallback)
+    .replace(/[^a-zA-Z0-9_$-]+/g, '_')
+    .slice(0, 31) || fallback;
 }
 
 function dxfLine(x1: number, y1: number, x2: number, y2: number, layer = 'CUT'): string[] {
@@ -67,6 +77,10 @@ function dxfCircle(x: number, y: number, r: number, layer = 'HOLE'): string[] {
 
 function dxfArc(cx: number, cy: number, r: number, start: number, end: number, layer = 'CUT'): string[] {
   return ['0', 'ARC', '8', layer, '10', String(cx), '20', String(cy), '30', '0', '40', String(r), '50', String(start), '51', String(end)];
+}
+
+function dxfText(x: number, y: number, text: string, height = 240, layer = 'TEXT'): string[] {
+  return ['0', 'TEXT', '8', layer, '10', String(x), '20', String(y), '30', '0', '40', String(height), '1', text.slice(0, 80)];
 }
 
 function buildRoundedRectEntities(width: number, height: number, radius: number): string[] {
@@ -98,10 +112,40 @@ function buildDxf(args: Record<string, any>): string {
   const height = Math.max(1, Number(args.height) || 60);
   const radius = Math.max(0, Number(args.cornerRadius) || 0);
   const holes = Array.isArray(args.holes) ? args.holes : [];
+  const walls = Array.isArray(args.walls) ? args.walls : Array.isArray(args.lines) ? args.lines : [];
+  const rooms = Array.isArray(args.rooms) ? args.rooms : [];
+  const labels = Array.isArray(args.labels) ? args.labels : [];
   const entities: string[] = [
     '0', 'SECTION', '2', 'ENTITIES',
     ...buildRoundedRectEntities(width, height, radius),
   ];
+
+  for (const wall of walls.slice(0, 500)) {
+    const x1 = Number(wall?.x1 ?? wall?.from?.x);
+    const y1 = Number(wall?.y1 ?? wall?.from?.y);
+    const x2 = Number(wall?.x2 ?? wall?.to?.x);
+    const y2 = Number(wall?.y2 ?? wall?.to?.y);
+    if ([x1, y1, x2, y2].every(Number.isFinite)) {
+      entities.push(...dxfLine(x1, y1, x2, y2, safeLayer(wall?.layer, 'WALL')));
+    }
+  }
+
+  for (const room of rooms.slice(0, 120)) {
+    const x = Number(room?.x);
+    const y = Number(room?.y);
+    const w = Number(room?.width ?? room?.w);
+    const h = Number(room?.height ?? room?.h);
+    if ([x, y, w, h].every(Number.isFinite) && w > 0 && h > 0) {
+      const layer = safeLayer(room?.layer, 'ROOM');
+      entities.push(...dxfLine(x, y, x + w, y, layer));
+      entities.push(...dxfLine(x + w, y, x + w, y + h, layer));
+      entities.push(...dxfLine(x + w, y + h, x, y + h, layer));
+      entities.push(...dxfLine(x, y + h, x, y, layer));
+      if (room?.name) {
+        entities.push(...dxfText(x + 120, y + Math.min(h / 2, 600), String(room.name), Number(room?.textHeight) || 220, 'TEXT'));
+      }
+    }
+  }
 
   for (const hole of holes.slice(0, 40)) {
     const x = Number(hole?.x);
@@ -112,8 +156,61 @@ function buildDxf(args: Record<string, any>): string {
     }
   }
 
+  for (const label of labels.slice(0, 160)) {
+    const x = Number(label?.x);
+    const y = Number(label?.y);
+    const text = String(label?.text || label?.name || '').trim();
+    if (Number.isFinite(x) && Number.isFinite(y) && text) {
+      entities.push(...dxfText(x, y, text, Number(label?.height) || 220, safeLayer(label?.layer, 'TEXT')));
+    }
+  }
+
   entities.push('0', 'ENDSEC', '0', 'EOF');
   return `${entities.join('\n')}\n`;
+}
+
+function ensureDxfExtension(filePath: string): string {
+  return /\.dxf$/i.test(filePath) ? filePath : `${filePath}.dxf`;
+}
+
+function expandHomePath(filePath: string): string {
+  return filePath.replace(/^~(?=$|[\\/])/, os.homedir());
+}
+
+function assertWritableCadPath(filePath: string) {
+  const normalized = path.normalize(filePath);
+  const lower = normalized.toLowerCase();
+  const blocked = [
+    path.normalize('C:\\Windows').toLowerCase(),
+    path.normalize('C:\\Program Files').toLowerCase(),
+    path.normalize('C:\\Program Files (x86)').toLowerCase(),
+  ];
+  if (blocked.some(root => lower === root || lower.startsWith(root + path.sep.toLowerCase()))) {
+    throw new Error(`Refusing to write CAD output inside a system directory: ${normalized}`);
+  }
+}
+
+function resolveCadOutputPath(args: Record<string, any>, title: string): string {
+  const outputPath = String(args.outputPath || '').trim();
+  const outputDirectory = String(args.outputDirectory || '').trim();
+  if (outputPath) {
+    const baseDir = outputDirectory ? expandHomePath(outputDirectory) : getDataPath('cad');
+    const resolved = path.isAbsolute(outputPath)
+      ? expandHomePath(outputPath)
+      : path.resolve(baseDir, outputPath);
+    const finalPath = ensureDxfExtension(resolved);
+    assertWritableCadPath(finalPath);
+    fs.mkdirSync(path.dirname(finalPath), { recursive: true });
+    return finalPath;
+  }
+
+  const directory = outputDirectory
+    ? path.resolve(expandHomePath(outputDirectory))
+    : getDataPath('cad');
+  const finalPath = path.join(directory, `${title}_${Date.now()}.dxf`);
+  assertWritableCadPath(finalPath);
+  fs.mkdirSync(path.dirname(finalPath), { recursive: true });
+  return finalPath;
 }
 
 export function registerExternalAppTools(registry: ToolRegistry): void {
@@ -220,7 +317,7 @@ export function registerExternalAppTools(registry: ToolRegistry): void {
 
   registry.register({
     name: 'cad_generate_dxf',
-    description: 'Generate a simple CAD DXF draft with an outline and optional holes. Use this as a first drafting handoff, not as final engineering verification.',
+    description: 'Generate a CAD DXF draft with an outline, optional walls/rooms/labels/holes, and optional explicit output path. Use this as a drafting handoff, not as final engineering verification. If the user asks for a visible desktop file, set outputDirectory or outputPath and verify it after creation.',
     parameters: {
       type: 'object',
       properties: {
@@ -229,6 +326,24 @@ export function registerExternalAppTools(registry: ToolRegistry): void {
         height: { type: 'number', description: 'Outer height in chosen units.' },
         unit: { type: 'string', description: 'Unit label, e.g. mm, cm, inch.' },
         cornerRadius: { type: 'number', description: 'Optional rounded corner radius.' },
+        outputDirectory: { type: 'string', description: 'Optional directory to save the DXF, e.g. C:\\Users\\name\\Desktop. Use when the user asks to put the file somewhere visible.' },
+        outputPath: { type: 'string', description: 'Optional exact DXF output path. Relative paths are resolved under outputDirectory or Lumi CAD data directory.' },
+        sourcePath: { type: 'string', description: 'Optional source drawing/image path used for traceability.' },
+        walls: {
+          type: 'array',
+          description: 'Optional CAD wall/line segments: {x1,y1,x2,y2,layer}. Use this for floor-plan drafts.',
+          items: { type: 'object' },
+        },
+        rooms: {
+          type: 'array',
+          description: 'Optional room rectangles: {name,x,y,width,height}. Adds room outlines and labels.',
+          items: { type: 'object' },
+        },
+        labels: {
+          type: 'array',
+          description: 'Optional text labels: {text,x,y,height,layer}.',
+          items: { type: 'object' },
+        },
         holes: {
           type: 'array',
           description: 'Optional holes as objects with x, y, and r/radius.',
@@ -240,8 +355,9 @@ export function registerExternalAppTools(registry: ToolRegistry): void {
     },
     handler: async (args, context) => {
       const title = safeFileName(String(args.title || 'lumi_cad_draft'));
-      const outPath = getDataPath(path.join('cad', `${title}_${Date.now()}.dxf`));
+      const outPath = resolveCadOutputPath(args, title);
       fs.writeFileSync(outPath, buildDxf(args), 'utf-8');
+      const stat = fs.statSync(outPath);
 
       let openResult: string | undefined;
       if (args.openPreview) {
@@ -256,10 +372,17 @@ export function registerExternalAppTools(registry: ToolRegistry): void {
         unit: args.unit || 'unit',
         width: Number(args.width) || 100,
         height: Number(args.height) || 60,
+        sourcePath: args.sourcePath || undefined,
+        outputDirectory: path.dirname(outPath),
+        exists: fs.existsSync(outPath),
+        size: stat.size,
+        walls: Array.isArray(args.walls) ? args.walls.length : Array.isArray(args.lines) ? args.lines.length : 0,
+        rooms: Array.isArray(args.rooms) ? args.rooms.length : 0,
+        labels: Array.isArray(args.labels) ? args.labels.length : 0,
         holes: Array.isArray(args.holes) ? args.holes.length : 0,
         opened: Boolean(args.openPreview),
         openResult,
-        note: 'Generated a DXF draft. Review dimensions and tolerances before production use.',
+        note: 'Generated and verified a DXF draft file. Review dimensions and tolerances before production use.',
       }, null, 2);
     },
     permission: 'user',
