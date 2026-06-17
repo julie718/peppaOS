@@ -1,8 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { MessagesSquare, Save, Key, ExternalLink, CheckCircle, AlertCircle, Copy } from 'lucide-react';
+import { MessagesSquare, Save, Key, ExternalLink, CheckCircle, AlertCircle, Copy, Unlink } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { toast } from 'sonner';
+import { appConfirm } from '../lib/appConfirm';
+
+interface FeishuBinding {
+  id: string;
+  platformUserId: string;
+  orgId: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export function FeishuSettings({ t }: { t?: any }) {
   const isZh = t?.langCode !== 'en';
@@ -17,6 +26,7 @@ export function FeishuSettings({ t }: { t?: any }) {
   const [bindingCode, setBindingCode] = useState('');
   const [bindingExpiresAt, setBindingExpiresAt] = useState('');
   const [bindingLoading, setBindingLoading] = useState(false);
+  const [bindings, setBindings] = useState<FeishuBinding[]>([]);
 
   useEffect(() => {
     fetch('/api/feishu/config')
@@ -28,7 +38,16 @@ export function FeishuSettings({ t }: { t?: any }) {
       })
       .catch(() => toast.error(t?.failedToLoadConfig || 'Failed to load config'))
       .finally(() => setLoading(false));
+    void loadBindings();
   }, []);
+
+  async function loadBindings() {
+    try {
+      const res = await fetch('/api/feishu/bindings', { credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) setBindings(Array.isArray(data.bindings) ? data.bindings : []);
+    } catch {}
+  }
 
   const save = async () => {
     if (!appId.trim()) {
@@ -93,6 +112,30 @@ export function FeishuSettings({ t }: { t?: any }) {
     }
   };
 
+  const removeBinding = async (binding: FeishuBinding) => {
+    const ok = await appConfirm({
+      title: ui('解除飞书绑定', 'Remove Feishu Binding'),
+      message: ui('解除后，这个飞书身份将不能再访问当前 Lumi 的组织数据。', 'This Feishu identity will no longer access this Lumi organization data.'),
+      confirmText: ui('解除绑定', 'Remove'),
+      cancelText: ui('取消', 'Cancel'),
+      tone: 'danger',
+    });
+    if (!ok) return;
+
+    try {
+      const res = await fetch(`/api/feishu/bindings/${binding.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || ui(`解除绑定失败（${res.status}）`, `Failed to remove binding (${res.status})`));
+      setBindings(prev => prev.filter(item => item.id !== binding.id));
+      toast.success(ui('飞书绑定已解除', 'Feishu binding removed'));
+    } catch (err: any) {
+      toast.error(err?.message || ui('解除绑定失败', 'Failed to remove binding'));
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -152,6 +195,34 @@ export function FeishuSettings({ t }: { t?: any }) {
             {ui('过期时间：', 'Expires: ')}{new Date(bindingExpiresAt).toLocaleString()}
           </div>
         )}
+        <div className="rounded-lg border border-white/8 bg-black/20 p-3">
+          <div className="mb-2 text-[11px] font-black uppercase tracking-widest text-white/45">
+            {ui('已绑定飞书身份', 'Bound Feishu Identities')}
+          </div>
+          {bindings.length === 0 ? (
+            <div className="text-xs text-white/32">{ui('暂无绑定身份', 'No bound identities yet')}</div>
+          ) : (
+            <div className="space-y-2">
+              {bindings.map(binding => (
+                <div key={binding.id} className="flex items-center justify-between gap-3 rounded-lg bg-white/[0.04] px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-xs font-mono text-white/70">{binding.platformUserId}</div>
+                    <div className="text-[11px] text-white/32">
+                      {ui('绑定于', 'Bound at')} {new Date(binding.createdAt).toLocaleString()}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => removeBinding(binding)}
+                    className="shrink-0 rounded-md p-1.5 text-white/35 hover:bg-red-500/10 hover:text-red-300"
+                    title={ui('解除绑定', 'Remove binding')}
+                  >
+                    <Unlink size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Config Form */}
