@@ -1,14 +1,14 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Scale, FileText, Search, Crosshair, Shield, Brain, CheckCircle, Upload,
   Calendar, Mic, ClipboardList, Plus, FolderOpen, Gavel, AlertTriangle, RefreshCw,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { LegalBidWorkbench } from './LegalBidWorkbench';
 import { LegalCaseSearch } from './LegalCaseSearch';
 import { LegalAssetTrace } from './LegalAssetTrace';
 import { LegalContractReview } from './LegalContractReview';
 import { useT } from '../../lib/useT';
-import { toast } from 'sonner';
 import { useApp } from '../../contexts/AppContext';
 import {
   clearLegalConsultationCaseId,
@@ -48,7 +48,7 @@ export function LegalHub() {
   const { workDomain, orgConnection } = useApp();
   const t = useT();
   const isZh = t.langCode !== 'en';
-  const ui = (zh: string, en: string) => (isZh ? zh : en);
+  const ui = useCallback((zh: string, en: string) => (isZh ? zh : en), [isZh]);
   const useOrgCases = workDomain === 'work' && Boolean(orgConnection?.connected && orgConnection?.orgId);
 
   const refreshCases = useCallback(async () => {
@@ -57,20 +57,21 @@ export function LegalHub() {
       setActiveCaseIdState(getActiveLegalCaseId());
       return;
     }
+
     setOrgCasesLoading(true);
     try {
       const res = await fetch('/api/org/legal/cases', { credentials: 'include' });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Failed to load legal cases');
+      if (!res.ok) throw new Error(data.error || ui('组织案件加载失败', 'Failed to load organization cases'));
       const loaded = Array.isArray(data.cases) ? data.cases : [];
       setCases(loaded);
       setActiveCaseIdState(prev => (prev && loaded.some((item: LegalCaseFile) => item.id === prev)) ? prev : (loaded[0]?.id || ''));
     } catch (err: any) {
-      toast.error(err?.message || (isZh ? '组织案件加载失败' : 'Failed to load organization cases'));
+      toast.error(err?.message || ui('组织案件加载失败', 'Failed to load organization cases'));
     } finally {
       setOrgCasesLoading(false);
     }
-  }, [isZh, useOrgCases]);
+  }, [ui, useOrgCases]);
 
   useEffect(() => {
     const syncCases = () => {
@@ -111,7 +112,7 @@ export function LegalHub() {
     { id: 'strategy', label: t.legalCaseStrategy, icon: <Brain size={16} /> },
     { id: 'verify', label: t.legalVerifyCitation, icon: <CheckCircle size={16} /> },
     { id: 'import', label: t.legalImportJudgment, icon: <Upload size={16} /> },
-  ], [t, isZh]);
+  ], [t, ui]);
 
   const activeCase = useMemo(() => {
     return cases.find(item => item.id === activeCaseId) || cases[0] || null;
@@ -120,9 +121,7 @@ export function LegalHub() {
   const saveCases = (next: LegalCaseFile[], nextActiveId = activeCaseId) => {
     setCases(next);
     if (!useOrgCases) writeLegalCaseFiles(next, nextActiveId);
-    if (nextActiveId) {
-      setActiveCaseIdState(nextActiveId);
-    }
+    if (nextActiveId) setActiveCaseIdState(nextActiveId);
   };
 
   const createCase = async () => {
@@ -137,7 +136,7 @@ export function LegalHub() {
           body: JSON.stringify(nextCase),
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || 'Failed to create case');
+        if (!res.ok) throw new Error(data.error || ui('案件创建失败', 'Failed to create case'));
         saveCases([data, ...cases], data.id);
       } else {
         saveCases([nextCase, ...cases], nextCase.id);
@@ -161,13 +160,13 @@ export function LegalHub() {
       }).then(async res => {
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || 'Failed to save case');
+          throw new Error(data.error || ui('案件保存失败', 'Failed to save case'));
         }
       }).catch((err: any) => toast.error(err?.message || ui('案件保存失败', 'Failed to save case')));
     }
   };
 
-  const addMaterial = (type: LegalCaseMaterial['type'], title: string) => {
+  const addMaterial = (type: LegalCaseMaterial['type'], title: string, content?: string, source: LegalCaseMaterial['source'] = 'manual') => {
     if (!activeCase) {
       toast.info(ui('请先创建案件档案', 'Create a case file first'));
       return;
@@ -176,6 +175,8 @@ export function LegalHub() {
       id: `mat_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       type,
       title,
+      content,
+      source,
       createdAt: new Date().toISOString(),
     };
     if (useOrgCases) {
@@ -188,7 +189,7 @@ export function LegalHub() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ ...material, source: 'manual', content: title }),
+        body: JSON.stringify(material),
       }).catch((err: any) => toast.error(err?.message || ui('材料归档失败', 'Failed to archive material')));
     } else {
       updateCase(activeCase.id, { materials: [material, ...(activeCase.materials || [])] });
@@ -204,7 +205,7 @@ export function LegalHub() {
         body: JSON.stringify({ content, dueAt: dueAt ? `${dueAt}T09:00:00` : null }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Failed to create reminder');
+      if (!res.ok) throw new Error(data.error || ui('提醒创建失败', 'Failed to create reminder'));
       toast.success(ui('已加入提醒', 'Reminder added'));
     } catch (err: any) {
       toast.error(err?.message || ui('提醒创建失败', 'Failed to create reminder'));
@@ -236,7 +237,7 @@ export function LegalHub() {
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Failed to create plan');
+      if (!res.ok) throw new Error(data.error || ui('案件计划创建失败', 'Failed to create case plan'));
       toast.success(ui('案件计划已创建', 'Case plan created'));
       window.dispatchEvent(new CustomEvent('lumi:client-action', { detail: { action: 'open_plans' } }));
     } catch (err: any) {
@@ -268,38 +269,36 @@ export function LegalHub() {
 
   const openMeetingNotes = () => {
     window.dispatchEvent(new CustomEvent('lumi:client-action', {
-      detail: {
-        action: 'open_meeting_notes',
-        respond: () => {},
-      },
+      detail: { action: 'open_meeting_notes', respond: () => {} },
     }));
   };
 
   const renderView = () => {
     switch (view) {
-      case 'workspace': return (
-        <LegalCaseWorkspace
-          cases={cases}
-          activeCase={activeCase}
-          activeCaseId={activeCase?.id || ''}
-          onCreateCase={createCase}
-          onSelectCase={(id) => {
-            setActiveCaseIdState(id);
-            setActiveLegalCaseId(id);
-          }}
-          onUpdateCase={updateCase}
-          onSetView={setView}
-          onStartConsultation={startConsultation}
-          onOpenMeetingNotes={openMeetingNotes}
-          onCreateReminder={createReminder}
-          onCreatePlan={createCasePlan}
-          onAddMaterial={addMaterial}
-          onRefreshCases={refreshCases}
-          orgBacked={useOrgCases}
-          refreshing={orgCasesLoading}
-          ui={ui}
-        />
-      );
+      case 'workspace':
+        return (
+          <LegalCaseWorkspace
+            cases={cases}
+            activeCase={activeCase}
+            activeCaseId={activeCase?.id || ''}
+            onCreateCase={createCase}
+            onSelectCase={(id) => {
+              setActiveCaseIdState(id);
+              setActiveLegalCaseId(id);
+            }}
+            onUpdateCase={updateCase}
+            onSetView={setView}
+            onStartConsultation={startConsultation}
+            onOpenMeetingNotes={openMeetingNotes}
+            onCreateReminder={createReminder}
+            onCreatePlan={createCasePlan}
+            onAddMaterial={addMaterial}
+            onRefreshCases={refreshCases}
+            orgBacked={useOrgCases}
+            refreshing={orgCasesLoading}
+            ui={ui}
+          />
+        );
       case 'bid': return <LegalBidWorkbench onSwitchView={setView} />;
       case 'case-search': return <LegalCaseSearch />;
       case 'asset-trace': return <LegalAssetTrace />;
@@ -317,7 +316,7 @@ export function LegalHub() {
         <div className="p-4 border-b border-white/5">
           <h3 className="text-white text-sm font-bold flex items-center gap-2">
             <Scale size={16} className="text-amber-400" />
-            {t.legalHub || 'Law Firm'}
+            {t.legalHub || ui('律所', 'Law Firm')}
           </h3>
           {activeCase && (
             <p className="mt-2 line-clamp-2 text-xs text-white/45">
@@ -378,7 +377,7 @@ function LegalCaseWorkspace({
   onOpenMeetingNotes: () => void;
   onCreateReminder: (content: string, dueAt?: string) => void;
   onCreatePlan: () => void;
-  onAddMaterial: (type: LegalCaseMaterial['type'], title: string) => void;
+  onAddMaterial: (type: LegalCaseMaterial['type'], title: string, content?: string, source?: LegalCaseMaterial['source']) => void;
   onRefreshCases: () => void;
   orgBacked: boolean;
   refreshing: boolean;
@@ -424,7 +423,7 @@ function LegalCaseWorkspace({
     }
     const deadline = addDays(activeCase.judgmentDate, 15);
     update({ appealDeadline: deadline });
-    toast.success(ui('已按民事判决默认 15 日计算上诉期限，请律师复核', 'Appeal deadline calculated with the default 15-day civil judgment rule; lawyer review required'));
+    toast.success(ui('已按常见民事判决 15 日规则计算上诉期限，请律师复核', 'Appeal deadline calculated with the default 15-day civil judgment rule; lawyer review required'));
   };
 
   const createDateReminder = (kind: 'hearing' | 'appeal' | 'enforcement') => {
@@ -447,7 +446,7 @@ function LegalCaseWorkspace({
 
   const extractNotice = () => {
     if (!activeCase || !noticeText.trim()) return;
-    const caseNumber = noticeText.match(/[（(]\d{4}[）)][^，。；;\n]{2,50}[号字]/)?.[0] || '';
+    const caseNumber = noticeText.match(/[（(]\d{4}[）)][^，。；;\n]{2,80}(?:号|字第?\d+号?)/)?.[0] || '';
     const court = noticeText.match(/[\u4e00-\u9fa5]{2,40}(?:人民法院|法院)/)?.[0] || '';
     const dateMatch = noticeText.match(/(\d{4})[年/-](\d{1,2})[月/-](\d{1,2})日?(?:\s*(\d{1,2})[:：时](\d{1,2})?分?)?/);
     const hearingDate = dateMatch
@@ -459,7 +458,7 @@ function LegalCaseWorkspace({
     if (hearingDate) patch.hearingDate = hearingDate;
     patch.notes = [activeCase.notes, ui('开庭通知原文：', 'Hearing notice:'), noticeText].filter(Boolean).join('\n');
     onUpdateCase(activeCase.id, patch);
-    onAddMaterial('note', ui('开庭通知/短信', 'Hearing notice/SMS'));
+    onAddMaterial('note', ui('开庭通知/短信', 'Hearing notice/SMS'), noticeText, 'notice');
     setNoticeStatus(ui('已提取通知信息，请复核案号、法院和日期。', 'Notice extracted. Review case number, court, and date.'));
   };
 
@@ -472,7 +471,7 @@ function LegalCaseWorkspace({
           </div>
           <h2 className="text-xl font-bold text-white">{ui('先建立一个案件档案', 'Create a case file first')}</h2>
           <p className="mt-2 text-sm leading-6 text-white/45">
-            {ui('律所能力会围绕案件流转：会谈、材料、类案、文书、期限和庭审都归到同一个档案里。', 'Legal work flows around a case: consultations, materials, precedents, documents, deadlines, and trial notes stay in one file.')}
+            {ui('律所能力围绕案件流转：会谈、材料、类案、文书、期限和庭审都归到同一个档案里。', 'Legal work flows around a case: consultations, materials, precedents, documents, deadlines, and trial notes stay in one file.')}
           </p>
           <button
             onClick={onCreateCase}
@@ -504,7 +503,7 @@ function LegalCaseWorkspace({
         </div>
         <button
           onClick={onCreateCase}
-          className="inline-flex items-center gap-2 rounded-xl bg-white/8 px-4 py-2.5 text-sm font-semibold text-white/75 transition-colors hover:bg-white/12"
+          className="inline-flex items-center gap-2 rounded-xl bg-white/[0.08] px-4 py-2.5 text-sm font-semibold text-white/75 transition-colors hover:bg-white/[0.12]"
         >
           <Plus size={15} />
           {ui('新建案件', 'New Case')}
@@ -521,7 +520,7 @@ function LegalCaseWorkspace({
                   type="button"
                   onClick={onRefreshCases}
                   disabled={refreshing}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/6 text-white/42 hover:bg-white/10 hover:text-white/70 disabled:opacity-40"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/[0.06] text-white/42 hover:bg-white/10 hover:text-white/70 disabled:opacity-40"
                   title={ui('刷新组织案件', 'Refresh organization cases')}
                 >
                   <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
@@ -553,7 +552,7 @@ function LegalCaseWorkspace({
                   }`}
                 >
                   <div className="truncate text-sm font-semibold">{item.title || item.party || item.caseNumber || ui('未命名案件', 'Untitled case')}</div>
-                  <div className="mt-0.5 truncate text-xs text-white/32">{stageLabels[item.stage]} · {item.cause || ui('未填写案由', 'No cause')}</div>
+                  <div className="mt-0.5 truncate text-xs text-white/32">{stageLabels[item.stage]} / {item.cause || ui('未填写案由', 'No cause')}</div>
                 </button>
               ))}
             </div>
@@ -563,7 +562,7 @@ function LegalCaseWorkspace({
             <div className="flex items-start gap-2 text-amber-200">
               <AlertTriangle size={15} className="mt-0.5 shrink-0" />
               <p className="text-xs leading-5 text-amber-100/70">
-                {ui('期限计算按常见民事规则给出辅助提醒，涉外、刑事、行政、公告送达等情形必须人工复核。', 'Deadline calculations are assistant reminders for common civil matters; special cases require manual review.')}
+                {ui('期限计算按常见规则给出辅助提醒，涉外、刑事、行政、公告送达等情形必须人工复核。', 'Deadline calculations are assistant reminders for common matters; special cases require manual review.')}
               </p>
             </div>
           </div>
@@ -625,13 +624,13 @@ function LegalCaseWorkspace({
               <DateField label={ui('上诉期限', 'Appeal deadline')} value={activeCase.appealDeadline} onChange={value => update({ appealDeadline: value })} onReminder={() => createDateReminder('appeal')} />
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button onClick={calculateAppealDeadline} className="rounded-lg bg-white/8 px-3 py-2 text-xs font-semibold text-white/68 hover:bg-white/12">
+              <button onClick={calculateAppealDeadline} className="rounded-lg bg-white/[0.08] px-3 py-2 text-xs font-semibold text-white/68 hover:bg-white/[0.12]">
                 {ui('按判决日期计算上诉期限', 'Calculate appeal deadline')}
               </button>
-              <button onClick={onOpenMeetingNotes} className="rounded-lg bg-white/8 px-3 py-2 text-xs font-semibold text-white/68 hover:bg-white/12">
+              <button onClick={onOpenMeetingNotes} className="rounded-lg bg-white/[0.08] px-3 py-2 text-xs font-semibold text-white/68 hover:bg-white/[0.12]">
                 {ui('打开会谈笔记', 'Open meeting notes')}
               </button>
-              <button onClick={() => onSetView('import')} className="rounded-lg bg-white/8 px-3 py-2 text-xs font-semibold text-white/68 hover:bg-white/12">
+              <button onClick={() => onSetView('import')} className="rounded-lg bg-white/[0.08] px-3 py-2 text-xs font-semibold text-white/68 hover:bg-white/[0.12]">
                 {ui('导入裁判文书', 'Import judgment')}
               </button>
             </div>
@@ -668,16 +667,16 @@ function LegalCaseWorkspace({
                 <h3 className="text-sm font-bold">{ui('材料与文书', 'Materials and Documents')}</h3>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button onClick={() => { onAddMaterial('pleading', ui('委托书草稿', 'Engagement letter draft')); onSetView('strategy'); }} className="rounded-lg bg-white/8 px-3 py-2 text-xs text-white/70 hover:bg-white/12">
+                <button onClick={() => { onAddMaterial('pleading', ui('委托书草稿', 'Engagement letter draft')); onSetView('strategy'); }} className="rounded-lg bg-white/[0.08] px-3 py-2 text-xs text-white/70 hover:bg-white/[0.12]">
                   {ui('生成委托书入口', 'Engagement letter')}
                 </button>
-                <button onClick={() => { onAddMaterial('pleading', ui('庭审笔录草稿', 'Trial transcript draft')); onStartConsultation(); }} className="rounded-lg bg-white/8 px-3 py-2 text-xs text-white/70 hover:bg-white/12">
+                <button onClick={() => { onAddMaterial('pleading', ui('庭审笔录草稿', 'Trial transcript draft')); onStartConsultation(); }} className="rounded-lg bg-white/[0.08] px-3 py-2 text-xs text-white/70 hover:bg-white/[0.12]">
                   {ui('庭审笔录', 'Trial notes')}
                 </button>
-                <button onClick={() => onSetView('contract-review')} className="rounded-lg bg-white/8 px-3 py-2 text-xs text-white/70 hover:bg-white/12">
+                <button onClick={() => onSetView('contract-review')} className="rounded-lg bg-white/[0.08] px-3 py-2 text-xs text-white/70 hover:bg-white/[0.12]">
                   {ui('合同审查', 'Contract review')}
                 </button>
-                <button onClick={() => onSetView('asset-trace')} className="rounded-lg bg-white/8 px-3 py-2 text-xs text-white/70 hover:bg-white/12">
+                <button onClick={() => onSetView('asset-trace')} className="rounded-lg bg-white/[0.08] px-3 py-2 text-xs text-white/70 hover:bg-white/[0.12]">
                   {ui('财产线索', 'Asset trace')}
                 </button>
               </div>
@@ -696,7 +695,7 @@ function LegalCaseWorkspace({
                     >
                       <div className="min-w-0">
                         <div className="truncate text-sm text-white/72">{material.title}</div>
-                        <div className="text-xs text-white/30">{material.type} · {new Date(material.createdAt).toLocaleString()}</div>
+                        <div className="text-xs text-white/30">{material.type} / {new Date(material.createdAt).toLocaleString()}</div>
                       </div>
                     </button>
                   ))
@@ -741,7 +740,7 @@ function DateField({ label, value, onChange, onReminder }: { label: string; valu
           className="h-10 min-w-0 flex-1 rounded-lg border border-white/10 bg-black/35 px-3 text-sm text-white outline-none focus:border-amber-400/50"
         />
         {onReminder && (
-          <button type="button" onClick={onReminder} className="h-10 rounded-lg bg-white/8 px-3 text-xs font-semibold text-white/65 hover:bg-white/12">
+          <button type="button" onClick={onReminder} className="h-10 rounded-lg bg-white/[0.08] px-3 text-xs font-semibold text-white/65 hover:bg-white/[0.12]">
             +
           </button>
         )}
@@ -756,7 +755,7 @@ function LegalActionButton({ icon, title, desc, onClick }: { icon: React.ReactNo
       onClick={onClick}
       className="group rounded-xl border border-white/8 bg-white/[0.035] p-4 text-left transition-all hover:border-amber-400/25 hover:bg-amber-400/[0.045]"
     >
-      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-white/8 text-amber-300 group-hover:bg-amber-400/12">
+      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-white/[0.08] text-amber-300 group-hover:bg-amber-400/12">
         {icon}
       </div>
       <div className="text-sm font-bold text-white/82">{title}</div>
@@ -765,10 +764,10 @@ function LegalActionButton({ icon, title, desc, onClick }: { icon: React.ReactNo
   );
 }
 
-// ── Stub views for strategy, verify, import ──
-
 function LegalStrategyView({ caseFile }: { caseFile?: LegalCaseFile | null }) {
   const t = useT();
+  const isZh = t.langCode !== 'en';
+  const ui = (zh: string, en: string) => (isZh ? zh : en);
   const defaultFacts = useMemo(() => {
     if (!caseFile) return '';
     return [
@@ -799,7 +798,7 @@ function LegalStrategyView({ caseFile }: { caseFile?: LegalCaseFile | null }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: `使用 legal_case_strategy 工具分析以下案件事实：\n\n${facts}`,
+          message: `请使用 legal_case_strategy 工具分析以下案件事实：\n\n${facts}`,
           stream: false,
         }),
         credentials: 'include',
@@ -807,7 +806,7 @@ function LegalStrategyView({ caseFile }: { caseFile?: LegalCaseFile | null }) {
       const data = await res.json();
       setResult(data.text || data.response || data.reply || data.message || data.error || JSON.stringify(data));
     } catch (e: any) {
-      setResult('Error: ' + e.message);
+      setResult(`Error: ${e.message}`);
     } finally {
       setLoading(false);
     }
@@ -830,7 +829,7 @@ function LegalStrategyView({ caseFile }: { caseFile?: LegalCaseFile | null }) {
         className="px-6 py-3 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
       >
         <Brain size={16} />
-        {loading ? 'Analyzing...' : t.legalCaseStrategyAnalyze}
+        {loading ? ui('分析中...', 'Analyzing...') : t.legalCaseStrategyAnalyze}
       </button>
       {result && (
         <div className="bg-white/5 border border-white/10 rounded-xl p-4 whitespace-pre-wrap text-white/80 text-sm">
@@ -843,6 +842,8 @@ function LegalStrategyView({ caseFile }: { caseFile?: LegalCaseFile | null }) {
 
 function LegalVerifyView() {
   const t = useT();
+  const isZh = t.langCode !== 'en';
+  const ui = (zh: string, en: string) => (isZh ? zh : en);
   const [text, setText] = useState('');
   const [results, setResults] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -855,13 +856,13 @@ function LegalVerifyView() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: `使用 legal_verify_citation 验证以下文本中所有法条引用：\n\n${text}`,
+          message: `请使用 legal_verify_citation 验证以下文本中所有法条与案例引用：\n\n${text}`,
           stream: false,
         }),
         credentials: 'include',
       });
       const data = await res.json();
-      setResults([{ content: data.text || data.response || data.reply || data.message || data.error || 'Verification complete' }]);
+      setResults([{ content: data.text || data.response || data.reply || data.message || data.error || ui('校验完成', 'Verification complete') }]);
     } catch (e: any) {
       setResults([{ error: e.message }]);
     } finally {
@@ -886,7 +887,7 @@ function LegalVerifyView() {
         className="px-6 py-3 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
       >
         <CheckCircle size={16} />
-        {loading ? 'Verifying...' : t.legalVerifyCitationVerify}
+        {loading ? ui('校验中...', 'Verifying...') : t.legalVerifyCitationVerify}
       </button>
       {results && results.length > 0 && (
         <div className="bg-white/5 border border-white/10 rounded-xl p-4 whitespace-pre-wrap text-white/80 text-sm">
@@ -901,6 +902,8 @@ function LegalVerifyView() {
 
 function LegalImportView() {
   const t = useT();
+  const isZh = t.langCode !== 'en';
+  const ui = (zh: string, en: string) => (isZh ? zh : en);
   const [content, setContent] = useState('');
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
@@ -914,15 +917,15 @@ function LegalImportView() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: `使用 legal_import_judgment 导入以下裁判文书：\n\n${content}`,
+          message: `请使用 legal_import_judgment 导入以下裁判文书：\n\n${content}`,
           stream: false,
         }),
         credentials: 'include',
       });
       const data = await res.json();
-      setStatus(data.text || data.response || data.reply || data.message || data.error || 'Import request sent');
+      setStatus(data.text || data.response || data.reply || data.message || data.error || ui('导入请求已发送', 'Import request sent'));
     } catch (e: any) {
-      setStatus('Error: ' + e.message);
+      setStatus(`Error: ${e.message}`);
     } finally {
       setLoading(false);
     }
@@ -935,7 +938,7 @@ function LegalImportView() {
       <textarea
         value={content}
         onChange={e => setContent(e.target.value)}
-        placeholder="Paste judgment document content here, or use the file upload in chat to import PDF/DOCX files..."
+        placeholder={ui('粘贴裁判文书正文，或在聊天窗口上传 PDF/DOCX 文件后让 Lumi 导入...', 'Paste judgment document content here, or upload PDF/DOCX files in chat and ask Lumi to import them...')}
         rows={12}
         className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/35 focus:outline-none focus:border-amber-500/50 resize-none font-mono text-sm"
       />
@@ -945,7 +948,7 @@ function LegalImportView() {
         className="px-6 py-3 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
       >
         <Upload size={16} />
-        {loading ? 'Importing...' : 'Import Judgment'}
+        {loading ? ui('导入中...', 'Importing...') : t.legalImportJudgment}
       </button>
       {status && (
         <div className="bg-white/5 border border-white/10 rounded-xl p-4 whitespace-pre-wrap text-white/80 text-sm">

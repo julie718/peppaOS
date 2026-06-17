@@ -90,7 +90,7 @@ function normalizeCaseFile(value: any): LegalCaseFile | null {
     materials: Array.isArray(value.materials) ? value.materials.map((item: any) => ({
       id: String(item?.id || newId('mat')),
       type: (['consultation', 'evidence', 'pleading', 'judgment', 'contract', 'note'].includes(item?.type) ? item.type : 'note') as LegalCaseMaterialType,
-      title: String(item?.title || 'Material'),
+      title: String(item?.title || '材料'),
       createdAt: String(item?.createdAt || new Date().toISOString()),
       content: item?.content ? String(item.content) : undefined,
       source: item?.source,
@@ -260,7 +260,10 @@ export function archiveLegalMeetingToConsultationCase({
     `【会谈归档 ${ended.toLocaleString()}】`,
     report || transcript,
   ].filter(Boolean).join('\n').trim();
-  updateLegalCase(caseFile.id, { notes: nextNotes, stage: updatedCase.stage === 'consultation' ? 'consultation' : updatedCase.stage });
+  updateLegalCase(caseFile.id, {
+    notes: nextNotes,
+    stage: updatedCase.stage === 'consultation' ? 'consultation' : updatedCase.stage,
+  });
   clearLegalConsultationCaseId();
 
   const finalCase = getLegalCaseById(caseFile.id) || updatedCase;

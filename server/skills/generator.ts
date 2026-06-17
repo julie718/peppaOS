@@ -394,13 +394,23 @@ Return ONLY a JSON object with "handlerCode" (the fixed code body).`;
       }
     }
 
+    if (warnings.length > 0) {
+      return {
+        success: false,
+        skillName,
+        toolName: parsed.toolName,
+        directory: skillDir,
+        generatedCode: indexTs,
+        error: warnings.join(' | '),
+      };
+    }
+
     return {
       success: true,
       skillName,
       toolName: parsed.toolName,
       directory: skillDir,
       generatedCode: indexTs,
-      ...(warnings.length > 0 ? { error: warnings.join(' | ') } : {}),
     };
   } catch (err: any) {
     console.error('[SkillGen] Generation failed:', err);
@@ -499,10 +509,20 @@ async function validateSkillRuntime(skillDir: string): Promise<{ valid: boolean;
       { timeout: 15000, cwd: skillDir, env: { ...process.env, LUMI_SKILL_SMOKE_TEST: '1' } },
       (_error, _stdout, stderr) => {
         // Process will exit quickly (or be killed) — success = no fatal crash
-        const fatalPatterns = ['ERR_MODULE_NOT_FOUND', 'Cannot find package', 'SyntaxError', 'TypeError:'];
-        const hasFatal = fatalPatterns.some(p => (stderr || '').includes(p));
+        const output = `${_stdout || ''}\n${stderr || ''}`;
+        const fatalPatterns = [
+          'ERR_MODULE_NOT_FOUND',
+          'Cannot find package',
+          'SyntaxError',
+          'TypeError:',
+          'Transform failed',
+          'TransformError',
+          'has already been declared',
+          'Unexpected token',
+        ];
+        const hasFatal = fatalPatterns.some(p => output.includes(p));
         if (hasFatal) {
-          resolve({ valid: false, error: (stderr || '').slice(0, 500) });
+          resolve({ valid: false, error: output.slice(0, 800) });
         } else {
           resolve({ valid: true });
         }

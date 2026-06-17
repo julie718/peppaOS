@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Loader2, Search, Sparkles, TrendingUp, Network, GitMerge, Upload, ArrowRight, File, FileText, Trash2, Download, Eye, ChevronRight, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSocket } from '@/hooks/useSocket';
+import { appConfirm } from '@/lib/appConfirm';
 import { NodeDetailPanel } from './NodeDetailPanel';
 import { MemoryTreeScene, layoutTree3D } from './MemoryTree';
 import type { TreeNode3D, BranchCurve3D, MemoryNode as MemNode, FileEntry } from './MemoryTree';
@@ -123,7 +124,15 @@ export function KnowledgeBase({ t, isOpen, onClose, domain = 'personal' }: Knowl
   // Actions
   const handleDelete = async (id: string) => {
     const n = treeNodes.find(nd => nd.id === id);
-    if (!n || !confirm(`${t.kbDeleteConfirm || 'Delete'} "${n.title}"?`)) return;
+    if (!n) return;
+    const ok = await appConfirm({
+      title: t.kbDeleteConfirm || 'Delete',
+      message: `${t.kbDeleteConfirm || 'Delete'} "${n.title}"?`,
+      confirmText: t.delete || 'Delete',
+      cancelText: t.cancel || 'Cancel',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       const endpoint = n.type === 'file' ? `/api/files/delete/${encodeURIComponent(id)}` : scopedMemoryUrl(`/api/memories/${id}`);
       const res = await fetch(endpoint, { method: 'DELETE' });
@@ -176,7 +185,13 @@ export function KnowledgeBase({ t, isOpen, onClose, domain = 'personal' }: Knowl
       if (!res.ok) {
         const d = await res.json();
         if (d.error?.includes('confirmed')) {
-          if (confirm(t.kbPromoteConfirm || 'Promote to Core Identity?')) return handleChangeTier(id, tier, true);
+          const ok = await appConfirm({
+            title: t.kbPromoteConfirm || 'Promote to Core Identity?',
+            message: t.kbPromoteConfirm || 'Promote to Core Identity?',
+            confirmText: t.confirm || 'Confirm',
+            cancelText: t.cancel || 'Cancel',
+          });
+          if (ok) return handleChangeTier(id, tier, true);
           return;
         }
         throw new Error(d.error);

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Building2, Settings, Save, Loader2, Trash2, Link, Copy, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button } from '../ui/button';
 import { useT } from '../../lib/useT';
 import { useApp } from '../../contexts/AppContext';
+import { appConfirm } from '../../lib/appConfirm';
 
 export function OrgSettings() {
   const t = useT();
@@ -21,7 +22,7 @@ export function OrgSettings() {
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
-    loadOrg();
+    void loadOrg();
   }, [orgConnection?.orgId]);
 
   const loadOrg = async () => {
@@ -32,19 +33,27 @@ export function OrgSettings() {
       if (!orgId) {
         const orgsRes = await fetch('/api/org/org', { credentials: 'include' });
         const orgs = await orgsRes.json().catch(() => []);
-        if (!orgsRes.ok) throw new Error((orgs as any).error || ui(`组织列表加载失败（${orgsRes.status}）`, `Failed to load organizations (${orgsRes.status})`));
-        if (!Array.isArray(orgs) || orgs.length === 0) throw new Error(ui('未找到组织', 'No organization found'));
+        if (!orgsRes.ok) {
+          throw new Error((orgs as any).error || ui(`组织列表加载失败（${orgsRes.status}）`, `Failed to load organizations (${orgsRes.status})`));
+        }
+        if (!Array.isArray(orgs) || orgs.length === 0) {
+          throw new Error(ui('未找到组织', 'No organization found'));
+        }
         orgId = orgs[0].id || orgs[0].orgId;
       }
 
       const orgDetailRes = await fetch(`/api/org/org/${orgId}`, { credentials: 'include' });
       const orgData = await orgDetailRes.json().catch(() => ({}));
-      if (!orgDetailRes.ok) throw new Error(orgData.error || ui(`组织加载失败（${orgDetailRes.status}）`, `Failed to load organization (${orgDetailRes.status})`));
+      if (!orgDetailRes.ok) {
+        throw new Error(orgData.error || ui(`组织加载失败（${orgDetailRes.status}）`, `Failed to load organization (${orgDetailRes.status})`));
+      }
       setOrg(orgData);
       setName(orgData.name || '');
     } catch (err: any) {
       setFeedback({ type: 'error', text: err.message || String(err) });
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSave = async () => {
@@ -65,7 +74,9 @@ export function OrgSettings() {
       setFeedback({ type: 'success', text: t.orgSettingsSaved || ui('组织设置已保存', 'Organization settings saved') });
     } catch (err: any) {
       setFeedback({ type: 'error', text: err.message || String(err) });
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCreateInvitation = async () => {
@@ -85,7 +96,9 @@ export function OrgSettings() {
       setFeedback({ type: 'success', text: t.invitationCreated || ui('邀请码已创建', 'Invitation code created') });
     } catch (err: any) {
       setFeedback({ type: 'error', text: err.message || String(err) });
-    } finally { setGenerating(false); }
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const copyCode = () => {
@@ -95,7 +108,16 @@ export function OrgSettings() {
   };
 
   const handleDelete = async () => {
-    if (!org || !confirm(ui('这个操作不可恢复。确定要删除吗？', 'This action is irreversible. Are you sure?'))) return;
+    if (!org) return;
+    const ok = await appConfirm({
+      title: ui('删除组织', 'Delete Organization'),
+      message: ui('这个操作不可恢复。确定要删除吗？', 'This action is irreversible. Are you sure?'),
+      confirmText: ui('删除', 'Delete'),
+      cancelText: ui('取消', 'Cancel'),
+      tone: 'danger',
+    });
+    if (!ok) return;
+
     setFeedback(null);
     try {
       const res = await fetch(`/api/org/org/${org.id}`, { method: 'DELETE', credentials: 'include' });
@@ -122,16 +144,7 @@ export function OrgSettings() {
   if (!org) {
     return (
       <div className="p-6 text-center text-white/55 space-y-4">
-        {feedback && (
-          <div className={`mx-auto flex max-w-2xl items-start gap-2 rounded-xl border px-4 py-3 text-left text-sm ${
-            feedback.type === 'success'
-              ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
-              : 'border-red-500/20 bg-red-500/10 text-red-300'
-          }`}>
-            {feedback.type === 'success' ? <CheckCircle size={16} className="mt-0.5 shrink-0" /> : <AlertCircle size={16} className="mt-0.5 shrink-0" />}
-            <span>{feedback.text}</span>
-          </div>
-        )}
+        {feedback && <FeedbackBanner feedback={feedback} />}
         <Building2 size={32} className="mx-auto mb-2 opacity-30" />
         <div>{ui('未找到组织，请先创建一个。', 'No organization found. Create one first.')}</div>
       </div>
@@ -145,18 +158,8 @@ export function OrgSettings() {
         {t.orgSettings}
       </h2>
 
-      {feedback && (
-        <div className={`flex items-start gap-2 rounded-xl border px-4 py-3 text-sm ${
-          feedback.type === 'success'
-            ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
-            : 'border-red-500/20 bg-red-500/10 text-red-300'
-        }`}>
-          {feedback.type === 'success' ? <CheckCircle size={16} className="mt-0.5 shrink-0" /> : <AlertCircle size={16} className="mt-0.5 shrink-0" />}
-          <span>{feedback.text}</span>
-        </div>
-      )}
+      {feedback && <FeedbackBanner feedback={feedback} />}
 
-      {/* General */}
       <div className="bg-white/5 border border-white/10 rounded-xl p-6 space-y-4">
         <h3 className="text-white font-medium">{ui('基础信息', 'General')}</h3>
         <div>
@@ -181,7 +184,6 @@ export function OrgSettings() {
         </Button>
       </div>
 
-      {/* Invitations */}
       <div className="bg-white/5 border border-white/10 rounded-xl p-6 space-y-4">
         <h3 className="text-white font-medium">{ui('邀请码', 'Invitation Codes')}</h3>
         <p className="text-white/40 text-xs">
@@ -233,7 +235,6 @@ export function OrgSettings() {
         )}
       </div>
 
-      {/* Danger zone */}
       <div className="bg-red-500/5 border border-red-500/10 rounded-xl p-6 space-y-4">
         <h3 className="text-red-400 font-medium flex items-center gap-2">
           <Trash2 size={16} /> {ui('危险区', 'Danger Zone')}
@@ -248,6 +249,19 @@ export function OrgSettings() {
           {ui('删除组织', 'Delete Organization')}
         </Button>
       </div>
+    </div>
+  );
+}
+
+function FeedbackBanner({ feedback }: { feedback: { type: 'success' | 'error'; text: string } }) {
+  return (
+    <div className={`flex items-start gap-2 rounded-xl border px-4 py-3 text-sm ${
+      feedback.type === 'success'
+        ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+        : 'border-red-500/20 bg-red-500/10 text-red-300'
+    }`}>
+      {feedback.type === 'success' ? <CheckCircle size={16} className="mt-0.5 shrink-0" /> : <AlertCircle size={16} className="mt-0.5 shrink-0" />}
+      <span>{feedback.text}</span>
     </div>
   );
 }

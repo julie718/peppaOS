@@ -66,7 +66,7 @@ export function CanvasInputBar({ onSend, onImportFiles, disabled, t }: CanvasInp
     setVoiceState('transcribing');
     try {
       const audio = await blobToBase64(blob);
-      const res = await fetch('/api/agents/audio/transcribe', {
+      const res = await fetch('/api/audio/transcribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

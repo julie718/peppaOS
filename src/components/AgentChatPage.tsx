@@ -23,10 +23,12 @@ function shouldUseCanvasForTask(text: string): boolean {
   if (!normalized) return false;
   const canvasPatterns = [
     /\b(plan|roadmap|workflow|project|report|deck|presentation|codebase|refactor|design|implement|organize|research|multi-step|canvas)\b/i,
+    /(?:规划|路线图|工作流|项目|报告|方案|文档|代码|仓库|重构|设计|实现|整理|研究|多步|画布|团队|子\s*agent|智能体|草稿|CAD|cad|文件)/u,
     /(?:规划|路线图|工作流|项目|报告|方案|文档|代码|仓库|重构|设计|实现|整理|研究|多步|画布|团队|子\s*agent|智能体)/u,
   ];
   const taskPatterns = [
     /\b(help me|please|create|make|build|prepare|write|review|analyze|organize|design|implement)\b/i,
+    /(?:帮我|请|需要|创建|制作|生成|写|审查|分析|整理|设计|实现|查找|寻找|打开|处理|做一个|出一个)/u,
     /(?:帮我|请|需要|创建|制作|生成|写|审查|分析|整理|设计|实现)/u,
   ];
   return canvasPatterns.some(pattern => pattern.test(normalized))
@@ -48,6 +50,7 @@ function buildChatHistoryPayload(messages: any[]) {
     if (!text) return [];
     if (m.type === 'tool') return [];
     if (['error', 'proactive', 'canvas_redirect', 'canvas_suggestion'].includes(m.source)) return [];
+    if (/^(Request failed|请求失败|出错了|Failed to route)/i.test(text)) return [];
     if (/^(Request failed|请求失败|出错了|Failed to route)/i.test(text)) return [];
     if (m.type === 'agent') return [{ role: 'assistant', content: text }];
     if (m.type === 'user' || m.type === 'file_context') return [{ role: 'user', content: text }];

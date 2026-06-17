@@ -1,9 +1,11 @@
-import React, { useState, useRef } from 'react';
-import { useT } from '../../lib/useT';
+import React, { useRef, useState } from 'react';
 import { FileText, Upload, Download, Loader2 } from 'lucide-react';
+import { useT } from '../../lib/useT';
 
-export function LegalBidWorkbench({ onSwitchView }: { onSwitchView?: (v: any) => void }) {
+export function LegalBidWorkbench({ onSwitchView: _onSwitchView }: { onSwitchView?: (v: any) => void }) {
   const t = useT();
+  const isZh = t.langCode !== 'en';
+  const ui = (zh: string, en: string) => (isZh ? zh : en);
   const [requirements, setRequirements] = useState('');
   const [projectName, setProjectName] = useState('');
   const [result, setResult] = useState('');
@@ -16,7 +18,7 @@ export function LegalBidWorkbench({ onSwitchView }: { onSwitchView?: (v: any) =>
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
-      setRequirements(prev => prev + '\n\n' + text);
+      setRequirements(prev => [prev, text].filter(Boolean).join('\n\n'));
     };
     reader.readAsText(file);
   };
@@ -27,8 +29,8 @@ export function LegalBidWorkbench({ onSwitchView }: { onSwitchView?: (v: any) =>
     setResult('');
     try {
       const msg = projectName
-        ? `使用 legal_generate_bid 工具为项目"${projectName}"生成标书：\n\n${requirements}`
-        : `使用 legal_generate_bid 工具根据以下招标要求生成标书：\n\n${requirements}`;
+        ? `请使用 legal_generate_bid 工具为项目“${projectName}”生成标书：\n\n${requirements}`
+        : `请使用 legal_generate_bid 工具根据以下招标要求生成标书：\n\n${requirements}`;
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -38,7 +40,7 @@ export function LegalBidWorkbench({ onSwitchView }: { onSwitchView?: (v: any) =>
       const data = await res.json();
       setResult(data.text || data.response || data.reply || data.message || data.error || JSON.stringify(data));
     } catch (e: any) {
-      setResult('Error: ' + e.message);
+      setResult(`Error: ${e.message}`);
     } finally {
       setLoading(false);
     }
@@ -60,13 +62,12 @@ export function LegalBidWorkbench({ onSwitchView }: { onSwitchView?: (v: any) =>
       <p className="text-white/50 text-sm mb-6">{t.legalBidGenDesc}</p>
 
       <div className="flex-1 flex gap-4 min-h-0">
-        {/* Left: Input */}
         <div className="flex-1 flex flex-col space-y-3 min-w-0">
           <input
             type="text"
             value={projectName}
             onChange={e => setProjectName(e.target.value)}
-            placeholder="Project name (optional)"
+            placeholder={ui('项目名称（可选）', 'Project name (optional)')}
             className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/35 focus:outline-none focus:border-amber-500/50"
           />
           <textarea
@@ -97,10 +98,9 @@ export function LegalBidWorkbench({ onSwitchView }: { onSwitchView?: (v: any) =>
           <p className="text-white/30 text-xs">{t.legalBidGenPaste}</p>
         </div>
 
-        {/* Right: Result */}
         <div className="flex-1 flex flex-col min-w-0">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-white/70 text-sm font-semibold">Output</h3>
+            <h3 className="text-white/70 text-sm font-semibold">{ui('输出', 'Output')}</h3>
             {result && (
               <button
                 onClick={exportBid}
@@ -118,7 +118,7 @@ export function LegalBidWorkbench({ onSwitchView }: { onSwitchView?: (v: any) =>
               </div>
             ) : (
               <p className="text-white/25 text-sm italic">
-                Generated bid proposal will appear here...
+                {ui('生成的标书内容会显示在这里。', 'Generated bid proposal will appear here.')}
               </p>
             )}
           </div>

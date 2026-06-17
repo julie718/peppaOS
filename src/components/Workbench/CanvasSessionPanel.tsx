@@ -3,6 +3,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Trash2, X, Layers, Clock } from 'lucide-react';
 import { CanvasSessionSummary } from './types';
+import { appConfirm } from '@/lib/appConfirm';
 
 interface CanvasSessionPanelProps {
   isOpen: boolean;
@@ -106,9 +107,15 @@ export function CanvasSessionPanel({
                           {session.title || session.taskText?.slice(0, 40) || (t.canvasNewSession || 'Untitled')}
                         </span>
                         <button
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
-                            if (confirm(t.canvasDeleteConfirm || 'Delete this canvas session?')) {
+                            if (await appConfirm({
+                              title: t.canvasDeleteConfirm || 'Delete this canvas session?',
+                              message: t.canvasDeleteConfirm || 'Delete this canvas session?',
+                              confirmText: t.delete || 'Delete',
+                              cancelText: t.cancel || 'Cancel',
+                              tone: 'danger',
+                            })) {
                               onDelete(session.id);
                             }
                           }}

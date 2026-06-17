@@ -106,6 +106,7 @@ import { useWakeWord } from '../hooks/useWakeWord';
 import { useGestureDetector } from '../hooks/useGestureDetector';
 import { ErrorBoundary } from './ErrorBoundary';
 import { ToolConfirmDialog } from './ToolConfirmDialog';
+import { appConfirm } from '@/lib/appConfirm';
 
 const KnowledgeBase = lazy(() => import('./KnowledgeBase').then(m => ({ default: m.KnowledgeBase })));
 import { PersonalityEditor } from './PersonalityEditor';
@@ -731,8 +732,14 @@ function NativeFilesWindow({
     setRenamingPath(null);
     setRenameValue('');
   };
-  const confirmDelete = (file: NativeFile) => {
-    const ok = window.confirm(`${t.delete || 'Delete'} "${file.name}"?`);
+  const confirmDelete = async (file: NativeFile) => {
+    const ok = await appConfirm({
+      title: t.delete || 'Delete',
+      message: `${t.delete || 'Delete'} "${file.name}"?`,
+      confirmText: t.delete || 'Delete',
+      cancelText: t.cancel || 'Cancel',
+      tone: 'danger',
+    });
     if (!ok) return;
     onDeleteItem(file.path);
   };

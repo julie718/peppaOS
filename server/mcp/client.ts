@@ -605,6 +605,12 @@ main().catch((err) => { console.error('[npm-skill] Fatal:', err); process.exit(1
         console.log(`[MCP] ${serverName}: ${tools.length} tools discovered (${serverConfig.source || 'external'})`);
       } catch (err: any) {
         console.warn(`[MCP] Failed to connect to ${serverName}: ${err.message}`);
+        if (serverConfig.source === 'local') {
+          serverConfig.enabled = false;
+          serverConfig.description = `${serverConfig.description || serverName} (disabled after startup failure: ${String(err.message || err).slice(0, 160)})`;
+          this.saveConfig(finalConfig);
+          console.warn(`[MCP] Disabled local skill "${serverName}" after startup failure. Re-enable it from the skill center after fixing the package.`);
+        }
       }
     }
 
