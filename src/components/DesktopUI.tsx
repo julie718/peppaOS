@@ -1289,10 +1289,10 @@ function DailyPlans({ t, embedded = false, onOpenQueue }: { t: any; embedded?: b
   const loadPlans = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/plans', { credentials: 'include' });
+      const res = await fetch('/api/plans?status=active', { credentials: 'include' });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || 'Failed to load plans');
-      setPlans((d.plans || []).filter((p: any) => p.status !== 'done').slice(0, 5));
+      setPlans((d.plans || []).filter((p: any) => p.status !== 'done' && p.status !== 'completed' && p.status !== 'cancelled').slice(0, 5));
     } catch (err: any) {
       toast.error(err?.message || (t.planLoadFailed || 'Failed to load plans'));
     } finally { setLoading(false); }
@@ -1322,7 +1322,7 @@ function DailyPlans({ t, embedded = false, onOpenQueue }: { t: any; embedded?: b
   const markDone = async (id: string) => {
     setBusyPlanIds(prev => prev.includes(id) ? prev : [...prev, id]);
     try {
-      const res = await fetch(`/api/plans/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'done' }), credentials: 'include' });
+      const res = await fetch(`/api/plans/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'completed' }), credentials: 'include' });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || 'Failed to update plan');
       setPlans(prev => prev.filter(p => p.id !== id));

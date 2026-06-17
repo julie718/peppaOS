@@ -26,6 +26,10 @@ export interface PlanStep {
   order: number;
 }
 
+type PlanUpdate = Partial<Pick<LumiPlan, "title" | "description" | "priority" | "tags" | "result">> & {
+  status?: LumiPlan["status"] | "done";
+};
+
 export function createPlan(
   title: string,
   description: string,
@@ -61,15 +65,19 @@ export function createPlan(
   return plan;
 }
 
-export function updatePlan(id: string, updates: Partial<Pick<LumiPlan, "title" | "description" | "status" | "priority" | "tags" | "result">>): LumiPlan | null {
+export function updatePlan(id: string, updates: PlanUpdate): LumiPlan | null {
   const db = readDB();
   const idx = ((db as any).plans || []).findIndex((p: LumiPlan) => p.id === id);
   if (idx === -1) return null;
 
   const plan = (db as any).plans[idx];
-  Object.assign(plan, updates, {
+  const normalizedUpdates = {
+    ...updates,
+    ...(updates.status === "done" ? { status: "completed" as const } : {}),
+  };
+  Object.assign(plan, normalizedUpdates, {
     updatedAt: new Date().toISOString(),
-    ...(updates.status === "completed" ? { completedAt: new Date().toISOString() } : {}),
+    ...(normalizedUpdates.status === "completed" ? { completedAt: new Date().toISOString() } : {}),
   });
   writeDB(db);
   return plan;
@@ -98,7 +106,11 @@ export function updatePlanStep(planId: string, stepId: string, updates: Partial<
 
 export function listPlans(filter?: { status?: string; source?: string; limit?: number }): LumiPlan[] {
   const db = readDB();
-  let plans: LumiPlan[] = (db as any).plans || [];
+  let plans: LumiPlan[] = (((db as any).plans || []) as LumiPlan[]).map(plan => (
+    (plan as any).status === "done"
+      ? { ...plan, status: "completed", completedAt: plan.completedAt || plan.updatedAt }
+      : plan
+  ));
 
   if (filter?.status) plans = plans.filter(p => p.status === filter.status);
   if (filter?.source) plans = plans.filter(p => p.source === filter.source);
