@@ -20,6 +20,11 @@ const CLIENT_ACTION_INTENT_PATTERNS: RegExp[] = [
   /(?:\u653e|\u64ad\u653e|\u542c).*(?:\u97f3\u4e50|\u6b4c|\u6b4c\u66f2|\u6b4c\u5355|\u4e13\u8f91)/u,
 ];
 
+const DIAGNOSTIC_OR_REPAIR_PATTERNS: RegExp[] = [
+  /\b(why|what happened|what went wrong|diagnose|debug|fix|repair|recover|self[-\s]?check|self[-\s]?heal|not working|doesn'?t work|broken|failed|failure|error|crash(?:ed)?|stuck|hang(?:ing)?|blank screen|white screen|no sound|silent|cannot|can'?t)\b/i,
+  /(?:\u4e3a\u4ec0\u4e48|\u600e\u4e48\u56de\u4e8b|\u54ea\u91cc.*(?:\u95ee\u9898|\u574f|\u6ca1\u8dd1\u901a)|\u68c0\u67e5|\u8bca\u65ad|\u6392\u67e5|\u4fee\u590d|\u5904\u7406.*(?:\u95ee\u9898|\u6545\u969c|\u9519\u8bef)|\u81ea\u68c0|\u81ea\u4fee\u590d|\u6062\u590d|\u62a5\u9519|\u9519\u8bef|\u5931\u8d25|\u5d29\u4e86|\u5d29\u6e83|\u5361\u4f4f|\u5361\u6b7b|\u767d\u5c4f|\u6ca1\u53cd\u5e94|\u4e0d\u751f\u6548|\u4e0d\u8d77\u4f5c\u7528|\u6253\u4e0d\u5f00|\u653e\u4e0d\u51fa|\u6ca1\u58f0\u97f3|\u542c\u4e0d\u89c1|\u4e0d\u4f1a|\u4e0d\u80fd|\u4e0d\u5bf9|\u6709\u95ee\u9898|\u88ab\u9650\u5236|\u9650\u5236|404|400|500)/u,
+];
+
 export function hasExplicitToolIntent(text: string): boolean {
   const normalized = text.trim();
   if (!normalized) return false;
@@ -32,9 +37,16 @@ export function hasClientActionIntent(text: string): boolean {
   return CLIENT_ACTION_INTENT_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
+export function isDiagnosticOrRepairRequest(text: string): boolean {
+  const normalized = text.trim();
+  if (!normalized) return false;
+  return DIAGNOSTIC_OR_REPAIR_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
 export function shouldAllowToolUseForTurn(text: string, source?: string, operationMode?: string): boolean {
   if (source === 'canvas') return true;
   const mode = normalizeOperationMode(operationMode);
+  if (isDiagnosticOrRepairRequest(text)) return true;
   if (mode === 'chat' || mode === 'meeting' || mode === 'music') return hasClientActionIntent(text);
   if (mode === 'autonomous' && AUTONOMOUS_TASK_PATTERNS.some((pattern) => pattern.test(text.trim()))) return true;
   if (hasExplicitToolIntent(text)) return true;

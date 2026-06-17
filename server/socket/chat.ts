@@ -10,7 +10,7 @@ import { LLMUsage } from "../tools/types";
 import { toolRegistry } from "../tools/registry";
 import { runWithTools } from "../llm/adapter";
 import { getOperationModeConfig, parseStoredOperationMode } from "../cognition/operation_modes";
-import { hasClientActionIntent, shouldAllowToolUseForTurn, shouldExposeAgentWork } from "../cognition/tool_intent";
+import { hasClientActionIntent, isDiagnosticOrRepairRequest, shouldAllowToolUseForTurn, shouldExposeAgentWork } from "../cognition/tool_intent";
 import { formatClientSelfPrompt } from "../client/self_model";
 import { queryMemories, queryMemoriesVector, addMemory, addReminder, extractMemories } from "../memory";
 import { loadEmotionalState, saveEmotionalState, updateEmotionalState, updateEmotionalStateWithHIM, loadHIMState, saveHIMState, generateContextualGreeting, vectorMemoryBias } from "../personality/state";
@@ -382,15 +382,38 @@ export function registerChatHandler(
       // Inject operation mode prompt overlay
       const opModeConfig = getOperationModeConfig(operationMode);
       const allowToolUseForTurn = shouldAllowToolUseForTurn(text, source, operationMode);
-      const clientActionOnlyTurn = hasClientActionIntent(text) && (operationMode === 'chat' || operationMode === 'meeting' || operationMode === 'music');
+      const selfRepairTurn = isDiagnosticOrRepairRequest(text);
+      const clientActionOnlyTurn = !selfRepairTurn && hasClientActionIntent(text) && (operationMode === 'chat' || operationMode === 'meeting' || operationMode === 'music');
       const clientActionToolPolicy = clientActionOnlyTurn
         ? { allowedTools: ['client_get_state', 'client_action'], requireConfirmation: [], forbiddenTools: [], maxIterations: 4 }
         : null;
+      const selfRepairToolPolicy = selfRepairTurn
+        ? {
+            allowedTools: ['*'],
+            requireConfirmation: [
+              'desktop_run_command',
+              'run_command',
+              'write_file',
+              'file_delete',
+              'delete_file',
+              'rm',
+              'unlink',
+              'format',
+              'rmdir',
+              'uninstall',
+              'computer_use',
+            ],
+            forbiddenTools: [],
+            maxIterations: 8,
+          }
+        : null;
       const exposeAgentWork = shouldExposeAgentWork(text);
       effectiveSystemPrompt += '\n\n' + formatClientSelfPrompt(uid);
-      console.log('[ChatHandler] tool gate:', allowToolUseForTurn ? 'enabled' : 'chat-only', 'operationMode:', operationMode, 'clientActionOnly:', clientActionOnlyTurn);
+      console.log('[ChatHandler] tool gate:', allowToolUseForTurn ? 'enabled' : 'chat-only', 'operationMode:', operationMode, 'clientActionOnly:', clientActionOnlyTurn, 'selfRepair:', selfRepairTurn);
       if (clientActionOnlyTurn) {
         effectiveSystemPrompt += '\n\n## Client Mode Control\nThe user is asking Lumi to change client mode or open a client-native surface. You may only use client_get_state and client_action. Do not use file, terminal, desktop mouse/keyboard, web, team, or external-app tools. For music requests, switch to music mode before opening the music center or mood layer. For meeting/autonomous mode, use the client action confirmation flow when required.';
+      } else if (selfRepairTurn) {
+        effectiveSystemPrompt += '\n\n## Client Self-Repair Turn\nThe user is reporting that Lumi or one of its client workflows is failing. Do not only apologize or repeat the raw error. Use client_get_state first when tools are available, inspect relevant status/log/config surfaces, apply one safe recovery or retry when the cause is clear, verify the result, and then give a concise report. Reads and status checks are allowed; writes, desktop control, external app automation, and system changes still require confirmation.';
       } else if (opModeConfig && (allowToolUseForTurn || operationMode === 'music' || operationMode === 'meeting')) {
         effectiveSystemPrompt += '\n\n' + opModeConfig.promptOverlay;
       } else {
@@ -647,7 +670,7 @@ export function registerChatHandler(
         }
       }
 
-      if (!responseText && allowToolUseForTurn && !clientActionOnlyTurn && !isSanctuary && (cognition.intent.category === 'command' || cognition.intent.category === 'code' || cognition.intent.category === 'question')) {
+      if (!responseText && allowToolUseForTurn && !clientActionOnlyTurn && !selfRepairTurn && !isSanctuary && (cognition.intent.category === 'command' || cognition.intent.category === 'code' || cognition.intent.category === 'question')) {
         // Path B: Orchestrator — decompose tasks into sub-tasks for worker agents
         // (Skipped for sanctuary agents — they stay in their territory)
         try {
@@ -684,7 +707,7 @@ export function registerChatHandler(
       const allToolRecords: { name: string; args: string; result?: string; error?: string }[] = [];
 
       // Path B2: NL Task Chainer — for office workflows that chain tools (search→read→create etc.)
-      if (!responseText && allowToolUseForTurn && !clientActionOnlyTurn && shouldChainTask(text)) {
+      if (!responseText && allowToolUseForTurn && !clientActionOnlyTurn && !selfRepairTurn && shouldChainTask(text)) {
         // Pre-flight: auto-install any matching uninstalled/outdated skills
         await autoInstallForTask(text, { emit: (event, data) => socket.emit(event, data) });
 
@@ -783,7 +806,7 @@ export function registerChatHandler(
               }
             }
           } else {
-            const maxIterations = personality.toolPolicy.maxIterations || 25;
+            const maxIterations = selfRepairToolPolicy?.maxIterations || personality.toolPolicy.maxIterations || 25;
 
           // Collect tool calls for persistence
 
@@ -828,11 +851,13 @@ export function registerChatHandler(
                 ? { toolPolicy: { allowedTools: [], requireConfirmation: [], forbiddenTools: ['*'], maxIterations: 0 } }
                 : source === 'canvas'
                   ? { toolPolicy: { allowedTools: ['*'], requireConfirmation: ['file_delete', 'delete_file', 'rm', 'unlink', 'format', 'rmdir', 'uninstall'], forbiddenTools: [], maxIterations: 25 } }
+                  : selfRepairToolPolicy
+                    ? { toolPolicy: selfRepairToolPolicy }
                   : clientActionToolPolicy
                     ? { toolPolicy: clientActionToolPolicy }
                   : (opModeConfig ? { toolPolicy: opModeConfig.toolPolicy } : {})
               ),
-              ...(operationMode === 'assistant' || operationMode === 'autonomous' || clientActionOnlyTurn ? {
+              ...(operationMode === 'assistant' || operationMode === 'autonomous' || clientActionOnlyTurn || selfRepairTurn ? {
                 requestConfirmation: async (toolName: string, args: Record<string, any>): Promise<boolean> => {
                   return new Promise((resolve) => {
                     const cid = crypto.randomUUID();
@@ -946,11 +971,13 @@ export function registerChatHandler(
                       arguments: call.arguments,
                     });
                   },
-                  ...(clientActionToolPolicy
+                  ...(selfRepairToolPolicy
+                    ? { toolPolicy: selfRepairToolPolicy }
+                    : clientActionToolPolicy
                     ? { toolPolicy: clientActionToolPolicy }
                     : (opModeConfig ? { toolPolicy: opModeConfig.toolPolicy } : {})
                   ),
-                  ...(operationMode === 'assistant' || operationMode === 'autonomous' || clientActionOnlyTurn ? {
+                  ...(operationMode === 'assistant' || operationMode === 'autonomous' || clientActionOnlyTurn || selfRepairTurn ? {
                     requestConfirmation: async (toolName: string, args: Record<string, any>): Promise<boolean> => {
                       return new Promise((resolve) => {
                         const cid = crypto.randomUUID();
