@@ -32,8 +32,10 @@ export function mountSkillRoutes(
     try {
       const localSkills = mcpManager.listLocalSkills();
       const mcpConfig = getMCPConfig();
+      const health = mcpManager.getServerHealth();
       const allSkills = Object.entries(mcpConfig).map(([name, config]) => {
         const local = localSkills.find(s => s.name === name);
+        const serverHealth = health[name];
         return {
           name,
           description: config.description || name,
@@ -45,6 +47,10 @@ export function mountSkillRoutes(
           installedAt: local?.installedAt || '',
           connected: mcpManager.getConnectedServers().includes(name),
           broken: local?.broken || false,
+          healthStatus: serverHealth?.status || 'unknown',
+          consecutiveCrashes: serverHealth?.consecutiveCrashes || 0,
+          lastCrashTime: serverHealth?.lastCrashTime,
+          lastSuccessfulConnect: serverHealth?.lastSuccessfulConnect,
         };
       });
       res.json({ skills: allSkills });

@@ -116,16 +116,23 @@ async function playNcmSongVerified(song: any): Promise<{ ok: boolean; reason?: s
   return { ok: true };
 }
 
-function queueNcmSongs(songs: any[]): void {
+let queueAddTask: Promise<void> | null = null;
+
+async function queueNcmSongs(songs: any[]): Promise<void> {
   const queueCandidates = songs
     .map(song => ({ song, ids: getSongIds(song) }))
     .filter(item => item.ids.encryptedId && item.ids.originalId)
-    .slice(0, 8);
+    .slice(0, 3);
   if (!queueCandidates.length) return;
 
-  setTimeout(() => {
+  if (queueAddTask) {
+    console.log('[Music] Skipping native queue add because a previous queue task is still running');
+    return;
+  }
+
+  queueAddTask = (async () => {
     for (const item of queueCandidates) {
-      void runNcmCliAsync([
+      const result = await runNcmCliAsync([
         'queue',
         'add',
         '--encrypted-id',
@@ -133,8 +140,14 @@ function queueNcmSongs(songs: any[]): void {
         '--original-id',
         item.ids.originalId,
       ], 8000);
+      if (!result.ok) {
+        console.warn('[Music] Failed to add queue candidate:', result.error || result.stderr || result.stdout);
+      }
+      await delay(250);
     }
-  }, 0);
+  })().finally(() => {
+    queueAddTask = null;
+  });
 }
 
 export function isMusicPlaybackRequest(text?: string): boolean {
@@ -324,7 +337,7 @@ async function pickAndPlay(
   const nativePlay = await playNcmSongVerified(pick);
   if (!nativePlay.ok) return { success: false, reason: nativePlay.reason };
 
-  queueNcmSongs(playableWithIds.filter(song => song !== pick));
+  void queueNcmSongs(playableWithIds.filter(song => song !== pick));
 
   const seenQueueItems = new Set<string>();
   const queue = [pick, ...playableWithIds.filter(song => song !== pick)].reduce((items, song) => {

@@ -25,6 +25,8 @@ interface MusicAtmosphere {
 }
 
 const userPollers = new Map<string, ReturnType<typeof setInterval>>();
+const MUSIC_STATE_POLL_INTERVAL_MS = 10000;
+const MUSIC_IDLE_POLLS_BEFORE_STOP = 2;
 
 async function ncmExecArgs(args: string[], timeout = 10000): Promise<string> {
   const result = await runNcmCliAsync(args, timeout);
@@ -143,6 +145,7 @@ export function registerMusicHandlers(
       await ncmExecArgs(['pause']);
       await pollAndEmitState(socket);
       socket.emit('music:state', { playing: false, source: 'netease' });
+      stopStatePoller(getSocketUserRoom(socket) || uid);
     } catch (e: any) {
       socket.emit('music:error', { message: e.message || '网易云暂停失败' });
     }
@@ -301,7 +304,18 @@ async function pollAndEmitState(socket: Socket, options: { reportErrors?: boolea
 function startStatePoller(socket: Socket, uid: string) {
   stopStatePoller(uid);
   void pollAndEmitState(socket, { reportErrors: true });
-  const interval = setInterval(() => pollAndEmitState(socket), 3000);
+  let idlePolls = 0;
+  const interval = setInterval(async () => {
+    const state = await pollAndEmitState(socket);
+    if (isNcmPlaying(state)) {
+      idlePolls = 0;
+      return;
+    }
+    idlePolls += 1;
+    if (idlePolls >= MUSIC_IDLE_POLLS_BEFORE_STOP) {
+      stopStatePoller(uid);
+    }
+  }, MUSIC_STATE_POLL_INTERVAL_MS);
   userPollers.set(uid, interval);
 }
 
