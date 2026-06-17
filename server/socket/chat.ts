@@ -91,6 +91,11 @@ export function registerChatHandler(
     isOllamaAvailable: () => boolean;
     getLmStudio: () => any;
     isLmStudioAvailable: () => boolean;
+    getArk?: () => any;
+    getXiaomi?: () => any;
+    getKimi?: () => any;
+    getGlm?: () => any;
+    getRelay?: () => any;
   },
   sensoryFn: (uid: string) => any,
   userIdFn: (s: Socket) => string,
@@ -407,6 +412,8 @@ export function registerChatHandler(
       const DEFAULT_MODELS: Record<string, string> = {
         deepseek: 'deepseek-chat', qwen: 'qwen-plus', openai: 'gpt-4o',
         gemini: 'gemini-2.0-flash', anthropic: 'claude-sonnet-4-6',
+        ark: 'doubao-1-5-pro-32k', xiaomi: 'xiaomi-chat', kimi: 'moonshot-v1-8k',
+        glm: 'glm-4-plus', relay: 'gpt-4o', ollama: 'qwen2.5:7b', lmstudio: 'local-model',
       };
       const resolveProvider = (model: string) =>
         model.startsWith('deepseek') ? 'deepseek' as const
@@ -592,6 +599,7 @@ export function registerChatHandler(
           [],
           { provider: activeProvider, model: activeProvider === 'deepseek' ? 'deepseek-v4-flash' : activeModel, userId: uid, maxTokens: 60 },
           llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
+          llmGetters.getOllama, llmGetters.getLmStudio, llmGetters.getArk, llmGetters.getXiaomi, llmGetters.getKimi, llmGetters.getGlm, llmGetters.getRelay,
         );
         return result.text || '{"category":"unknown","confidence":0.5,"entities":{}}';
       };
@@ -755,7 +763,7 @@ export function registerChatHandler(
               { provider: activeProvider, model: activeModel, userId: uid, signal: abortController.signal },
               onChunk,
               llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
-              llmGetters.getOllama, llmGetters.getLmStudio,
+              llmGetters.getOllama, llmGetters.getLmStudio, llmGetters.getArk, llmGetters.getXiaomi, llmGetters.getKimi, llmGetters.getGlm, llmGetters.getRelay,
             );
 
             responseText = response.text || streamChunks.join('') || '';
@@ -815,6 +823,7 @@ export function registerChatHandler(
             llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
             onChunk,
             {
+              userId: uid,
               desktopRelay,
               llmGetters,
               isCancelled: () => abortController.signal.aborted,
@@ -851,6 +860,13 @@ export function registerChatHandler(
                 }
               } : {}),
             },
+            llmGetters.getOllama,
+            llmGetters.getLmStudio,
+            llmGetters.getArk,
+            llmGetters.getXiaomi,
+            llmGetters.getKimi,
+            llmGetters.getGlm,
+            llmGetters.getRelay,
           );
 
           responseText = result.text || '';
@@ -888,6 +904,9 @@ export function registerChatHandler(
           // Try fallback provider
           if (llmErr.message?.includes('not configured') && activeProvider !== 'gemini') {
             try {
+              const fallbackMessage = `主推理服务 ${activeProvider}/${activeModel} 不可用，Lumi 将临时降级到 Gemini。`;
+              socket.emit('agent:notification', { type: 'llm_fallback', level: 'warning', message: fallbackMessage });
+              pushNotification(uid, { type: 'llm_fallback', title: 'LLM 降级提醒', message: fallbackMessage });
               if (!allowToolUseForTurn || isSanctuary) {
                 const fallbackChunks: string[] = [];
                 const fallback = await makeLLMCallStreaming(
@@ -899,7 +918,7 @@ export function registerChatHandler(
                     emitAgent("agent:chunk", { text: chunk, agentName: personality.name });
                   },
                   llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
-                  llmGetters.getOllama, llmGetters.getLmStudio,
+                  llmGetters.getOllama, llmGetters.getLmStudio, llmGetters.getArk, llmGetters.getXiaomi, llmGetters.getKimi, llmGetters.getGlm, llmGetters.getRelay,
                 );
                 responseText = fallback.text || fallbackChunks.join('') || '';
                 llmWasCalled = true;
@@ -929,6 +948,7 @@ export function registerChatHandler(
                 llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
                 undefined,
                 {
+                  userId: uid,
                   desktopRelay,
                   llmGetters,
                   isCancelled: () => abortController.signal.aborted,
@@ -958,6 +978,13 @@ export function registerChatHandler(
                     }
                   } : {}),
                 },
+                llmGetters.getOllama,
+                llmGetters.getLmStudio,
+                llmGetters.getArk,
+                llmGetters.getXiaomi,
+                llmGetters.getKimi,
+                llmGetters.getGlm,
+                llmGetters.getRelay,
               );
               responseText = fallback.text || '';
               llmWasCalled = true;
@@ -1062,6 +1089,7 @@ export function registerChatHandler(
               [],
               { provider: 'deepseek', model: 'deepseek-v4-flash', userId: uid, maxTokens: 300 },
               llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
+              llmGetters.getOllama, llmGetters.getLmStudio, llmGetters.getArk, llmGetters.getXiaomi, llmGetters.getKimi, llmGetters.getGlm, llmGetters.getRelay,
             );
             const identityResult = JSON.parse((identityCheck.text || '').replace(/```json|```/g, '').trim() || '{}');
             if (identityResult.correctsIdentity) {
@@ -1214,6 +1242,7 @@ async function summarizeConversationAsync(
       [],
       { provider: provider as any, model, maxTokens: 300 },
       llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
+      llmGetters.getOllama, llmGetters.getLmStudio, llmGetters.getArk, llmGetters.getXiaomi, llmGetters.getKimi, llmGetters.getGlm, llmGetters.getRelay,
     );
     const summary = result.text.trim();
     if (summary) {

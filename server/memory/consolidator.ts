@@ -86,7 +86,7 @@ JSON output:`;
 
 export interface ConsolidationContext {
   userId: string;
-  provider: 'deepseek' | 'qwen' | 'openai' | 'gemini' | 'anthropic';
+  provider: 'deepseek' | 'qwen' | 'openai' | 'gemini' | 'anthropic' | 'ark' | 'ollama' | 'lmstudio' | 'xiaomi' | 'kimi' | 'glm' | 'relay' | 'auto';
   model: string;
   domain?: string;
   orgId?: string;
@@ -104,6 +104,13 @@ export async function consolidateEpisodic(
   getOpenAI?: () => any,
   getAnthropic?: () => any,
   getQwen?: () => any,
+  getOllama?: () => any,
+  getLmStudio?: () => any,
+  getArk?: () => any,
+  getXiaomi?: () => any,
+  getKimi?: () => any,
+  getGlm?: () => any,
+  getRelay?: () => any,
 ): Promise<Memory | null> {
   const episodic = getUnconsolidatedEpisodic(ctx.userId, ctx.domain, ctx.orgId);
 
@@ -136,6 +143,13 @@ export async function consolidateEpisodic(
       getOpenAI,
       getAnthropic,
       getQwen,
+      getOllama,
+      getLmStudio,
+      getArk,
+      getXiaomi,
+      getKimi,
+      getGlm,
+      getRelay,
     );
 
     const text = response.text || '';
@@ -185,6 +199,13 @@ export async function selfReflect(
   getOpenAI?: () => any,
   getAnthropic?: () => any,
   getQwen?: () => any,
+  getOllama?: () => any,
+  getLmStudio?: () => any,
+  getArk?: () => any,
+  getXiaomi?: () => any,
+  getKimi?: () => any,
+  getGlm?: () => any,
+  getRelay?: () => any,
 ): Promise<Memory | null> {
   const growthMemories = queryMemories({
     userId: ctx.userId,
@@ -220,6 +241,13 @@ export async function selfReflect(
       getOpenAI,
       getAnthropic,
       getQwen,
+      getOllama,
+      getLmStudio,
+      getArk,
+      getXiaomi,
+      getKimi,
+      getGlm,
+      getRelay,
     );
 
     const text = response.text || '';
@@ -271,6 +299,13 @@ export async function consolidateNarrative(
   getOpenAI?: () => any,
   getAnthropic?: () => any,
   getQwen?: () => any,
+  getOllama?: () => any,
+  getLmStudio?: () => any,
+  getArk?: () => any,
+  getXiaomi?: () => any,
+  getKimi?: () => any,
+  getGlm?: () => any,
+  getRelay?: () => any,
 ): Promise<Memory | null> {
   const cutoff = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000).toISOString();
   const memories = queryMemories({
@@ -312,6 +347,13 @@ export async function consolidateNarrative(
       getOpenAI,
       getAnthropic,
       getQwen,
+      getOllama,
+      getLmStudio,
+      getArk,
+      getXiaomi,
+      getKimi,
+      getGlm,
+      getRelay,
     );
 
     const text = response.text || '';

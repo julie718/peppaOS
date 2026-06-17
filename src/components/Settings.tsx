@@ -46,6 +46,7 @@ function buildSidebarGroups(t: any, isZh: boolean) {
       items: [
         { id: 'neural', label: t.neuralEngine || ui('智能体框架', 'Neural Engine'), icon: <BrainCircuit size={16} /> },
         { id: 'llm-providers', label: t.llmProviders || ui('LLM 服务商', 'LLM Providers'), icon: <BrainCircuit size={16} /> },
+        { id: 'vision-models', label: t.visionModelSettings || ui('视觉模型', 'Vision Model'), icon: <Camera size={16} /> },
         { id: 'voice-services', label: t.voiceServices || ui('语音服务', 'Voice Services'), icon: <Mic size={16} /> },
       ],
     },
@@ -164,6 +165,8 @@ export function Settings({
         return <VoiceForge t={t} />;
       case 'llm-providers':
         return <LLMProvidersPage t={t} providerStatus={providerStatus} />;
+      case 'vision-models':
+        return <VisionModelPage t={t} />;
       case 'voice-services':
         return <VoiceServicesPage t={t} />;
       case 'security':
@@ -564,6 +567,145 @@ function LLMProviderRow({ icon, label, providerId, models, placeholder, disabled
   );
 }
 
+function VisionProviderRow({ icon, label, providerId, models, placeholder, disabled = false, serverKey, t }: {
+  icon: React.ReactNode; label: string; providerId: string; models: string[];
+  placeholder: string; disabled?: boolean; serverKey: string; t?: any;
+}) {
+  const { visionConfig, updateVisionConfig } = useApp();
+  const isZh = t?.langCode !== 'en';
+  const ui = (zh: string, en: string) => (isZh ? zh : en);
+  const [keyValue, setKeyValue] = useState(() => {
+    try { return localStorage.getItem(`lumi_vision_${providerId}_key`) || ''; } catch { return ''; }
+  });
+  const [saved, setSaved] = useState(false);
+  const [serverConfigured, setServerConfigured] = useState(false);
+  const [showKey, setShowKey] = useState(false);
+  const savedModels = (() => {
+    try { return JSON.parse(localStorage.getItem('lumi_vision_models') || '{}'); } catch { return {}; }
+  })();
+  const [model, setModel] = useState(() => savedModels[providerId] || models[0]);
+
+  useEffect(() => {
+    fetch('/api/settings/keys')
+      .then(r => r.json())
+      .then(data => setServerConfigured(!!data[serverKey]))
+      .catch(() => {});
+  }, [serverKey]);
+
+  const handleSaveKey = () => {
+    if (!keyValue.trim()) return;
+    localStorage.setItem(`lumi_vision_${providerId}_key`, keyValue.trim());
+    fetch('/api/settings/keys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keys: { [serverKey]: keyValue.trim() } }),
+    }).then(r => {
+      if (!r.ok) throw new Error(ui('保存失败', 'Save failed'));
+      setServerConfigured(true);
+      if (visionConfig.provider === providerId) {
+        updateVisionConfig({ apiKey: keyValue.trim(), model });
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    }).catch(() => toast.error(t?.failedToSaveKey || ui('密钥保存失败', 'Failed to save key')));
+  };
+
+  const handleRemoveKey = () => {
+    localStorage.removeItem(`lumi_vision_${providerId}_key`);
+    fetch('/api/settings/keys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keys: { [serverKey]: '' } }),
+    }).then(r => {
+      if (!r.ok) throw new Error(ui('移除失败', 'Remove failed'));
+      setServerConfigured(false);
+      setKeyValue('');
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    }).catch(() => toast.error(t?.failedToRemoveKey || ui('密钥移除失败', 'Failed to remove key')));
+  };
+
+  const handleModelChange = (m: string) => {
+    setModel(m);
+    const allModels = (() => {
+      try { return JSON.parse(localStorage.getItem('lumi_vision_models') || '{}'); } catch { return {}; }
+    })();
+    allModels[providerId] = m;
+    localStorage.setItem('lumi_vision_models', JSON.stringify(allModels));
+    if (visionConfig.provider === providerId) {
+      updateVisionConfig({ model: m });
+    } else {
+      fetch('/api/preferences/vision', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: visionConfig.provider, model: visionConfig.model, models: allModels }),
+        credentials: 'include',
+      }).catch(() => {});
+    }
+  };
+
+  return (
+    <div className="p-6 bg-white/5 rounded-3xl border border-white/5 space-y-4">
+      <div className="flex items-center gap-2">
+        <div className="p-2 bg-white/5 rounded-lg">{icon}</div>
+        <label className="text-xs font-black uppercase tracking-widest text-white/50">{label}</label>
+        {serverConfigured && <span className="text-xs px-2 py-0.5 bg-green-500/10 border border-green-500/20 text-green-400 rounded-full font-bold">{t?.configured || ui('已配置', 'CONFIGURED')}</span>}
+        {saved && <CheckCircle size={14} className="text-green-400 ml-auto" />}
+      </div>
+      <div className="flex gap-3">
+        <div className="relative flex-1">
+          <input
+            disabled={disabled}
+            type={showKey ? 'text' : 'password'}
+            value={keyValue}
+            onChange={e => setKeyValue(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSaveKey()}
+            placeholder={serverConfigured && !keyValue ? (t?.keySavedOnServer || ui('密钥已保存在服务器', 'Key saved on server')) : placeholder}
+            className="w-full bg-black/40 border border-white/10 rounded-xl p-4 pr-16 text-white font-mono text-sm outline-none focus:border-cyan-300/50 transition-colors disabled:opacity-50"
+          />
+          <div className="absolute right-2 top-2 flex gap-1">
+            <button type="button" onClick={() => setShowKey(!showKey)}
+              className="h-10 px-2 bg-white/5 hover:bg-white/10 text-xs font-bold uppercase border border-white/5 rounded-lg">
+              {showKey ? (t?.hide || ui('隐藏', 'Hide')) : (t?.show || ui('显示', 'Show'))}
+            </button>
+          </div>
+        </div>
+        <Button
+          onClick={handleSaveKey}
+          disabled={disabled || !keyValue.trim()}
+          className="h-[56px] px-4 bg-cyan-300 text-black rounded-xl text-xs font-black uppercase tracking-widest disabled:opacity-30 disabled:cursor-not-allowed hover:bg-cyan-200 transition-all"
+        >
+          {t?.save || ui('保存', 'Save')}
+        </Button>
+        <Button
+          onClick={handleRemoveKey}
+          disabled={disabled || (!keyValue && !serverConfigured)}
+          className="h-[56px] px-4 bg-red-500/10 border border-red-500/20 rounded-xl text-xs font-black uppercase tracking-widest text-red-400 hover:bg-red-500/20 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+        >
+          {t?.remove || ui('移除', 'Remove')}
+        </Button>
+      </div>
+      <div className="flex items-center gap-3">
+        <label className="text-[12px] font-black uppercase text-white/55 tracking-wider whitespace-nowrap">{t?.model || ui('模型', 'Model')}</label>
+        <input
+          type="text"
+          value={model}
+          onChange={e => handleModelChange(e.target.value)}
+          list={`vision-models-${providerId}`}
+          placeholder={models[0]}
+          className="flex-1 bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none focus:border-cyan-300/50"
+        />
+        <datalist id={`vision-models-${providerId}`}>
+          {models.map(m => <option key={m} value={m} />)}
+        </datalist>
+        {visionConfig.provider === providerId && (
+          <span className="text-xs px-2 py-0.5 bg-cyan-300/10 border border-cyan-300/20 text-cyan-200 rounded-full font-bold whitespace-nowrap">{t?.activeBadge || ui('当前', 'ACTIVE')}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ProactiveVoiceToggle() {
   const storageKey = 'lumi_allow_proactive_voice';
   const [enabled, setEnabled] = useState(() => localStorage.getItem(storageKey) === 'true');
@@ -639,6 +781,41 @@ function AlwaysOnVoiceToggle() {
         className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-md"
       />
     </button>
+  );
+}
+
+function VisionModelPage({ t }: { t: any }) {
+  const isZh = t?.langCode !== 'en';
+  const ui = (zh: string, en: string) => (isZh ? zh : en);
+  const { visionConfig, updateVisionConfig } = useApp();
+  return (
+    <div className="space-y-8">
+      <SettingsSection title={t.visionModelSettings || ui('视觉模型', 'Vision Model')} icon={<Camera size={18} className="text-cyan-300" />}>
+        <div className="mb-6 rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.04] p-4 space-y-2">
+          <label className="text-xs font-black uppercase text-white/55 ml-1">{t.primaryVisionModel || ui('屏幕理解与视觉控制模型', 'Screen Understanding & Vision Control')}</label>
+          <div className="relative">
+            <select value={visionConfig.provider} onChange={(e) => updateVisionConfig({ provider: e.target.value })}
+              className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm font-bold appearance-none cursor-pointer focus:border-cyan-300/50 outline-none">
+              <option value="openai">OpenAI Vision</option>
+              <option value="gemini">Google Gemini Vision</option>
+              <option value="ark">Doubao / 豆包 Vision (Ark)</option>
+              <option value="qwen">Qwen-VL (DashScope)</option>
+            </select>
+            <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/45" />
+          </div>
+          <p className="text-[12px] text-white/45 px-1">
+            {ui('视觉模型只用于看屏幕、OCR、电脑控制等视觉任务；不会改变主推理大脑，也不会改变语音服务。', 'Vision is used only for screen reading, OCR, and desktop control. It does not change the main reasoning brain or voice services.')}
+            <span className="ml-2 text-white/40 font-mono">{visionConfig.provider}/{visionConfig.model}</span>
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-6">
+          <VisionProviderRow icon={<MessagesSquare size={18} className="text-green-400" />} label="OpenAI Vision" providerId="openai" models={['gpt-4o', 'gpt-4o-mini']} placeholder="sk-..." serverKey="OPENAI_API_KEY" t={t} />
+          <VisionProviderRow icon={<BrainCircuit size={18} className="text-blue-400" />} label="Google Gemini Vision" providerId="gemini" models={['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash']} placeholder={ui('输入 Gemini API Key...', 'Enter Gemini API key...')} serverKey="GEMINI_API_KEY" t={t} />
+          <VisionProviderRow icon={<Cloud size={18} className="text-cyan-400" />} label="Doubao / 豆包 Vision (Ark)" providerId="ark" models={['doubao-1-5-vision-pro-32k']} placeholder={ui('输入 Ark API Key...', 'Enter Ark API key...')} serverKey="ARK_API_KEY" t={t} />
+          <VisionProviderRow icon={<Zap size={18} className="text-violet-400" />} label="Qwen-VL / DashScope" providerId="qwen" models={['qwen-vl-max']} placeholder="sk-..." serverKey="DASHSCOPE_API_KEY" t={t} />
+        </div>
+      </SettingsSection>
+    </div>
   );
 }
 

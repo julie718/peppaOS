@@ -6,8 +6,8 @@ import { mcpManager, getMCPConfig, updateMCPConfig, SKILLS_DIR } from "../mcp";
 import { getMarketplaceSkills, getSkillById, searchSkills, getCategories, recordInstall, publishSkill, rateSkill, getSkillRatings } from "../marketplace/registry";
 import { translateSkills } from "../skills/translations";
 import { createAgentForSkill } from "../agents/skill_agent";
-
-const QWEN_BASE = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+import { makeLLMCall, type NormalizedMessage } from "../llm/providers";
+import { getUserPreferredLLMConfig } from "../llm/user_preferences";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,6 +16,13 @@ export function mountMarketplaceRoutes(
   router: Router,
   jwtSecret: string,
   io: { emit: (event: string, data: any) => void },
+  llmGetters?: {
+    getDeepSeek: () => any;
+    getGemini: () => any;
+    getOpenAI?: () => any;
+    getAnthropic?: () => any;
+    getQwen?: () => any;
+  },
 ) {
   // Discoverable marketplace skills (dynamic from registry)
   router.get("/marketplace/skills", (req, res) => {
@@ -320,27 +327,23 @@ export function mountMarketplaceRoutes(
       }));
 
       const translated = await translateSkills(skills, lang, async (prompt: string) => {
-        const apiKey = process.env.DASHSCOPE_API_KEY || process.env.QWEN_API_KEY;
-        if (!apiKey) throw new Error("DASHSCOPE_API_KEY or QWEN_API_KEY required for translation");
-        const resp = await fetch(`${QWEN_BASE}/chat/completions`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model: "qwen-turbo",
-            messages: [
-              { role: "system", content: "You are a translator. Output ONLY valid JSON." },
-              { role: "user", content: prompt },
-            ],
-            max_tokens: 4096,
-            temperature: 0.1,
-          }),
-        });
-        if (!resp.ok) throw new Error(`Qwen API returned ${resp.status}`);
-        const data: any = await resp.json();
-        return data.choices?.[0]?.message?.content || "";
+        if (!llmGetters) throw new Error("LLM service is not available for marketplace translation");
+        const userId = (req as any).user?.uid || 'anonymous';
+        const messages: NormalizedMessage[] = [
+          { role: "system", content: "You are a translator. Output ONLY valid JSON." },
+          { role: "user", content: prompt },
+        ];
+        const response = await makeLLMCall(
+          messages,
+          [],
+          getUserPreferredLLMConfig(userId, { maxTokens: 4096 }),
+          llmGetters.getDeepSeek,
+          llmGetters.getGemini,
+          llmGetters.getOpenAI,
+          llmGetters.getAnthropic,
+          llmGetters.getQwen,
+        );
+        return response.text || "";
       });
 
       res.json({ ok: true, translated: translated.size, lang });

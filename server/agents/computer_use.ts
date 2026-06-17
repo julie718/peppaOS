@@ -18,6 +18,7 @@
 
 import { NormalizedMessage, makeLLMCall } from '../llm/providers';
 import { parseScreenshotBase64 } from '../llm/adapter';
+import { getUserPreferredVision } from '../llm/vision_preferences';
 
 interface ComputerUseAction {
   action: 'click' | 'double_click' | 'right_click' | 'type' | 'key_press' | 'wait' | 'done' | 'error';
@@ -30,6 +31,7 @@ interface ComputerUseAction {
 }
 
 export interface ComputerUseOptions {
+  userId?: string;
   desktopRelay: (toolName: string, args: Record<string, any>) => Promise<string>;
   llmGetters: Record<string, () => any>;
   maxIterations?: number;
@@ -119,26 +121,21 @@ async function callVisionModel(
   task: string,
   actionHistory: string[],
   llmGetters: Record<string, () => any>,
+  userId?: string,
 ): Promise<string> {
   const g = llmGetters;
+  const vision = getUserPreferredVision(userId || 'anonymous');
 
-  // Prefer OpenAI GPT-4o, fall back to Qwen-VL, Ark, then Gemini
   let provider: 'openai' | 'qwen' | 'ark' | 'gemini';
-  let model: string;
-  if (g.getOpenAI?.()) {
-    provider = 'openai';
-    model = 'gpt-4o';
-  } else if (g.getQwen?.()) {
-    provider = 'qwen';
-    model = 'qwen-vl-max';
-  } else if (g.getArk?.()) {
-    provider = 'ark';
-    model = 'doubao-1-5-vision-pro-32k';
-  } else if (g.getGemini?.()) {
-    provider = 'gemini';
-    model = 'gemini-2.0-flash';
-  } else {
-    throw new Error('Computer use requires a vision-capable model. Add an OpenAI, DashScope (Qwen), Ark (Doubao), or Gemini API key in Settings → API Matrix.');
+  let model = vision.model;
+  provider = vision.provider;
+  const getterAvailable = provider === 'openai' ? !!g.getOpenAI?.()
+    : provider === 'gemini' ? !!g.getGemini?.()
+      : provider === 'ark' ? !!g.getArk?.()
+        : provider === 'qwen' ? !!g.getQwen?.()
+          : false;
+  if (!getterAvailable) {
+    throw new Error(`Computer use vision provider "${provider}" is not configured. Add its API key in Settings → LLM Providers → Vision Model, or choose a configured vision model.`);
   }
 
   const historyContext = actionHistory.length > 0
@@ -300,7 +297,7 @@ export async function computerUseLoop(
 
     let responseText: string;
     try {
-      responseText = await callVisionModel(screenshotBase64, screenshotMime, task, actionHistory, options.llmGetters);
+      responseText = await callVisionModel(screenshotBase64, screenshotMime, task, actionHistory, options.llmGetters, options.userId);
     } catch (err: any) {
       options.onProgress?.(`[${i + 1}/${maxIter}] Vision call failed: ${err.message}`);
       consecutiveErrors++;

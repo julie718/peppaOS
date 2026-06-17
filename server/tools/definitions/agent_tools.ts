@@ -9,7 +9,7 @@ async function agentCreate(args: Record<string, any>, _context?: any): Promise<s
   const skillTags: string[] = Array.isArray(args.skillTags) ? args.skillTags : [];
   const description = (args.description || '').trim();
   const executionMode = args.executionMode || 'lumi';
-  const modelPreference = args.model || 'qwen-plus';
+  const modelPreference = args.model || 'deepseek-chat';
   const knowledgeDomains: string[] = Array.isArray(args.knowledgeDomains) ? args.knowledgeDomains : [];
   const autonomyLevel = args.autonomyLevel || 'reactive';
   const runtime = args.runtime || 'internal';
@@ -156,7 +156,7 @@ export function registerAgentTools(registry: ToolRegistry): void {
         skillTags: { type: 'array', items: { type: 'string' }, description: 'Specific skill tags for task matching (e.g. ["python", "data-analysis"])' },
         description: { type: 'string', description: 'What this agent specializes in — used as its internal config' },
         executionMode: { type: 'string', description: 'Thinking mode: lumi (default), scholar, founder, or zen' },
-        model: { type: 'string', description: 'Preferred LLM model (default: qwen-plus)' },
+        model: { type: 'string', description: 'Preferred LLM model (default: deepseek-chat)' },
         knowledgeDomains: { type: 'array', items: { type: 'string' }, description: 'Knowledge domains for RAG routing' },
         autonomyLevel: { type: 'string', description: 'reactive (on-demand only), scheduled (periodic checks), or autonomous (self-triggering)' },
         runtime: { type: 'string', description: '"internal" (LLM-powered, default) or "external" (CLI process like OpenClaw/Hermes)' },

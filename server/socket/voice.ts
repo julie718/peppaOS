@@ -19,6 +19,7 @@ import { runOrchestratedTask, classifyComplexity } from "../agents/orchestrator"
 import { queryMemories, addMemory } from "../memory/store";
 import { matchQuickCommand } from "../cognition/quick_commands";
 import { recordTokenUsage } from "../llm/token_tracker";
+import { getUserPreferredLLMConfig } from "../llm/user_preferences";
 import { getOperationModeConfig, parseStoredOperationMode } from "../cognition/operation_modes";
 import { hasClientActionIntent, shouldAllowToolUseForTurn, shouldExposeAgentWork } from "../cognition/tool_intent";
 import { updatePresence } from "../biometrics/presence";
@@ -1282,20 +1283,11 @@ export function registerVoiceHandlers(
     ].filter(Boolean).join('\n');
 
     try {
-      const getQwen = llmGetters?.getQwen;
-      if (!getQwen) {
-        // Fallback to template
-        const hour = new Date().getHours();
-        const fallback = hour < 6 ? '夜深了，还在忙吗？' : hour < 12 ? '早上好，欢迎回来。' : hour < 18 ? '下午好，继续吧。' : '晚上好，欢迎回来。';
-        const result = await synthesizeSpeech(fallback, { provider: getTTSProvider()!, voiceId });
-        socket.emit("audio:proactive_speak", { audioBuffer: result.audioBuffer, text: fallback, timestamp: new Date().toISOString(), volumeGain: computeVolumeGain() });
-        return;
-      }
-
+      const greetingLLM = getUserPreferredLLMConfig(session.userId, { maxTokens: 120 });
       const response = await makeLLMCall(
         [{ role: 'user', content: greetingPrompt }],
         [],
-        { provider: 'qwen', model: 'qwen-turbo', maxTokens: 120 },
+        greetingLLM,
         llmGetters.getDeepSeek,
         llmGetters.getGemini,
         llmGetters.getOpenAI,
@@ -1303,7 +1295,7 @@ export function registerVoiceHandlers(
         llmGetters.getQwen,
       );
 
-      recordTokenUsage(session.userId, 'qwen', 'qwen-turbo', response.usage, `voice_greet_${Date.now()}`, 'voice');
+      recordTokenUsage(session.userId, greetingLLM.provider, greetingLLM.model, response.usage, `voice_greet_${Date.now()}`, 'voice');
 
       const greeting = response.text?.trim() || '';
       if (!greeting) throw new Error('Empty LLM response');

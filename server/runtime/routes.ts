@@ -63,7 +63,7 @@ export function mountAllRoutes({ apiRouter, jwtSecret, llm, getCookieOptions, io
 
   // Skills & Marketplace
   mountSkillRoutes(apiRouter, jwtSecret, llmGetters, io);
-  mountMarketplaceRoutes(apiRouter, jwtSecret, io);
+  mountMarketplaceRoutes(apiRouter, jwtSecret, io, llmGetters);
 
   // Contacts
   mountContactsRoutes(apiRouter, jwtSecret);

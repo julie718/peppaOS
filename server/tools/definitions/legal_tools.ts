@@ -9,6 +9,26 @@ import {
   searchCompany, searchEnforcementRecords,
 } from '../../legal/sources';
 import { generateEmbedding } from '../../memory/store';
+import { makeLLMCall, type NormalizedMessage } from '../../llm/providers';
+import { getUserPreferredLLMConfig } from '../../llm/user_preferences';
+
+async function runLegalLLM(prompt: string, context?: any, maxTokens = 2048): Promise<string | null> {
+  const getters = context?.llmGetters;
+  if (!getters) return null;
+  const userId = context?.userId || 'anonymous';
+  const messages: NormalizedMessage[] = [{ role: 'user', content: prompt }];
+  const response = await makeLLMCall(
+    messages,
+    [],
+    getUserPreferredLLMConfig(userId, { maxTokens }),
+    getters.getDeepSeek,
+    getters.getGemini,
+    getters.getOpenAI,
+    getters.getAnthropic,
+    getters.getQwen,
+  );
+  return response.text || null;
+}
 
 // ── legal_search_case ───────────────────────────────────────────────────
 
@@ -80,12 +100,8 @@ ${templates.slice(0, 3).map(t => `- ${t.title}`).join('\n')}
 
   // Try to use LLM
   try {
-    const llm = context?.llmGetters?.getDeepSeek?.() || context?.llmGetters?.getQwen?.();
-    if (llm) {
-      const response = await llm.invoke([{ role: 'user', content: prompt }]);
-      const text = typeof response === 'string' ? response : (response?.content || response?.text || JSON.stringify(response));
-      return text;
-    }
+    const text = await runLegalLLM(prompt, context, 2048);
+    if (text) return text;
   } catch { /* LLM unavailable, return structured outline */ }
 
   return `[标书生成 — 无LLM可用时的结构化大纲]
@@ -150,11 +166,8 @@ ${caseResults.slice(0, 10).join('\n')}
 请用中文输出。`;
 
   try {
-    const llm = context?.llmGetters?.getDeepSeek?.() || context?.llmGetters?.getQwen?.();
-    if (llm) {
-      const response = await llm.invoke([{ role: 'user', content: prompt }]);
-      return typeof response === 'string' ? response : (response?.content || response?.text || JSON.stringify(response));
-    }
+    const text = await runLegalLLM(prompt, context, 2048);
+    if (text) return text;
   } catch { /* fall through */ }
 
   return `[合同审查 — 基于规则分析]
@@ -222,11 +235,8 @@ ${templates[0].title} (${templates[0].publishDate})
 请输出完整合同文本。`;
 
   try {
-    const llm = context?.llmGetters?.getDeepSeek?.() || context?.llmGetters?.getQwen?.();
-    if (llm) {
-      const response = await llm.invoke([{ role: 'user', content: prompt }]);
-      return typeof response === 'string' ? response : (response?.content || response?.text || JSON.stringify(response));
-    }
+    const text = await runLegalLLM(prompt, context, 2048);
+    if (text) return text;
   } catch { /* fall through */ }
 
   return `[合同起草 — 模板]
@@ -369,11 +379,8 @@ ${caseRefs || '（未在本地知识库中找到相似判例）'}
 **重要：不得编造任何法条或判例。如无法确认，标注"待核实"。**`;
 
   try {
-    const llm = context?.llmGetters?.getDeepSeek?.() || context?.llmGetters?.getQwen?.();
-    if (llm) {
-      const response = await llm.invoke([{ role: 'user', content: prompt }]);
-      return typeof response === 'string' ? response : (response?.content || response?.text || JSON.stringify(response));
-    }
+    const text = await runLegalLLM(prompt, context, 2048);
+    if (text) return text;
   } catch { /* fall through */ }
 
   return `[诉讼策略分析 — 无LLM可用时的结构化框架]

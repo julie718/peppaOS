@@ -214,12 +214,11 @@ ${memoryTexts}`;
       { role: 'user', content: synthesisPrompt },
     ];
 
-    // Build provider order from user's LLM prefs: active provider first, then configured fallbacks
+    // Build provider order from user's LLM prefs: active provider first, then explicitly configured fallbacks.
     const prefs = getUserLLMPrefs(userId);
     const activeProvider = prefs.provider || '';
     const userModels = prefs.models || {};
 
-    // Priority: active provider → others with keys configured → hardcoded fallbacks
     const VALID_PROVIDERS = ['deepseek', 'qwen', 'gemini', 'openai', 'anthropic'] as const;
     type ValidProvider = typeof VALID_PROVIDERS[number];
     const candidates: { provider: ValidProvider; model: string }[] = [];
@@ -230,12 +229,14 @@ ${memoryTexts}`;
         model: userModels[ap] || DEFAULT_MODELS[ap] || '',
       });
     }
-    // Add remaining providers that have keys, using their saved models
+    // Do not silently fall back to every available API key. Only providers the user saved
+    // as model preferences are treated as intended fallbacks.
     for (const p of VALID_PROVIDERS) {
       if (p === activeProvider) continue;
+      if (!Object.prototype.hasOwnProperty.call(userModels, p)) continue;
       candidates.push({
         provider: p,
-        model: userModels[p] || DEFAULT_MODELS[p] || '',
+        model: userModels[p],
       });
     }
 

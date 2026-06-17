@@ -28,6 +28,13 @@ export function registerTaskHandler(
     getOpenAI: () => any;
     getAnthropic: () => any;
     getQwen: () => any;
+    getOllama?: () => any;
+    getLmStudio?: () => any;
+    getArk?: () => any;
+    getXiaomi?: () => any;
+    getKimi?: () => any;
+    getGlm?: () => any;
+    getRelay?: () => any;
   },
   sensoryFn: (uid: string) => any,
   userIdFn: (s: Socket) => string,
@@ -75,6 +82,8 @@ export function registerTaskHandler(
     const DEFAULT_MODELS: Record<string, string> = {
       deepseek: 'deepseek-chat', qwen: 'qwen-plus', openai: 'gpt-4o',
       gemini: 'gemini-2.0-flash', anthropic: 'claude-sonnet-4-6',
+      ark: 'doubao-1-5-pro-32k', xiaomi: 'xiaomi-chat', kimi: 'moonshot-v1-8k',
+      glm: 'glm-4-plus', relay: 'gpt-4o', ollama: 'qwen2.5:7b', lmstudio: 'local-model',
     };
     let activeProvider = userLLMPrefs.provider || 'deepseek';
     let activeModel = (userLLMPrefs.models || {})[activeProvider] || DEFAULT_MODELS[activeProvider] || 'deepseek-chat';
@@ -300,7 +309,14 @@ export function registerTaskHandler(
             socket.emit("agent:chunk", { text: chunk, agentName: personality.name });
           }
         },
-        { desktopRelay, requestConfirmation, toolPolicy: personality.toolPolicy, isCancelled: () => cancelled },
+        { userId: uid, desktopRelay, requestConfirmation, toolPolicy: personality.toolPolicy, isCancelled: () => cancelled, llmGetters },
+        llmGetters.getOllama,
+        llmGetters.getLmStudio,
+        llmGetters.getArk,
+        llmGetters.getXiaomi,
+        llmGetters.getKimi,
+        llmGetters.getGlm,
+        llmGetters.getRelay,
       );
 
       // Persist token usage

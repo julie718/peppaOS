@@ -289,12 +289,7 @@ export async function analyzeScreen(
     // doubao-1-5-pro/lite → doubao-1-5-vision-pro for vision
     model = 'doubao-1-5-vision-pro-32k';
   } else if (provider === 'deepseek') {
-    // DeepSeek has no vision capability — route to the best available provider
-    if (getQwen?.()) { provider = 'qwen'; model = 'qwen-vl-max'; }
-    else if (getArk?.()) { provider = 'ark'; model = 'doubao-1-5-vision-pro-32k'; }
-    else if (getOpenAI?.()) { provider = 'openai'; model = 'gpt-4o'; }
-    else if (getGemini?.()) { provider = 'gemini'; model = 'gemini-2.0-flash'; }
-    else throw new Error('Vision requires a Qwen, Ark, OpenAI, or Gemini API key. DeepSeek does not support vision.');
+    throw new Error('DeepSeek does not support vision. Choose a separate vision model in Settings → LLM Providers → Vision Model.');
   }
 
   const messages: NormalizedMessage[] = [

@@ -403,6 +403,20 @@ function LegalCaseWorkspace({
     onUpdateCase(activeCase.id, patch);
   };
 
+  const filteredCases = useMemo(() => {
+    const q = caseFilter.trim().toLowerCase();
+    if (!q) return cases;
+    return cases.filter(item => [
+      item.title,
+      item.caseNumber,
+      item.party,
+      item.cause,
+      item.court,
+      item.judge,
+      item.notes,
+    ].join('\n').toLowerCase().includes(q));
+  }, [caseFilter, cases]);
+
   const calculateAppealDeadline = () => {
     if (!activeCase?.judgmentDate) {
       toast.info(ui('先填写判决书日期', 'Enter the judgment date first'));
@@ -474,19 +488,6 @@ function LegalCaseWorkspace({
 
   const caseTitle = activeCase.title || activeCase.party || activeCase.caseNumber || ui('未命名案件', 'Untitled case');
   const selectedMaterial = (activeCase.materials || []).find(material => material.id === selectedMaterialId) || (activeCase.materials || [])[0] || null;
-  const filteredCases = useMemo(() => {
-    const q = caseFilter.trim().toLowerCase();
-    if (!q) return cases;
-    return cases.filter(item => [
-      item.title,
-      item.caseNumber,
-      item.party,
-      item.cause,
-      item.court,
-      item.judge,
-      item.notes,
-    ].join('\n').toLowerCase().includes(q));
-  }, [caseFilter, cases]);
 
   return (
     <div className="h-full overflow-y-auto p-5">

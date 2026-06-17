@@ -4,7 +4,8 @@ import { WeChatClawBotAdapter, type WeChatClawBotConfig } from './wechat-clawbot
 import { getMessagingConfig, updateMessagingConfig } from './config';
 import { requireAuth } from '../middleware/auth';
 import type { MessageHandler } from './types';
-import { readDB } from '../../db_layer';
+import { makeLLMCall, type NormalizedMessage } from '../llm/providers';
+import { getUserPreferredLLMConfig } from '../llm/user_preferences';
 
 export function createWeChatRoutes(
   config: WeChatClawBotConfig,
@@ -119,7 +120,7 @@ function startWeChatPolling(
   });
 }
 
-// Simplified AI reply via available LLM — avoids code duplication with the main messaging pipeline
+// Simplified AI reply via the user's selected main LLM.
 
 const DEFAULT_SYSTEM_PROMPT = `你是一个名为 Lumi 的 AI 助手，通过微信与用户交流。保持回复简洁、温暖、有帮助。用中文回复。`;
 
@@ -130,38 +131,27 @@ async function processWeChatMessage(
   const llm = options?.llmGetters;
   if (!llm) return { text: `收到你的消息："${msg.text.slice(0, 60)}"。当前 AI 服务未配置。` };
 
-  // Try DeepSeek first, then fallback
-  const providers = [
-    () => llm.getDeepSeek?.() && { client: llm.getDeepSeek(), model: 'deepseek-chat', type: 'openai' },
-    () => llm.getQwen?.() && { client: llm.getQwen(), model: 'qwen-plus', type: 'openai' },
-    () => llm.getGemini?.() && { client: llm.getGemini(), model: 'gemini-2.0-flash', type: 'gemini' },
-  ];
-
-  for (const getProvider of providers) {
-    try {
-      const p = getProvider();
-      if (!p) continue;
-
-      if (p.type === 'gemini') {
-        const model = p.client.getGenerativeModel({ model: p.model, systemInstruction: DEFAULT_SYSTEM_PROMPT });
-        const result = await model.generateContent({ contents: [{ role: 'user', parts: [{ text: msg.text }] }] });
-        const text = result.response.text();
-        if (text) return { text: text.slice(0, 500) };
-      } else {
-        const response = await p.client.chat.completions.create({
-          model: p.model,
-          messages: [
-            { role: 'system', content: DEFAULT_SYSTEM_PROMPT },
-            { role: 'user', content: msg.text },
-          ],
-        });
-        const text = response.choices?.[0]?.message?.content;
-        if (text) return { text: text.slice(0, 500) };
-      }
-    } catch (err: any) {
-      console.warn(`[WeChat] LLM failed:`, err.message);
-    }
+  try {
+    const config = getUserPreferredLLMConfig(msg.userId || 'anonymous', { maxTokens: 500 });
+    const messages: NormalizedMessage[] = [
+      { role: 'system', content: DEFAULT_SYSTEM_PROMPT },
+      { role: 'user', content: msg.text },
+    ];
+    const response = await makeLLMCall(
+      messages,
+      [],
+      config,
+      llm.getDeepSeek,
+      llm.getGemini,
+      llm.getOpenAI,
+      llm.getAnthropic,
+      llm.getQwen,
+    );
+    const text = response.text?.trim();
+    if (text) return { text: text.slice(0, 500) };
+  } catch (err: any) {
+    console.warn(`[WeChat] Main LLM failed:`, err.message);
   }
 
-  return { text: `收到你的消息："${msg.text.slice(0, 60)}"。当前所有 AI 服务都不可用，请稍后再试。` };
+  return { text: `收到你的消息："${msg.text.slice(0, 60)}"。当前主推理服务不可用，请稍后再试。` };
 }

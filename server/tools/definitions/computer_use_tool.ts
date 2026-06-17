@@ -18,6 +18,7 @@ async function computerUse(args: Record<string, any>, context?: any): Promise<st
   const maxIterations = args.max_steps || args.maxIterations || 12;
 
   return computerUseLoop(task, {
+    userId: context.userId,
     desktopRelay: context.desktopRelay,
     llmGetters: context.llmGetters,
     maxIterations: Math.min(maxIterations, 15),

@@ -496,7 +496,7 @@ Return ONLY valid JSON:
   ]
 }`;
 
-  const raw = await callDistillLLM(prompt, llmGetters, 'qwen', 'qwen-plus');
+  const raw = await callDistillLLM(prompt, llmGetters);
   try {
     const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
     const memories: SeedMemory[] = (parsed.memories || []).map((m: any, i: number) => ({
@@ -549,7 +549,7 @@ Write a 3-5 sentence narrative in Chinese describing who this person is, as reve
 
 Output ONLY the narrative text, no labels.`;
 
-  const raw = await callDistillLLM(prompt, llmGetters, 'qwen', 'qwen-plus');
+  const raw = await callDistillLLM(prompt, llmGetters);
   return raw.trim().slice(0, 500) || `${targetName} — 从 ${memoryCount} 条对话中蒸馏出的记忆化身。`;
 }
 

@@ -24,7 +24,7 @@ interface SocketContext {
   io: Server;
   jwtSecret: string;
   llm: {
-    getDeepSeek: any; getGemini: any; getOpenAI: any; getAnthropic: any; getQwen: any; getArk: any; getOllama: any; isOllamaAvailable: any; getLmStudio: any; isLmStudioAvailable: any; getGlm: any;
+    getDeepSeek: any; getGemini: any; getOpenAI: any; getAnthropic: any; getQwen: any; getArk: any; getOllama: any; isOllamaAvailable: any; getLmStudio: any; isLmStudioAvailable: any; getXiaomi: any; getKimi: any; getGlm: any; getRelay: any;
   };
 }
 
@@ -67,7 +67,22 @@ export function initSocketRuntime({ io, jwtSecret, llm }: SocketContext) {
   initMemorySync(io);
   initMemoryAssociations();
 
-  const llmGetters = { getDeepSeek: llm.getDeepSeek, getGemini: llm.getGemini, getOpenAI: llm.getOpenAI, getAnthropic: llm.getAnthropic, getQwen: llm.getQwen, getArk: llm.getArk, getOllama: llm.getOllama, isOllamaAvailable: llm.isOllamaAvailable, getLmStudio: llm.getLmStudio, isLmStudioAvailable: llm.isLmStudioAvailable, getGlm: llm.getGlm };
+  const llmGetters = {
+    getDeepSeek: llm.getDeepSeek,
+    getGemini: llm.getGemini,
+    getOpenAI: llm.getOpenAI,
+    getAnthropic: llm.getAnthropic,
+    getQwen: llm.getQwen,
+    getArk: llm.getArk,
+    getOllama: llm.getOllama,
+    isOllamaAvailable: llm.isOllamaAvailable,
+    getLmStudio: llm.getLmStudio,
+    isLmStudioAvailable: llm.isLmStudioAvailable,
+    getXiaomi: llm.getXiaomi,
+    getKimi: llm.getKimi,
+    getGlm: llm.getGlm,
+    getRelay: llm.getRelay,
+  };
 
   io.on("connection", (socket) => {
     const uid = getUserIdFromSocket(socket, jwtSecret);

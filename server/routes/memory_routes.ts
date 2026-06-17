@@ -12,6 +12,7 @@ import { consolidateEpisodic, selfReflect, ConsolidationContext } from "../memor
 import { buildNarrativeChain } from "../memory/narrative";
 import { makeLLMCall } from "../llm/providers";
 import { getMemoryFirewallPolicy } from "../memory/firewall";
+import { getUserPreferredLLMConfig } from "../llm/user_preferences";
 
 function getAuthToken(req: any): string | undefined {
   let token = req.cookies?.token;
@@ -480,7 +481,7 @@ Rules:
       const llmResult = await makeLLMCall(
         [{ role: 'user', content: prompt }],
         [],
-        { provider: 'qwen', model: 'qwen-plus' },
+        getUserPreferredLLMConfig(userId),
         llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
       );
 

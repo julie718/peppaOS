@@ -23,7 +23,7 @@ import { personalityRegistry } from "../personality";
 import { recordTokenUsage } from "../llm/token_tracker";
 import { executeExternalAgent, validateExternalCommand } from "./external_runtime";
 
-type LLMProvider = 'deepseek' | 'gemini' | 'openai' | 'anthropic' | 'qwen';
+type LLMProvider = 'deepseek' | 'gemini' | 'openai' | 'anthropic' | 'qwen' | 'ark' | 'ollama' | 'lmstudio' | 'xiaomi' | 'kimi' | 'glm' | 'relay' | 'auto';
 
 export interface LlmGetters {
   getDeepSeek: () => any;
@@ -31,6 +31,13 @@ export interface LlmGetters {
   getOpenAI?: () => any;
   getAnthropic?: () => any;
   getQwen?: () => any;
+  getOllama?: () => any;
+  getLmStudio?: () => any;
+  getArk?: () => any;
+  getXiaomi?: () => any;
+  getKimi?: () => any;
+  getGlm?: () => any;
+  getRelay?: () => any;
 }
 
 // ── Types ──
@@ -272,6 +279,13 @@ export async function decomposeTask(
       llmGetters.getOpenAI,
       llmGetters.getAnthropic,
       llmGetters.getQwen,
+      llmGetters.getOllama,
+      llmGetters.getLmStudio,
+      llmGetters.getArk,
+      llmGetters.getXiaomi,
+      llmGetters.getKimi,
+      llmGetters.getGlm,
+      llmGetters.getRelay,
     );
 
     if (context?.userId) {
@@ -489,7 +503,7 @@ function createEphemeralAgent(category: string, skillTag: string): AgentRecord {
     data: '{}',
     createdAt: new Date().toISOString(),
     status: 'idle',
-    modelPreference: 'qwen-plus',
+    modelPreference: 'deepseek-chat',
     memoryScope: 'private',
     autonomyLevel: 'reactive',
     runtimeConfig: '{}',
@@ -665,6 +679,13 @@ async function executeWorkerTask(
           llmGetters.getQwen,
           undefined,
           workerContext,
+          llmGetters.getOllama,
+          llmGetters.getLmStudio,
+          llmGetters.getArk,
+          llmGetters.getXiaomi,
+          llmGetters.getKimi,
+          llmGetters.getGlm,
+          llmGetters.getRelay,
         ),
         timeoutPromise,
       ]);
@@ -827,6 +848,13 @@ export async function aggregateWithLLM(
       llmGetters.getOpenAI,
       llmGetters.getAnthropic,
       llmGetters.getQwen,
+      llmGetters.getOllama,
+      llmGetters.getLmStudio,
+      llmGetters.getArk,
+      llmGetters.getXiaomi,
+      llmGetters.getKimi,
+      llmGetters.getGlm,
+      llmGetters.getRelay,
     );
     if (userId) {
       recordTokenUsage(userId, llmConfig.provider, llmConfig.model, result.usage, `orch_aggregate_${Date.now()}`, 'orchestrator');

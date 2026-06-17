@@ -8,6 +8,7 @@ import { listEnabledAutonomousWorkflows } from './workflows';
 import { readDB } from '../../db_layer';
 import { makeLLMCall, NormalizedMessage } from '../llm/providers';
 import { getRecentActivity } from '../context/activity_stream';
+import { getUserPreferredLLMConfig } from '../llm/user_preferences';
 
 interface LLMGetters {
   getDeepSeek: () => any;
@@ -155,7 +156,7 @@ ${contextParts.join('\n')}
     const messages: NormalizedMessage[] = [{ role: 'user', content: prompt }];
     const result = await makeLLMCall(
       messages, [],
-      { provider: 'qwen', model: 'qwen-turbo', maxTokens: 500 },
+      getUserPreferredLLMConfig(userId, { maxTokens: 500 }),
       getters.getDeepSeek, getters.getGemini,
       getters.getOpenAI || (() => null),
       getters.getAnthropic || (() => null),

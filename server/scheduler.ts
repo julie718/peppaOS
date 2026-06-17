@@ -1,4 +1,4 @@
-// Proactive agent scheduler - cron-like check-ins
+﻿// Proactive agent scheduler - cron-like check-ins
 // Each check-in fires a socket event to the UI so the user sees "Lumi checked in"
 
 import { Server as SocketIOServer } from 'socket.io';
@@ -23,6 +23,7 @@ import { runDailyScan, isFirstBootComplete } from './autonomy/system_explorer';
 import { getTodayPlanSummary } from './autonomy/planner';
 import { getGateConfig } from './autonomy/safety_gate';
 import { parseStoredOperationMode } from './cognition/operation_modes';
+import { getUserPreferredLLMConfig } from './llm/user_preferences';
 
 interface ScheduledTask {
   id: string;
@@ -41,6 +42,9 @@ type LLMGetters = {
   getOpenAI?: () => any;
   getAnthropic?: () => any;
   getQwen?: () => any;
+  getOllama?: () => any;
+  getLmStudio?: () => any;
+  getArk?: () => any;
   getXiaomi?: () => any;
   getKimi?: () => any;
   getGlm?: () => any;
@@ -235,15 +239,30 @@ class Scheduler {
         }
         // Schedule next run
         const nextMs = this.nextCronTime(parsed.fields!);
-        const timer = setTimeout(runAndReschedule, nextMs);
-        this.timers.set(task.id, timer);
+        this.setTaskTimeout(task.id, runAndReschedule, nextMs);
       };
       const firstMs = this.nextCronTime(parsed.fields!);
-      const timer = setTimeout(runAndReschedule, firstMs);
-      this.timers.set(task.id, timer);
+      this.setTaskTimeout(task.id, runAndReschedule, firstMs);
       const [m, h, dom, mon, dow] = parsed.fields!;
       console.log(`[Scheduler] Registered cron task "${task.id}" — ${m} ${h} ${dom} ${mon} ${dow} (next in ${Math.round(firstMs / 1000)}s)`);
     }
+  }
+
+  private setTaskTimeout(id: string, callback: () => void | Promise<void>, delayMs: number): NodeJS.Timeout {
+    const maxDelay = 2_147_483_647; // Node timers are signed 32-bit milliseconds.
+    const safeDelay = Math.max(1000, Math.min(delayMs, maxDelay));
+    const remainingAfterThisChunk = Math.max(0, delayMs - safeDelay);
+
+    const timer = setTimeout(() => {
+      if (remainingAfterThisChunk > 0) {
+        this.setTaskTimeout(id, callback, remainingAfterThisChunk);
+        return;
+      }
+      void callback();
+    }, safeDelay);
+
+    this.timers.set(id, timer);
+    return timer;
   }
 
   /** Parse a cron string — returns either a fixed interval or cron field array */
@@ -325,6 +344,9 @@ export function registerScheduledTasks(
   getOpenAI?: () => any,
   getAnthropic?: () => any,
   getQwen?: () => any,
+  getOllama?: () => any,
+  getLmStudio?: () => any,
+  getArk?: () => any,
   getXiaomi?: () => any,
   getKimi?: () => any,
   getGlm?: () => any,
@@ -418,10 +440,11 @@ export function registerScheduledTasks(
       for (const userId of userIds) {
         const episodic = getUnconsolidatedEpisodic(userId);
         if (episodic.length < 10) continue;
-        const ctx: ConsolidationContext = { userId, provider: 'deepseek', model: 'deepseek-chat' };
+        const ctx: ConsolidationContext = getUserPreferredLLMConfig(userId);
         const consolidated = await consolidateEpisodic(
           ctx, 10,
           getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
+          getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
         );
         if (consolidated) {
           messages.push(`[${userId}] I've grown from our conversations: ${consolidated.content.slice(0, 200)}`);
@@ -443,10 +466,11 @@ export function registerScheduledTasks(
 
       for (const userId of userIds) {
         try {
-          const ctx: ConsolidationContext = { userId, provider: 'qwen', model: 'qwen-plus' };
+          const ctx: ConsolidationContext = getUserPreferredLLMConfig(userId);
           const result = await consolidateNarrative(
             ctx, 7, 6,
             getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
+            getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
           );
           if (result) {
             const title = result.content.match(/^\[(.+?)\]/)?.[1] || '叙事记忆';
@@ -497,8 +521,9 @@ Output ONLY the greeting — no preamble, no labels.`;
             const result = await makeLLMCall(
               [{ role: 'user', content: morningPrompt }],
               [],
-              { provider: 'qwen', model: 'qwen-turbo', maxTokens: 120 },
+              getUserPreferredLLMConfig(userId, { maxTokens: 120 }),
               getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
+              getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
             );
             const llmGreeting = result.text?.trim();
             if (llmGreeting && llmGreeting.length > 3) {
@@ -557,8 +582,9 @@ Output ONLY the reflection — no preamble, no labels.`;
             const result = await makeLLMCall(
               [{ role: 'user', content: eveningPrompt }],
               [],
-              { provider: 'qwen', model: 'qwen-turbo', maxTokens: 100 },
+              getUserPreferredLLMConfig(userId, { maxTokens: 100 }),
               getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
+              getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
             );
             const llmReflection = result.text?.trim();
             if (llmReflection && llmReflection.length > 3) {
@@ -646,9 +672,10 @@ Rules:
           const llmResult = await makeLLMCall(
             [{ role: 'user', content: prompt }],
             [],
-            { provider: 'qwen', model: 'qwen-plus' },
+            getUserPreferredLLMConfig(userId),
             getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
-          );
+              getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
+            );
 
           let plan: { branches: { title: string; memoryIds: string[] }[] };
           try {
@@ -791,9 +818,10 @@ Rules:
           const result = await makeLLMCall(
             [{ role: 'user', content: prompt }],
             [],
-            { provider: 'qwen', model: 'qwen-plus', maxTokens: 400 },
+            getUserPreferredLLMConfig(userId, { maxTokens: 400 }),
             getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
-          );
+              getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
+            );
           const narrative = result.text?.trim();
           if (narrative) {
             // Store as a special growth memory
@@ -858,9 +886,10 @@ Rules:
           const result = await makeLLMCall(
             [{ role: 'user', content: prompt }],
             [],
-            { provider: 'qwen', model: 'qwen-plus', maxTokens: 600 },
+            getUserPreferredLLMConfig(userId, { maxTokens: 600 }),
             getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
-          );
+              getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
+            );
           const narrative = result.text?.trim();
           if (narrative) {
             const { addMemory } = await import('./memory');
@@ -924,9 +953,10 @@ Rules:
           const result = await makeLLMCall(
             [{ role: 'user', content: prompt }],
             [],
-            { provider: 'qwen', model: 'qwen-plus', maxTokens: 800 },
+            getUserPreferredLLMConfig(userId, { maxTokens: 800 }),
             getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
-          );
+              getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
+            );
           const narrative = result.text?.trim();
           if (narrative) {
             const { addMemory } = await import('./memory');
@@ -1115,8 +1145,9 @@ Write in first-person as Lumi, warm and introspective tone. Keep it under 150 Ch
             const narrativeResult = await makeLLMCall(
               [{ role: 'user', content: narrativePrompt }],
               [],
-              { provider: 'qwen', model: 'qwen-plus', maxTokens: 300 },
+              getUserPreferredLLMConfig(userId, { maxTokens: 300 }),
               getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
+              getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
             );
 
             const narrative = narrativeResult.text?.trim() || `${summaryData.newMemories} 条新记忆，${summaryData.newInteractions} 次对话 — Lumi 在成长。`;
@@ -1217,8 +1248,9 @@ Write in first-person as Lumi, warm and introspective tone. Keep it under 150 Ch
             const result = await makeLLMCall(
               [{ role: 'user', content: prompt }],
               [],
-              { provider: 'qwen', model: 'qwen-plus', maxTokens: 200 },
+              getUserPreferredLLMConfig(userId, { maxTokens: 200 }),
               getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
+              getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
             );
             return result.text?.trim() || '';
           };
@@ -1315,8 +1347,9 @@ Output ONLY the check-in message — no preamble, no labels.`;
               const result = await makeLLMCall(
                 [{ role: 'user', content: checkInPrompt }],
                 [],
-                { provider: 'qwen', model: 'qwen-plus', maxTokens: 150 },
+                getUserPreferredLLMConfig(userId, { maxTokens: 150 }),
                 getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
+              getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
               );
               const checkIn = result.text?.trim();
               if (checkIn && checkIn.length > 3) {
@@ -1413,8 +1446,9 @@ Output ONLY the prediction message — no preamble, no labels.`;
               const predictionResult = await makeLLMCall(
                 [{ role: 'user', content: predictionPrompt }],
                 [],
-                { provider: 'qwen', model: 'qwen-plus', maxTokens: 100 },
+                getUserPreferredLLMConfig(userId, { maxTokens: 100 }),
                 getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
+              getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
               );
               const prediction = predictionResult.text?.trim();
               if (prediction && prediction.length > 5) {
@@ -1613,7 +1647,7 @@ Output ONLY the prediction message — no preamble, no labels.`;
 
       const getters: LLMGetters = {
         getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
-        getXiaomi, getKimi, getGlm, getRelay,
+        getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
       };
 
       for (const userId of userIds) {
@@ -1677,4 +1711,6 @@ Output ONLY the prediction message — no preamble, no labels.`;
     },
   });
 }
+
+
 

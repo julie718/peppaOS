@@ -12,6 +12,7 @@ import { loadKeys, saveKeys, getKey, getAllKeyNames } from "../config/keys";
 import { requireAuth } from "../middleware/auth";
 import { getLatencyStats } from "../monitor/latency_store";
 import { mcpManager, getMCPConfig } from "../mcp";
+import { DEFAULT_VISION_MODELS } from "../llm/vision_preferences";
 
 // Cached GPU detection — queried once
 let _cachedGPU: { name?: string; util?: number } | null | undefined;
@@ -38,6 +39,18 @@ function getRuntimeVersionInfo() {
     nodeVersion: process.version,
     platform: process.platform,
   };
+}
+
+function getUserIdFromRequest(req: any, jwtSecret: string): string {
+  let uid = 'anonymous';
+  const token = req.cookies?.token || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
+  if (token) {
+    try {
+      const decoded: any = jwt.verify(token, jwtSecret);
+      uid = decoded.uid || 'anonymous';
+    } catch {}
+  }
+  return uid;
 }
 
 function sumTimes(times: Record<string, number>): number {
@@ -263,6 +276,53 @@ export function mountSystemRoutes(router: Router, jwtSecret: string, io?: any) {
       res.json(row ? JSON.parse(row.value) : { provider: '', models: {} });
     } catch {
       res.json({ provider: '', models: {} });
+    }
+  });
+
+  router.put("/preferences/vision", (req, res) => {
+    try {
+      const { provider, model, models } = req.body || {};
+      const allowed = new Set(Object.keys(DEFAULT_VISION_MODELS));
+      if (!provider || !allowed.has(provider)) {
+        return res.status(400).json({ error: 'Invalid vision provider' });
+      }
+      const uid = getUserIdFromRequest(req, jwtSecret);
+      const normalizedModels = models && typeof models === 'object' ? models : {};
+      const payload = {
+        provider,
+        model: model || normalizedModels[provider] || (DEFAULT_VISION_MODELS as Record<string, string>)[provider],
+        models: {
+          ...normalizedModels,
+          [provider]: model || normalizedModels[provider] || (DEFAULT_VISION_MODELS as Record<string, string>)[provider],
+        },
+        updatedAt: new Date().toISOString(),
+      };
+      const db = readDB();
+      const key = `vision_prefs_${uid}`;
+      if (!db.settings) (db as any).settings = [];
+      const idx = (db.settings || []).findIndex((s: any) => s.key === key);
+      if (idx >= 0) {
+        (db.settings as any[])[idx].value = JSON.stringify(payload);
+      } else {
+        db.settings.push({ key, value: JSON.stringify(payload) });
+      }
+      writeDB(db);
+      res.json({ success: true, ...payload });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get("/preferences/vision", (req, res) => {
+    try {
+      const uid = getUserIdFromRequest(req, jwtSecret);
+      const key = `vision_prefs_${uid}`;
+      const db = readDB();
+      const row = (db.settings || []).find((s: any) => s.key === key);
+      if (row?.value) return res.json(JSON.parse(row.value));
+      return res.json({ provider: 'openai', model: DEFAULT_VISION_MODELS.openai, models: {} });
+    } catch {
+      res.json({ provider: 'openai', model: DEFAULT_VISION_MODELS.openai, models: {} });
     }
   });
 

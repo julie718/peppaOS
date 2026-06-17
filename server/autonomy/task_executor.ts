@@ -9,6 +9,7 @@ import { toolRegistry } from '../tools/registry';
 import { ToolContext } from '../tools/types';
 import { Server as SocketIOServer } from 'socket.io';
 import type { AutonomousTask } from './task_queue';
+import { getUserPreferredLLMConfig } from '../llm/user_preferences';
 
 interface LLMGetters {
   getDeepSeek: () => any;
@@ -152,12 +153,7 @@ export async function executeNextAutonomousTask(
     const result = await runWithTools(
       messages,
       toolRegistry,
-      {
-        provider: 'qwen',
-        model: 'qwen-plus',
-        maxTokens: 2000,
-        userId: task.userId,
-      },
+      getUserPreferredLLMConfig(task.userId, { maxTokens: 2000 }),
       undefined, // onToolCall
       15, // maxIterations
       getters.getDeepSeek, getters.getGemini,

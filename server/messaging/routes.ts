@@ -855,18 +855,6 @@ function resolveProviderOrder(
     }
   }
 
-  // Remaining providers as additional fallbacks with default models
-  const defaults: Record<string, string> = {
-    getQwen: 'qwen-plus', getDeepSeek: 'deepseek-chat', getGemini: 'gemini-2.0-flash',
-    getOpenAI: 'gpt-4o', getAnthropic: 'claude-sonnet-4-6',
-  };
-  for (const [key, model] of Object.entries(defaults)) {
-    if (!seen.has(key) && llmGetters?.[key]) {
-      ordered.push({ getter: llmGetters[key], model });
-      seen.add(key);
-    }
-  }
-
   return ordered;
 }
 

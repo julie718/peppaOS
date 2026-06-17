@@ -32,6 +32,12 @@ interface AIConfig {
   apiKey: string;
 }
 
+interface VisionConfig {
+  provider: string;
+  model: string;
+  apiKey: string;
+}
+
 interface NotificationItem {
   id: string;
   type: string;
@@ -73,6 +79,7 @@ interface AppContextType {
   loading: boolean;
   agents: Agent[];
   aiConfig: AIConfig;
+  visionConfig: VisionConfig;
   // Voice
   selectedVoiceId: string | undefined;
   setSelectedVoiceId: (id: string, provider?: string) => void;
@@ -103,6 +110,7 @@ interface AppContextType {
   updateBalance: (amount: number) => Promise<void>;
   refreshUser: () => Promise<void>;
   updateAIConfig: (config: Partial<AIConfig>) => void;
+  updateVisionConfig: (config: Partial<VisionConfig>) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -115,6 +123,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const saved = localStorage.getItem('lumi_ai_config');
     return saved ? JSON.parse(saved) : { provider: 'deepseek', model: 'deepseek-chat', apiKey: '' };
   });
+  const [visionConfig, setVisionConfig] = useState<VisionConfig>(() => {
+    const saved = localStorage.getItem('lumi_vision_config');
+    return saved ? JSON.parse(saved) : { provider: 'openai', model: 'gpt-4o', apiKey: '' };
+  });
+
+  useEffect(() => {
+    fetch('/api/preferences/vision', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(pref => {
+        if (!pref?.provider) return;
+        setVisionConfig(prev => {
+          const next = {
+            ...prev,
+            provider: pref.provider,
+            model: pref.model || pref.models?.[pref.provider] || prev.model,
+          };
+          localStorage.setItem('lumi_vision_config', JSON.stringify(next));
+          if (pref.models) localStorage.setItem('lumi_vision_models', JSON.stringify(pref.models));
+          return next;
+        });
+      })
+      .catch(() => {});
+  }, []);
   // Voice state
   const [selectedVoiceId, setSelectedVoiceIdState] = useState<string | undefined>(() => {
     return localStorage.getItem('lumi_selected_voice_id') || undefined;
@@ -281,6 +312,61 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return updated;
     });
     toast.success('Neural core configuration synchronized');
+  };
+
+  const updateVisionConfig = (newConfig: Partial<VisionConfig>) => {
+    setVisionConfig(prev => {
+      let resolved = { ...newConfig };
+      if (newConfig.provider && !newConfig.model) {
+        const savedModels = (() => {
+          try { return JSON.parse(localStorage.getItem('lumi_vision_models') || '{}'); } catch { return {}; }
+        })();
+        const defaults: Record<string, string> = {
+          openai: 'gpt-4o',
+          gemini: 'gemini-2.0-flash',
+          ark: 'doubao-1-5-vision-pro-32k',
+          qwen: 'qwen-vl-max',
+        };
+        resolved.model = savedModels[newConfig.provider] || defaults[newConfig.provider] || '';
+      }
+
+      const updated = { ...prev, ...resolved };
+      localStorage.setItem('lumi_vision_config', JSON.stringify(updated));
+
+      if (updated.apiKey && updated.provider) {
+        const KEY_MAP: Record<string, string> = {
+          openai: 'OPENAI_API_KEY',
+          gemini: 'GEMINI_API_KEY',
+          ark: 'ARK_API_KEY',
+          qwen: 'DASHSCOPE_API_KEY',
+        };
+        const serverKey = KEY_MAP[updated.provider];
+        if (serverKey) {
+          fetch('/api/settings/keys', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ keys: { [serverKey]: updated.apiKey } }),
+          }).catch(() => {});
+        }
+      }
+
+      const allModels = (() => {
+        try { return JSON.parse(localStorage.getItem('lumi_vision_models') || '{}'); } catch { return {}; }
+      })();
+      if (updated.provider && updated.model) {
+        allModels[updated.provider] = updated.model;
+        localStorage.setItem('lumi_vision_models', JSON.stringify(allModels));
+      }
+      fetch('/api/preferences/vision', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: updated.provider, model: updated.model, models: allModels }),
+        credentials: 'include',
+      }).catch(() => {});
+
+      return updated;
+    });
+    toast.success('Vision model configuration synchronized');
   };
 
   const refreshUser = async () => {
@@ -481,6 +567,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       loading,
       agents,
       aiConfig,
+      visionConfig,
       selectedVoiceId,
       setSelectedVoiceId,
       favoriteVoices,
@@ -505,6 +592,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       updateBalance,
       refreshUser,
       updateAIConfig,
+      updateVisionConfig,
     }}>
       {children}
     </AppContext.Provider>
