@@ -49,12 +49,28 @@ function tryParseJson(value: string): any | null {
   try { return JSON.parse(value); } catch { return null; }
 }
 
+const ARTIFACT_EXTENSIONS = 'dxf|dwg|pdf|pptx|docx|xlsx|xls|txt|md|json|csv|png|jpe?g|webp|html|ts|tsx|js|jsx|py';
+const ARTIFACT_EXTENSION_RE = new RegExp(`\\.(?:${ARTIFACT_EXTENSIONS})$`, 'i');
+
+function normalizeArtifactRef(candidate: string): string {
+  return candidate
+    .trim()
+    .replace(/^[`"'“”‘’]+/, '')
+    .replace(/[`"'“”‘’.,;，。；:：)）\]]+$/g, '')
+    .trim();
+}
+
+function isAbsoluteArtifactRef(value: string): boolean {
+  return /^[A-Za-z]:[\\/]/.test(value) || /^https?:\/\//i.test(value) || /^\\\\/.test(value);
+}
+
 function collectArtifactPaths(value: string, parsed: any): string[] {
   const paths = new Set<string>();
   const add = (candidate: any) => {
     if (typeof candidate !== 'string') return;
-    if (/\.(dxf|dwg|pdf|pptx|docx|xlsx|xls|txt|md|json|csv|png|jpe?g|webp|html|ts|tsx|js|jsx|py)$/i.test(candidate)) {
-      paths.add(candidate);
+    const clean = normalizeArtifactRef(candidate);
+    if (ARTIFACT_EXTENSION_RE.test(clean)) {
+      paths.add(clean);
     }
   };
   if (parsed && typeof parsed === 'object') {
@@ -65,7 +81,7 @@ function collectArtifactPaths(value: string, parsed: any): string[] {
         return;
       }
       if (typeof node === 'object') {
-        ['path', 'filePath', 'filepath', 'outputPath', 'url'].forEach(key => add(node[key]));
+        ['path', 'filePath', 'filepath', 'outputPath', 'url', 'name', 'fileName', 'filename'].forEach(key => add(node[key]));
         Object.values(node).forEach(walk);
         return;
       }
@@ -73,9 +89,34 @@ function collectArtifactPaths(value: string, parsed: any): string[] {
     };
     walk(parsed);
   }
-  const filePathRegex = /[A-Za-z]:\\[^\n\r"']+\.(?:dxf|dwg|pdf|pptx|docx|xlsx|xls|txt|md|json|csv|png|jpe?g|webp|html|ts|tsx|js|jsx|py)/gi;
+  const filePathRegex = new RegExp(`[A-Za-z]:\\\\[^\\n\\r"']+\\.(?:${ARTIFACT_EXTENSIONS})`, 'gi');
   for (const match of value.match(filePathRegex) || []) paths.add(match.trim());
+  const quotedFileRegex = new RegExp("[`\"'“”‘’]([^`\"'“”‘’\\r\\n]{1,260}\\.(?:" + ARTIFACT_EXTENSIONS + "))[`\"'“”‘’]", 'gi');
+  for (const match of value.matchAll(quotedFileRegex)) add(match[1]);
+  const looseFileRegex = new RegExp("(^|[\\s:：，,。;；（(])([^`\"'“”‘’<>\\r\\n]{1,180}\\.(?:" + ARTIFACT_EXTENSIONS + "))(?=$|[\\s，,。;；）)\\]])", 'gi');
+  for (const match of value.matchAll(looseFileRegex)) add(match[2]);
   return Array.from(paths).slice(0, 6);
+}
+
+function buildArtifactCard(path: string, source: string, detail: string, timestamp: number, extraMetadata: Record<string, any> = {}): CanvasCard {
+  const absolute = isAbsoluteArtifactRef(path);
+  return {
+    id: `artifact_${timestamp}_${Math.random().toString(36).slice(2, 8)}`,
+    type: 'artifact',
+    text: basename(path),
+    detail: detail.slice(0, 6000),
+    timestamp,
+    groupId: '',
+    status: 'done',
+    metadata: {
+      artifactKind: absolute ? 'file' : 'reported_file',
+      ...(absolute ? { filepath: path } : { reportedName: path }),
+      path,
+      source,
+      preview: detail.slice(0, 1200),
+      ...extraMetadata,
+    },
+  };
 }
 
 function extractArtifactsFromTool(toolName: string, toolArgs: any, result?: string): CanvasCard[] {
@@ -86,23 +127,10 @@ function extractArtifactsFromTool(toolName: string, toolArgs: any, result?: stri
   const artifacts: CanvasCard[] = [];
 
   paths.forEach((path, index) => {
-    artifacts.push({
-      id: `artifact_${now}_${index}_${Math.random().toString(36).slice(2, 6)}`,
-      type: 'artifact',
-      text: basename(path),
-      detail: parsed?.note || parsed?.analysis || result.slice(0, 1200),
-      timestamp: now + index,
-      groupId: '',
-      status: 'done',
-      metadata: {
-        artifactKind: 'file',
-        filepath: path,
-        path,
-        toolName,
-        args: toolArgs,
-        preview: parsed?.analysis || parsed?.note || result.slice(0, 1200),
-      },
-    });
+    artifacts.push(buildArtifactCard(path, 'tool_result', parsed?.note || parsed?.analysis || result.slice(0, 1200), now + index, {
+      toolName,
+      args: toolArgs,
+    }));
   });
 
   const content = parsed?.analysis || parsed?.content || parsed?.text || parsed?.summary || parsed?.output;
@@ -149,6 +177,14 @@ function extractArtifactsFromTool(toolName: string, toolArgs: any, result?: stri
   return artifacts;
 }
 
+function extractArtifactsFromText(text: string, source: string): CanvasCard[] {
+  if (!text?.trim()) return [];
+  const parsed = tryParseJson(text);
+  const refs = collectArtifactPaths(text, parsed);
+  const now = Date.now();
+  return refs.map((path, index) => buildArtifactCard(path, source, text, now + index));
+}
+
 export function useCanvasSocket({ socket, cards, edges, domain = 'personal', onCards, onEdges, onStatusChange }: UseCanvasSocketOptions) {
   const cardsRef = useRef<CanvasCard[]>([]);
   const edgesRef = useRef<CanvasEdge[]>([]);
@@ -181,7 +217,15 @@ export function useCanvasSocket({ socket, cards, edges, domain = 'personal', onC
 
   const addEdge = useCallback((sourceId: string, targetId: string, opts?: { dashed?: boolean; color?: string; label?: string }) => {
     const existing = edgesRef.current.find(e => e.sourceId === sourceId && e.targetId === targetId);
-    if (existing) return;
+    if (existing) {
+      edgesRef.current = edgesRef.current.map(e =>
+        e.id === existing.id
+          ? { ...e, dashed: opts?.dashed ?? e.dashed, color: opts?.color ?? e.color, label: opts?.label ?? e.label }
+          : e
+      );
+      scheduleFlush();
+      return;
+    }
     edgesRef.current = [...edgesRef.current, {
       id: `edge_${sourceId}_${targetId}`,
       sourceId,
@@ -276,6 +320,16 @@ export function useCanvasSocket({ socket, cards, edges, domain = 'personal', onC
     const isCanvasEvent = (data?: { requestId?: string; source?: string }) => {
       if (data?.requestId) return data.requestId === activeCanvasRequestIdRef.current;
       return data?.source === 'canvas';
+    };
+
+    const addArtifactsForOutput = (outputId: string, text: string) => {
+      const artifacts = extractArtifactsFromText(text, 'final_output')
+        .map((card, index) => ({ ...card, groupId: groupIdRef.current, parentId: outputId, timestamp: Date.now() + index + 1 }));
+      for (const artifact of artifacts) {
+        if (cardsRef.current.some(c => c.parentId === outputId && c.type === 'artifact' && c.text === artifact.text)) continue;
+        addCard(artifact);
+        addEdge(outputId, artifact.id, { dashed: true, color: 'rgba(34,211,238,0.45)', label: 'result' });
+      }
     };
 
     const onStatus = (data: { status: string; agentName?: string; requestId?: string; source?: string }) => {
@@ -416,11 +470,13 @@ export function useCanvasSocket({ socket, cards, edges, domain = 'personal', onC
           status: 'done',
           metadata: { ...existingOutput.metadata, agentName: data.agentName },
         });
+        addArtifactsForOutput(existingOutput.id, data.text);
         return;
       }
 
+      const outputId = `output_${Date.now()}`;
       addCard({
-        id: `output_${Date.now()}`,
+        id: outputId,
         type: 'final_output',
         text: data.text,
         timestamp: Date.now(),
@@ -428,6 +484,7 @@ export function useCanvasSocket({ socket, cards, edges, domain = 'personal', onC
         status: 'done',
         metadata: { agentName: data.agentName },
       });
+      addArtifactsForOutput(outputId, data.text);
     };
 
     const onError = (data: { message: string; code?: string; requestId?: string; source?: string }) => {

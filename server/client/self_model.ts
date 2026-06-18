@@ -297,7 +297,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     id: 'system.always_online',
     label: 'Always Online and autonomous work',
     kind: 'system',
-    actions: ['open_settings:autonomy', 'autonomy_get_policy', 'autonomy_update_policy', 'autonomy_list_workflows', 'autonomy_register_workflow', 'autonomy_set_workflow_enabled'],
+    actions: ['open_plans', 'open_work_queue', 'open_settings(section=autonomy)', 'autonomy_get_policy', 'autonomy_update_policy', 'autonomy_list_workflows', 'autonomy_register_workflow', 'autonomy_set_workflow_enabled'],
     notes: 'Lumi can stay ready while the desktop/server is running. The desktop client can launch at login, hide to tray/background, and supervise bundled backend processes; background execution still requires the autonomy gate plus an enabled user-confirmed workflow.',
     requiresConfirmation: true,
     stateKeys: ['mode', 'autonomy', 'runtime'],

@@ -28,6 +28,8 @@ const ACTIONS = [
   'open_tools',
   'open_team',
   'open_chat',
+  'open_plans',
+  'open_work_queue',
   'set_wallpaper_mode',
 ];
 

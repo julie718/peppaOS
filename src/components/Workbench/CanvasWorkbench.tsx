@@ -19,6 +19,23 @@ interface CanvasWorkbenchProps {
   onInitialTaskConsumed?: () => void;
 }
 
+function normalizeLoadedCanvasCards(cards: CanvasCard[]): CanvasCard[] {
+  const staleBefore = Date.now() - 10 * 60 * 1000;
+  return cards.map(card => {
+    if (card.status !== 'running') return card;
+    if (card.timestamp && card.timestamp > staleBefore) return card;
+    return {
+      ...card,
+      status: 'error',
+      detail: card.detail || 'This saved canvas step was still running when the session was restored. Rerun from this card if it still matters.',
+      metadata: {
+        ...(card.metadata || {}),
+        restoredStaleRunning: true,
+      },
+    };
+  });
+}
+
 export function CanvasWorkbench({ isOpen, onClose, t, user, domain = 'personal', initialTask, onInitialTaskConsumed }: CanvasWorkbenchProps) {
   const socket = socketService.connect();
   const [sessions, setSessions] = useState<CanvasSessionSummary[]>([]);
@@ -171,7 +188,7 @@ export function CanvasWorkbench({ isOpen, onClose, t, user, domain = 'personal',
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed to load canvas');
       const session = await res.json();
       setCurrentSessionId(session.id);
-      setCards(session.cards || []);
+      setCards(normalizeLoadedCanvasCards(session.cards || []));
       setEdges(session.edges || []);
       setSelectedEdgeId(null);
       setSaveState('saved');

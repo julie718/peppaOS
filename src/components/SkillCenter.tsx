@@ -383,8 +383,11 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
     '', '', '', '',
   ];
   const brokenSkillCount = installedSkills.filter(skill => skill.broken).length;
-  const shouldOfferRepair = (skill: InstalledSkill) =>
-    !!skill.broken || (!!skill.healthStatus && ['crashed', 'failed'].includes(skill.healthStatus));
+  const hasSkillRuntimeIssue = (skill: InstalledSkill) =>
+    !!skill.broken ||
+    (!!skill.healthStatus && ['crashed', 'failed', 'restarting'].includes(skill.healthStatus)) ||
+    (skill.enabled && !skill.connected);
+  const shouldOfferRepair = (skill: InstalledSkill) => hasSkillRuntimeIssue(skill);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -909,7 +912,12 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
                             <AlertTriangle size={11} />{lang === 'zh' ? '坏技能' : 'Broken'}
                           </span>
                         )}
-                        {!skill.broken && skill.healthStatus && !['connected', 'disconnected', 'unknown'].includes(skill.healthStatus) && (
+                        {!skill.broken && skill.enabled && !skill.connected && (
+                          <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 rounded-full text-[12px] text-amber-300 font-bold">
+                            <AlertTriangle size={11} />{lang === 'zh' ? '未连接' : 'Not connected'}
+                          </span>
+                        )}
+                        {!skill.broken && skill.healthStatus && !skill.enabled && !['connected', 'disconnected', 'unknown'].includes(skill.healthStatus) && (
                           <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 rounded-full text-[12px] text-amber-300 font-bold">
                             <AlertTriangle size={11} />{skill.healthStatus}
                           </span>
@@ -985,6 +993,11 @@ function SkillDetailPane({ detailSkill, setDetailSkill, t, lang, marketSkills, i
   const mSkill: any | undefined = isMarketSkill
     ? detailSkill
     : marketSkills.find(s => s.id === `skill-${detailSkill.name}`);
+  const detailRuntimeIssue = !isMarketSkill && (
+    !!detailSkill.broken ||
+    (!!detailSkill.healthStatus && ['crashed', 'failed', 'restarting'].includes(detailSkill.healthStatus)) ||
+    (!!detailSkill.enabled && !detailSkill.connected)
+  );
   return (
     <motion.div
       key={(detailSkill as any).id || (detailSkill as any).name || 'detail'}
@@ -1128,6 +1141,11 @@ function SkillDetailPane({ detailSkill, setDetailSkill, t, lang, marketSkills, i
               <AlertTriangle size={11} />{lang === 'zh' ? '坏技能' : 'Broken'}
             </span>
           )}
+          {!detailSkill.broken && detailSkill.enabled && !detailSkill.connected && (
+            <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 rounded-full text-xs text-amber-300 font-bold">
+              <AlertTriangle size={11} />{lang === 'zh' ? '未连接' : 'Not connected'}
+            </span>
+          )}
           {!detailSkill.broken && detailSkill.healthStatus && !['connected', 'disconnected', 'unknown'].includes(detailSkill.healthStatus) && (
             <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 rounded-full text-xs text-amber-300 font-bold">
               <AlertTriangle size={11} />{detailSkill.healthStatus}
@@ -1170,7 +1188,7 @@ function SkillDetailPane({ detailSkill, setDetailSkill, t, lang, marketSkills, i
           </Button>
         ) : detailSkill ? (
           <>
-            {(detailSkill.broken || ['crashed', 'failed'].includes(detailSkill.healthStatus || '')) && (
+            {detailRuntimeIssue && (
               <button
                 onClick={() => handleRepair(detailSkill.name)}
                 disabled={repairing === detailSkill.name}
