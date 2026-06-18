@@ -3030,6 +3030,11 @@ export function DesktopUI({
       };
 
       try {
+        if (action === 'refresh_client_state') {
+          window.dispatchEvent(new CustomEvent('lumi:client-state-refresh'));
+          respond({ ok: true, action, mode: operationMode, activeTab, openWindows });
+          return;
+        }
         if (action === 'open_app') {
           openSurface(target);
           respond({ ok: true, action, target });
@@ -3282,7 +3287,11 @@ export function DesktopUI({
     };
     sendState();
     const interval = setInterval(sendState, 10000);
-    return () => clearInterval(interval);
+    window.addEventListener('lumi:client-state-refresh', sendState);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('lumi:client-state-refresh', sendState);
+    };
   }, [
     activeTab,
     callState,

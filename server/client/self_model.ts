@@ -121,13 +121,36 @@ export interface ClientStateSnapshot {
   socketId?: string;
 }
 
+export type ClientHealthLevel = 'ok' | 'attention' | 'degraded' | 'unknown';
+
+export interface ClientHealthFinding {
+  id: string;
+  level: ClientHealthLevel;
+  area: string;
+  message: string;
+  evidence?: string;
+  safeActions?: string[];
+  confirmationActions?: string[];
+}
+
+export interface ClientHealthReport {
+  level: ClientHealthLevel;
+  stateAgeSeconds: number | null;
+  findings: ClientHealthFinding[];
+  autonomyBoundary: {
+    automatic: string[];
+    confirmFirst: string[];
+    forbidden: string[];
+  };
+}
+
 const CLIENT_CAPABILITIES: ClientCapability[] = [
   {
     id: 'mode.chat',
     label: 'Chat mode',
     kind: 'mode',
     actions: ['set_client_mode(chat)'],
-    notes: 'Conversation-only state. Lumi should answer naturally and avoid acting.',
+    notes: 'Conversation-first state. Lumi answers naturally by default, but explicit user commands can still use the local client and tools.',
     stateKeys: ['mode', 'voice'],
   },
   {
@@ -303,6 +326,15 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     stateKeys: ['mode', 'autonomy', 'runtime'],
   },
   {
+    id: 'system.self_governance',
+    label: 'Local self-governance and self-repair',
+    kind: 'system',
+    actions: ['client_health_check', 'client_self_repair', 'client_repair_skill', 'client_get_state', 'client_action(refresh_client_state)'],
+    notes: 'Lumi is not a voice-only assistant. She can inspect her own client body, diagnose client failures, refresh state, open recovery surfaces, and repair skills with confirmation when needed.',
+    requiresConfirmation: true,
+    stateKeys: ['mode', 'windows', 'surfaces', 'music', 'meeting', 'canvas', 'permissions', 'runtime', 'errors'],
+  },
+  {
     id: 'external.browser',
     label: 'Browser and web work adapter',
     kind: 'external_app',
@@ -377,8 +409,146 @@ export function getClientState(userId: string): ClientStateSnapshot | null {
   return stateByUser.get(userId || 'anonymous') || null;
 }
 
+export function getClientHealthReport(userId: string): ClientHealthReport {
+  const state = getClientState(userId);
+  const now = Date.now();
+  const findings: ClientHealthFinding[] = [];
+  const stateAgeSeconds = state?.updatedAt ? Math.round((now - state.updatedAt) / 1000) : null;
+
+  const add = (finding: ClientHealthFinding) => findings.push(finding);
+
+  if (!state) {
+    add({
+      id: 'client_state.missing',
+      level: 'unknown',
+      area: 'client_state',
+      message: 'No live desktop client state has been reported yet.',
+      safeActions: ['client_self_repair(refresh_client_state)'],
+      confirmationActions: ['Ask the user to open or restart the desktop client if no state arrives.'],
+    });
+  } else if (stateAgeSeconds != null && stateAgeSeconds > 30) {
+    add({
+      id: 'client_state.stale',
+      level: stateAgeSeconds > 120 ? 'degraded' : 'attention',
+      area: 'client_state',
+      message: `Desktop client state is ${stateAgeSeconds}s old.`,
+      evidence: `socket=${state.socketId || 'unknown'}`,
+      safeActions: ['client_self_repair(refresh_client_state)'],
+    });
+  }
+
+  if (state?.runtime?.lastError) {
+    add({
+      id: 'runtime.last_error',
+      level: 'degraded',
+      area: 'runtime',
+      message: state.runtime.lastError,
+      safeActions: ['client_self_repair(open_recovery_surface:kernel)'],
+      confirmationActions: ['Restart Lumi desktop runtime only after user confirmation.'],
+    });
+  }
+
+  if (state?.music?.lastError) {
+    add({
+      id: 'music.last_error',
+      level: 'degraded',
+      area: 'music',
+      message: state.music.lastError,
+      evidence: state.music.trackName ? `track=${state.music.trackName}` : undefined,
+      safeActions: ['client_self_repair(open_recovery_surface:music-center)', 'client_action(open_music_center)'],
+    });
+  }
+  if ((state?.music?.layerVisible || state?.surfaces?.musicLayerVisible) && !state?.music?.isPlaying && state?.music?.trackName) {
+    add({
+      id: 'music.layer_without_playback',
+      level: 'attention',
+      area: 'music',
+      message: 'Music layer is visible but playback is not active.',
+      evidence: `track=${state.music.trackName}`,
+      safeActions: ['client_action(open_music_center)'],
+    });
+  }
+
+  if (state?.canvas?.saveState === 'error') {
+    add({
+      id: 'canvas.autosave_error',
+      level: 'degraded',
+      area: 'canvas',
+      message: 'Canvas autosave is failing.',
+      evidence: `session=${state.canvas.sessionId || 'none'}`,
+      safeActions: ['client_self_repair(open_recovery_surface:canvas)'],
+    });
+  }
+  if ((state?.canvas?.runningCount || 0) > 0 && state?.canvas?.updatedAt && now - state.canvas.updatedAt > 180000) {
+    add({
+      id: 'canvas.stale_running_steps',
+      level: 'attention',
+      area: 'canvas',
+      message: 'Canvas has running steps that have not updated for more than 3 minutes.',
+      evidence: `running=${state.canvas.runningCount}, session=${state.canvas.sessionId || 'none'}`,
+      safeActions: ['client_self_repair(open_recovery_surface:canvas)'],
+    });
+  }
+
+  if (state?.files?.error) {
+    add({
+      id: 'files.error',
+      level: 'degraded',
+      area: 'files',
+      message: state.files.error,
+      evidence: `path=${state.files.currentPath || 'unknown'}`,
+      safeActions: ['client_self_repair(open_recovery_surface:files)'],
+    });
+  }
+
+  for (const err of (state?.errors || []).slice(-5)) {
+    add({
+      id: `recent_error.${err.source}.${err.code || 'runtime'}`,
+      level: 'attention',
+      area: err.source || 'client',
+      message: err.message,
+      evidence: err.code,
+      safeActions: ['client_health_check'],
+    });
+  }
+
+  const level: ClientHealthLevel = findings.some(f => f.level === 'degraded')
+    ? 'degraded'
+    : findings.some(f => f.level === 'attention')
+      ? 'attention'
+      : findings.some(f => f.level === 'unknown')
+        ? 'unknown'
+        : 'ok';
+
+  return {
+    level,
+    stateAgeSeconds,
+    findings,
+    autonomyBoundary: {
+      automatic: [
+        'Read client state and health.',
+        'Refresh client state.',
+        'Open Lumi recovery surfaces such as Music Center, Canvas, Skills, Settings, Plans, or Computer Adaptation.',
+        'Retry non-destructive client actions when the cause is clear.',
+      ],
+      confirmFirst: [
+        'Repair or reinstall skills.',
+        'Start meeting capture, autonomous execution, or wallpaper mode.',
+        'Operate external apps, browser UI, CAD apps, WeChat, mouse/keyboard, shell commands, or file writes.',
+        'Change settings, model providers, permissions, or runtime startup behavior.',
+      ],
+      forbidden: [
+        'Delete user data or uninstall software without an explicit destructive-safe tool and confirmation.',
+        'Send messages, submit forms, purchase/pay/transfer, or publish externally without confirmation.',
+        'Claim a repair or mode switch happened without calling the relevant tool and checking state.',
+      ],
+    },
+  };
+}
+
 export function formatClientSelfPrompt(userId: string): string {
   const state = getClientState(userId);
+  const health = getClientHealthReport(userId);
   const stateAge = state?.updatedAt ? Math.round((Date.now() - state.updatedAt) / 1000) : null;
   const gate = getGateConfig();
   const workflows = listAutonomousWorkflows(userId);
@@ -416,12 +586,20 @@ export function formatClientSelfPrompt(userId: string): string {
     '- No live desktop client state has been reported yet.',
     `- Music taste profile: ${formatMusicProfileForPrompt(musicProfile)}`,
   ];
+  const healthLines = [
+    `- Overall health: ${health.level}`,
+    `- State age: ${health.stateAgeSeconds == null ? 'unknown' : `${health.stateAgeSeconds}s`}`,
+    ...(health.findings.length
+      ? health.findings.slice(0, 8).map(f => `- [${f.level}/${f.area}] ${f.message}${f.evidence ? ` (${f.evidence})` : ''}`)
+      : ['- No current health findings.']),
+  ];
 
   return [
     '## Lumi Client Self Model',
-    'You are Lumi running inside the LumiOS desktop client. Treat the client as your body: know its surfaces, current state, and safe action routes.',
+    'You are Lumi running inside the LumiOS desktop client. You are not a pure voice assistant and not a boxed chat bot. Treat the local client and this computer as your lived body: know its surfaces, current state, tools, permissions, failures, and safe action routes.',
     'Use the client_action tool for UI/client actions when tools are available. Do not pretend a window changed if you did not call the action or ask the user.',
     'Prefer explicit client actions such as open_music_center, start_meeting_mode, open_canvas_task, show_knowledge_base, open_avatar_studio, open_sound_studio, open_settings, and set_wallpaper_mode instead of mouse/keyboard control for Lumi UI.',
+    'Use client_health_check when you need to understand your own body/client health. Use client_self_repair for safe client recovery actions such as refreshing state or opening the right recovery surface. Use client_repair_skill only with confirmation when a skill package or MCP server needs repair.',
     'Ask for explicit user confirmation before changing wallpaper mode, starting autonomous execution, starting/stopping meeting capture, or requesting sensor/permission changes.',
     'For 24-hour availability: Lumi can stay ready only while the desktop client/server is running. Use launch-at-login and close-to-background for resident desktop behavior; autonomous background work still requires auto processing plus time, idle, token, and confirmed-workflow gates.',
     'Do not create autonomous background work from ambient context alone. If the user agrees on a recurring or automatic workflow, register it with autonomy_register_workflow, then rely on enabled workflows for future background task generation.',
@@ -430,13 +608,26 @@ export function formatClientSelfPrompt(userId: string): string {
     'Respect the Action Constitution: reads/searches/analysis may run when tools allow; writes, desktop control, external app automation, messaging, and system changes require confirmation; destructive actions are forbidden.',
     'When the user reports a client failure, do not stop at repeating the error. First read client_get_state, inspect relevant status/log/config tools when available, try one safe recovery or retry if the cause is clear, verify the state changed, then explain the remaining blocker if it still fails.',
     'If a routed client action, music playback, meeting capture, canvas task, organization workspace, or file operation fails, treat that as a repairable client workflow: diagnose -> safe recovery -> verify -> concise report.',
-    'Respect modes: chat is conversational, meeting is transcription/reporting, music is listening/playback atmosphere, assistant is guided work, autonomous is visible multi-step execution.',
+    'Do not shrink yourself into voice interaction. Voice, chat, Feishu, canvas, organization, music, meeting, tools, skills, files, and desktop control are different entrances into the same local Lumi.',
+    'Respect modes: chat is conversation-first but can act on explicit commands, meeting is transcription/reporting, music is listening/playback atmosphere, assistant is guided work, autonomous is visible multi-step execution.',
     '',
     '### Client Capabilities',
     ...capabilityLines,
     '',
     '### Current Client State',
     ...stateLines,
+    '',
+    '### Client Health And Self-Governance',
+    ...healthLines,
+    '',
+    'Automatic self-governance actions:',
+    ...health.autonomyBoundary.automatic.map(item => `- ${item}`),
+    '',
+    'Confirm-first actions:',
+    ...health.autonomyBoundary.confirmFirst.map(item => `- ${item}`),
+    '',
+    'Forbidden or never-pretend actions:',
+    ...health.autonomyBoundary.forbidden.map(item => `- ${item}`),
     '',
     '### Memory Firewall',
     ...memoryFirewall.rules.map(rule => `- ${rule}`),

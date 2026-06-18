@@ -20,6 +20,14 @@ const CLIENT_ACTION_INTENT_PATTERNS: RegExp[] = [
   /(?:\u653e|\u64ad\u653e|\u542c).*(?:\u97f3\u4e50|\u6b4c|\u6b4c\u66f2|\u6b4c\u5355|\u4e13\u8f91)/u,
 ];
 
+const CLIENT_ACTION_ONLY_PATTERNS: RegExp[] = [
+  /\b(switch|change|set|enter|open|start|turn\s+on)\b.*\b(chat|assistant|meeting|music|auto(?:nomous)?|auto\s+execute|autonomous)\s+mode\b/i,
+  /\b(open|start|show|hide|close)\b.*\b(meeting\s+notes?|music\s+center|mood\s+layer|knowledge\s+base|canvas|settings|wallpaper\s+mode|organization|org\s+workspace|cloud|skill\s+center|skills?|tools?|avatar|sound\s+studio|devices?|sync|kernel|monitor|plan|planner|file\s+manager|files\s+app)\b/i,
+  /\b(play|put\s+on|listen\s+to)\b.*\b(music|song|playlist|album)\b/i,
+  /(?:\u5207\u6362|\u5207\u5230|\u6362\u5230|\u8fdb\u5165|\u6253\u5f00|\u5f00\u542f|\u542f\u52a8).*(?:\u804a\u5929|\u52a9\u624b|\u4f1a\u8bae|\u97f3\u4e50|\u81ea\u52a8\u6267\u884c|\u81ea\u4e3b\u6267\u884c|\u4f1a\u8bae\u6a21\u5f0f|\u97f3\u4e50\u6a21\u5f0f|\u52a9\u624b\u6a21\u5f0f|\u804a\u5929\u6a21\u5f0f|\u6c1b\u56f4\u5c42|\u97f3\u4e50\u4e2d\u5fc3|\u77e5\u8bc6\u5e93|\u753b\u5e03|\u8bbe\u7f6e|\u58c1\u7eb8\u6a21\u5f0f|\u7ec4\u7ec7|\u4e91\u7aef|\u6280\u80fd|\u5de5\u5177|\u5f62\u8c61|\u58f0\u97f3|\u8bbe\u5907|\u540c\u6b65|\u5185\u6838|\u76d1\u63a7|\u8ba1\u5212|\u56e2\u961f|\u6587\u4ef6\u7ba1\u7406\u5668|\u6587\u4ef6\u4e2d\u5fc3)/u,
+  /(?:\u653e|\u64ad\u653e|\u542c).*(?:\u97f3\u4e50|\u6b4c|\u6b4c\u66f2|\u6b4c\u5355|\u4e13\u8f91)/u,
+];
+
 const DIAGNOSTIC_OR_REPAIR_PATTERNS: RegExp[] = [
   /\b(why|what happened|what went wrong|diagnose|debug|fix|repair|recover|self[-\s]?check|self[-\s]?heal|not working|doesn'?t work|broken|failed|failure|error|crash(?:ed)?|stuck|hang(?:ing)?|blank screen|white screen|no sound|silent|cannot|can'?t)\b/i,
   /(?:\u4e3a\u4ec0\u4e48|\u600e\u4e48\u56de\u4e8b|\u54ea\u91cc.*(?:\u95ee\u9898|\u574f|\u6ca1\u8dd1\u901a)|\u68c0\u67e5|\u8bca\u65ad|\u6392\u67e5|\u4fee\u590d|\u5904\u7406.*(?:\u95ee\u9898|\u6545\u969c|\u9519\u8bef)|\u81ea\u68c0|\u81ea\u4fee\u590d|\u6062\u590d|\u62a5\u9519|\u9519\u8bef|\u5931\u8d25|\u5d29\u4e86|\u5d29\u6e83|\u5361\u4f4f|\u5361\u6b7b|\u767d\u5c4f|\u6ca1\u53cd\u5e94|\u4e0d\u751f\u6548|\u4e0d\u8d77\u4f5c\u7528|\u6253\u4e0d\u5f00|\u653e\u4e0d\u51fa|\u6ca1\u58f0\u97f3|\u542c\u4e0d\u89c1|\u4e0d\u4f1a|\u4e0d\u80fd|\u4e0d\u5bf9|\u6709\u95ee\u9898|\u88ab\u9650\u5236|\u9650\u5236|404|400|500)/u,
@@ -37,6 +45,12 @@ export function hasClientActionIntent(text: string): boolean {
   return CLIENT_ACTION_INTENT_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
+export function hasClientActionOnlyIntent(text: string): boolean {
+  const normalized = text.trim();
+  if (!normalized) return false;
+  return CLIENT_ACTION_ONLY_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
 export function isDiagnosticOrRepairRequest(text: string): boolean {
   const normalized = text.trim();
   if (!normalized) return false;
@@ -47,7 +61,8 @@ export function shouldAllowToolUseForTurn(text: string, source?: string, operati
   if (source === 'canvas') return true;
   const mode = normalizeOperationMode(operationMode);
   if (isDiagnosticOrRepairRequest(text)) return true;
-  if (mode === 'chat' || mode === 'meeting' || mode === 'music') return hasClientActionIntent(text);
+  if (mode === 'chat') return hasClientActionIntent(text) || hasExplicitToolIntent(text);
+  if (mode === 'meeting' || mode === 'music') return hasClientActionIntent(text);
   if (mode === 'autonomous' && AUTONOMOUS_TASK_PATTERNS.some((pattern) => pattern.test(text.trim()))) return true;
   if (hasExplicitToolIntent(text)) return true;
   return false;

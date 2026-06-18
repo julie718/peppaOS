@@ -21,7 +21,7 @@ import { matchQuickCommand } from "../cognition/quick_commands";
 import { recordTokenUsage } from "../llm/token_tracker";
 import { getUserPreferredLLMConfig } from "../llm/user_preferences";
 import { getOperationModeConfig, parseStoredOperationMode, OperationMode } from "../cognition/operation_modes";
-import { hasClientActionIntent, hasExplicitToolIntent, isDiagnosticOrRepairRequest, shouldAllowToolUseForTurn, shouldExposeAgentWork } from "../cognition/tool_intent";
+import { hasClientActionOnlyIntent, hasExplicitToolIntent, isDiagnosticOrRepairRequest, shouldAllowToolUseForTurn, shouldExposeAgentWork } from "../cognition/tool_intent";
 import { updatePresence } from "../biometrics/presence";
 import { getVoiceprints } from "../biometrics/store";
 import { formatClientSelfPrompt } from "../client/self_model";
@@ -405,7 +405,7 @@ async function processVoiceInput(
   const effectiveOpModeConfig = getOperationModeConfig(effectiveOperationMode);
   const allowToolUseForTurn = autoPromoteToAssistant || shouldAllowToolUseForTurn(userText, undefined, effectiveOperationMode);
   const selfRepairTurn = isDiagnosticOrRepairRequest(userText);
-  const clientActionOnlyTurn = !selfRepairTurn && hasClientActionIntent(userText) && (effectiveOperationMode === 'chat' || effectiveOperationMode === 'meeting' || effectiveOperationMode === 'music');
+  const clientActionOnlyTurn = !selfRepairTurn && hasClientActionOnlyIntent(userText) && (effectiveOperationMode === 'chat' || effectiveOperationMode === 'meeting' || effectiveOperationMode === 'music');
   const clientActionToolPolicy = clientActionOnlyTurn
     ? { allowedTools: ['client_get_state', 'client_action'], requireConfirmation: [], forbiddenTools: [], maxIterations: 4 }
     : null;

@@ -10,7 +10,7 @@ import { LLMUsage } from "../tools/types";
 import { toolRegistry } from "../tools/registry";
 import { runWithTools } from "../llm/adapter";
 import { getOperationModeConfig, parseStoredOperationMode } from "../cognition/operation_modes";
-import { hasClientActionIntent, isDiagnosticOrRepairRequest, shouldAllowToolUseForTurn, shouldExposeAgentWork } from "../cognition/tool_intent";
+import { hasClientActionOnlyIntent, isDiagnosticOrRepairRequest, shouldAllowToolUseForTurn, shouldExposeAgentWork } from "../cognition/tool_intent";
 import { formatClientSelfPrompt } from "../client/self_model";
 import { queryMemories, queryMemoriesVector, addMemory, addReminder, extractMemories } from "../memory";
 import { loadEmotionalState, saveEmotionalState, updateEmotionalState, updateEmotionalStateWithHIM, loadHIMState, saveHIMState, generateContextualGreeting, vectorMemoryBias } from "../personality/state";
@@ -383,7 +383,7 @@ export function registerChatHandler(
       const opModeConfig = getOperationModeConfig(operationMode);
       const allowToolUseForTurn = shouldAllowToolUseForTurn(text, source, operationMode);
       const selfRepairTurn = isDiagnosticOrRepairRequest(text);
-      const clientActionOnlyTurn = !selfRepairTurn && hasClientActionIntent(text) && (operationMode === 'chat' || operationMode === 'meeting' || operationMode === 'music');
+      const clientActionOnlyTurn = !selfRepairTurn && hasClientActionOnlyIntent(text) && (operationMode === 'chat' || operationMode === 'meeting' || operationMode === 'music');
       const clientActionToolPolicy = clientActionOnlyTurn
         ? { allowedTools: ['client_get_state', 'client_action'], requireConfirmation: [], forbiddenTools: [], maxIterations: 4 }
         : null;

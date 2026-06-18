@@ -1,7 +1,8 @@
 import { ToolRegistry } from '../registry';
-import { getClientCapabilities, getClientState } from '../../client/self_model';
+import { getClientCapabilities, getClientHealthReport, getClientState } from '../../client/self_model';
 import { getGateConfig } from '../../autonomy/safety_gate';
 import { listAutonomousWorkflows } from '../../autonomy/workflows';
+import { mcpManager } from '../../mcp';
 
 const ACTIONS = [
   'open_app',
@@ -30,8 +31,56 @@ const ACTIONS = [
   'open_chat',
   'open_plans',
   'open_work_queue',
+  'refresh_client_state',
   'set_wallpaper_mode',
 ];
+
+const RECOVERY_SURFACE_TARGETS: Record<string, string> = {
+  skills: 'skills',
+  skill: 'skills',
+  music: 'music-center',
+  'music-center': 'music-center',
+  canvas: 'canvas',
+  knowledge: 'knowledge',
+  files: 'files',
+  settings: 'settings',
+  kernel: 'kernel',
+  computer: 'kernel',
+  plans: 'plans',
+  autonomy: 'plans',
+  org: 'org',
+  organization: 'org',
+  voice: 'settings',
+};
+
+function getSkillRuntimeFindings() {
+  const health = mcpManager.getServerHealth();
+  const connected = new Set(mcpManager.getConnectedServers());
+  const config = mcpManager.getConfig();
+  const local = mcpManager.listLocalSkills();
+  return Object.entries(config)
+    .map(([name, serverConfig]) => {
+      const localSkill = local.find(skill => skill.name === name);
+      const serverHealth = health[name];
+      const enabled = Boolean(serverConfig.enabled);
+      const isConnected = connected.has(name);
+      const broken = Boolean(localSkill?.broken);
+      const status = serverHealth?.status || (isConnected ? 'connected' : 'unknown');
+      const hasIssue = broken || ['crashed', 'failed', 'restarting'].includes(status) || (enabled && !isConnected);
+      if (!hasIssue) return null;
+      return {
+        name,
+        enabled,
+        connected: isConnected,
+        broken,
+        status,
+        source: serverConfig.source || localSkill?.source || 'unknown',
+        description: serverConfig.description || localSkill?.description || name,
+        repairTool: `client_repair_skill(skillName="${name}")`,
+      };
+    })
+    .filter(Boolean);
+}
 
 export function registerClientSelfTools(registry: ToolRegistry): void {
   registry.register({
@@ -46,6 +95,8 @@ export function registerClientSelfTools(registry: ToolRegistry): void {
       return JSON.stringify({
         capabilities: getClientCapabilities(),
         state: getClientState(context?.userId || 'anonymous'),
+        health: getClientHealthReport(context?.userId || 'anonymous'),
+        skillRuntimeFindings: getSkillRuntimeFindings(),
         autonomyGate: getGateConfig(),
         autonomyWorkflows: listAutonomousWorkflows(context?.userId || 'anonymous'),
       }, null, 2);
@@ -58,7 +109,7 @@ export function registerClientSelfTools(registry: ToolRegistry): void {
     name: 'client_action',
     description: [
       'Safely control Lumi client UI surfaces through the client action router.',
-      'Use explicit client-native actions like open_music_center, start_meeting_mode, open_canvas_task, show_knowledge_base, open_avatar_studio, open_sound_studio, open_computer_adaptation, open_settings, or set_wallpaper_mode.',
+      'Use explicit client-native actions like refresh_client_state, open_music_center, start_meeting_mode, open_canvas_task, show_knowledge_base, open_avatar_studio, open_sound_studio, open_computer_adaptation, open_settings, or set_wallpaper_mode.',
       'Legacy open_app/close_app/set_mode are still accepted for compatibility.',
       'This does not use mouse/keyboard control and should be preferred over computer_use for Lumi client UI navigation.',
     ].join(' '),
@@ -115,5 +166,92 @@ export function registerClientSelfTools(registry: ToolRegistry): void {
     },
     permission: 'user',
     securityLevel: 'safe',
+  });
+
+  registry.register({
+    name: 'client_health_check',
+    description: 'Run Lumi local self-governance health check: client body state, runtime errors, music/canvas/files/voice issues, autonomy boundary, and skill runtime findings.',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+    handler: async (_args, context) => {
+      return JSON.stringify({
+        report: getClientHealthReport(context?.userId || 'anonymous'),
+        skillRuntimeFindings: getSkillRuntimeFindings(),
+        autonomyGate: getGateConfig(),
+        autonomyWorkflows: listAutonomousWorkflows(context?.userId || 'anonymous'),
+      }, null, 2);
+    },
+    permission: 'user',
+    securityLevel: 'safe',
+  });
+
+  registry.register({
+    name: 'client_self_repair',
+    description: [
+      'Perform safe Lumi client self-repair actions that do not write user files or operate external apps.',
+      'Use refresh_client_state to force a state relay refresh.',
+      'Use open_recovery_surface to open the relevant Lumi surface (skills, music, canvas, settings, kernel, plans, files, org).',
+      'For skill package repair use client_repair_skill, which requires confirmation.',
+    ].join(' '),
+    parameters: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          enum: ['refresh_client_state', 'open_recovery_surface'],
+          description: 'Safe self-repair action.',
+        },
+        surface: {
+          type: 'string',
+          description: 'Recovery surface for open_recovery_surface: skills, music, canvas, settings, kernel, plans, files, org.',
+        },
+      },
+      required: ['action'],
+    },
+    handler: async (args, context) => {
+      if (!context?.desktopRelay) {
+        throw new Error('Client self-repair requires the Lumi desktop client relay.');
+      }
+      if (args.action === 'refresh_client_state') {
+        return context.desktopRelay('client_action', { action: 'refresh_client_state' });
+      }
+      if (args.action === 'open_recovery_surface') {
+        const surface = String(args.surface || 'settings').toLowerCase();
+        const target = RECOVERY_SURFACE_TARGETS[surface] || surface;
+        return context.desktopRelay('client_action', { action: 'open_app', target });
+      }
+      throw new Error(`Unsupported client_self_repair action: ${args.action}`);
+    },
+    permission: 'user',
+    securityLevel: 'safe',
+  });
+
+  registry.register({
+    name: 'client_repair_skill',
+    description: 'Repair or restart a Lumi skill/MCP server by name. This may reinstall dependencies or restart a local skill process, so it requires confirmation.',
+    parameters: {
+      type: 'object',
+      properties: {
+        skillName: {
+          type: 'string',
+          description: 'Installed skill or MCP server name to repair.',
+        },
+      },
+      required: ['skillName'],
+    },
+    handler: async (args) => {
+      const skillName = String(args.skillName || '').trim();
+      if (!skillName) throw new Error('skillName is required.');
+      const result = await mcpManager.repairSkill(skillName);
+      if (!result.success) {
+        throw new Error(result.reason || `Skill "${skillName}" repair failed.`);
+      }
+      return JSON.stringify(result, null, 2);
+    },
+    permission: 'user',
+    securityLevel: 'confirm',
   });
 }
