@@ -706,6 +706,272 @@ function VisionProviderRow({ icon, label, providerId, models, placeholder, disab
   );
 }
 
+function VisionLocalProviderRow({ icon, label, providerId, endpoint, storageKey, defaultUrl, defaultModel, suggestions, t }: {
+  icon: React.ReactNode;
+  label: string;
+  providerId: 'ollama' | 'lmstudio';
+  endpoint: string;
+  storageKey: string;
+  defaultUrl: string;
+  defaultModel: string;
+  suggestions: string[];
+  t?: any;
+}) {
+  const { visionConfig, updateVisionConfig } = useApp();
+  const isZh = t?.langCode !== 'en';
+  const ui = (zh: string, en: string) => (isZh ? zh : en);
+  const [baseUrl, setBaseUrl] = useState(() => {
+    try { return localStorage.getItem(storageKey) || defaultUrl; } catch { return defaultUrl; }
+  });
+  const [detected, setDetected] = useState(false);
+  const [models, setModels] = useState<string[]>([]);
+  const [checking, setChecking] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const savedModels = (() => {
+    try { return JSON.parse(localStorage.getItem('lumi_vision_models') || '{}'); } catch { return {}; }
+  })();
+  const [model, setModel] = useState(() => savedModels[providerId] || defaultModel);
+
+  useEffect(() => {
+    fetch(endpoint)
+      .then(r => r.json())
+      .then(cfg => {
+        setBaseUrl(cfg.baseUrl || defaultUrl);
+        setDetected(!!cfg.detected);
+        setModels(cfg.models || []);
+      })
+      .catch(() => {});
+  }, [defaultUrl, endpoint]);
+
+  const allModelOptions = Array.from(new Set([model, ...models, ...suggestions].filter(Boolean)));
+
+  const persistModel = (nextModel: string) => {
+    setModel(nextModel);
+    const allModels = (() => {
+      try { return JSON.parse(localStorage.getItem('lumi_vision_models') || '{}'); } catch { return {}; }
+    })();
+    allModels[providerId] = nextModel;
+    localStorage.setItem('lumi_vision_models', JSON.stringify(allModels));
+    if (visionConfig.provider === providerId) {
+      updateVisionConfig({ model: nextModel });
+    } else {
+      fetch('/api/preferences/vision', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: visionConfig.provider, model: visionConfig.model, models: allModels }),
+        credentials: 'include',
+      }).catch(() => {});
+    }
+  };
+
+  const handleDetect = async () => {
+    setChecking(true);
+    try {
+      const resp = await fetch(endpoint, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseUrl }),
+      });
+      const cfg = await resp.json();
+      if (!resp.ok) throw new Error(cfg.error || 'Detect failed');
+      setDetected(!!cfg.detected);
+      setModels(cfg.models || []);
+      localStorage.setItem(storageKey, baseUrl);
+      const firstVisionModel = (cfg.models || []).find((m: string) => /vl|vision|minicpm|internvl|llava|glm.*v/i.test(m)) || model || defaultModel;
+      if (firstVisionModel && firstVisionModel !== model) persistModel(firstVisionModel);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err: any) {
+      setDetected(false);
+      setModels([]);
+      toast.error(err.message || 'Detect failed');
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const handleUse = () => {
+    updateVisionConfig({ provider: providerId, model });
+  };
+
+  return (
+    <div className="p-6 bg-white/5 rounded-3xl border border-white/5 space-y-4">
+      <div className="flex items-center gap-2">
+        <div className="p-2 bg-white/5 rounded-lg">{icon}</div>
+        <label className="text-xs font-black uppercase tracking-widest text-white/50">{label}</label>
+        {detected && <span className="text-xs px-2 py-0.5 bg-green-500/10 border border-green-500/20 text-green-400 rounded-full font-bold">{ui('已连接', 'CONNECTED')}</span>}
+        {visionConfig.provider === providerId && <span className="text-xs px-2 py-0.5 bg-cyan-300/10 border border-cyan-300/20 text-cyan-200 rounded-full font-bold">{t?.activeBadge || ui('当前', 'ACTIVE')}</span>}
+        {saved && <CheckCircle size={14} className="text-green-400 ml-auto" />}
+      </div>
+      <div className="flex gap-3">
+        <input
+          type="text"
+          value={baseUrl}
+          onChange={e => { setBaseUrl(e.target.value); setSaved(false); }}
+          onKeyDown={e => e.key === 'Enter' && handleDetect()}
+          placeholder={defaultUrl}
+          className="flex-1 bg-black/40 border border-white/10 rounded-xl p-4 text-white font-mono text-sm outline-none focus:border-emerald-400/50 transition-colors"
+        />
+        <Button
+          onClick={handleDetect}
+          disabled={checking || !baseUrl.trim()}
+          className="h-[56px] px-5 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-widest disabled:opacity-30 hover:bg-emerald-500 transition-all"
+        >
+          {checking ? <Loader2 size={16} className="animate-spin" /> : ui('检测', 'Detect')}
+        </Button>
+      </div>
+      <div className="flex items-center gap-3">
+        <label className="text-[12px] font-black uppercase text-white/55 tracking-wider whitespace-nowrap">{t?.model || ui('模型', 'Model')}</label>
+        <input
+          type="text"
+          value={model}
+          onChange={e => persistModel(e.target.value)}
+          list={`vision-local-models-${providerId}`}
+          placeholder={defaultModel}
+          className="flex-1 bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none focus:border-emerald-400/50"
+        />
+        <datalist id={`vision-local-models-${providerId}`}>
+          {allModelOptions.map(m => <option key={m} value={m} />)}
+        </datalist>
+        <Button
+          onClick={handleUse}
+          disabled={!model.trim()}
+          className="h-9 px-3 bg-cyan-300 text-black rounded-xl text-xs font-black uppercase tracking-widest disabled:opacity-30 hover:bg-cyan-200 transition-all"
+        >
+          {ui('设为视觉', 'Use')}
+        </Button>
+      </div>
+      <p className="text-[12px] text-white/45 leading-relaxed">
+        {ui('本地视觉只在你的电脑上处理截图和图片。模型需要支持图像输入，否则视觉任务会失败并明确报错。', 'Local vision processes screenshots and images on your machine. The selected model must support image input, otherwise vision tasks will fail explicitly.')}
+      </p>
+      {detected && models.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {models.slice(0, 12).map(m => (
+            <button key={m} onClick={() => persistModel(m)} className="text-xs px-2 py-0.5 rounded-full bg-white/5 text-white/60 hover:text-white hover:bg-white/10 font-mono transition-colors">{m}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VisionRelayProviderRow({ t }: { t?: any }) {
+  const { visionConfig, updateVisionConfig } = useApp();
+  const isZh = t?.langCode !== 'en';
+  const ui = (zh: string, en: string) => (isZh ? zh : en);
+  const [apiKey, setApiKey] = useState(() => {
+    try { return localStorage.getItem('lumi_relay_key') || ''; } catch { return ''; }
+  });
+  const [baseUrl, setBaseUrl] = useState(() => {
+    try { return localStorage.getItem('lumi_relay_url') || 'http://localhost:8000/v1'; } catch { return 'http://localhost:8000/v1'; }
+  });
+  const savedModels = (() => {
+    try { return JSON.parse(localStorage.getItem('lumi_vision_models') || '{}'); } catch { return {}; }
+  })();
+  const [model, setModel] = useState(() => savedModels.relay || 'qwen2.5-vl-7b-instruct');
+  const [serverConfigured, setServerConfigured] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/settings/keys')
+      .then(r => r.json())
+      .then(data => setServerConfigured(!!data.RELAY_API_KEY && !!data.RELAY_BASE_URL))
+      .catch(() => {});
+  }, []);
+
+  const persistModel = (nextModel: string) => {
+    setModel(nextModel);
+    const allModels = (() => {
+      try { return JSON.parse(localStorage.getItem('lumi_vision_models') || '{}'); } catch { return {}; }
+    })();
+    allModels.relay = nextModel;
+    localStorage.setItem('lumi_vision_models', JSON.stringify(allModels));
+    if (visionConfig.provider === 'relay') updateVisionConfig({ model: nextModel });
+  };
+
+  const handleSave = () => {
+    if (!apiKey.trim() || !baseUrl.trim()) return;
+    localStorage.setItem('lumi_relay_key', apiKey.trim());
+    localStorage.setItem('lumi_relay_url', baseUrl.trim());
+    fetch('/api/settings/keys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keys: { RELAY_API_KEY: apiKey.trim(), RELAY_BASE_URL: baseUrl.trim() } }),
+    }).then(r => {
+      if (!r.ok) throw new Error('Save failed');
+      setServerConfigured(true);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    }).catch(() => toast.error(t?.failedToSaveKey || ui('保存失败', 'Failed to save')));
+  };
+
+  const handleUse = () => {
+    updateVisionConfig({ provider: 'relay', model });
+  };
+
+  return (
+    <div className="p-6 bg-white/5 rounded-3xl border border-white/5 space-y-4">
+      <div className="flex items-center gap-2">
+        <div className="p-2 bg-white/5 rounded-lg"><Globe size={18} className="text-cyan-400" /></div>
+        <label className="text-xs font-black uppercase tracking-widest text-white/50">OpenAI-Compatible Vision</label>
+        {serverConfigured && <span className="text-xs px-2 py-0.5 bg-green-500/10 border border-green-500/20 text-green-400 rounded-full font-bold">{ui('已配置', 'CONFIGURED')}</span>}
+        {visionConfig.provider === 'relay' && <span className="text-xs px-2 py-0.5 bg-cyan-300/10 border border-cyan-300/20 text-cyan-200 rounded-full font-bold">{t?.activeBadge || ui('当前', 'ACTIVE')}</span>}
+        {saved && <CheckCircle size={14} className="text-green-400 ml-auto" />}
+      </div>
+      <div className="grid grid-cols-1 gap-3">
+        <input
+          type="password"
+          value={apiKey}
+          onChange={e => setApiKey(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleSave()}
+          placeholder="API Key"
+          className="bg-black/40 border border-white/10 rounded-xl p-4 text-white font-mono text-sm outline-none focus:border-cyan-400/50 transition-colors"
+        />
+        <input
+          type="text"
+          value={baseUrl}
+          onChange={e => setBaseUrl(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleSave()}
+          placeholder="http://localhost:8000/v1"
+          className="bg-black/40 border border-white/10 rounded-xl p-4 text-white font-mono text-sm outline-none focus:border-cyan-400/50 transition-colors"
+        />
+      </div>
+      <div className="flex items-center gap-3">
+        <label className="text-[12px] font-black uppercase text-white/55 tracking-wider whitespace-nowrap">{t?.model || ui('模型', 'Model')}</label>
+        <input
+          type="text"
+          value={model}
+          onChange={e => persistModel(e.target.value)}
+          list="vision-relay-models"
+          className="flex-1 bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none focus:border-cyan-400/50"
+        />
+        <datalist id="vision-relay-models">
+          {['qwen2.5-vl-7b-instruct', 'minicpm-v-4_5', 'internvl3_5-8b', 'glm-4.1v-9b-thinking'].map(m => <option key={m} value={m} />)}
+        </datalist>
+      </div>
+      <div className="flex gap-3">
+        <Button
+          onClick={handleSave}
+          disabled={!apiKey.trim() || !baseUrl.trim()}
+          className="h-[44px] px-5 bg-cyan-600 text-white rounded-xl text-xs font-black uppercase tracking-widest disabled:opacity-30 hover:bg-cyan-500 transition-all"
+        >
+          {t?.save || ui('保存', 'Save')}
+        </Button>
+        <Button
+          onClick={handleUse}
+          disabled={!model.trim()}
+          className="h-[44px] px-5 bg-cyan-300 text-black rounded-xl text-xs font-black uppercase tracking-widest disabled:opacity-30 hover:bg-cyan-200 transition-all"
+        >
+          {ui('设为视觉', 'Use as Vision')}
+        </Button>
+      </div>
+      <p className="text-[12px] text-white/45 leading-relaxed">
+        {ui('用于 vLLM、SGLang、Xinference 或其他兼容 OpenAI Chat Completions 的本地视觉服务。', 'Use this for vLLM, SGLang, Xinference, or any local OpenAI-compatible vision endpoint.')}
+      </p>
+    </div>
+  );
+}
+
 function ProactiveVoiceToggle() {
   const storageKey = 'lumi_allow_proactive_voice';
   const [enabled, setEnabled] = useState(() => localStorage.getItem(storageKey) === 'true');
@@ -800,6 +1066,9 @@ function VisionModelPage({ t }: { t: any }) {
               <option value="gemini">Google Gemini Vision</option>
               <option value="ark">Doubao / 豆包 Vision (Ark)</option>
               <option value="qwen">Qwen-VL (DashScope)</option>
+              <option value="ollama">Ollama Local Vision</option>
+              <option value="lmstudio">LM Studio Local Vision</option>
+              <option value="relay">OpenAI-Compatible Vision</option>
             </select>
             <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/45" />
           </div>
@@ -813,6 +1082,29 @@ function VisionModelPage({ t }: { t: any }) {
           <VisionProviderRow icon={<BrainCircuit size={18} className="text-blue-400" />} label="Google Gemini Vision" providerId="gemini" models={['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash']} placeholder={ui('输入 Gemini API Key...', 'Enter Gemini API key...')} serverKey="GEMINI_API_KEY" t={t} />
           <VisionProviderRow icon={<Cloud size={18} className="text-cyan-400" />} label="Doubao / 豆包 Vision (Ark)" providerId="ark" models={['doubao-1-5-vision-pro-32k']} placeholder={ui('输入 Ark API Key...', 'Enter Ark API key...')} serverKey="ARK_API_KEY" t={t} />
           <VisionProviderRow icon={<Zap size={18} className="text-violet-400" />} label="Qwen-VL / DashScope" providerId="qwen" models={['qwen-vl-max']} placeholder="sk-..." serverKey="DASHSCOPE_API_KEY" t={t} />
+          <VisionLocalProviderRow
+            icon={<Cpu size={18} className="text-emerald-400" />}
+            label="Ollama Local Vision"
+            providerId="ollama"
+            endpoint="/api/ollama/config"
+            storageKey="lumi_ollama_url"
+            defaultUrl="http://localhost:11434"
+            defaultModel="qwen2.5vl:7b"
+            suggestions={['qwen2.5vl:7b', 'minicpm-v:8b', 'llama3.2-vision:11b']}
+            t={t}
+          />
+          <VisionLocalProviderRow
+            icon={<Cpu size={18} className="text-amber-400" />}
+            label="LM Studio Local Vision"
+            providerId="lmstudio"
+            endpoint="/api/lmstudio/config"
+            storageKey="lumi_lmstudio_url"
+            defaultUrl="http://localhost:1234"
+            defaultModel="local-vision-model"
+            suggestions={['qwen2.5-vl-7b-instruct', 'minicpm-v-4_5', 'internvl3_5-8b']}
+            t={t}
+          />
+          <VisionRelayProviderRow t={t} />
         </div>
       </SettingsSection>
     </div>

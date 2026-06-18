@@ -1,12 +1,12 @@
 import { ToolRegistry } from '../registry';
 import { analyzeScreen } from '../../llm/adapter';
-import { getUserPreferredVision } from '../../llm/vision_preferences';
+import { getUserPreferredVision, type VisionProvider } from '../../llm/vision_preferences';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import sharp from 'sharp';
 
-function resolveVisionProvider(_args: Record<string, any>, context?: any): 'openai' | 'gemini' | 'ark' | 'qwen' | null {
+function resolveVisionProvider(_args: Record<string, any>, context?: any): VisionProvider | null {
   const g = context?.llmGetters || {};
   const userId = context?.userId || 'anonymous';
   const provider = getUserPreferredVision(userId).provider;
@@ -15,14 +15,24 @@ function resolveVisionProvider(_args: Record<string, any>, context?: any): 'open
   if (provider === 'gemini' && g.getGemini?.()) return 'gemini';
   if (provider === 'ark' && g.getArk?.()) return 'ark';
   if (provider === 'qwen' && g.getQwen?.()) return 'qwen';
+  if (provider === 'ollama' && g.getOllama?.()) return 'ollama';
+  if (provider === 'lmstudio' && g.getLmStudio?.()) return 'lmstudio';
+  if (provider === 'relay' && g.getRelay?.()) return 'relay';
   return null;
 }
 
-function visionModelFor(provider: 'openai' | 'gemini' | 'ark' | 'qwen'): string {
-  return provider === 'qwen' ? 'qwen-vl-max'
-    : provider === 'ark' ? 'doubao-1-5-vision-pro-32k'
-      : provider === 'openai' ? 'gpt-4o'
-        : 'gemini-2.0-flash';
+function visionModelFor(provider: VisionProvider): string {
+  switch (provider) {
+    case 'qwen': return 'qwen-vl-max';
+    case 'ark': return 'doubao-1-5-vision-pro-32k';
+    case 'ollama': return 'qwen2.5vl:7b';
+    case 'lmstudio': return 'local-vision-model';
+    case 'relay': return 'qwen2.5-vl-7b-instruct';
+    case 'openai': return 'gpt-4o';
+    case 'gemini':
+    default:
+      return 'gemini-2.0-flash';
+  }
 }
 
 function resolveReadableImagePath(input: string): string {
@@ -68,7 +78,7 @@ async function ocrScreen(args: Record<string, any>, context?: any): Promise<stri
 
   const model = getUserPreferredVision(context?.userId || 'anonymous').model || visionModelFor(provider);
   try {
-    const description = await analyzeScreen(base64, query, { provider, model, userId: context?.userId || 'anonymous' }, g.getDeepSeek, g.getGemini, g.getOpenAI, g.getAnthropic, g.getQwen, g.getOllama, g.getLmStudio, g.getArk);
+    const description = await analyzeScreen(base64, query, { provider, model, userId: context?.userId || 'anonymous' }, g.getDeepSeek, g.getGemini, g.getOpenAI, g.getAnthropic, g.getQwen, g.getOllama, g.getLmStudio, g.getArk, g.getXiaomi, g.getKimi, g.getGlm, g.getRelay);
     return description;
   } catch (err: any) {
     return JSON.stringify({ format: 'screenshot_base64', data: base64, error: err.message });
@@ -91,7 +101,7 @@ async function ocrRegion(args: Record<string, any>, context?: any): Promise<stri
 
   const model = getUserPreferredVision(context?.userId || 'anonymous').model || visionModelFor(provider);
   try {
-    const description = await analyzeScreen(base64, query, { provider, model, userId: context?.userId || 'anonymous' }, g.getDeepSeek, g.getGemini, g.getOpenAI, g.getAnthropic, g.getQwen, g.getOllama, g.getLmStudio, g.getArk);
+    const description = await analyzeScreen(base64, query, { provider, model, userId: context?.userId || 'anonymous' }, g.getDeepSeek, g.getGemini, g.getOpenAI, g.getAnthropic, g.getQwen, g.getOllama, g.getLmStudio, g.getArk, g.getXiaomi, g.getKimi, g.getGlm, g.getRelay);
     return description;
   } catch (err: any) {
     return JSON.stringify({ format: 'screenshot_base64', data: base64, error: err.message });
@@ -120,7 +130,7 @@ async function ocrImageFile(args: Record<string, any>, context?: any): Promise<s
   const base64 = buffer.toString('base64');
   const model = getUserPreferredVision(context?.userId || 'anonymous').model || visionModelFor(provider);
   try {
-    const description = await analyzeScreen(base64, query, { provider, model, userId: context?.userId || 'anonymous' }, g.getDeepSeek, g.getGemini, g.getOpenAI, g.getAnthropic, g.getQwen, g.getOllama, g.getLmStudio, g.getArk);
+    const description = await analyzeScreen(base64, query, { provider, model, userId: context?.userId || 'anonymous' }, g.getDeepSeek, g.getGemini, g.getOpenAI, g.getAnthropic, g.getQwen, g.getOllama, g.getLmStudio, g.getArk, g.getXiaomi, g.getKimi, g.getGlm, g.getRelay);
     return JSON.stringify({
       path: imagePath,
       width: meta.width || null,

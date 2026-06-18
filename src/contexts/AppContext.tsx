@@ -326,6 +326,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           gemini: 'gemini-2.0-flash',
           ark: 'doubao-1-5-vision-pro-32k',
           qwen: 'qwen-vl-max',
+          ollama: 'qwen2.5vl:7b',
+          lmstudio: 'local-vision-model',
+          relay: 'qwen2.5-vl-7b-instruct',
         };
         resolved.model = savedModels[newConfig.provider] || defaults[newConfig.provider] || '';
       }
@@ -339,6 +342,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           gemini: 'GEMINI_API_KEY',
           ark: 'ARK_API_KEY',
           qwen: 'DASHSCOPE_API_KEY',
+          relay: 'RELAY_API_KEY',
         };
         const serverKey = KEY_MAP[updated.provider];
         if (serverKey) {

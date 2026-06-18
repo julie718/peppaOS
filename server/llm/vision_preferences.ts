@@ -1,6 +1,6 @@
 import { readDB } from '../../db_layer';
 
-export type VisionProvider = 'openai' | 'gemini' | 'ark' | 'qwen';
+export type VisionProvider = 'openai' | 'gemini' | 'ark' | 'qwen' | 'ollama' | 'lmstudio' | 'relay';
 
 export interface VisionPrefs {
   provider: VisionProvider;
@@ -13,9 +13,12 @@ export const DEFAULT_VISION_MODELS: Record<VisionProvider, string> = {
   gemini: 'gemini-2.0-flash',
   ark: 'doubao-1-5-vision-pro-32k',
   qwen: 'qwen-vl-max',
+  ollama: 'qwen2.5vl:7b',
+  lmstudio: 'local-vision-model',
+  relay: 'qwen2.5-vl-7b-instruct',
 };
 
-const VALID_VISION_PROVIDERS = new Set<VisionProvider>(['openai', 'gemini', 'ark', 'qwen']);
+const VALID_VISION_PROVIDERS = new Set<VisionProvider>(['openai', 'gemini', 'ark', 'qwen', 'ollama', 'lmstudio', 'relay']);
 
 function normalizeVisionProvider(value: unknown): VisionProvider {
   return typeof value === 'string' && VALID_VISION_PROVIDERS.has(value as VisionProvider)

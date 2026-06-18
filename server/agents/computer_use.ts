@@ -18,7 +18,7 @@
 
 import { NormalizedMessage, makeLLMCall } from '../llm/providers';
 import { parseScreenshotBase64 } from '../llm/adapter';
-import { getUserPreferredVision } from '../llm/vision_preferences';
+import { getUserPreferredVision, type VisionProvider } from '../llm/vision_preferences';
 import { recordTokenUsage } from '../llm/token_tracker';
 
 interface ComputerUseAction {
@@ -127,14 +127,17 @@ async function callVisionModel(
   const g = llmGetters;
   const vision = getUserPreferredVision(userId || 'anonymous');
 
-  let provider: 'openai' | 'qwen' | 'ark' | 'gemini';
+  let provider: VisionProvider;
   let model = vision.model;
   provider = vision.provider;
   const getterAvailable = provider === 'openai' ? !!g.getOpenAI?.()
     : provider === 'gemini' ? !!g.getGemini?.()
       : provider === 'ark' ? !!g.getArk?.()
         : provider === 'qwen' ? !!g.getQwen?.()
-          : false;
+          : provider === 'ollama' ? !!g.getOllama?.()
+            : provider === 'lmstudio' ? !!g.getLmStudio?.()
+              : provider === 'relay' ? !!g.getRelay?.()
+                : false;
   if (!getterAvailable) {
     throw new Error(`Computer use vision provider "${provider}" is not configured. Add its API key in Settings → LLM Providers → Vision Model, or choose a configured vision model.`);
   }
@@ -164,6 +167,10 @@ async function callVisionModel(
     g.getOllama,
     g.getLmStudio,
     g.getArk,
+    g.getXiaomi,
+    g.getKimi,
+    g.getGlm,
+    g.getRelay,
   );
   if (userId) {
     recordTokenUsage(userId, provider, model, result.usage, `vision_computer_use_${Date.now()}`, 'vision');

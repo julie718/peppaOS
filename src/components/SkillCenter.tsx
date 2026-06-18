@@ -83,6 +83,8 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [installing, setInstalling] = useState<string | null>(null);
+  const [repairing, setRepairing] = useState<string | null>(null);
+  const [cleaningBroken, setCleaningBroken] = useState(false);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('');
   const [sortKey, setSortKey] = useState<SortKey>('downloads');
@@ -201,11 +203,13 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
     socket.on('skill:installed', onInstalled);
     socket.on('skill:uninstalled', refresh);
     socket.on('skill:updated', refresh);
+    socket.on('mcp:health_update', refresh);
     return () => {
       socket.off('skill:installing', onInstalling);
       socket.off('skill:installed', onInstalled);
       socket.off('skill:uninstalled', refresh);
       socket.off('skill:updated', refresh);
+      socket.off('mcp:health_update', refresh);
     };
   }, [socket, fetchInstalled, fetchMarketplace]);
 
@@ -248,6 +252,39 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
         toast.error(data.error || 'Uninstall failed');
       }
     } catch (err: any) { toast.error(err.message); }
+  };
+
+  const handleRepair = async (name: string) => {
+    setRepairing(name);
+    try {
+      const res = await fetch(`/api/skills/${name}/repair`, { method: 'POST', credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) throw new Error(data.reason || data.error || 'Repair failed');
+      toast.success(lang === 'zh' ? `"${name}" 已修复` : `"${name}" repaired`);
+      if (socket) socket.emit('skill:updated', { name });
+      if (detailSkill && 'name' in detailSkill && detailSkill.name === name) setDetailSkill(null);
+      fetchInstalled(); fetchMarketplace();
+    } catch (err: any) {
+      toast.error(err.message || 'Repair failed');
+    } finally {
+      setRepairing(null);
+    }
+  };
+
+  const handleCleanupBroken = async () => {
+    setCleaningBroken(true);
+    try {
+      const res = await fetch('/api/skills/broken', { method: 'DELETE', credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Cleanup failed');
+      const removed = Array.isArray(data.removed) ? data.removed.length : 0;
+      toast.success(lang === 'zh' ? `已清理 ${removed} 个坏技能` : `Cleaned ${removed} broken skills`);
+      fetchInstalled(); fetchMarketplace();
+    } catch (err: any) {
+      toast.error(err.message || 'Cleanup failed');
+    } finally {
+      setCleaningBroken(false);
+    }
   };
 
   const handleToggle = async (name: string, enabled: boolean) => {
@@ -345,6 +382,9 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
     t.skillGeneratePlaceholder || 'e.g. Check if a website is down, generate QR codes...',
     '', '', '', '',
   ];
+  const brokenSkillCount = installedSkills.filter(skill => skill.broken).length;
+  const shouldOfferRepair = (skill: InstalledSkill) =>
+    !!skill.broken || (!!skill.healthStatus && ['crashed', 'failed'].includes(skill.healthStatus));
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -392,7 +432,7 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
 
       {/* Content */}
       <AnimatePresence mode="wait">
-        {detailSkill ? <SkillDetailPane detailSkill={detailSkill} setDetailSkill={setDetailSkill} t={t} marketSkills={marketSkills} installing={installing} savedKeys={savedKeys} keyInputs={keyInputs} setKeyInputs={setKeyInputs} savingKey={savingKey} handleInstall={handleInstall} handleSaveKey={handleSaveKey} handleToggle={handleToggle} handleUninstall={handleUninstall} /> :
+        {detailSkill ? <SkillDetailPane detailSkill={detailSkill} setDetailSkill={setDetailSkill} t={t} lang={lang} marketSkills={marketSkills} installing={installing} repairing={repairing} savedKeys={savedKeys} keyInputs={keyInputs} setKeyInputs={setKeyInputs} savingKey={savingKey} handleInstall={handleInstall} handleSaveKey={handleSaveKey} handleToggle={handleToggle} handleUninstall={handleUninstall} handleRepair={handleRepair} /> :
 
         activeTab === 'featured' && (
           <motion.div key="featured" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }} className="space-y-6">
@@ -777,6 +817,24 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
 
         {activeTab === 'installed' && (
           <motion.div key="installed" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }} className="space-y-6">
+            {brokenSkillCount > 0 && (
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-red-500/10 bg-red-500/5 p-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <AlertTriangle size={16} className="shrink-0 text-red-300" />
+                  <p className="text-xs font-bold text-red-200">
+                    {lang === 'zh' ? `${brokenSkillCount} 个技能包不完整` : `${brokenSkillCount} incomplete skill package${brokenSkillCount > 1 ? 's' : ''}`}
+                  </p>
+                </div>
+                <button
+                  onClick={handleCleanupBroken}
+                  disabled={cleaningBroken}
+                  className="flex shrink-0 items-center gap-1.5 rounded-xl bg-red-500/10 px-3 py-2 text-xs font-bold text-red-200 transition-colors hover:bg-red-500/20 disabled:opacity-40"
+                >
+                  {cleaningBroken ? <RefreshCw size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                  {lang === 'zh' ? '清理坏技能' : 'Clean Broken'}
+                </button>
+              </div>
+            )}
             {loading ? (
               <div className="p-16 bg-white/5 rounded-[2rem] border border-white/5 text-center">
                 <p className="text-white/40 text-sm">{t.loading || 'Loading...'}</p>
@@ -805,8 +863,17 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
                           <span className="text-xs text-white/55 font-mono">{skill.toolCount} {t.toolsCount || 'tools'}{skill.installedAt ? ` · ${new Date(skill.installedAt).toLocaleDateString()}` : ''}</span>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
+                          {shouldOfferRepair(skill) && (
+                            <button onClick={(e) => { e.stopPropagation(); handleRepair(skill.name); }}
+                              disabled={repairing === skill.name}
+                              className="p-2 rounded-lg text-amber-300 transition-colors hover:bg-amber-500/10 disabled:opacity-40"
+                              title={lang === 'zh' ? '修复技能' : 'Repair'}
+                            >
+                              <RefreshCw size={13} className={repairing === skill.name ? 'animate-spin' : ''} />
+                            </button>
+                          )}
                           <button onClick={(e) => { e.stopPropagation(); handleToggle(skill.name, !skill.enabled); }}
-                            disabled={skill.broken}
+                            disabled={skill.broken || repairing === skill.name}
                             className={`p-2 rounded-lg transition-colors disabled:opacity-35 disabled:cursor-not-allowed ${skill.enabled ? 'text-green-400 hover:bg-green-500/10' : 'text-white/45 hover:bg-white/5'}`}
                             title={skill.enabled ? (t.skillDisableBtn || 'Disable') : (t.skillEnableBtn || 'Enable')}
                           >
@@ -896,12 +963,14 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
   );
 }
 
-function SkillDetailPane({ detailSkill, setDetailSkill, t, marketSkills, installing, savedKeys, keyInputs, setKeyInputs, savingKey, handleInstall, handleSaveKey, handleToggle, handleUninstall }: {
+function SkillDetailPane({ detailSkill, setDetailSkill, t, lang, marketSkills, installing, repairing, savedKeys, keyInputs, setKeyInputs, savingKey, handleInstall, handleSaveKey, handleToggle, handleUninstall, handleRepair }: {
   detailSkill: any;
   setDetailSkill: (v: any) => void;
   t: any;
+  lang: 'en' | 'zh';
   marketSkills: any[];
   installing: string | null;
+  repairing: string | null;
   savedKeys: Record<string, boolean>;
   keyInputs: Record<string, string>;
   setKeyInputs: React.Dispatch<React.SetStateAction<Record<string, string>>>;
@@ -910,6 +979,7 @@ function SkillDetailPane({ detailSkill, setDetailSkill, t, marketSkills, install
   handleSaveKey: (envKey: string, value: string) => void;
   handleToggle: (name: string, enabled: boolean) => void;
   handleUninstall: (name: string) => void;
+  handleRepair: (name: string) => void;
 }) {
   const isMarketSkill = 'id' in detailSkill;
   const mSkill: any | undefined = isMarketSkill
@@ -1053,11 +1123,29 @@ function SkillDetailPane({ detailSkill, setDetailSkill, t, marketSkills, install
           {detailSkill.connected && (
             <span className="px-2 py-0.5 bg-green-500/10 rounded-full text-xs text-green-400 font-bold">{t.connected || 'Connected'}</span>
           )}
+          {detailSkill.broken && (
+            <span className="flex items-center gap-1 px-2 py-0.5 bg-red-500/10 rounded-full text-xs text-red-300 font-bold">
+              <AlertTriangle size={11} />{lang === 'zh' ? '坏技能' : 'Broken'}
+            </span>
+          )}
+          {!detailSkill.broken && detailSkill.healthStatus && !['connected', 'disconnected', 'unknown'].includes(detailSkill.healthStatus) && (
+            <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 rounded-full text-xs text-amber-300 font-bold">
+              <AlertTriangle size={11} />{detailSkill.healthStatus}
+            </span>
+          )}
           <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
             detailSkill.enabled ? 'bg-green-500/10 text-green-400' : 'bg-white/5 text-white/45'
           }`}>
             {detailSkill.enabled ? (t.enabled || 'Enabled') : (t.disabled || 'Disabled')}
           </span>
+        </div>
+      )}
+
+      {!isMarketSkill && detailSkill?.broken && (
+        <div className="rounded-2xl border border-red-500/10 bg-red-500/5 p-4 text-xs leading-relaxed text-red-100/75">
+          {lang === 'zh'
+            ? '这个技能包缺少可启动入口。Lumi 会先尝试从 npm、GitHub 或内置技能源重装；没有来源时需要清理后重新安装或重新生成。'
+            : 'This skill package has no runnable entry. Lumi will try npm, GitHub, or bundled reinstall sources first; otherwise clean it up and reinstall or regenerate it.'}
         </div>
       )}
 
@@ -1082,13 +1170,24 @@ function SkillDetailPane({ detailSkill, setDetailSkill, t, marketSkills, install
           </Button>
         ) : detailSkill ? (
           <>
+            {(detailSkill.broken || ['crashed', 'failed'].includes(detailSkill.healthStatus || '')) && (
+              <button
+                onClick={() => handleRepair(detailSkill.name)}
+                disabled={repairing === detailSkill.name}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 transition-colors disabled:opacity-40"
+              >
+                <RefreshCw size={13} className={repairing === detailSkill.name ? 'animate-spin' : ''} />
+                {lang === 'zh' ? '修复' : 'Repair'}
+              </button>
+            )}
             <button
               onClick={() => handleToggle(detailSkill.name, !detailSkill.enabled)}
+              disabled={detailSkill.broken || repairing === detailSkill.name}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
                 detailSkill.enabled
                   ? 'text-white/55 hover:bg-white/5'
                   : 'text-green-400 bg-green-500/10 hover:bg-green-500/20'
-              }`}
+              } disabled:opacity-40 disabled:cursor-not-allowed`}
             >
               {detailSkill.enabled ? <PowerOff size={13} /> : <Power size={13} />}
               {detailSkill.enabled ? 'Disable' : 'Enable'}

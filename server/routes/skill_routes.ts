@@ -27,6 +27,21 @@ export function mountSkillRoutes(
   },
   io: { emit: (event: string, data: any) => void },
 ) {
+  const removeAutoAgentForSkill = (name: string) => {
+    const agentId = `skill_${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+    try {
+      const db = readDB();
+      if (db.agents) {
+        const idx = db.agents.findIndex((a: any) => a.id === agentId && a.autoCreated);
+        if (idx !== -1) {
+          db.agents.splice(idx, 1);
+          writeDB(db);
+          io.emit('agent:removed', { id: agentId });
+        }
+      }
+    } catch {}
+  };
+
   // List all installed skills (local + external MCP servers)
   router.get("/skills", (req, res) => {
     try {
@@ -168,24 +183,38 @@ export function mountSkillRoutes(
     }
   });
 
+  // Repair a local skill by reinstalling known sources or restarting it
+  router.post("/skills/:name/repair", async (req, res) => {
+    try {
+      const result = await mcpManager.repairSkill(req.params.name);
+      if (!result.success) return res.status(400).json(result);
+      io.emit('skill:updated', { name: req.params.name });
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Explicitly clean incomplete local skills
+  router.delete("/skills/broken", async (_req, res) => {
+    try {
+      const removed = mcpManager.cleanupBrokenSkills();
+      for (const name of removed) {
+        io.emit('skill:uninstalled', { name });
+        removeAutoAgentForSkill(name);
+      }
+      res.json({ success: true, removed });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Uninstall a skill
   router.delete("/skills/:name", async (req, res) => {
     try {
       mcpManager.uninstallSkill(req.params.name);
       io.emit('skill:uninstalled', { name: req.params.name });
-      // Remove auto-created team agent
-      const agentId = `skill_${req.params.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
-      try {
-        const db = readDB();
-        if (db.agents) {
-          const idx = db.agents.findIndex((a: any) => a.id === agentId && a.autoCreated);
-          if (idx !== -1) {
-            db.agents.splice(idx, 1);
-            writeDB(db);
-            io.emit('agent:removed', { id: agentId });
-          }
-        }
-      } catch {}
+      removeAutoAgentForSkill(req.params.name);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });

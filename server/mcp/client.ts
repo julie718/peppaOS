@@ -45,6 +45,14 @@ export interface SkillPackage {
   broken?: boolean;       // dir exists but no index.ts — can be auto-cleaned on reinstall
 }
 
+export interface SkillRepairResult {
+  success: boolean;
+  action?: 'reinstalled' | 'restarted';
+  reason?: string;
+  directory?: string;
+  toolCount?: number;
+}
+
 interface ConnectedServer {
   client: Client;
   transport: StdioClientTransport | StreamableHTTPClientTransport | WebSocketClientTransport;
@@ -274,6 +282,104 @@ class MCPClientManager {
     this.registerLocalSkill(name, destDir, resultingPkg);
 
     return destDir;
+  }
+
+  /** Remove incomplete local skill directories that cannot be started. */
+  cleanupBrokenSkills(): string[] {
+    const removed: string[] = [];
+    for (const skill of this.listLocalSkills()) {
+      if (!skill.broken) continue;
+      this.uninstallSkill(skill.name);
+      removed.push(skill.name);
+    }
+    return removed;
+  }
+
+  /**
+   * Try to make an installed skill usable again.
+   * Broken npm/GitHub/bundled skills can be reinstalled. Existing local skills
+   * get dependencies refreshed and are restarted.
+   */
+  async repairSkill(name: string): Promise<SkillRepairResult> {
+    this.ensureSkillsDir();
+    const safeName = path.basename(name);
+    if (safeName !== name) {
+      return { success: false, reason: 'Invalid skill name' };
+    }
+
+    const skillDir = path.join(SKILLS_DIR, name);
+    const exists = fs.existsSync(skillDir);
+    const config = this.getConfig();
+    const serverConfig = config[name];
+    if (!exists && !serverConfig) {
+      return { success: false, reason: `Skill "${name}" not found` };
+    }
+
+    const pkg = exists ? this.readPkg(skillDir) : {};
+    const hasIndex = exists && fs.existsSync(path.join(skillDir, 'index.ts'));
+    const hasRunCommand = !!pkg.lumi?.runCommand;
+    const isBroken = exists && !hasIndex && !hasRunCommand;
+
+    if (isBroken) {
+      const npmPackage = pkg.lumi?.npmPackage;
+      const repoUrl = pkg.lumi?.repoUrl;
+      const bundledPath = path.join(process.cwd(), 'server', 'skills', 'bundled', name);
+
+      if (npmPackage) {
+        fs.rmSync(skillDir, { recursive: true, force: true });
+        const directory = await this.installFromNpm(npmPackage);
+        const latest = this.getConfig();
+        if (latest[name]) {
+          latest[name].enabled = true;
+          this.saveConfig(latest);
+        }
+        const tools = await this.restartServer(name);
+        return { success: true, action: 'reinstalled', directory, toolCount: tools.length };
+      }
+
+      if (repoUrl) {
+        fs.rmSync(skillDir, { recursive: true, force: true });
+        const directory = await this.installFromGitHub(repoUrl);
+        const latest = this.getConfig();
+        if (latest[name]) {
+          latest[name].enabled = true;
+          this.saveConfig(latest);
+        }
+        const tools = await this.restartServer(name);
+        return { success: true, action: 'reinstalled', directory, toolCount: tools.length };
+      }
+
+      if (fs.existsSync(bundledPath)) {
+        const directory = this.installSkill(name, bundledPath, true);
+        const latest = this.getConfig();
+        if (latest[name]) {
+          latest[name].enabled = true;
+          this.saveConfig(latest);
+        }
+        const tools = await this.restartServer(name);
+        return { success: true, action: 'reinstalled', directory, toolCount: tools.length };
+      }
+
+      return {
+        success: false,
+        reason: 'Skill package is missing index.ts/runCommand and has no reinstall source. Clean it up, then reinstall or regenerate it.',
+      };
+    }
+
+    if (exists) {
+      await this.installDepsSync(skillDir);
+      if (!serverConfig) {
+        this.registerLocalSkill(name, skillDir, pkg);
+      }
+    }
+
+    const latest = this.getConfig();
+    if (latest[name]) {
+      latest[name].enabled = true;
+      this.saveConfig(latest);
+    }
+    const tools = await this.restartServer(name);
+    return { success: true, action: 'restarted', directory: exists ? skillDir : undefined, toolCount: tools.length };
   }
 
   /** Check if a bundled source has a newer version than the installed copy */
