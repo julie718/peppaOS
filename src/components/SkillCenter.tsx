@@ -478,7 +478,7 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
       </div>
 
       {/* Content */}
-      <AnimatePresence mode="wait">
+      <AnimatePresence>
         {detailSkill ? <SkillDetailPane detailSkill={detailSkill} setDetailSkill={setDetailSkill} t={t} lang={lang} marketSkills={marketSkills} installing={installing} repairing={repairing} savedKeys={savedKeys} keyInputs={keyInputs} setKeyInputs={setKeyInputs} savingKey={savingKey} handleInstall={handleInstall} handleSaveKey={handleSaveKey} handleToggle={handleToggle} handleUninstall={handleUninstall} handleRepair={handleRepair} /> :
 
         activeTab === 'featured' && (

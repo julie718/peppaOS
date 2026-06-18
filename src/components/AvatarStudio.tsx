@@ -338,10 +338,19 @@ export function AvatarStudio({
                 {allPets.map(pet => {
                   const isCustom = customPets.some(cp => cp.id === pet.id);
                   return (
-                  <motion.button
+                  <motion.div
                     key={pet.id}
                     whileHover={{ scale: 1.03 }}
                     onClick={() => { setActivePet(pet); setAnimKey(k => k + 1); }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setActivePet(pet);
+                        setAnimKey(k => k + 1);
+                      }
+                    }}
                     onMouseEnter={() => setHoveredId(pet.id)}
                     onMouseLeave={() => setHoveredId(null)}
                     className={`relative p-2 rounded-xl border transition-all text-left group ${
@@ -380,7 +389,7 @@ export function AvatarStudio({
                     >
                       <Download size={10} className="text-white/50" />
                     </button>
-                  </motion.button>
+                  </motion.div>
                   );
                 })}
               </div>
