@@ -163,7 +163,7 @@ export function CanvasInputBar({ onSend, onImportFiles, disabled, t }: CanvasInp
             event.currentTarget.value = '';
           }}
         />
-        <div className="flex items-end gap-2 bg-black/60 backdrop-blur-2xl border border-white/[0.08] rounded-2xl px-4 py-3 shadow-2xl">
+        <div className="lumi-surface flex items-end gap-2 rounded-2xl px-4 py-3">
           <textarea
             ref={inputRef}
             value={text}
@@ -172,13 +172,13 @@ export function CanvasInputBar({ onSend, onImportFiles, disabled, t }: CanvasInp
             placeholder={t.canvasTaskPlaceholder || 'Describe your task...'}
             disabled={disabled}
             rows={1}
-            className="flex-1 bg-transparent text-sm text-white/90 placeholder:text-white/30 resize-none outline-none max-h-[120px] py-0.5"
+            className="max-h-[120px] flex-1 resize-none bg-transparent py-0.5 text-sm text-white/90 outline-none placeholder:text-white/30"
           />
           <div className="flex items-center gap-1.5">
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={disabled || !onImportFiles}
-              className="w-9 h-9 flex items-center justify-center rounded-xl text-white/30 hover:text-white/60 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="lumi-icon-button border-transparent bg-transparent"
               title={t.canvasImportFiles || 'Import files'}
             >
               <Paperclip size={17} />
@@ -186,11 +186,11 @@ export function CanvasInputBar({ onSend, onImportFiles, disabled, t }: CanvasInp
             <button
               onClick={handleVoiceInput}
               disabled={disabled || voiceState === 'transcribing'}
-              className={`w-9 h-9 flex items-center justify-center rounded-xl transition-colors ${
+              className={`lumi-icon-button border-transparent ${
                 voiceState === 'recording'
-                  ? 'text-teal-300 bg-teal-500/15'
-                  : 'text-white/30 hover:text-white/60 hover:bg-white/5'
-              } disabled:opacity-30 disabled:cursor-not-allowed`}
+                  ? 'bg-teal-500/15 text-teal-300'
+                  : 'bg-transparent'
+              }`}
               title={voiceState === 'recording' ? (t.stopVoiceInput || 'Stop voice input') : (t.voiceInput || 'Voice input')}
             >
               {voiceState === 'transcribing' ? <Loader2 size={17} className="animate-spin" /> : voiceState === 'recording' ? <Square size={15} /> : <Mic size={17} />}
@@ -198,7 +198,7 @@ export function CanvasInputBar({ onSend, onImportFiles, disabled, t }: CanvasInp
             <button
               onClick={handleSend}
               disabled={!text.trim() || disabled}
-              className="w-9 h-9 flex items-center justify-center rounded-xl bg-teal-500/20 border border-teal-400/30 text-teal-400 hover:bg-teal-500/40 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              className="lumi-button-primary h-9 w-9 border-teal-400/30 bg-teal-500/20 p-0 text-teal-300 hover:bg-teal-500/30"
             >
               <Send size={16} />
             </button>

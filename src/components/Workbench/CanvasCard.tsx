@@ -33,7 +33,7 @@ export function CanvasCard({ card, t, onRetry }: CanvasCardProps) {
       style={style}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className={`group flex flex-col overflow-hidden rounded-xl border shadow-lg backdrop-blur-sm ${typeConfig.bg} ${typeConfig.border}`}
+      className={`group flex flex-col overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-xl ${typeConfig.bg} ${typeConfig.border}`}
     >
       {/* Header */}
       <div className={`flex shrink-0 items-center gap-2 border-b px-4 py-2.5 ${typeConfig.headerBg}`}>
@@ -43,7 +43,7 @@ export function CanvasCard({ card, t, onRetry }: CanvasCardProps) {
         {hovered && onRetry && (
           <button
             onClick={(e) => { e.stopPropagation(); onRetry(card.id); }}
-            className="ml-auto flex items-center gap-1 text-[10px] text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 rounded-lg px-2 py-1 transition-colors"
+            className="ml-auto flex items-center gap-1 rounded-lg border border-amber-400/15 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-300 transition-colors hover:bg-amber-500/20"
           >
             <RefreshCw size={10} /> {t?.canvasRetryFromHere || 'Retry from here'}
           </button>
@@ -51,17 +51,17 @@ export function CanvasCard({ card, t, onRetry }: CanvasCardProps) {
       </div>
 
       {/* Body */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+      <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-3">
         {card.type === 'tool_call' ? (
           <div>
             <div className="text-sm font-medium text-white/90">{card.text}</div>
             {card.detail && (
-              <div className="mt-1.5 text-xs text-white/50 font-mono bg-black/20 rounded-lg p-2 overflow-hidden text-ellipsis whitespace-pre-wrap max-h-24 overflow-y-auto">
+              <div className="custom-scrollbar mt-1.5 max-h-24 overflow-y-auto rounded-lg bg-black/20 p-2 font-mono text-xs text-white/50 whitespace-pre-wrap">
                 {card.detail}
               </div>
             )}
             {card.metadata?.result && (
-              <div className="mt-2 text-xs text-emerald-400/80 font-mono bg-emerald-500/5 rounded-lg p-2 max-h-32 overflow-y-auto whitespace-pre-wrap">
+              <div className="custom-scrollbar mt-2 max-h-32 overflow-y-auto rounded-lg bg-emerald-500/5 p-2 font-mono text-xs text-emerald-400/80 whitespace-pre-wrap">
                 {card.metadata.result}
               </div>
             )}
@@ -88,7 +88,7 @@ export function CanvasCard({ card, t, onRetry }: CanvasCardProps) {
       </div>
 
       {/* Footer */}
-      <div className="flex shrink-0 items-center justify-between border-t border-white/[0.03] px-4 py-1.5 text-[10px] text-white/25">
+      <div className="flex shrink-0 items-center justify-between border-t border-white/[0.06] bg-black/10 px-4 py-1.5 text-[10px] text-white/25">
         <span>{new Date(card.timestamp).toLocaleTimeString()}</span>
         <span className="opacity-0 group-hover:opacity-100 transition-opacity text-white/15 text-[9px]">#{card.id.slice(-6)}</span>
       </div>
@@ -149,7 +149,7 @@ function ArtifactBody({ card }: { card: PositionedCard }) {
       )}
 
       {preview && (
-        <div className="max-h-56 overflow-y-auto rounded-lg bg-black/20 p-2.5 text-xs leading-relaxed text-white/70 whitespace-pre-wrap">
+        <div className="custom-scrollbar max-h-56 overflow-y-auto rounded-lg bg-black/20 p-2.5 text-xs leading-relaxed text-white/70 whitespace-pre-wrap">
           {preview.length > 6000 ? `${preview.slice(0, 6000)}...` : preview}
         </div>
       )}

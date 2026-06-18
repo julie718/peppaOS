@@ -113,72 +113,74 @@ export function OrgHub() {
   };
 
   return (
-    <div className="flex h-full">
+    <div className="lumi-surface flex h-full overflow-hidden rounded-none border-0 bg-black/20">
       {/* Sidebar */}
-      <div className="w-56 border-r border-white/5 bg-white/[0.02] flex flex-col">
-        <div className="p-4 border-b border-white/5 space-y-3">
-          <h3 className="text-white text-sm font-bold flex items-center gap-2">
-            <Building2 size={16} className="text-blue-400" />
-            {t.orgWorkSpace}
+      <div className="flex w-60 shrink-0 flex-col border-r border-white/[0.08] bg-black/25">
+        <div className="space-y-3 border-b border-white/[0.08] p-4">
+          <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.12em] text-white/85">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-blue-300/15 bg-blue-400/10 text-blue-200">
+              <Building2 size={16} />
+            </span>
+            <span className="min-w-0 truncate">{t.orgWorkSpace}</span>
           </h3>
           {orgConnection?.orgName && (
-            <p className="text-white/55 text-xs">{orgConnection.orgName}</p>
+            <p className="truncate text-xs text-white/55">{orgConnection.orgName}</p>
           )}
           {/* Role badge */}
-          <span className={`text-xs px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${roleInfo.color}`}>
+          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] ${roleInfo.color}`}>
             {roleInfo.icon} {roleInfo.label}
           </span>
           {/* Domain switch */}
           <button
             onClick={handleDomainToggle}
             disabled={switchBusy}
-            className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all ${
+            className={`lumi-button h-9 w-full justify-start px-3 ${
               workDomain === 'work'
-                ? 'bg-blue-500/10 text-blue-400 border border-blue-500/30'
-                : 'bg-white/5 text-white/40 border border-white/5 hover:text-white/60'
-            } disabled:cursor-not-allowed disabled:opacity-50`}
+                ? 'border-blue-400/25 bg-blue-500/10 text-blue-300'
+                : ''
+            }`}
           >
             {switchBusy ? <Loader2 size={12} className="animate-spin" /> : workDomain === 'work' ? <Briefcase size={12} /> : <User size={12} />}
             {switchBusy ? (t.switching || ui('切换中...', 'Switching...')) : workDomain === 'work' ? t.orgWorkDomain : t.orgPersonalDomain}
           </button>
         </div>
 
-        <nav className="flex-1 p-2 space-y-1">
+        <nav className="custom-scrollbar flex-1 space-y-1 overflow-y-auto p-2">
           {visibleItems.map(item => (
             <button
               key={item.id}
               onClick={() => openSubView(item.id)}
-              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all ${
+              className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm transition-colors ${
                 subView === item.id
-                  ? 'bg-blue-500/10 text-blue-400'
-                  : 'text-white/50 hover:text-white/80 hover:bg-white/5'
+                  ? 'border border-blue-400/20 bg-blue-500/10 text-blue-200'
+                  : 'border border-transparent text-white/50 hover:border-white/[0.08] hover:bg-white/[0.05] hover:text-white/80'
               }`}
             >
-              {item.icon}
-              {item.label}
+              <span className="shrink-0">{item.icon}</span>
+              <span className="min-w-0 truncate">{item.label}</span>
             </button>
           ))}
-          <div className="my-2 border-t border-white/5" />
+          <div className="my-2 border-t border-white/[0.08]" />
           <button
             onClick={() => {
               void switchDomain('personal').finally(() => {
                 window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'home' } }));
               });
             }}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-white/40 hover:text-white/60 hover:bg-white/5 transition-all"
+            className="flex w-full items-center gap-2 rounded-xl border border-transparent px-3 py-2 text-sm text-white/40 transition-colors hover:border-white/[0.08] hover:bg-white/[0.05] hover:text-white/70"
           >
             <ArrowLeft size={16} />
-            {t.orgExitWorkSpace}
+            <span className="min-w-0 truncate">{t.orgExitWorkSpace}</span>
           </button>
         </nav>
       </div>
 
       {/* Content */}
-      <div className="min-w-0 flex-1 flex flex-col">
-        <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-white/5 bg-black/30 px-5 py-3 backdrop-blur-xl">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-white/[0.08] bg-black/30 px-5 py-3 backdrop-blur-xl">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-white/85">
-              <span className="text-blue-300">{currentItem.icon}</span>
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-blue-300/15 bg-blue-400/10 text-blue-200">{currentItem.icon}</span>
               <h2 className="truncate text-sm font-black uppercase tracking-[0.14em]">{currentItem.label}</h2>
             </div>
             <p className="mt-0.5 truncate text-xs text-white/35">

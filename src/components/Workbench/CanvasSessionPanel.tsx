@@ -44,7 +44,7 @@ export function CanvasSessionPanel({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/40 z-[240]"
+            className="fixed inset-0 z-[240] bg-black/45 backdrop-blur-sm"
             onClick={onClose}
           />
 
@@ -54,19 +54,21 @@ export function CanvasSessionPanel({
             animate={{ x: 0 }}
             exit={{ x: -320 }}
             transition={{ type: 'spring', damping: 25, stiffness: 250 }}
-            className="fixed left-0 top-0 bottom-0 w-[300px] z-[250] bg-black/90 backdrop-blur-2xl border-r border-white/[0.06] flex flex-col"
+            className="lumi-surface fixed bottom-0 left-0 top-0 z-[250] flex w-[320px] flex-col rounded-none border-y-0 border-l-0 bg-black/85"
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+            <div className="flex items-center justify-between border-b border-white/[0.08] px-5 py-4">
               <div className="flex items-center gap-2">
-                <Layers size={18} className="text-teal-400" />
-                <span className="text-sm font-semibold text-white/80">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-teal-300/15 bg-teal-400/10 text-teal-200">
+                  <Layers size={18} />
+                </span>
+                <span className="text-sm font-black uppercase tracking-[0.12em] text-white/80">
                   {t.canvasWorkbench || 'Canvas Workbench'}
                 </span>
               </div>
               <button
                 onClick={onClose}
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+                className="lumi-icon-button h-8 w-8"
               >
                 <X size={16} />
               </button>
@@ -76,7 +78,7 @@ export function CanvasSessionPanel({
             <div className="px-4 py-3">
               <button
                 onClick={onNew}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-teal-500/15 border border-teal-400/20 text-teal-400 hover:bg-teal-500/25 hover:border-teal-400/40 transition-all text-sm font-medium"
+                className="lumi-button-primary w-full border-teal-400/25 bg-teal-500/15 text-teal-300 hover:bg-teal-500/25"
               >
                 <Plus size={16} />
                 {t.canvasNewSession || 'New Canvas'}
@@ -84,9 +86,9 @@ export function CanvasSessionPanel({
             </div>
 
             {/* Session list */}
-            <div className="flex-1 overflow-y-auto px-3 pb-3">
+            <div className="custom-scrollbar flex-1 overflow-y-auto px-3 pb-3">
               {sessions.length === 0 ? (
-                <div className="text-center py-12 text-white/25 text-sm">
+                <div className="lumi-panel py-12 text-center text-sm text-white/30">
                   {t.canvasNoSessions || 'No canvas sessions yet'}
                 </div>
               ) : (
@@ -95,10 +97,10 @@ export function CanvasSessionPanel({
                     <div
                       key={session.id}
                       onClick={() => onSelect(session.id)}
-                      className={`group relative flex flex-col gap-0.5 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                      className={`group relative flex cursor-pointer flex-col gap-0.5 rounded-2xl border px-3 py-2.5 transition-colors ${
                         session.id === currentId
-                          ? 'bg-teal-500/15 border border-teal-400/25'
-                          : 'hover:bg-white/[0.04] border border-transparent'
+                          ? 'border-teal-400/25 bg-teal-500/15'
+                          : 'border-transparent hover:border-white/[0.08] hover:bg-white/[0.04]'
                       }`}
                     >
                       <div className="flex items-center gap-2">
@@ -119,7 +121,7 @@ export function CanvasSessionPanel({
                               onDelete(session.id);
                             }
                           }}
-                          className="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-lg text-white/30 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                          className="flex h-7 w-7 items-center justify-center rounded-lg text-white/25 opacity-0 transition-all hover:bg-red-500/10 hover:text-red-400 group-hover:opacity-100"
                         >
                           <Trash2 size={12} />
                         </button>

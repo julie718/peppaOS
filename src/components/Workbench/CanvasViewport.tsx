@@ -178,10 +178,10 @@ export function CanvasViewport({
         <rect width="100%" height="100%" fill="url(#canvas-dots)" />
       </svg>
 
-      <div data-no-pan className="absolute bottom-24 right-6 z-40 flex items-center gap-1 rounded-xl border border-white/[0.08] bg-black/60 p-1 backdrop-blur-xl">
+      <div data-no-pan className="lumi-panel absolute bottom-24 right-6 z-40 flex items-center gap-1 bg-black/45 p-1 backdrop-blur-2xl">
         <button
           onClick={() => containerRef.current?.dispatchEvent(new WheelEvent('wheel', { deltaY: 100, ctrlKey: true }))}
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-sm text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+          className="lumi-icon-button h-8 w-8 border-transparent bg-transparent"
         >
           -
         </button>
@@ -190,12 +190,12 @@ export function CanvasViewport({
         </span>
         <button
           onClick={() => containerRef.current?.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, ctrlKey: true }))}
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-sm text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+          className="lumi-icon-button h-8 w-8 border-transparent bg-transparent"
         >
           +
         </button>
         <div className="mx-0.5 h-5 w-px bg-white/[0.08]" />
-        <button onClick={resetView} className="h-8 rounded-lg px-2 text-[10px] text-white/50 transition-colors hover:bg-white/10 hover:text-white">
+        <button onClick={resetView} className="lumi-button h-8 px-2 text-[10px]">
           Reset
         </button>
         {onClear && cards.length > 0 && (
@@ -204,7 +204,7 @@ export function CanvasViewport({
             <button
               onClick={onClear}
               title={t?.canvasClearCanvas || 'Clear canvas'}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-sm text-red-400/60 transition-colors hover:bg-red-500/10 hover:text-red-400"
+              className="lumi-icon-button h-8 w-8 border-red-400/10 bg-red-500/5 text-red-300/70 hover:bg-red-500/10 hover:text-red-300"
             >
               <Trash2 size={14} />
             </button>
@@ -215,7 +215,7 @@ export function CanvasViewport({
       {selectedEdge && (
         <div
           data-no-pan
-          className="absolute right-6 top-16 z-50 w-[360px] rounded-xl border border-teal-300/20 bg-black/75 p-4 text-white shadow-2xl backdrop-blur-xl"
+          className="lumi-surface absolute right-6 top-20 z-50 w-[360px] rounded-2xl p-4 text-white"
         >
           <div className="mb-3 flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
@@ -229,13 +229,13 @@ export function CanvasViewport({
             </div>
             <button
               onClick={() => onEdgeSelect?.(null)}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white/45 hover:bg-white/10 hover:text-white"
+              className="lumi-icon-button h-7 w-7 rounded-lg"
               aria-label="Close path editor"
             >
               <X size={14} />
             </button>
           </div>
-          <div className="space-y-2 rounded-lg border border-white/[0.06] bg-white/[0.03] p-3">
+          <div className="lumi-panel space-y-2 rounded-xl bg-white/[0.03] p-3">
             <div>
               <div className="text-[10px] uppercase tracking-wide text-white/30">{t?.canvasPathFrom || 'From'}</div>
               <div className="truncate text-xs text-white/70">{getCardLabel(selectedSource)}</div>
@@ -249,7 +249,7 @@ export function CanvasViewport({
             value={edgeInstruction}
             onChange={(e) => setEdgeInstruction(e.target.value)}
             placeholder={t?.canvasPathInstructionPlaceholder || 'Tell Lumi what to change, or describe a branch to try from here...'}
-            className="mt-3 h-24 w-full resize-none rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white outline-none placeholder:text-white/25 focus:border-teal-300/35"
+            className="lumi-field mt-3 h-24 w-full resize-none focus:border-teal-300/35"
           />
           <div className="mt-3 grid grid-cols-2 gap-2">
             <button
@@ -260,7 +260,7 @@ export function CanvasViewport({
                 setEdgeInstruction('');
               }}
               disabled={!edgeInstruction.trim()}
-              className="h-9 rounded-lg bg-teal-300 text-sm font-semibold text-slate-950 transition hover:bg-teal-200 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30"
+              className="lumi-button-primary h-9 border-teal-300/25 bg-teal-300/90 text-slate-950 hover:bg-teal-200 disabled:bg-white/10 disabled:text-white/30"
             >
               {t?.canvasReviseStep || 'Revise step'}
             </button>
@@ -271,7 +271,7 @@ export function CanvasViewport({
                 setEdgeInstruction('');
               }}
               disabled={!onEdgeBranch}
-              className="h-9 rounded-lg border border-violet-300/25 bg-violet-400/10 text-sm font-semibold text-violet-100 transition hover:bg-violet-400/18 disabled:cursor-not-allowed disabled:opacity-35"
+              className="lumi-button h-9 border-violet-300/25 bg-violet-400/10 text-violet-100 hover:bg-violet-400/18"
             >
               {t?.canvasForkBranch || 'Fork branch'}
             </button>
@@ -279,7 +279,7 @@ export function CanvasViewport({
           <button
             onClick={() => selectedEdge && onEdgeRerun?.(selectedEdge)}
             disabled={!onEdgeRerun}
-            className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.04] text-xs font-semibold text-white/55 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+            className="lumi-button mt-2 h-9 w-full"
           >
             <RefreshCw size={13} />
             {t?.canvasRerunFromStep || 'Rerun from target step'}

@@ -403,28 +403,32 @@ export function CanvasWorkbench({ isOpen, onClose, t, user, domain = 'personal',
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.25 }}
-          className="fixed inset-0 z-[220] bg-[#0a0a10]"
+          className="fixed inset-0 z-[220] bg-[#08090d]"
         >
-          <div className="absolute top-0 left-0 right-0 z-40 h-12 flex items-center justify-between px-4 bg-gradient-to-b from-black/60 to-transparent">
+          <div className="absolute left-4 right-4 top-4 z-40 flex h-12 items-center justify-between rounded-2xl border border-white/[0.08] bg-black/45 px-3 backdrop-blur-2xl shadow-2xl">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setShowSessionPanel(true)}
-                className="w-9 h-9 flex items-center justify-center rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+                className="lumi-icon-button h-8 w-8"
               ><Menu size={18} /></button>
-              <span className="text-sm font-medium text-white/70">
+              <span className="text-sm font-black uppercase tracking-[0.14em] text-white/75">
                 {t.canvasWorkbench || 'Canvas'}
               </span>
               {statusText && (
-                <span className="text-[10px] text-amber-400/70 flex items-center gap-1">
+                <span className="flex items-center gap-1 rounded-full border border-amber-400/15 bg-amber-500/10 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-amber-300/80">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                   {statusText}
                 </span>
               )}
               {saveState !== 'idle' && (
-                <span className={`text-[10px] flex items-center gap-1 ${
+                <span className={`flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] ${
                   saveState === 'error' ? 'text-red-400/80' :
                   saveState === 'saving' ? 'text-cyan-300/70' :
                   'text-emerald-300/70'
+                } ${
+                  saveState === 'error' ? 'border-red-400/15 bg-red-500/10' :
+                  saveState === 'saving' ? 'border-cyan-300/15 bg-cyan-500/10' :
+                  'border-emerald-300/15 bg-emerald-500/10'
                 }`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${
                     saveState === 'error' ? 'bg-red-400' :
@@ -437,7 +441,7 @@ export function CanvasWorkbench({ isOpen, onClose, t, user, domain = 'personal',
             </div>
             <button
               onClick={onClose}
-              className="w-9 h-9 flex items-center justify-center rounded-xl text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+              className="lumi-icon-button h-8 w-8"
             ><X size={18} /></button>
           </div>
 
