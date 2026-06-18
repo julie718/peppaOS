@@ -92,32 +92,36 @@ export function PersonalityEditor({ t }: { t?: any }) {
 
   if (loading) {
     return (
-      <div className="space-y-8 animate-in fade-in duration-500">
-        <div className="flex items-center gap-3">
-          <User className="text-celestial-saturn" />
-          <h3 className="text-xl font-bold uppercase tracking-tighter text-white/90">{t?.lumiCore || ui('Lumi 人格核心配置', 'Lumi Core Config')}</h3>
+      <div className="animate-in fade-in space-y-8 duration-500">
+        <div className="lumi-panel flex items-center gap-3 p-5">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-celestial-saturn/20 bg-celestial-saturn/10 text-celestial-saturn">
+            <User size={20} />
+          </span>
+          <h3 className="text-xl font-black uppercase tracking-[0.08em] text-white/90">{t?.lumiCore || ui('Lumi 人格核心配置', 'Lumi Core Config')}</h3>
         </div>
-        <p className="text-white/40 text-sm">{t?.loadingPersonalities || ui('加载中...', 'Loading...')}</p>
+        <p className="lumi-panel p-5 text-sm text-white/40">{t?.loadingPersonalities || ui('加载中...', 'Loading...')}</p>
       </div>
     );
   }
 
   if (!config) {
     return (
-      <div className="space-y-8 animate-in fade-in duration-500">
-        <div className="flex items-center gap-3">
-          <User className="text-celestial-saturn" />
-          <h3 className="text-xl font-bold uppercase tracking-tighter text-white/90">{t?.lumiCore || ui('Lumi 人格核心配置', 'Lumi Core Config')}</h3>
+      <div className="animate-in fade-in space-y-8 duration-500">
+        <div className="lumi-panel flex items-center gap-3 p-5">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-celestial-saturn/20 bg-celestial-saturn/10 text-celestial-saturn">
+            <User size={20} />
+          </span>
+          <h3 className="text-xl font-black uppercase tracking-[0.08em] text-white/90">{t?.lumiCore || ui('Lumi 人格核心配置', 'Lumi Core Config')}</h3>
         </div>
-        <p className="text-white/40 text-sm">{t?.noPersonalitiesDefined || ui('未找到配置。', 'No configuration found.')}</p>
+        <p className="lumi-panel p-5 text-sm text-white/40">{t?.noPersonalitiesDefined || ui('未找到配置。', 'No configuration found.')}</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="animate-in fade-in slide-in-from-bottom-4 space-y-6 duration-500">
       {/* Tab bar */}
-      <div className="flex items-center gap-1 p-1 bg-white/5 rounded-xl border border-white/5">
+      <div className="lumi-panel flex items-center gap-1 p-1">
         {[
           { id: 'personality' as const, label: t?.lumiCore || ui('人格核心', 'Personality'), icon: <User size={14} /> },
           { id: 'contacts' as const, label: t?.contacts || ui('联系人', 'Contacts'), icon: <Users size={14} /> },
@@ -125,8 +129,8 @@ export function PersonalityEditor({ t }: { t?: any }) {
           <button
             key={item.id}
             onClick={() => setTab(item.id)}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all ${
-              tab === item.id ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/70'
+            className={`flex flex-1 items-center justify-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${
+              tab === item.id ? 'border-celestial-saturn/25 bg-celestial-saturn/10 text-celestial-saturn' : 'border-transparent text-white/40 hover:bg-white/[0.05] hover:text-white/70'
             }`}
           >
             {item.icon}
@@ -139,9 +143,11 @@ export function PersonalityEditor({ t }: { t?: any }) {
         <ContactsPanel />
       ) : (
         <>
-      <div className="flex items-center gap-3">
-        <User className="text-celestial-saturn" />
-        <h3 className="text-xl font-bold uppercase tracking-tighter text-white/90">{t?.lumiCore || ui('Lumi 人格核心配置', 'Lumi Core Config')}</h3>
+      <div className="lumi-panel flex items-center gap-3 p-5">
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-celestial-saturn/20 bg-celestial-saturn/10 text-celestial-saturn">
+          <User size={20} />
+        </span>
+        <h3 className="text-xl font-black uppercase tracking-[0.08em] text-white/90">{t?.lumiCore || ui('Lumi 人格核心配置', 'Lumi Core Config')}</h3>
         <span className="text-xs font-mono text-white/45 bg-white/5 px-2 py-0.5 rounded-full">v{config.version}</span>
       </div>
 
@@ -291,8 +297,8 @@ function Section({ title, section, expanded, onToggle, children }: {
 }) {
   const open = expanded[section] !== false;
   return (
-    <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-3">
-      <button onClick={() => onToggle(section)} className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-white/50 hover:text-white/80 w-full text-left">
+    <div className="lumi-panel space-y-3 p-4">
+      <button onClick={() => onToggle(section)} className="flex w-full items-center gap-2 text-left text-xs font-black uppercase tracking-widest text-white/55 hover:text-white/85">
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         {title}
       </button>
@@ -309,7 +315,7 @@ function ReadonlyField({ label, value, mono }: {
   return (
     <div className="space-y-1">
       <label className="text-xs font-black uppercase text-white/55">{label}</label>
-      <div className={`w-full bg-white/5 border border-white/5 rounded-xl px-3 py-2 text-sm text-white/60 ${mono ? 'font-mono' : ''}`}>
+      <div className={`lumi-panel w-full rounded-xl px-3 py-2 text-sm text-white/65 ${mono ? 'font-mono' : ''}`}>
         {value || <span className="text-white/45">—</span>}
       </div>
     </div>

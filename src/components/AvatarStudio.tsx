@@ -257,7 +257,7 @@ export function AvatarStudio({
   }, [handleImportFile, ui]);
 
   return (
-    <div className="h-full flex flex-col bg-zinc-950/90" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+    <div className="flex h-full flex-col bg-zinc-950/85" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
       {/* Drag overlay */}
       <AnimatePresence>
         {dragOver && (
@@ -274,15 +274,17 @@ export function AvatarStudio({
       </AnimatePresence>
 
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 flex-shrink-0">
+      <div className="flex flex-shrink-0 items-center justify-between border-b border-white/[0.08] px-6 py-4">
         <div className="flex items-center gap-3">
-          <Brush size={18} className="text-cyan-400" />
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-cyan-300/15 bg-cyan-400/10 text-cyan-300">
+            <Brush size={18} />
+          </span>
           <div>
             <h2 className="text-sm font-black text-white/90 uppercase tracking-wider">{ui('形象设计室', 'Avatar Studio')}</h2>
             <p className="text-xs text-white/55 font-mono">{ui('桌面伙伴设计', 'Avatar Design Studio')}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 bg-white/5 rounded-xl p-1">
+        <div className="lumi-panel flex items-center gap-2 p-1">
           {([
             ['gallery', ui('形象画廊', 'Gallery'), 'text-cyan-400', 'bg-cyan-500/20'],
             ['generate', ui('AI 定制', 'AI Custom'), 'text-fuchsia-400', 'bg-fuchsia-500/20'],
@@ -292,8 +294,8 @@ export function AvatarStudio({
             <button
               key={id}
               onClick={() => setTab(id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all ${
-                tab === id ? `${activeBg} ${activeColor}` : 'text-white/55 hover:text-white/50'
+              className={`rounded-xl border px-3 py-1.5 text-xs font-bold uppercase transition-colors ${
+                tab === id ? `${activeBg} ${activeColor} border-white/10` : 'border-transparent text-white/55 hover:bg-white/[0.05] hover:text-white/75'
               }`}
             >
               {id === 'colors' ? <Palette size={12} className="inline mr-1" /> : null}
@@ -304,14 +306,14 @@ export function AvatarStudio({
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-2 border-b border-white/5 bg-black/20 px-6 py-3">
+      <div className="grid grid-cols-4 gap-2 border-b border-white/[0.08] bg-black/20 px-6 py-3">
         {[
           [ui('声音', 'Voice'), ui('选择 Lumi 的声音', 'Choose Lumi voice')],
           [ui('形象', 'Avatar'), ui('选择身体', 'Select body')],
           [ui('风格', 'Style'), ui('调整颜色', 'Tune colors')],
           [ui('桌面', 'Desktop'), ui('保存伙伴', 'Save companion')],
         ].map(([label, desc], index) => (
-          <div key={label} className="min-w-0 rounded-xl border border-white/5 bg-white/[0.025] px-3 py-2">
+          <div key={label} className="lumi-panel min-w-0 rounded-xl px-3 py-2">
             <div className="flex items-center gap-2">
               <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-black ${
                 index === 1 ? 'bg-cyan-300 text-black' : 'bg-white/10 text-white/45'
@@ -327,7 +329,7 @@ export function AvatarStudio({
 
       <div className="flex-1 flex min-h-0">
         {/* Left: Gallery / Generate / Wardrobe / Colors Panel */}
-        <div className="w-72 flex-shrink-0 border-r border-white/5 overflow-y-auto custom-scrollbar p-4">
+        <div className="custom-scrollbar w-72 flex-shrink-0 overflow-y-auto border-r border-white/[0.08] p-4">
           {tab === 'gallery' ? (
             <div className="space-y-2">
               <div className="flex items-center justify-between mb-3">
@@ -353,10 +355,10 @@ export function AvatarStudio({
                     }}
                     onMouseEnter={() => setHoveredId(pet.id)}
                     onMouseLeave={() => setHoveredId(null)}
-                    className={`relative p-2 rounded-xl border transition-all text-left group ${
+                    className={`group relative rounded-xl border p-2 text-left transition-colors ${
                       activePet.id === pet.id
                         ? 'bg-cyan-500/10 border-cyan-500/30 ring-1 ring-cyan-500/20'
-                        : 'bg-white/5 border-white/5 hover:bg-white/10'
+                        : 'bg-white/[0.04] border-white/[0.08] hover:bg-white/10'
                     }`}
                   >
                     {/* Preview */}
@@ -397,7 +399,7 @@ export function AvatarStudio({
               <input ref={importRef} type="file" accept=".json" onChange={handleImportClick} className="hidden" />
               <button
                 onClick={() => importRef.current?.click()}
-                className="w-full flex items-center justify-center gap-2 p-3 bg-white/5 border border-dashed border-white/10 rounded-xl text-xs font-bold text-white/45 hover:text-white/40 hover:border-white/20 transition-all mt-2"
+                className="lumi-button mt-2 w-full border-dashed p-3 text-xs"
               >
                 <Upload size={12} />
                 {ui('导入社区宠物（拖拽或点击）', 'Import community pet (drag or click)')}
@@ -407,7 +409,7 @@ export function AvatarStudio({
             <div className="space-y-4">
               <p className="text-[12px] font-bold uppercase tracking-wider text-white/45">{ui('AI 形象生成', 'AI Avatar Generation')}</p>
               <div className="space-y-3">
-                <div className="flex items-center gap-2 p-2 bg-white/5 rounded-xl">
+                <div className="lumi-panel flex items-center gap-2 p-2">
                   <button
                     onClick={() => setAiMode(true)}
                     className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all ${aiMode ? 'bg-fuchsia-500/20 text-fuchsia-400' : 'text-white/45 hover:text-white/40'}`}
@@ -425,14 +427,14 @@ export function AvatarStudio({
                   value={genPrompt}
                   onChange={e => setGenPrompt(e.target.value)}
                   placeholder={ui('描述你想要的桌面宠物，例如：一只橙色的小狐狸，有蓬松的大尾巴和白肚皮，可爱机灵...', 'Describe the desktop pet you want, e.g. an orange fox with a fluffy tail, white belly, and playful personality...')}
-                  className="w-full h-32 bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-white/70 placeholder:text-white/40 focus:outline-none focus:border-fuchsia-500/20 resize-none"
+                  className="lumi-field h-32 w-full resize-none text-xs focus:border-fuchsia-500/20"
                 />
                 <motion.button
                   whileHover={{ scale: 1.01 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleGenerate}
                   disabled={!genPrompt.trim() || generating}
-                  className="w-full flex flex-col items-center gap-2 px-4 py-3 bg-fuchsia-500/15 border border-fuchsia-500/25 rounded-xl text-xs font-bold text-fuchsia-400 hover:bg-fuchsia-500/25 disabled:opacity-30 transition-all"
+                   className="lumi-button-primary w-full flex-col border-fuchsia-500/25 bg-fuchsia-500/15 px-4 py-3 text-xs text-fuchsia-300 hover:bg-fuchsia-500/25"
                 >
                   {generating ? (
                     <span className="flex items-center justify-center gap-2">
@@ -454,7 +456,7 @@ export function AvatarStudio({
                   </div>
                 )}
               </div>
-              <div className="p-3 bg-fuchsia-500/5 border border-fuchsia-500/10 rounded-xl text-[12px] text-fuchsia-300/50 leading-relaxed">
+              <div className="lumi-panel border-fuchsia-500/10 bg-fuchsia-500/5 p-3 text-[12px] leading-relaxed text-fuchsia-300/50">
                 <p><Sparkles size={10} className="inline mr-1" />{ui('AI 增强会理解你的描述，自动匹配物种、配色、花纹、眼睛形状等', 'AI Enhanced understands your prompt and matches species, palette, pattern, eye shape, and more.')}</p>
                 <p className="mt-1 text-fuchsia-300/30">{ui('支持中英文描述 · 生成约需 15-30 秒', 'Chinese and English prompts supported · about 15-30 seconds')}</p>
               </div>
@@ -475,7 +477,7 @@ export function AvatarStudio({
           {/* Large Preview */}
           <div className="relative">
             <motion.div
-              className="w-64 h-72 rounded-[2.5rem] bg-white/[0.02] border border-white/5 flex items-center justify-center overflow-hidden shadow-[0_0_80px_rgba(0,200,200,0.06)]"
+              className="lumi-surface flex h-72 w-64 items-center justify-center overflow-hidden rounded-3xl bg-white/[0.02] shadow-[0_0_80px_rgba(0,200,200,0.06)]"
               whileHover={{ borderColor: 'rgba(0,200,200,0.2)', boxShadow: '0 0 100px rgba(0,200,200,0.1)' }}
             >
               <AnimatePresence mode="wait">
@@ -529,7 +531,7 @@ export function AvatarStudio({
                 className={`px-3 py-1.5 rounded-lg text-[12px] font-bold uppercase transition-all ${
                   previewAnim === anim
                     ? 'bg-cyan-500/20 border border-cyan-500/30 text-cyan-400'
-                    : 'bg-white/5 border border-white/5 text-white/55 hover:bg-white/10'
+                    : 'bg-white/[0.04] border border-white/[0.08] text-white/55 hover:bg-white/10'
                 }`}
               >
                 {ANIMATION_LABELS[anim] ? pickText(uiLang, ANIMATION_LABELS[anim]) : anim}
@@ -537,7 +539,7 @@ export function AvatarStudio({
             ))}
             <button
               onClick={() => setAnimKey(k => k + 1)}
-              className="p-1.5 rounded-lg bg-white/5 border border-white/5 text-white/55 hover:bg-white/10 transition-all"
+              className="lumi-icon-button h-8 w-8 rounded-lg"
             >
               <RotateCcw size={12} />
             </button>
@@ -548,7 +550,7 @@ export function AvatarStudio({
             {onResetToSphere && selectedPetId && (
               <button
                 onClick={() => onResetToSphere()}
-                className="flex items-center gap-2 px-5 py-3 bg-white/5 border border-white/10 rounded-2xl text-sm font-bold text-white/55 hover:text-white/60 hover:bg-white/10 transition-all"
+                className="lumi-button h-11 rounded-2xl px-5 text-sm"
               >
                 {ui('还原默认圆球', 'Restore default sphere')}
               </button>
@@ -557,7 +559,7 @@ export function AvatarStudio({
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
               onClick={() => handleSelectPet(activePet)}
-              className="flex items-center gap-2 px-8 py-3 bg-cyan-500/15 border border-cyan-500/25 rounded-2xl text-sm font-bold text-cyan-400 hover:bg-cyan-500/25 transition-all shadow-[0_0_30px_rgba(0,200,200,0.1)]"
+              className="lumi-button-primary rounded-2xl border-cyan-500/25 bg-cyan-500/15 px-8 py-3 text-sm text-cyan-300 hover:bg-cyan-500/25"
             >
               <Sparkles size={16} />
               {ui('设为桌面形象', 'Set as Desktop Avatar')}
@@ -606,10 +608,10 @@ function ColorPanel({
           <button
             key={slot.key}
             onClick={() => onSelectSlot(slot.key)}
-            className={`flex items-center gap-2 p-2 rounded-xl border transition-all ${
+            className={`flex items-center gap-2 rounded-xl border p-2 transition-colors ${
               activeSlot === slot.key
                 ? 'bg-amber-500/10 border-amber-500/30'
-                : 'bg-white/5 border-white/5 hover:bg-white/10'
+                : 'bg-white/[0.04] border-white/[0.08] hover:bg-white/10'
             }`}
           >
             <div
@@ -652,7 +654,7 @@ function ColorPanel({
           onChangeColor('belly', defaults.belly);
           onChangeColor('eye', defaults.eye);
         }}
-        className="w-full p-2 bg-white/5 border border-white/5 rounded-xl text-[12px] text-white/45 hover:text-white/40 transition-all"
+        className="lumi-button w-full p-2 text-[12px]"
       >
         {lang === 'zh' ? '恢复默认' : 'Reset to Default'}
       </button>
@@ -722,10 +724,10 @@ function WardrobePanel({
                   <button
                     key={acc.id}
                     onClick={() => toggle(acc.id)}
-                    className={`p-2 rounded-xl border text-left transition-all ${
+                    className={`rounded-xl border p-2 text-left transition-colors ${
                       active
                         ? 'bg-emerald-500/10 border-emerald-500/30'
-                        : 'bg-white/5 border-white/5 hover:bg-white/10'
+                        : 'bg-white/[0.04] border-white/[0.08] hover:bg-white/10'
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -748,7 +750,7 @@ function WardrobePanel({
       {equipped.length > 0 && (
         <button
           onClick={() => onChange([])}
-          className="w-full p-2 bg-white/5 border border-white/5 rounded-xl text-[12px] text-white/45 hover:text-white/40 hover:bg-white/10 transition-all"
+          className="lumi-button w-full p-2 text-[12px]"
         >
           {lang === 'zh' ? '卸下全部' : 'Remove All'}
         </button>

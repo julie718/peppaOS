@@ -232,7 +232,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center bg-zinc-950/60">
+      <div className="lumi-panel flex h-full items-center justify-center bg-zinc-950/60">
         <Loader2 size={24} className="animate-spin text-white/55" />
       </div>
     );
@@ -252,11 +252,13 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
   const cx = 150, cy = 150, r = 130;
 
   return (
-    <div className="h-full overflow-auto bg-zinc-950/80">
+    <div className="lumi-surface h-full overflow-hidden rounded-2xl bg-zinc-950/75">
       {/* Header */}
-      <div className="flex items-center justify-between p-5 border-b border-white/5">
+      <div className="flex items-center justify-between border-b border-white/[0.08] p-5">
         <div className="flex items-center gap-3">
-          <GitBranch size={18} className="text-fuchsia-400" />
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-fuchsia-300/15 bg-fuchsia-400/10 text-fuchsia-300">
+            <GitBranch size={18} />
+          </span>
           <div>
             <h2 className="text-sm font-black text-white/90 uppercase tracking-wider">{t.personalityEvolution || 'Personality Evolution'}</h2>
             {data && (
@@ -270,10 +272,10 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
           <button
             onClick={toggleFreeze}
             disabled={freezing}
-            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-black uppercase transition-all border ${
+            className={`lumi-button h-9 px-3 text-xs ${
               data?.evolutionFrozenAt
-                ? 'bg-amber-500/20 border-amber-500/30 text-amber-300'
-                : 'bg-white/5 border-white/10 text-white/55 hover:bg-white/10'
+                ? 'border-amber-500/30 bg-amber-500/20 text-amber-300'
+                : ''
             }`}
           >
             {freezing ? <Loader2 size={12} className="animate-spin" /> : null}
@@ -282,7 +284,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
           <button
             onClick={triggerEvolution}
             disabled={evolving || Boolean(data?.evolutionFrozenAt)}
-            className="flex items-center gap-2 px-4 py-2 bg-fuchsia-500/20 border border-fuchsia-500/30 rounded-xl text-xs font-black uppercase text-fuchsia-400 hover:bg-fuchsia-500/30 disabled:opacity-30 transition-all"
+            className="lumi-button-primary h-9 border-fuchsia-500/30 bg-fuchsia-500/20 px-4 text-xs text-fuchsia-300 hover:bg-fuchsia-500/30"
           >
             {evolving ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
             {t.evolve || 'Evolve'}
@@ -291,14 +293,14 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
       </div>
 
       {!hasHistory ? (
-        <div className="flex flex-col items-center justify-center h-64 gap-4 text-white/45">
+        <div className="flex h-64 flex-col items-center justify-center gap-4 text-white/45">
           <TrendingUp size={48} />
           <p className="text-xs">{t.noEvolutionHistory || "No evolution history yet. Lumi's personality grows with you."}</p>
         </div>
       ) : (
         <div className="flex h-[calc(100%-65px)]">
           {/* Left: Radar Chart */}
-          <div className="w-[420px] flex-shrink-0 p-6 border-r border-white/5 flex flex-col items-center">
+          <div className="flex w-[420px] flex-shrink-0 flex-col items-center border-r border-white/[0.08] p-6">
             <svg width={340} height={340} viewBox="0 0 300 300">
               {/* Background rings */}
               {[0.25, 0.5, 0.75, 1].map(scale => (
@@ -388,17 +390,17 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
           {/* Right: Timeline + Mutations */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Timeline */}
-            <div className="p-4 border-b border-white/5 overflow-x-auto">
+            <div className="custom-scrollbar overflow-x-auto border-b border-white/[0.08] p-4">
               <div className="flex gap-2 items-center min-w-max">
                 <Clock size={12} className="text-white/45 flex-shrink-0" />
                 {evolutionSteps.map((step, idx) => (
                   <button
                     key={step.version}
                     onClick={() => setSelectedStep(idx)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-mono transition-all flex-shrink-0 ${
+                    className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 font-mono text-xs transition-colors ${
                       idx === selectedStep
-                        ? 'bg-fuchsia-500/20 border border-fuchsia-500/30 text-fuchsia-300'
-                        : 'bg-white/5 border border-white/5 text-white/40 hover:bg-white/10'
+                        ? 'border-fuchsia-500/30 bg-fuchsia-500/20 text-fuchsia-300'
+                        : 'border-white/[0.06] bg-white/[0.04] text-white/40 hover:bg-white/[0.08]'
                     }`}
                   >
                     <span className="font-black">v{step.version}</span>
@@ -414,12 +416,12 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
             </div>
 
             {/* Mutation details */}
-            <div className="flex-1 overflow-auto p-5 space-y-4">
+            <div className="custom-scrollbar flex-1 space-y-4 overflow-auto p-5">
               {selected ? (
                 <>
                   {/* Owner Profile (if available) */}
                   {selected.ownerProfile && (
-                    <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-2">
+                    <div className="lumi-panel space-y-2 p-4">
                       <h3 className="text-xs font-black text-white/55 uppercase tracking-wider flex items-center gap-2">
                         <Target size={12} /> {t.ownerProfile || 'Owner Profile'}
                       </h3>
@@ -452,7 +454,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
                   )}
 
                   {selectedAudit && (
-                    <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-3">
+                    <div className="lumi-panel space-y-3 p-4">
                       <div className="flex items-center justify-between gap-3">
                         <h3 className="text-xs font-black text-white/55 uppercase tracking-wider">Evolution Audit</h3>
                         <span className={`text-[11px] font-mono uppercase px-2 py-1 rounded-full ${
@@ -475,7 +477,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
                       <button
                         onClick={revertSelected}
                         disabled={!selectedAudit.reversible || selectedAudit.status === 'reverted' || reverting}
-                        className="px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs font-black uppercase disabled:opacity-30"
+                        className="lumi-button h-9 border-red-500/20 bg-red-500/10 px-3 text-xs text-red-300 hover:bg-red-500/20"
                       >
                         {reverting ? 'Reverting...' : 'Revert This Step'}
                       </button>
@@ -492,7 +494,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
                       initial={{ opacity: 0, x: 10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: mi * 0.08 }}
-                      className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-2"
+                      className="lumi-panel space-y-2 p-4"
                     >
                       <div className="flex items-center gap-2">
                         <code className="text-[12px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">
@@ -521,7 +523,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
 
       {/* Config bar */}
       {data && (
-        <div className="border-t border-white/5 px-5 py-3 flex items-center gap-6 text-[12px] text-white/45 font-mono">
+        <div className="flex items-center gap-6 border-t border-white/[0.08] px-5 py-3 font-mono text-[12px] text-white/45">
           <span>{t.plasticity || 'Plasticity:'} <span className="text-white/40">{data.evolutionConfig.plasticity.toFixed(1)}</span></span>
           <span>{t.cooldown || 'Cooldown:'} <span className="text-white/40">{(data.evolutionConfig.cooldownMs / 86400000).toFixed(0)}d</span></span>
           <span>{t.maxMutations || 'Max Mutations:'} <span className="text-white/40">{data.evolutionConfig.maxMutationsPerStep}</span></span>
