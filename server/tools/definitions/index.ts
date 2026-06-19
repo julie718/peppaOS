@@ -31,6 +31,8 @@ import { registerAutonomyTools } from './autonomy_tools';
 import { registerCapabilityResearchTools } from './capability_research_tools';
 import { registerSleepTools } from './sleep_tools';
 import { registerAdapterTools } from './adapter_tools';
+import { registerSelfExtensionTools } from './self_extension_tools';
+import { registerUsageTools } from './usage_tools';
 
 export function registerAllTools(
   registry: ToolRegistry,
@@ -74,6 +76,8 @@ export function registerAllTools(
   registerCapabilityResearchTools(registry);
   registerSleepTools(registry);
   registerAdapterTools(registry);
+  registerSelfExtensionTools(registry);
+  registerUsageTools(registry);
   if (llmGetters) {
     setSkillLLMGetters(llmGetters);
   }

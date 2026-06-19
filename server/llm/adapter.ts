@@ -40,6 +40,8 @@ const TOOL_RESULT_LIMITS: Record<string, number> = {
   ocr_image_file: 6_000,
   floorplan_extract_geometry: 8_000,
   capability_research: 8_000,
+  self_extension_plan: 8_000,
+  usage_get_summary: 6_000,
   adapter_registry_list: 8_000,
   adapter_health_check: 6_000,
   external_app_list_adapters: 6_000,
