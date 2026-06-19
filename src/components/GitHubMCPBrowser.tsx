@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
 import { Search, Github, Star, ExternalLink, Download, Loader2, Package, Globe } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface MCPSearchResult {
   id: number | string;
@@ -48,24 +49,35 @@ export function GitHubMCPBrowser({ t, embedded = false }: { t?: any; embedded?: 
   const handleInstall = async (repo: MCPSearchResult) => {
     setInstalling(String(repo.name));
     try {
-      const config = {
-        type: 'stdio',
-        command: 'npx',
-        args: ['-y', String(repo.name)],
-        env: {} as Record<string, string>,
-      };
-      const res = await fetch('/api/mcp', {
+      const skillName = source === 'github'
+        ? String(repo.name).split('/').pop() || String(repo.name)
+        : String(repo.name);
+      const body = source === 'github'
+        ? {
+            skillId: `github-${repo.id}`,
+            skillName,
+            installSource: 'github',
+            repoUrl: repo.url,
+          }
+        : {
+            skillId: `npm-${repo.name}`,
+            skillName,
+            installSource: 'npm',
+            npmPackage: repo.name,
+          };
+      const res = await fetch('/api/marketplace/skills/acquire', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          servers: { [String(repo.name).split('/').pop() || repo.name]: config },
-        }),
+        credentials: 'include',
+        body: JSON.stringify(body),
       });
-      if (res.ok) {
-        alert(t?.mcpInstallSuccess || 'Installed! Restart MCP server to use new tools.');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) {
+        throw new Error(data.error || data.message || 'Install failed');
       }
-    } catch {
-      // ignore
+      toast.success(data.message || t?.mcpInstallSuccess || 'Installed and connected.');
+    } catch (err: any) {
+      toast.error(err?.message || t?.mcpInstallFailed || 'This package could not be installed as a runnable MCP skill.');
     } finally {
       setInstalling(null);
     }
@@ -104,6 +116,9 @@ export function GitHubMCPBrowser({ t, embedded = false }: { t?: any; embedded?: 
       </div>
 
       <div className="flex-1 p-6 space-y-4">
+        <div className="rounded-xl border border-amber-400/15 bg-amber-500/10 px-4 py-3 text-xs leading-relaxed text-amber-100/75">
+          {t?.mcpInstallNotice || 'Only MCP-compatible packages can be installed. Lumi will clone/install/start the package first; if it cannot run as an MCP server, it will fail with a clear message instead of pretending to be ready.'}
+        </div>
         {/* Source tabs */}
         <div className="flex gap-1 p-1 rounded-xl bg-white/5 border border-white/5">
           <button

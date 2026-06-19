@@ -66,7 +66,7 @@ function discoverBundledSkills(): MarketplaceSkill[] {
     try {
       const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
       const lumi = pkg.lumi || {};
-      const installed = fs.existsSync(path.join(SKILLS_DIR, entry.name));
+      const installed = isInstalledSkill(entry.name, lumi.displayName);
       skills.push({
         id: `skill-${entry.name}`,
         name: lumi.displayName || toDisplayName(entry.name),
@@ -97,6 +97,22 @@ function discoverBundledSkills(): MarketplaceSkill[] {
 /** Community skill registry stored in DB */
 const COMMUNITY_REGISTRY: MarketplaceSkill[] = [];
 
+function toSkillSlug(value?: string): string {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/^skill-/, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function isInstalledSkill(dirName: string, displayName?: string): boolean {
+  const candidates = new Set([dirName, toSkillSlug(displayName)]);
+  for (const candidate of candidates) {
+    if (candidate && fs.existsSync(path.join(SKILLS_DIR, candidate))) return true;
+  }
+  return false;
+}
+
 /** Get community registry from DB */
 function getCommunityRegistry(): MarketplaceSkill[] {
   const db = readDB();
@@ -105,7 +121,7 @@ function getCommunityRegistry(): MarketplaceSkill[] {
     ...s,
     installSource: 'community' as const,
     installPath: s.installPath,
-    installed: fs.existsSync(path.join(SKILLS_DIR, s.id.replace('skill-', ''))),
+    installed: isInstalledSkill(s.id.replace('skill-', ''), s.name),
   }));
 }
 

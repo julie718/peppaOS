@@ -8,6 +8,7 @@ import { translateSkills } from "../skills/translations";
 import { createAgentForSkill } from "../agents/skill_agent";
 import { makeLLMCall, type NormalizedMessage } from "../llm/providers";
 import { getUserPreferredLLMConfig } from "../llm/user_preferences";
+import { getDataPath } from "../config/data_path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -170,8 +171,12 @@ export function mountMarketplaceRoutes(
       // Community skills: copy from bundled dir too (they are implemented there now)
       if (installSource === 'community') {
         const skillDirName = skillId.replace('skill-', '');
-        const bundledPath = path.join(__dirname, '..', 'skills', 'bundled', skillDirName);
         const comSkill = getSkillById(skillId);
+        const bundledPath = path.join(__dirname, '..', 'skills', 'bundled', skillDirName);
+        const communityPath = comSkill?.installPath && fs.existsSync(comSkill.installPath)
+          ? comSkill.installPath
+          : '';
+        const sourcePath = communityPath || (fs.existsSync(bundledPath) ? bundledPath : '');
 
         // External-runtime community skill — skip MCP, create external agent
         if (comSkill?.runtime === 'external') {
@@ -187,10 +192,10 @@ export function mountMarketplaceRoutes(
           return res.json({ success: true, name: skillName, message: `External agent "${skillName}" connected!` });
         }
 
-        if (fs.existsSync(bundledPath)) {
+        if (sourcePath) {
           io.emit('skill:installing', { skillId, name: skillName, stage: 'copying' });
           try {
-            mcpManager.installSkill(skillDirName, bundledPath);
+            mcpManager.installSkill(skillDirName, sourcePath);
             io.emit('skill:installing', { skillId, name: skillName, stage: 'connecting' });
             await mcpManager.restartServer(skillDirName);
           } catch (err: any) {
@@ -284,7 +289,18 @@ export function mountMarketplaceRoutes(
     try {
       const { name, description, author, category, icon, installPath, version, toolCount } = req.body;
       if (!name || !description) return res.status(400).json({ error: 'name and description required' });
-      const skill = publishSkill({ name, description, author: author || 'Community', category: category || 'Other', icon: icon || 'Zap', installPath, version, toolCount });
+      let resolvedInstallPath = installPath;
+      if (!resolvedInstallPath) {
+        const localSkillDir = path.join(SKILLS_DIR, name);
+        if (fs.existsSync(localSkillDir)) {
+          const safeName = String(name).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') || 'skill';
+          const snapshotDir = getDataPath(path.join('published-skills', safeName));
+          fs.rmSync(snapshotDir, { recursive: true, force: true });
+          fs.cpSync(localSkillDir, snapshotDir, { recursive: true });
+          resolvedInstallPath = snapshotDir;
+        }
+      }
+      const skill = publishSkill({ name, description, author: author || 'Community', category: category || 'Other', icon: icon || 'Zap', installPath: resolvedInstallPath, version, toolCount });
       res.json({ success: true, skill });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
