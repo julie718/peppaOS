@@ -40,6 +40,11 @@ const SKILL_KEYWORD_MAP: Array<{ keywords: RegExp[]; skillId: string; category: 
   { keywords: [/桌面.*自动化|自动.*点击|自动.*操作|maa/i], skillId: 'skill-desktop-automation', category: 'System' },
   { keywords: [/音乐|作曲|写歌|唱歌|旋律|和弦|和声|歌词|乐理|编曲|midi|谱曲|音阶|五声音阶|作词/i], skillId: 'skill-melody', category: 'Creative' },
   { keywords: [/网易云|网易音乐|netease|播放.*歌|搜.*歌|每日推荐|歌单|推荐.*歌曲|听.*歌|什么歌|放.*歌/i], skillId: 'skill-neteasemusic', category: 'Music' },
+  { keywords: [/法律|律师|律所|案件|案号|类案|法条|合同.*审|起诉状|答辩状|委托书|庭审|判决|上诉|执行|legal|casework|court|lawsuit|contract.*review/i], skillId: 'skill-legal-casework', category: 'Legal' },
+  { keywords: [/设计|品牌|logo|海报|视觉|UI|UX|设计系统|design|brand|poster|layout|creative brief|视觉方向/i], skillId: 'skill-design-studio-pack', category: 'Design' },
+  { keywords: [/CAD|cad|DXF|dxf|图纸|平面图|施工图|草图|户型|装修|空间规划|drawing|drafting|floor plan/i], skillId: 'skill-cad-drafting', category: 'Architecture' },
+  { keywords: [/飞书|微信|企业微信|远程访问|远程消息|绑定码|回消息|消息回复|feishu|wechat|wecom|lark/i], skillId: 'skill-messaging-ops', category: 'Messaging' },
+  { keywords: [/财务|报销|发票|现金流|收支|预算|应收|应付|费用|利润|营收|finance|expense|invoice|cashflow|reimbursement/i], skillId: 'skill-finance-office', category: 'Finance' },
 ];
 
 function getInstalledNames(): Set<string> {
