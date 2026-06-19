@@ -4,6 +4,7 @@
 import { Server as SocketIOServer } from 'socket.io';
 import { queryMemories, getDueReminders, fireReminder, runBehavioralAnalysis, decayMemories, dynamicDecayMemories, promoteMemories, getUnconsolidatedEpisodic, autoMarkCrossAgentShare } from './memory';
 import { consolidateEpisodic, consolidateNarrative, ConsolidationContext } from './memory/consolidator';
+import { runDreamCycle } from './memory/dream';
 import { buildTree, ensureBranch, moveNode } from './memory/tree';
 import { makeLLMCall } from './llm/providers';
 import { getWeatherBrief, getTimeGreeting } from './services/weather';
@@ -484,6 +485,48 @@ export function registerScheduledTasks(
       return messages.length > 0
         ? `叙事记忆更新 — ${messages.join('\n')}`
         : null;
+    },
+  });
+
+  // Sleep / dream cycle — quiet memory maintenance during night or idle rest.
+  scheduler.register({
+    id: 'sleep_dream_cycle',
+    cron: '17 3 * * *',
+    quiet: true,
+    lastRun: null,
+    handler: async () => {
+      const userIds = getAllUserIds();
+      const messages: string[] = [];
+      const getters: LLMGetters = {
+        getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
+        getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
+      };
+
+      for (const userId of userIds) {
+        try {
+          const ctx: ConsolidationContext = getUserPreferredLLMConfig(userId, { maxTokens: 900 });
+          const report = await runDreamCycle(
+            ctx,
+            {
+              reason: 'scheduled_night_rest',
+              cooldownHours: 6,
+              windowHours: 48,
+              minRecentMemories: 3,
+            },
+            getters,
+          );
+          if (report.status === 'dreamed') {
+            messages.push(`[${userId}] ${report.dreamTitle || '梦境整理'}: ${String(report.dreamSummary || '').slice(0, 120)}`);
+            if (scheduler.io) {
+              scheduler.io.to(userId).emit('lumi:sleep_cycle', report);
+            }
+          }
+        } catch (err: any) {
+          console.warn(`[SleepDreamCycle] Failed for ${userId}:`, err.message);
+        }
+      }
+
+      return messages.length > 0 ? `Lumi finished dreaming.\n${messages.join('\n')}` : null;
     },
   });
 

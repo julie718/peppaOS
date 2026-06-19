@@ -10,3 +10,5 @@ export { buildNarrativeChain } from './narrative';
 export type { NarrativeChainResult } from './narrative';
 export { evaluateMemoryFirewall, getMemoryFirewallPolicy } from './firewall';
 export type { MemoryFirewallDecision, MemoryFirewallPolicy } from './firewall';
+export { runDreamCycle, getSleepCycleState } from './dream';
+export type { DreamCycleReport, DreamCycleOptions, SleepCycleState } from './dream';

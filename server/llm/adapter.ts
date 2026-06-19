@@ -40,6 +40,8 @@ const TOOL_RESULT_LIMITS: Record<string, number> = {
   ocr_image_file: 6_000,
   floorplan_extract_geometry: 8_000,
   capability_research: 8_000,
+  lumi_sleep_cycle: 6_000,
+  lumi_sleep_status: 3_000,
   ocr_screen: 4_000,
   ocr_region: 4_000,
 };

@@ -101,6 +101,15 @@ export function reportIdleState(userId: string, idleSeconds: number) {
   userLastIdle.set(userId, { idleSeconds, timestamp: Date.now() });
 }
 
+export function getRecentIdleState(userId: string): { idleSeconds: number; timestamp: number; ageSeconds: number } | null {
+  const idle = userLastIdle.get(userId);
+  if (!idle) return null;
+  return {
+    ...idle,
+    ageSeconds: Math.round((Date.now() - idle.timestamp) / 1000),
+  };
+}
+
 /** Check if autonomous work is currently allowed for this user */
 export function isAutonomousWorkAllowed(userId?: string): { allowed: boolean; reason?: string } {
   const cfg = config;
