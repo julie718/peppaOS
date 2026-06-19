@@ -30,17 +30,17 @@ export const EXTERNAL_APP_ADAPTERS: ExternalAppAdapter[] = [
     id: 'cad',
     label: 'CAD drafting',
     status: 'draft_only',
-    actions: ['cad_generate_dxf'],
+    actions: ['floorplan_extract_geometry', 'ocr_image_file', 'cad_generate_dxf'],
     safety: 'Lumi generates DXF draft files first. Opening CAD or modifying production drawings needs confirmation.',
-    notes: 'Good for simple outlines, plates, holes, layout sketches, and handoff drafts.',
+    notes: 'Good for image-to-CAD extraction, structured floor-plan drafts, simple outlines, layout sketches, and handoff files. Exact production drawings still need confirmed scale and review.',
   },
   {
     id: 'ai_apps',
     label: 'Other local AI agents',
     status: 'requires_setup',
-    actions: ['external_app_list_adapters', 'computer_use'],
+    actions: ['external_app_list_adapters', 'capability_research', 'computer_use'],
     safety: 'Use explicit tool or MCP integrations when available. Full UI control needs desktop automation confirmation.',
-    notes: 'Lumi can coordinate other AI tools through browser, files, clipboard, MCP, or confirmed computer-use sessions.',
+    notes: 'Lumi can research integration candidates, then coordinate other AI tools through browser, files, clipboard, MCP, or confirmed computer-use sessions.',
   },
 ];
 

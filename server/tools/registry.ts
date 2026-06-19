@@ -152,8 +152,11 @@ export class ToolRegistry {
       console.log(`[Tool] Executing confirmation-level tool: ${name} (${constitutional.reason})`);
     }
 
-    // Wrap with 30s timeout to prevent hanging (computer_use gets 180s — vision loop)
-    const timeoutMs = name === 'computer_use' ? 180_000 : 30_000;
+    // Wrap with timeouts to prevent hanging. Vision/CAD extraction needs more room than simple tools.
+    const timeoutMs =
+      name === 'computer_use' ? 180_000 :
+      /^(ocr_|floorplan_extract_geometry|cad_generate_dxf)$/i.test(name) ? 90_000 :
+      30_000;
     let timedOut = false;
     const executionContext = context
       ? {

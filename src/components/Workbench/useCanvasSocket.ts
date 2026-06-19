@@ -25,19 +25,19 @@ function basename(value: string): string {
 function buildCanvasContext(cards: CanvasCard[]): string {
   const artifacts = cards
     .filter(card => card.type === 'artifact' && (card.metadata?.content || card.metadata?.preview || card.metadata?.filepath || card.detail))
-    .slice(-6);
+    .slice(-4);
   if (artifacts.length === 0) return '';
 
-  let budget = 7000;
+  let budget = 2600;
   const sections: string[] = [];
   for (const card of artifacts) {
     if (budget <= 0) break;
     const title = String(card.metadata?.fileName || card.text || 'Canvas artifact');
     const path = String(card.metadata?.filepath || card.metadata?.path || '');
-    const content = String(card.metadata?.content || card.metadata?.preview || card.detail || '').trim();
-    const perArtifactLimit = Math.min(1200, budget);
+    const content = String(card.metadata?.preview || card.detail || card.metadata?.content || '').trim();
+    const perArtifactLimit = Math.min(520, budget);
     const body = content.length > perArtifactLimit
-      ? `${content.slice(0, perArtifactLimit)}\n[Canvas artifact preview truncated: ${content.length} characters total. Use read_file/extract tools on the path for full content.]`
+      ? `${content.slice(0, perArtifactLimit)}\n[Canvas artifact preview compacted: ${content.length} characters total. Use the path above and read/extract tools for full content.]`
       : content;
     budget -= body.length;
     sections.push([
@@ -47,6 +47,19 @@ function buildCanvasContext(cards: CanvasCard[]): string {
     ].filter(Boolean).join('\n'));
   }
   return sections.join('\n\n');
+}
+
+function appendCanvasContext(text: string, cards: CanvasCard[]): string {
+  const canvasContext = buildCanvasContext(cards);
+  if (!canvasContext) return text.trim();
+  return [
+    text.trim(),
+    '',
+    '## Canvas Context',
+    'Compact references from visible canvas artifacts. Use file paths and extraction tools for full content instead of relying on this preview.',
+    '',
+    canvasContext,
+  ].join('\n');
 }
 
 function tryParseJson(value: string): any | null {
@@ -141,7 +154,7 @@ function extractArtifactsFromTool(toolName: string, toolArgs: any, result?: stri
     }));
   });
 
-  const content = parsed?.analysis || parsed?.content || parsed?.text || parsed?.summary || parsed?.output;
+  const content = parsed?.analysis || parsed?.content || parsed?.text || parsed?.summary || parsed?.output || (parsed?.geometry ? JSON.stringify(parsed.geometry, null, 2) : '');
   const shouldShowContent = typeof content === 'string' && content.trim().length > 0;
   if (shouldShowContent && artifacts.length < 3) {
     artifacts.push({
@@ -163,7 +176,7 @@ function extractArtifactsFromTool(toolName: string, toolArgs: any, result?: stri
     });
   }
 
-  if (artifacts.length === 0 && /^(ocr_image_file|extract_document_text|cad_generate_dxf|create_ppt|generate_image|write_file|desktop_path_info)$/i.test(toolName)) {
+  if (artifacts.length === 0 && /^(ocr_image_file|floorplan_extract_geometry|extract_document_text|cad_generate_dxf|create_ppt|generate_image|write_file|desktop_path_info)$/i.test(toolName)) {
     artifacts.push({
       id: `artifact_${now}_result_${Math.random().toString(36).slice(2, 6)}`,
       type: 'artifact',
@@ -590,10 +603,7 @@ export function useCanvasSocket({ socket, cards, edges, domain = 'personal', org
 
     armRequestTimeout(requestId, groupId);
 
-    const canvasContext = buildCanvasContext(cardsRef.current);
-    const outgoingText = canvasContext
-      ? `${text.trim()}\n\n## Canvas Context\nThe following files/results are already on this canvas. Use them as task context when relevant.\n\n${canvasContext}`
-      : text.trim();
+    const outgoingText = appendCanvasContext(text, cardsRef.current);
 
     socket?.emit('agent:chat', {
       text: outgoingText,
@@ -659,10 +669,7 @@ export function useCanvasSocket({ socket, cards, edges, domain = 'personal', org
         return;
       }
       armRequestTimeout(requestId, card.groupId);
-      const canvasContext = buildCanvasContext(cardsRef.current);
-      const outgoingText = canvasContext
-        ? `${userRequest.text}\n\n## Canvas Context\nThe following files/results are already on this canvas. Use them as task context when relevant.\n\n${canvasContext}`
-        : userRequest.text;
+      const outgoingText = appendCanvasContext(userRequest.text, cardsRef.current);
       socket?.emit('agent:chat', {
         text: outgoingText,
         history: [],

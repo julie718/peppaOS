@@ -15,9 +15,10 @@ import { canOutputHolographic, textToHolographicOutput } from "../output/hologra
 import { getOrCreateActiveConversation } from "../conversation/manager";
 import { processInput, handleLLMFailure, extractSentiment, CognitiveContext, CognitiveResult } from "../cognition";
 import { classifyComplexity, decomposeTask, matchWorkers, executeWorkflow, aggregateWithLLM, recordWorkflowPattern, shouldDistillSkill, buildSkillDescription } from "../agents/orchestrator";
-import { getMessagesByTokenBudget, addMessage, extractTopics, trackTopic, getTopicContext } from "../conversation/manager";
+import { getMessagesByTokenBudget, addMessage, extractTopics, trackTopic, getTopicContext, getConversationSummary } from "../conversation/manager";
 import { loadHIMState, saveHIMState, updateEmotionalStateWithHIM } from "../personality/state";
 import { shouldExposeAgentWork } from "../cognition/tool_intent";
+import { resolveWorkSurfaceRoute } from "../cognition/work_surface";
 import { formatClientSelfPrompt } from "../client/self_model";
 
 export function registerTaskHandler(
@@ -89,10 +90,18 @@ export function registerTaskHandler(
     let activeModel = (userLLMPrefs.models || {})[activeProvider] || DEFAULT_MODELS[activeProvider] || 'deepseek-chat';
 
     // ── Load persisted conversation history (survives page reload) ──
+    const workSurfaceRoute = resolveWorkSurfaceRoute(data.text);
     let effectiveSystemPrompt = systemInstruction + '\n\n' + formatClientSelfPrompt(uid);
+    if (workSurfaceRoute.promptOverlay) {
+      effectiveSystemPrompt += '\n\n' + workSurfaceRoute.promptOverlay;
+    }
     const convForHistory = getOrCreateActiveConversation(uid);
     const voiceHistory: NormalizedMessage[] = [];
     if (convForHistory) {
+      const summaryContext = getConversationSummary(convForHistory.id);
+      if (summaryContext) {
+        effectiveSystemPrompt += `\n\n## Conversation Context\n${summaryContext}`;
+      }
       const recentMsgs = getMessagesByTokenBudget(convForHistory.id);
       for (const m of recentMsgs) {
         if (m.message) voiceHistory.push({ role: 'user', content: m.message });
@@ -191,7 +200,7 @@ export function registerTaskHandler(
       let orchestratedText = '';
       if (cognition.intent.category === 'command' || cognition.intent.category === 'code' || cognition.intent.category === 'question') {
         const complexity = classifyComplexity(data.text, { userId: uid, personalityId: data.personalityId || 'lumi' });
-        if (complexity === 'complex' || complexity === 'moderate') {
+        if (!workSurfaceRoute.forbidComputerUse && (complexity === 'complex' || complexity === 'moderate')) {
           const db = readDB();
           const availableAgents = (db.agents || []).filter((a: any) => a.status !== 'offline');
           if (availableAgents.length >= 1) {
@@ -309,7 +318,7 @@ export function registerTaskHandler(
             socket.emit("agent:chunk", { text: chunk, agentName: personality.name });
           }
         },
-        { userId: uid, desktopRelay, requestConfirmation, toolPolicy: personality.toolPolicy, isCancelled: () => cancelled, llmGetters },
+        { userId: uid, desktopRelay, requestConfirmation, toolPolicy: workSurfaceRoute.toolPolicy || personality.toolPolicy, isCancelled: () => cancelled, llmGetters },
         llmGetters.getOllama,
         llmGetters.getLmStudio,
         llmGetters.getArk,

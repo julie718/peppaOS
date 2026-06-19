@@ -6,6 +6,7 @@ import { Socket } from "socket.io";
 import { readDB, writeDB } from "../../db_layer";
 import { logger } from "../../logger";
 import { NormalizedMessage, makeLLMCallStreaming, makeLLMCall } from "../llm/providers";
+import { compactToolResultForModel } from "../llm/adapter";
 import { toolRegistry } from "../tools/registry";
 import { personalityRegistry } from "../personality";
 import { loadEmotionalState, updateEmotionalState, saveEmotionalState, loadHIMState, saveHIMState } from "../personality/state";
@@ -13,7 +14,7 @@ import { himTick } from "../personality/him";
 import { createStreamingSession, getActiveSTTProvider } from "../stt/adapter";
 import { synthesizeSpeech, getActiveProvider as getTTSProvider, resolveEmotionVoice } from "../tts/adapter";
 import { recordLatency } from "../monitor/latency_store";
-import { getOrCreateActiveConversation, addMessage, getMessagesByTokenBudget, extractTopics, trackTopic, getTopicContext } from "../conversation/manager";
+import { getOrCreateActiveConversation, addMessage, getMessagesByTokenBudget, extractTopics, trackTopic, getTopicContext, getConversationSummary } from "../conversation/manager";
 import { processInput, CognitiveContext, extractSentiment } from "../cognition";
 import { runOrchestratedTask, classifyComplexity } from "../agents/orchestrator";
 import { queryMemories, addMemory } from "../memory/store";
@@ -22,6 +23,7 @@ import { recordTokenUsage } from "../llm/token_tracker";
 import { getUserPreferredLLMConfig } from "../llm/user_preferences";
 import { getOperationModeConfig, parseStoredOperationMode, OperationMode } from "../cognition/operation_modes";
 import { hasClientActionOnlyIntent, hasExplicitToolIntent, isDiagnosticOrRepairRequest, shouldAllowToolUseForTurn, shouldExposeAgentWork } from "../cognition/tool_intent";
+import { resolveWorkSurfaceRoute } from "../cognition/work_surface";
 import { updatePresence } from "../biometrics/presence";
 import { getVoiceprints } from "../biometrics/store";
 import { formatClientSelfPrompt } from "../client/self_model";
@@ -380,12 +382,14 @@ async function processVoiceInput(
     '- Keep spoken responses concise; the user is listening, not reading.',
   ].join('\n');
 
-  // Inject topic context if available
+  // Inject compact conversation continuity if available
   let topicContext = '';
   try {
     const convForTopic = getOrCreateActiveConversation(session.userId, session.agentId);
+    const summary = getConversationSummary(convForTopic.id);
+    if (summary) topicContext += `\n\n## Conversation Context\n${summary}`;
     const tc = getTopicContext(convForTopic.id);
-    if (tc) topicContext = tc;
+    if (tc) topicContext += tc;
   } catch {}
 
   const operationMode = (() => {
@@ -404,6 +408,7 @@ async function processVoiceInput(
   const allowToolUseForTurn = autoPromoteToAssistant || shouldAllowToolUseForTurn(userText, undefined, effectiveOperationMode);
   const selfRepairTurn = isDiagnosticOrRepairRequest(userText);
   const clientActionOnlyTurn = !selfRepairTurn && hasClientActionOnlyIntent(userText) && (effectiveOperationMode === 'chat' || effectiveOperationMode === 'meeting');
+  const workSurfaceRoute = resolveWorkSurfaceRoute(userText);
   const clientActionToolPolicy = clientActionOnlyTurn
     ? { allowedTools: ['client_get_state', 'client_action'], requireConfirmation: [], forbiddenTools: [], maxIterations: 4 }
     : null;
@@ -428,18 +433,26 @@ async function processVoiceInput(
       }
     : null;
   const exposeAgentWork = shouldExposeAgentWork(userText);
+  const routedToolPolicy = selfRepairToolPolicy
+    ? selfRepairToolPolicy
+    : clientActionToolPolicy
+      ? clientActionToolPolicy
+      : allowToolUseForTurn
+        ? (workSurfaceRoute.toolPolicy || effectiveOpModeConfig?.toolPolicy)
+        : { allowedTools: [], requireConfirmation: [], forbiddenTools: ['*'], maxIterations: 0 };
   logger.info(`[Audio] tool gate: ${allowToolUseForTurn ? 'enabled' : 'chat-only'} mode=${operationMode} effective=${effectiveOperationMode} clientActionOnly=${clientActionOnlyTurn} selfRepair=${selfRepairTurn}`);
   const opModeOverlay = clientActionOnlyTurn
     ? '\n\n## Client Mode Control\nThe user is asking Lumi to change client mode or open a client-native surface. You may only use client_get_state and client_action. Do not use file, terminal, desktop mouse/keyboard, web, team, or external-app tools. Music is a playback/atmosphere capability, not a top-level work mode: open the music center or mood layer without switching client mode. For meeting/autonomous mode, use the client action confirmation flow when required.'
     : selfRepairTurn
     ? '\n\n## Client Self-Repair Turn\nThe user is reporting that Lumi or one of its client workflows is failing. Do not only apologize or repeat the raw error. Use client_get_state first when tools are available, inspect relevant status/log/config surfaces, apply one safe recovery or retry when the cause is clear, verify the result, and then give a concise spoken report. Reads and status checks are allowed; writes, desktop control, external app automation, and system changes still require confirmation.'
     : (effectiveOpModeConfig && (allowToolUseForTurn || effectiveOperationMode === 'meeting') ? '\n\n' + effectiveOpModeConfig.promptOverlay : '');
+  const workSurfaceOverlay = workSurfaceRoute.promptOverlay ? '\n\n' + workSurfaceRoute.promptOverlay : '';
   const interactionOverlay = allowToolUseForTurn
     ? toolVoiceOverlay
     : baseVoiceOverlay + '\n\n## Interaction Mode\nThis turn is chat-only. Do not call tools, operate the desktop, assemble a team, or claim that you are taking actions. Answer naturally unless the user gives an explicit command.';
 
   const clientSelfPrompt = '\n\n' + formatClientSelfPrompt(session.userId);
-  const voiceSystemPrompt = fullPersonalityPrompt + interactionOverlay + opModeOverlay + buildVoiceReplyStyleOverlay() + clientSelfPrompt + topicContext;
+  const voiceSystemPrompt = fullPersonalityPrompt + interactionOverlay + opModeOverlay + workSurfaceOverlay + buildVoiceReplyStyleOverlay() + clientSelfPrompt + topicContext;
 
   const DEFAULT_MODELS: Record<string, string> = {
     deepseek: 'deepseek-v4-pro', qwen: 'qwen-plus', openai: 'gpt-4o',
@@ -457,7 +470,7 @@ async function processVoiceInput(
   const provider = (userLLMPrefs.provider || 'deepseek') as 'deepseek' | 'gemini' | 'openai' | 'anthropic' | 'qwen';
   const voiceModel = (userLLMPrefs.models || {})[provider] || DEFAULT_MODELS[provider] || 'deepseek-chat';
 
-  const maxIterations = selfRepairToolPolicy?.maxIterations || personality.toolPolicy.maxIterations || 5;
+  const maxIterations = routedToolPolicy?.maxIterations || personality.toolPolicy.maxIterations || 5;
 
   const desktopRelay = async (toolName: string, args: Record<string, any>): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -514,13 +527,7 @@ async function processVoiceInput(
     llmGetters,
     ...(effectiveOperationMode === 'assistant' || effectiveOperationMode === 'autonomous' || clientActionOnlyTurn || selfRepairTurn ? { requestConfirmation } : {}),
     isCancelled: () => pipelineAbort?.signal.aborted ?? false,
-    ...(selfRepairToolPolicy
-      ? { toolPolicy: selfRepairToolPolicy }
-      : clientActionToolPolicy
-      ? { toolPolicy: clientActionToolPolicy }
-      : allowToolUseForTurn && effectiveOpModeConfig
-      ? { toolPolicy: effectiveOpModeConfig.toolPolicy }
-      : { toolPolicy: { allowedTools: [], requireConfirmation: [], forbiddenTools: ['*'], maxIterations: 0 } }),
+    toolPolicy: routedToolPolicy,
   };
   const ttsProvider = getTTSProvider();
   // Emotion-adaptive voice: map mood to speech parameters, preserve user's chosen voiceId
@@ -837,7 +844,7 @@ async function processVoiceInput(
     // ── Orchestrator: complex/moderate tasks → multi-agent decomposition ──
     let usedOrchestrator = false;
     const complexity = classifyComplexity(userText, { userId: session.userId, personalityId: session.personalityId });
-    if (allowToolUseForTurn && !clientActionOnlyTurn && !selfRepairTurn && (complexity === 'complex' || complexity === 'moderate')) {
+    if (allowToolUseForTurn && !clientActionOnlyTurn && !selfRepairTurn && !(workSurfaceRoute.artifactFirst && !workSurfaceRoute.directDesktop) && (complexity === 'complex' || complexity === 'moderate')) {
       try {
         socket.emit("agent:status", { status: "thinking", agentName: "Lumi", phase: exposeAgentWork ? 'orchestrator' : 'background' });
         const voiceLeadIn = exposeAgentWork
@@ -897,8 +904,12 @@ async function processVoiceInput(
       logger.info(`[Audio] LLM iter ${iter + 1}/${maxIterations}: provider=${provider} model=${effectiveModel}`);
       const toolDeclarations = allowToolUseForTurn
         ? toolRegistry.getToolDeclarations().filter((declaration) => {
-            if (!clientActionToolPolicy) return true;
-            return clientActionToolPolicy.allowedTools.includes(declaration.function.name);
+            const name = declaration.function.name;
+            const forbidden = new Set(routedToolPolicy?.forbiddenTools || []);
+            if (forbidden.has('*') || forbidden.has(name)) return false;
+            const allowed = routedToolPolicy?.allowedTools || [];
+            if (allowed.includes('*')) return true;
+            return allowed.includes(name);
           })
         : [];
 
@@ -959,7 +970,7 @@ async function processVoiceInput(
 
         messages.push({
           role: 'tool',
-          content: execError ? `Error: ${execError}` : execResult,
+          content: execError ? `Error: ${execError}` : compactToolResultForModel(tc.name, execResult),
           toolCallId: tc.id,
           name: tc.name,
         });

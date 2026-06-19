@@ -197,7 +197,37 @@ export function addMessage(msg: {
   return id;
 }
 
-const DEFAULT_CONTEXT_TOKENS = parseInt(process.env.CONTEXT_TOKEN_BUDGET || '1000000', 10);
+const DEFAULT_CONTEXT_TOKENS = parseInt(process.env.CONTEXT_TOKEN_BUDGET || '18000', 10);
+const CONTEXT_HISTORY_LIMIT = parseInt(process.env.CONTEXT_HISTORY_LIMIT || '240', 10);
+const CONTEXT_MESSAGE_CHAR_LIMIT = parseInt(process.env.CONTEXT_MESSAGE_CHAR_LIMIT || '5000', 10);
+const CONTEXT_RESPONSE_CHAR_LIMIT = parseInt(process.env.CONTEXT_RESPONSE_CHAR_LIMIT || '5000', 10);
+
+function compactPromptText(value: string, limit: number): string {
+  const text = value || '';
+  if (text.length <= limit) return text;
+  const head = Math.floor(limit * 0.75);
+  const tail = Math.max(400, limit - head - 180);
+  return [
+    text.slice(0, head),
+    `\n\n[Prompt history compacted: ${text.length} characters total. Older detail is preserved in conversation storage and searchable history.]\n\n`,
+    text.slice(-tail),
+  ].join('');
+}
+
+function isPromptEligibleMessage(m: MessageRecord): boolean {
+  if (!m) return false;
+  if (m.role === 'tool' || m.mode === 'proactive') return false;
+  return Boolean((m.message || '').trim() || (m.response || '').trim());
+}
+
+function compactRecordForPrompt(m: MessageRecord): MessageRecord {
+  return {
+    ...m,
+    message: compactPromptText(m.message || '', CONTEXT_MESSAGE_CHAR_LIMIT),
+    response: compactPromptText(m.response || '', CONTEXT_RESPONSE_CHAR_LIMIT),
+    toolCalls: '',
+  };
+}
 
 export function getMessages(conversationId: string, limit = 1000): MessageRecord[] {
   const db = readDB();
@@ -218,7 +248,9 @@ export function getMessagesByTokenBudget(
   maxTokens: number = DEFAULT_CONTEXT_TOKENS,
   keepRecent: number = 4,
 ): MessageRecord[] {
-  const all = getMessages(conversationId, 2000);
+  const all = getMessages(conversationId, CONTEXT_HISTORY_LIMIT)
+    .filter(isPromptEligibleMessage)
+    .map(compactRecordForPrompt);
   if (all.length <= keepRecent) return all;
 
   const keep = all.slice(-keepRecent); // always keep most recent

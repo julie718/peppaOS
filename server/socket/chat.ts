@@ -11,6 +11,7 @@ import { toolRegistry } from "../tools/registry";
 import { runWithTools } from "../llm/adapter";
 import { getOperationModeConfig, parseStoredOperationMode } from "../cognition/operation_modes";
 import { hasClientActionOnlyIntent, isDiagnosticOrRepairRequest, shouldAllowToolUseForTurn, shouldExposeAgentWork } from "../cognition/tool_intent";
+import { resolveWorkSurfaceRoute } from "../cognition/work_surface";
 import { formatClientSelfPrompt } from "../client/self_model";
 import { queryMemories, queryMemoriesVector, addMemory, addReminder, extractMemories } from "../memory";
 import { loadEmotionalState, saveEmotionalState, updateEmotionalState, updateEmotionalStateWithHIM, loadHIMState, saveHIMState, generateContextualGreeting, vectorMemoryBias } from "../personality/state";
@@ -396,6 +397,7 @@ export function registerChatHandler(
       const allowToolUseForTurn = shouldAllowToolUseForTurn(text, source, operationMode);
       const selfRepairTurn = isDiagnosticOrRepairRequest(text);
       const clientActionOnlyTurn = !selfRepairTurn && hasClientActionOnlyIntent(text) && (operationMode === 'chat' || operationMode === 'meeting');
+      const workSurfaceRoute = resolveWorkSurfaceRoute(text);
       const clientActionToolPolicy = clientActionOnlyTurn
         ? { allowedTools: ['client_get_state', 'client_action'], requireConfirmation: [], forbiddenTools: [], maxIterations: 4 }
         : null;
@@ -419,6 +421,21 @@ export function registerChatHandler(
             maxIterations: 8,
           }
         : null;
+      const canvasDefaultToolPolicy = {
+        allowedTools: ['*'],
+        requireConfirmation: ['file_delete', 'delete_file', 'rm', 'unlink', 'format', 'rmdir', 'uninstall'],
+        forbiddenTools: [],
+        maxIterations: 25,
+      };
+      const routedToolPolicy = isSanctuary
+        ? { allowedTools: [], requireConfirmation: [], forbiddenTools: ['*'], maxIterations: 0 }
+        : selfRepairToolPolicy
+          ? selfRepairToolPolicy
+          : clientActionToolPolicy
+            ? clientActionToolPolicy
+            : source === 'canvas'
+              ? (workSurfaceRoute.toolPolicy || canvasDefaultToolPolicy)
+              : (workSurfaceRoute.toolPolicy || opModeConfig?.toolPolicy);
       const exposeAgentWork = shouldExposeAgentWork(text);
       effectiveSystemPrompt += '\n\n' + formatClientSelfPrompt(uid);
       console.log('[ChatHandler] tool gate:', allowToolUseForTurn ? 'enabled' : 'chat-only', 'operationMode:', operationMode, 'clientActionOnly:', clientActionOnlyTurn, 'selfRepair:', selfRepairTurn);
@@ -431,10 +448,13 @@ export function registerChatHandler(
       } else {
         effectiveSystemPrompt += '\n\n## Interaction Mode\nThis turn is chat-only. Do not call tools, operate the desktop, or claim that you are taking actions. Answer naturally unless the user gives an explicit command.';
       }
+      if (workSurfaceRoute.promptOverlay) {
+        effectiveSystemPrompt += '\n\n' + workSurfaceRoute.promptOverlay;
+      }
 
       // Canvas mode: full-power assistant with visual plan-first workflow
       if (source === 'canvas') {
-        effectiveSystemPrompt += '\n\n## Canvas File Verification\nFor any task that creates or modifies CAD drawings, documents, images, code, or other files, verify the final file path before saying the task is complete. Use desktop_path_info for exact desktop paths, desktop_list_files for Desktop/Documents/user folders and Chinese filenames, and read_file or the creating tool result for server-side files. For image-based drafting tasks, locate the image first and use ocr_image_file before generating a CAD/document output. Do not claim a desktop file exists unless you verified it. If verification fails, say what failed and keep working.';
+        effectiveSystemPrompt += '\n\n## Canvas File Verification\nFor any task that creates or modifies CAD drawings, documents, images, code, or other files, verify the final file path before saying the task is complete. Use desktop_path_info for exact desktop paths, desktop_list_files for Desktop/Documents/user folders and Chinese filenames, and read_file or the creating tool result for server-side files. For image-based floor-plan/CAD drafting tasks, locate the image first, prefer floorplan_extract_geometry, then pass extracted geometry into cad_generate_dxf. Use ocr_image_file for non-floor-plan images or as fallback. Do not claim a desktop file exists unless you verified it. If verification fails, say what failed and keep working.';
         effectiveSystemPrompt += '\n\n## Canvas Workbench\nYou are working inside the Canvas Workbench — a visual workspace where the user sees your thought process as cards.\n- You have FULL access to all tools including desktop control, file system, commands, mouse/keyboard.\n- Before executing destructive or desktop-modifying actions, show a plan card first so the user can see what you intend to do.\n- After each major step, summarize the result as a card.\n- When generating code, assets, or analysis, put the final output in the canvas as well.\n- The canvas is your visual trace — not a sandbox.';
       }
 
@@ -651,9 +671,8 @@ export function registerChatHandler(
       let responseText = '';
       let llmWasCalled = false;
       const prefersSequentialCanvasWorkflow =
-        eventSource === 'canvas' &&
         shouldChainTask(text) &&
-        /(?:方案|报告|文档|文件|装修|室内|设计|CAD|cad|图纸|平面图|施工图|材料|色彩|预算|成果)/u.test(text);
+        (eventSource === 'canvas' || (workSurfaceRoute.artifactFirst && !workSurfaceRoute.directDesktop));
 
       if (cognition.directToolExecuted && cognition.responseText) {
         // Path A: Lumi handled this directly — no LLM needed
@@ -749,7 +768,7 @@ export function registerChatHandler(
               provider: activeProvider,
               model: activeModel,
               desktopRelay,
-              context: { isCancelled: () => abortController.signal.aborted, toolPolicy: personality.toolPolicy },
+              context: { isCancelled: () => abortController.signal.aborted, toolPolicy: routedToolPolicy || personality.toolPolicy },
               onTool: (record) => {
                 const payload: Record<string, any> = {
                   correlationId: record.id,
@@ -854,7 +873,7 @@ export function registerChatHandler(
               }
             }
           } else {
-            const maxIterations = selfRepairToolPolicy?.maxIterations || personality.toolPolicy.maxIterations || 25;
+            const maxIterations = routedToolPolicy?.maxIterations || personality.toolPolicy.maxIterations || 25;
 
           // Collect tool calls for persistence
 
@@ -895,16 +914,7 @@ export function registerChatHandler(
               onProgress: (step: string) => {
                 emitAgent("agent:chunk", { text: `[${step}]\n`, agentName: "Lumi" });
               },
-              ...(isSanctuary
-                ? { toolPolicy: { allowedTools: [], requireConfirmation: [], forbiddenTools: ['*'], maxIterations: 0 } }
-                : source === 'canvas'
-                  ? { toolPolicy: { allowedTools: ['*'], requireConfirmation: ['file_delete', 'delete_file', 'rm', 'unlink', 'format', 'rmdir', 'uninstall'], forbiddenTools: [], maxIterations: 25 } }
-                  : selfRepairToolPolicy
-                    ? { toolPolicy: selfRepairToolPolicy }
-                  : clientActionToolPolicy
-                    ? { toolPolicy: clientActionToolPolicy }
-                  : (opModeConfig ? { toolPolicy: opModeConfig.toolPolicy } : {})
-              ),
+              ...(routedToolPolicy ? { toolPolicy: routedToolPolicy } : {}),
               ...(source === 'canvas' || operationMode === 'assistant' || operationMode === 'autonomous' || clientActionOnlyTurn || selfRepairTurn ? {
                 requestConfirmation: async (toolName: string, args: Record<string, any>): Promise<boolean> => {
                   return new Promise((resolve) => {
@@ -1019,14 +1029,7 @@ export function registerChatHandler(
                       arguments: call.arguments,
                     });
                   },
-                  ...(source === 'canvas'
-                    ? { toolPolicy: { allowedTools: ['*'], requireConfirmation: ['file_delete', 'delete_file', 'rm', 'unlink', 'format', 'rmdir', 'uninstall'], forbiddenTools: [], maxIterations: 25 } }
-                    : selfRepairToolPolicy
-                      ? { toolPolicy: selfRepairToolPolicy }
-                      : clientActionToolPolicy
-                        ? { toolPolicy: clientActionToolPolicy }
-                        : (opModeConfig ? { toolPolicy: opModeConfig.toolPolicy } : {})
-                  ),
+                  ...(routedToolPolicy ? { toolPolicy: routedToolPolicy } : {}),
                   ...(source === 'canvas' || operationMode === 'assistant' || operationMode === 'autonomous' || clientActionOnlyTurn || selfRepairTurn ? {
                     requestConfirmation: async (toolName: string, args: Record<string, any>): Promise<boolean> => {
                       return new Promise((resolve) => {

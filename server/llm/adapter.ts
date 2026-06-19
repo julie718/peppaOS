@@ -26,33 +26,129 @@ export interface LLMUsageRecord {
   totalTokens: number;
 }
 
-const DEFAULT_TOOL_RESULT_MODEL_LIMIT = 12_000;
+const DEFAULT_TOOL_RESULT_MODEL_LIMIT = 5_000;
 const TOOL_RESULT_LIMITS: Record<string, number> = {
-  desktop_list_files: 4_000,
-  list_directory: 4_000,
-  search_files: 6_000,
-  grep_files: 8_000,
-  read_file: 12_000,
-  read_files_batch: 14_000,
-  extract_document_text: 16_000,
-  read_docx: 12_000,
-  read_pdf: 12_000,
-  ocr_image_file: 10_000,
-  ocr_screen: 8_000,
-  ocr_region: 8_000,
+  desktop_list_files: 2_500,
+  list_directory: 2_500,
+  search_files: 4_000,
+  grep_files: 5_000,
+  read_file: 6_000,
+  read_files_batch: 7_000,
+  extract_document_text: 8_000,
+  read_docx: 6_000,
+  read_pdf: 6_000,
+  ocr_image_file: 6_000,
+  floorplan_extract_geometry: 8_000,
+  capability_research: 8_000,
+  ocr_screen: 4_000,
+  ocr_region: 4_000,
 };
 
-function compactToolResultForModel(toolName: string, value: string): string {
+function compactStringForModel(value: string, limit: number, label: string): string {
   const text = value || '';
-  const limit = TOOL_RESULT_LIMITS[toolName] || DEFAULT_TOOL_RESULT_MODEL_LIMIT;
   if (text.length <= limit) return text;
   const head = Math.floor(limit * 0.72);
   const tail = Math.max(800, limit - head - 240);
   return [
     text.slice(0, head),
-    `\n\n[Tool result truncated for model context: ${text.length} characters total. Kept the beginning and end. Ask/read a smaller file range if more detail is needed.]\n\n`,
+    `\n\n[${label} compacted for model context: ${text.length} characters total. Kept the beginning and end. Use smaller reads or file paths for more detail.]\n\n`,
     text.slice(-tail),
   ].join('');
+}
+
+export function compactToolResultForModel(toolName: string, value: string): string {
+  const limit = TOOL_RESULT_LIMITS[toolName] || DEFAULT_TOOL_RESULT_MODEL_LIMIT;
+  return compactStringForModel(value, limit, 'Tool result');
+}
+
+function messageContentLength(content: NormalizedMessage['content']): number {
+  if (typeof content === 'string') return content.length;
+  if (!content) return 0;
+  return content.reduce((sum, part) => sum + (part.type === 'text' ? part.text.length : 1200), 0);
+}
+
+function compactMessageContent(
+  content: NormalizedMessage['content'],
+  limit: number,
+  label: string,
+): NormalizedMessage['content'] {
+  if (typeof content === 'string') return compactStringForModel(content, limit, label);
+  if (!content) return content;
+  return content.map(part => {
+    if (part.type !== 'text') return part;
+    return { ...part, text: compactStringForModel(part.text, limit, label) };
+  });
+}
+
+function compactMessagesForModel(messages: NormalizedMessage[]): NormalizedMessage[] {
+  const compacted = messages.map((m) => {
+    const roleLimit =
+      m.role === 'system' ? 16_000 :
+      m.role === 'user' ? 10_000 :
+      m.role === 'tool' ? 4_000 :
+      6_000;
+    return {
+      ...m,
+      content: compactMessageContent(m.content, roleLimit, `${m.role} message`),
+      reasoningContent: m.reasoningContent ? compactStringForModel(m.reasoningContent, 2_000, 'reasoning') : m.reasoningContent,
+    };
+  });
+
+  let total = compacted.reduce((sum, m) => sum + messageContentLength(m.content), 0);
+  const maxTotal = 80_000;
+  if (total <= maxTotal) return compacted;
+
+  // Preserve the newest tool-call exchange, but squeeze old context aggressively.
+  const protectFrom = Math.max(0, compacted.length - 8);
+  for (let i = 0; i < protectFrom && total > maxTotal; i++) {
+    const before = messageContentLength(compacted[i].content);
+    if (before <= 900) continue;
+    compacted[i] = {
+      ...compacted[i],
+      content: compactMessageContent(compacted[i].content, 900, `${compacted[i].role} message`),
+    };
+    total += messageContentLength(compacted[i].content) - before;
+  }
+
+  return compacted;
+}
+
+function collectArtifactRefs(text: string): string[] {
+  const refs = new Set<string>();
+  const patterns = [
+    /[A-Za-z]:\\[^\n\r"'<>|]+?\.(?:dxf|dwg|svg|pdf|docx|xlsx|pptx|md|txt|json|csv|png|jpe?g|webp|html)/gi,
+    /https?:\/\/[^\s"'<>]+/gi,
+  ];
+  for (const re of patterns) {
+    for (const match of text.match(re) || []) refs.add(match.trim());
+  }
+  return Array.from(refs).slice(0, 8);
+}
+
+function buildIterationLimitSummary(executionLog: ToolExecutionRecord[]): string {
+  if (executionLog.length === 0) return 'Maximum tool call iterations reached.';
+
+  const artifacts = new Set<string>();
+  for (const record of executionLog) {
+    for (const ref of collectArtifactRefs(record.result || '')) artifacts.add(ref);
+  }
+
+  const recentSteps = executionLog.slice(-8).map((record, index) => {
+    const status = record.error ? `failed: ${record.error}` : 'done';
+    return `${index + 1}. ${record.name} - ${status}`;
+  });
+
+  return [
+    'Maximum tool call iterations reached before Lumi could write the final answer.',
+    '',
+    'What completed:',
+    ...recentSteps,
+    artifacts.size > 0 ? '' : '',
+    artifacts.size > 0 ? 'Generated or referenced files:' : '',
+    ...Array.from(artifacts).map(ref => `- ${ref}`),
+    '',
+    'The task can be continued from these files/results instead of starting over.',
+  ].filter(Boolean).join('\n');
 }
 
 function filterToolDeclarationsForPolicy(
@@ -116,9 +212,10 @@ export async function runWithTools(
     const toolDeclarations = filterToolDeclarationsForPolicy(toolRegistry.getToolDeclarations(), context);
 
     const llmStart = Date.now();
+    const modelMessages = compactMessagesForModel(conversationHistory);
     const response = onStreamChunk
       ? await makeLLMCallStreaming(
-          conversationHistory,
+          modelMessages,
           toolDeclarations,
           config,
           onStreamChunk,
@@ -136,7 +233,7 @@ export async function runWithTools(
           getRelay || (() => null),
         )
       : await makeLLMCall(
-          conversationHistory,
+          modelMessages,
           toolDeclarations,
           config,
           getDeepSeek || (() => null),
@@ -242,7 +339,7 @@ export async function runWithTools(
 
   recordWorkflowIfToolsUsed(executionLog, messages, config.userId);
   return {
-    text: 'Maximum tool call iterations reached.',
+    text: buildIterationLimitSummary(executionLog),
     toolCalls: executionLog,
     usageRecords,
   };
@@ -291,7 +388,7 @@ export function parseScreenshotBase64(relayResult: string): { base64: string; mi
 export async function analyzeScreen(
   imageBase64: string,
   query: string,
-  config: { provider: string; model: string; userId?: string },
+  config: { provider: string; model: string; userId?: string; maxTokens?: number },
   getDeepSeek?: () => any,
   getGemini?: () => any,
   getOpenAI?: () => any,
@@ -338,7 +435,7 @@ export async function analyzeScreen(
 
   const result = await makeLLMCall(
     messages, [],
-    { provider: provider as any, model, maxTokens: 1000, userId: config.userId },
+    { provider: provider as any, model, maxTokens: config.maxTokens || 1000, userId: config.userId },
     getDeepSeek || (() => null), getGemini || (() => null),
     getOpenAI, getAnthropic, getQwen, getOllama, getLmStudio, getArk,
     getXiaomi, getKimi, getGlm, getRelay,

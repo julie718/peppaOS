@@ -130,7 +130,8 @@ async function ocrImageFile(args: Record<string, any>, context?: any): Promise<s
   const base64 = buffer.toString('base64');
   const model = getUserPreferredVision(context?.userId || 'anonymous').model || visionModelFor(provider);
   try {
-    const description = await analyzeScreen(base64, query, { provider, model, userId: context?.userId || 'anonymous' }, g.getDeepSeek, g.getGemini, g.getOpenAI, g.getAnthropic, g.getQwen, g.getOllama, g.getLmStudio, g.getArk, g.getXiaomi, g.getKimi, g.getGlm, g.getRelay);
+    const imagePayload = JSON.stringify({ image_base64: base64, format: 'jpeg', width: meta.width || null, height: meta.height || null });
+    const description = await analyzeScreen(imagePayload, query, { provider, model, userId: context?.userId || 'anonymous' }, g.getDeepSeek, g.getGemini, g.getOpenAI, g.getAnthropic, g.getQwen, g.getOllama, g.getLmStudio, g.getArk, g.getXiaomi, g.getKimi, g.getGlm, g.getRelay);
     return JSON.stringify({
       path: imagePath,
       width: meta.width || null,
@@ -144,6 +145,159 @@ async function ocrImageFile(args: Record<string, any>, context?: any): Promise<s
       path: imagePath,
       width: meta.width || null,
       height: meta.height || null,
+      provider,
+      model,
+      error: err.message,
+    }, null, 2);
+  }
+}
+
+function extractJsonObject(text: string): any | null {
+  const cleaned = String(text || '')
+    .trim()
+    .replace(/^```(?:json)?/i, '')
+    .replace(/```$/i, '')
+    .trim();
+
+  try {
+    return JSON.parse(cleaned);
+  } catch {}
+
+  const start = cleaned.indexOf('{');
+  if (start < 0) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+    } else if (ch === '{') {
+      depth += 1;
+    } else if (ch === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        try {
+          return JSON.parse(cleaned.slice(start, i + 1));
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function normalizeFloorplanGeometry(parsed: any, args: Record<string, any>, imagePath: string): Record<string, any> {
+  const geometry = parsed && typeof parsed === 'object' ? parsed : {};
+  const cadArgs = geometry.cadArgs && typeof geometry.cadArgs === 'object'
+    ? geometry.cadArgs
+    : geometry;
+
+  return {
+    title: cadArgs.title || geometry.projectName || args.projectName || 'floorplan_draft',
+    width: cadArgs.width || geometry.width || geometry.outerWidth || null,
+    height: cadArgs.height || geometry.height || geometry.outerHeight || null,
+    unit: cadArgs.unit || geometry.unit || args.unit || 'mm',
+    wallThickness: cadArgs.wallThickness || geometry.wallThickness || null,
+    rooms: Array.isArray(cadArgs.rooms) ? cadArgs.rooms : Array.isArray(geometry.rooms) ? geometry.rooms : [],
+    walls: Array.isArray(cadArgs.walls) ? cadArgs.walls : Array.isArray(geometry.walls) ? geometry.walls : [],
+    doors: Array.isArray(cadArgs.doors) ? cadArgs.doors : Array.isArray(geometry.doors) ? geometry.doors : [],
+    windows: Array.isArray(cadArgs.windows) ? cadArgs.windows : Array.isArray(geometry.windows) ? geometry.windows : [],
+    dimensions: Array.isArray(cadArgs.dimensions) ? cadArgs.dimensions : Array.isArray(geometry.dimensions) ? geometry.dimensions : [],
+    furniture: Array.isArray(cadArgs.furniture) ? cadArgs.furniture : Array.isArray(geometry.furniture) ? geometry.furniture : [],
+    columns: Array.isArray(cadArgs.columns) ? cadArgs.columns : Array.isArray(geometry.columns) ? geometry.columns : [],
+    labels: Array.isArray(cadArgs.labels) ? cadArgs.labels : Array.isArray(geometry.labels) ? geometry.labels : [],
+    sourcePath: imagePath,
+    precisionNote: geometry.precisionNote || 'Generated from vision extraction. Verify scale and dimensions before production use.',
+  };
+}
+
+async function floorplanExtractGeometry(args: Record<string, any>, context?: any): Promise<string> {
+  const imagePath = resolveReadableImagePath(args.imagePath || args.path || args.filePath);
+  const g = context?.llmGetters || {};
+  const provider = resolveVisionProvider(args, context);
+  if (!provider) {
+    return JSON.stringify({
+      path: imagePath,
+      note: 'No configured vision model is available. Choose a vision provider and add its API key in Settings -> LLM Providers -> Vision Model.',
+    }, null, 2);
+  }
+
+  const meta = await sharp(imagePath).metadata();
+  const buffer = await sharp(imagePath)
+    .rotate()
+    .resize({ width: 2200, height: 2200, fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 88 })
+    .toBuffer();
+  const base64 = buffer.toString('base64');
+  const model = getUserPreferredVision(context?.userId || 'anonymous').model || visionModelFor(provider);
+  const projectName = String(args.projectName || args.title || '').trim();
+  const knownScale = String(args.knownScale || args.scale || '').trim();
+  const knownDimensions = String(args.knownDimensions || args.dimensions || '').trim();
+  const prompt = [
+    'You are extracting a residential/interior floor plan into CAD geometry.',
+    'Return only valid JSON. No markdown, no commentary.',
+    'Coordinate system: use millimeters when dimensions are visible. If exact scale is missing, create a proportional coordinate system and mark inferredScale=true.',
+    'Do not invent precision. Exact values require visible dimensions or user-provided known dimensions.',
+    projectName ? `Project name: ${projectName}` : '',
+    knownScale ? `Known scale: ${knownScale}` : '',
+    knownDimensions ? `Known dimensions: ${knownDimensions}` : '',
+    '',
+    'Required JSON shape:',
+    '{',
+    '  "projectName": "string",',
+    '  "confidence": 0.0,',
+    '  "inferredScale": true,',
+    '  "unit": "mm",',
+    '  "width": number_or_null,',
+    '  "height": number_or_null,',
+    '  "wallThickness": number_or_null,',
+    '  "rooms": [{"name":"string","x":number,"y":number,"width":number,"height":number,"points":[{"x":number,"y":number}],"areaText":"string","inferred":boolean}],',
+    '  "walls": [{"x1":number,"y1":number,"x2":number,"y2":number,"thickness":number,"layer":"WALL","inferred":boolean}],',
+    '  "doors": [{"x":number,"y":number,"width":number,"angle":number,"swing":"left|right|in|out","label":"string","inferred":boolean}],',
+    '  "windows": [{"x1":number,"y1":number,"x2":number,"y2":number,"width":number,"label":"string","inferred":boolean}],',
+    '  "columns": [{"x":number,"y":number,"width":number,"height":number,"inferred":boolean}],',
+    '  "dimensions": [{"x1":number,"y1":number,"x2":number,"y2":number,"text":"string","offset":number,"inferred":boolean}],',
+    '  "labels": [{"text":"string","x":number,"y":number,"height":number}],',
+    '  "assumptions": ["string"],',
+    '  "missingForPrecision": ["string"],',
+    '  "precisionNote": "string"',
+    '}',
+  ].filter(Boolean).join('\n');
+
+  try {
+    const imagePayload = JSON.stringify({ image_base64: base64, format: 'jpeg', width: meta.width || null, height: meta.height || null });
+    const analysis = await analyzeScreen(imagePayload, prompt, { provider, model, userId: context?.userId || 'anonymous', maxTokens: 2200 }, g.getDeepSeek, g.getGemini, g.getOpenAI, g.getAnthropic, g.getQwen, g.getOllama, g.getLmStudio, g.getArk, g.getXiaomi, g.getKimi, g.getGlm, g.getRelay);
+    const parsed = extractJsonObject(analysis);
+    return JSON.stringify({
+      path: imagePath,
+      image: { width: meta.width || null, height: meta.height || null },
+      provider,
+      model,
+      parsed: Boolean(parsed),
+      geometry: parsed,
+      cadGenerateDxfArgs: parsed ? normalizeFloorplanGeometry(parsed, args, imagePath) : null,
+      rawAnalysis: parsed ? undefined : analysis,
+      next: parsed
+        ? 'Pass cadGenerateDxfArgs into cad_generate_dxf. If inferredScale is true, call the output a calibrated drafting base and ask the user for one confirmed dimension before claiming precision.'
+        : 'Vision did not return valid JSON. Retry with a tighter crop or use ocr_image_file for manual extraction.',
+    }, null, 2);
+  } catch (err: any) {
+    return JSON.stringify({
+      path: imagePath,
+      image: { width: meta.width || null, height: meta.height || null },
       provider,
       model,
       error: err.message,
@@ -202,6 +356,27 @@ export function registerOCRTools(registry: ToolRegistry): void {
       required: [],
     },
     handler: ocrImageFile,
+    permission: 'user',
+    securityLevel: 'safe',
+  });
+
+  registry.register({
+    name: 'floorplan_extract_geometry',
+    description:
+      'Extract structured CAD-ready geometry from a local floor plan, renovation sketch, layout photo, or requirement image. Use before cad_generate_dxf when the user asks Lumi to turn an image/folder of plans into CAD. Returns rooms, walls, doors, windows, dimensions, assumptions, missing precision inputs, and suggested cad_generate_dxf args. It does not guarantee production accuracy without confirmed scale/dimensions.',
+    parameters: {
+      type: 'object',
+      properties: {
+        imagePath: { type: 'string', description: 'Absolute or home-relative local floor plan image path.' },
+        path: { type: 'string', description: 'Alias for imagePath.' },
+        projectName: { type: 'string', description: 'Optional project name for the CAD draft.' },
+        knownScale: { type: 'string', description: 'Optional known drawing scale, e.g. 1:100, one grid = 1000mm, or user-provided calibration.' },
+        knownDimensions: { type: 'string', description: 'Optional confirmed dimensions from the user or source text.' },
+        unit: { type: 'string', description: 'Preferred unit, default mm.' },
+      },
+      required: [],
+    },
+    handler: floorplanExtractGeometry,
     permission: 'user',
     securityLevel: 'safe',
   });

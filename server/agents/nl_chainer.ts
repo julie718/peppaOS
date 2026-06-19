@@ -60,6 +60,18 @@ const DOMAIN_TOOL_HINTS: Record<string, string[]> = {
             'read_docx', 'read_xlsx', 'extract_document_text'],
 };
 
+function compactChainerOutput(value: string, limit = 5000): string {
+  const text = value || '';
+  if (text.length <= limit) return text;
+  const head = Math.floor(limit * 0.72);
+  const tail = Math.max(500, limit - head - 180);
+  return [
+    text.slice(0, head),
+    `\n\n[Workflow step output compacted: ${text.length} characters total. Use file paths or narrower extraction for full content.]\n\n`,
+    text.slice(-tail),
+  ].join('');
+}
+
 function getDomainHints(userTask: string): string[] | undefined {
   const t = userTask.toLowerCase();
   if (/文件|文档|pdf|ppt|表格|报告|整理|汇总|合并|提取/i.test(t)) return DOMAIN_TOOL_HINTS.file;
@@ -155,9 +167,10 @@ async function executePlan(
     if (step.dependsOnOutput && results.length > 0) {
       const lastResult = results[results.length - 1];
       if (lastResult.success) {
+        const previousOutput = compactChainerOutput(lastResult.output);
         // Inject previous output where the tool likely needs it
-        enrichedArgs.context = lastResult.output;
-        enrichedArgs.previousOutput = lastResult.output;
+        enrichedArgs.context = previousOutput;
+        enrichedArgs.previousOutput = previousOutput;
         // For tools that need file paths, try to extract from previous output
         const fileMatch = lastResult.output.match(/(?:path|文件|saved to|created|输出)[:\s]+([^\s,，\n]+)/i);
         if (fileMatch && !enrichedArgs.filePath) {
@@ -169,8 +182,8 @@ async function executePlan(
     try {
       console.log(`[NLChainer] Step ${i + 1}/${plan.steps.length}: ${step.toolName}`, JSON.stringify(enrichedArgs).slice(0, 200));
       const output = await executeTool(step.toolName, enrichedArgs);
-      results.push({ step: i + 1, tool: step.toolName, output, success: true });
-      accumulatedContext += `\n## Step ${i + 1}: ${step.description}\n${output}\n`;
+      results.push({ step: i + 1, tool: step.toolName, output: compactChainerOutput(output, 12000), success: true });
+      accumulatedContext += `\n## Step ${i + 1}: ${step.description}\n${compactChainerOutput(output)}\n`;
     } catch (err: any) {
       console.warn(`[NLChainer] Step ${i + 1} failed:`, err.message);
 
@@ -185,8 +198,8 @@ async function executePlan(
           if (alternative?.toolName) {
             console.log(`[NLChainer] Replan: trying "${alternative.toolName}" instead of "${step.toolName}"`);
             const altOutput = await executeTool(alternative.toolName, { ...enrichedArgs, ...alternative.args });
-            results.push({ step: i + 1, tool: alternative.toolName, output: altOutput, success: true });
-            accumulatedContext += `\n## Step ${i + 1}: ${step.description} (recovered via ${alternative.toolName})\n${altOutput}\n`;
+            results.push({ step: i + 1, tool: alternative.toolName, output: compactChainerOutput(altOutput, 12000), success: true });
+            accumulatedContext += `\n## Step ${i + 1}: ${step.description} (recovered via ${alternative.toolName})\n${compactChainerOutput(altOutput)}\n`;
             recovered = true;
           }
         } catch (replanErr: any) {

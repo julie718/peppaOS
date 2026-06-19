@@ -88,6 +88,71 @@ export type OrchestrationToolCallback = (
   meta: OrchestrationToolMeta,
 ) => void;
 
+function compactTextBlock(value: string, limit: number, label = 'context'): string {
+  const text = value || '';
+  if (text.length <= limit) return text;
+  const head = Math.floor(limit * 0.72);
+  const tail = Math.max(500, limit - head - 220);
+  return [
+    text.slice(0, head),
+    `\n\n[${label} compacted: ${text.length} characters total. Use referenced files/tools for full content.]\n\n`,
+    text.slice(-tail),
+  ].join('');
+}
+
+function compactTaskForPlanning(text: string, limit = 8000): string {
+  const marker = '\n\n## Canvas Context';
+  const markerIndex = text.indexOf(marker);
+  if (markerIndex < 0) return compactTextBlock(text, limit, 'task');
+
+  const request = text.slice(0, markerIndex).trim();
+  const context = text.slice(markerIndex + marker.length).trim();
+  const contextLimit = Math.max(1200, limit - request.length - 260);
+  return [
+    request,
+    '',
+    '## Canvas Context',
+    compactTextBlock(context, contextLimit, 'canvas context'),
+  ].join('\n');
+}
+
+function collectArtifactRefs(text: string): string[] {
+  const refs = new Set<string>();
+  const patterns = [
+    /[A-Za-z]:\\[^\n\r"'<>|]+?\.(?:dxf|dwg|svg|pdf|docx|xlsx|pptx|md|txt|json|csv|png|jpe?g|webp|html)/gi,
+    /https?:\/\/[^\s"'<>]+/gi,
+  ];
+  for (const re of patterns) {
+    for (const match of text.match(re) || []) refs.add(match.trim());
+  }
+  return Array.from(refs).slice(0, 10);
+}
+
+function buildWorkerOutput(text: string, toolCalls: ToolExecutionRecord[] = []): string {
+  const artifacts = new Set<string>();
+  for (const ref of collectArtifactRefs(text)) artifacts.add(ref);
+  for (const call of toolCalls) {
+    for (const ref of collectArtifactRefs(call.result || '')) artifacts.add(ref);
+  }
+
+  if (!/Maximum tool call iterations reached/i.test(text) && artifacts.size === 0) {
+    return compactTextBlock(text, 12000, 'worker output');
+  }
+
+  const toolSummary = toolCalls.slice(-8).map((call, index) => {
+    const status = call.error ? `failed: ${call.error}` : 'done';
+    return `${index + 1}. ${call.name} - ${status}`;
+  });
+
+  return [
+    compactTextBlock(text, 4000, 'worker output'),
+    toolSummary.length ? '\nRecent tool steps:' : '',
+    ...toolSummary,
+    artifacts.size ? '\nGenerated/referenced files:' : '',
+    ...Array.from(artifacts).map(ref => `- ${ref}`),
+  ].filter(Boolean).join('\n');
+}
+
 // ── Complexity classification ──
 
 /**
@@ -283,7 +348,7 @@ export async function decomposeTask(
   context: OrchestrationContext,
   llmGetters: LlmGetters,
 ): Promise<SubTask[]> {
-  const prompt = DECOMPOSE_PROMPT.replace('{task}', text);
+  const prompt = DECOMPOSE_PROMPT.replace('{task}', compactTaskForPlanning(text));
 
   try {
     const messages: NormalizedMessage[] = [{ role: 'user', content: prompt }];
@@ -664,7 +729,7 @@ async function executeWorkerTask(
 
     const workerPrompt = [
       `You are worker agent "${currentAgent.name}" (${currentAgent.category}). You have tool access — use tools to complete the task, don't just describe what to do.`,
-      `Task: ${subTask.description}${retryHint}`,
+      `Task: ${compactTaskForPlanning(subTask.description, 7000)}${retryHint}`,
       modeDirective,
       memoryContext ? `Relevant memories:\n${memoryContext}` : '',
       'Complete this sub-task using available tools. Output the final result.',
@@ -734,7 +799,7 @@ async function executeWorkerTask(
 
       return {
         subTaskId: subTask.id,
-        output: result.text.trim(),
+        output: buildWorkerOutput(result.text.trim(), result.toolCalls),
         agentId: currentAgent.id,
       };
     } catch (err) {
@@ -846,9 +911,9 @@ function aggregateResults(
 
   // For now, concatenate with clear separation. LLM aggregation happens in the chat pipeline.
   return results
-    .map((r, i) => {
+    .map((r) => {
       const subTask = assignments.find(a => a.subTask.id === r.subTaskId)?.subTask;
-      return `### ${subTask?.description?.slice(0, 60) || r.subTaskId}\n${r.output}`;
+      return `### ${subTask?.description?.slice(0, 60) || r.subTaskId}\n${compactTextBlock(r.output, 9000, 'worker output')}`;
     })
     .join('\n\n');
 }
@@ -864,11 +929,11 @@ export async function aggregateWithLLM(
   userId?: string,
 ): Promise<string> {
   const workerOutputs = workflowResult.subTaskResults
-    .map(r => `[${r.subTaskId}] ${r.output}`)
+    .map(r => `[${r.subTaskId}] ${compactTextBlock(r.output, 3500, 'worker output')}`)
     .join('\n\n---\n\n');
 
   const prompt = AGGREGATE_PROMPT
-    .replace('{task}', originalTask)
+    .replace('{task}', compactTaskForPlanning(originalTask, 6000))
     .replace('{workerOutputs}', workerOutputs);
 
   try {
@@ -991,7 +1056,7 @@ export function buildSkillDescription(
   workflowResult: WorkflowResult,
 ): string {
   const subTaskDescriptions = workflowResult.subTaskResults
-    .map(r => `- ${r.subTaskId}: ${r.output.slice(0, 100)}`)
+    .map(r => `- ${r.subTaskId}: ${compactTextBlock(r.output, 500, 'worker output').slice(0, 500)}`)
     .join('\n');
 
   return [
