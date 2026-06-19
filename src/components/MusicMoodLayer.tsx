@@ -24,6 +24,13 @@ function getCurrentLyricIndex(lyrics: MusicLyricLine[], progress: number): numbe
   return -1;
 }
 
+function getLoopedProgress(progress: number, duration: number, lyrics: MusicLyricLine[]): number {
+  const fallbackDuration = lyrics.length ? lyrics[lyrics.length - 1].time + 8 : 0;
+  const loopAt = duration > 0 ? duration : fallbackDuration;
+  if (loopAt <= 0 || progress < loopAt) return progress;
+  return progress % loopAt;
+}
+
 // ── Paper & ink palette ──
 
 type InkPalette = {
@@ -91,13 +98,16 @@ export function MusicMoodLayer() {
   const frameRef = useRef(0);
 
   useEffect(() => {
-    if (lyrics.length > 0) setParsedLyrics(lyrics);
-    else if (typeof (lyrics as any) === 'string') setParsedLyrics(parseLRC(lyrics as any));
+    if (typeof (lyrics as any) === 'string') setParsedLyrics(parseLRC(lyrics as any));
+    else if (Array.isArray(lyrics) && lyrics.length > 0) setParsedLyrics(lyrics);
+    else setParsedLyrics([]);
   }, [lyrics]);
 
   const palette = useMemo(() => paletteFromScene(activeScene), [activeScene]);
   const intensity = activeScene.intensity ?? 0.5;
-  const currentLyricIdx = useMemo(() => getCurrentLyricIndex(parsedLyrics, progress), [parsedLyrics, progress]);
+  const loopedProgress = useMemo(() => getLoopedProgress(progress, duration, parsedLyrics), [duration, parsedLyrics, progress]);
+  const visualProgress = duration > 0 ? loopedProgress % duration : loopedProgress;
+  const currentLyricIdx = useMemo(() => getCurrentLyricIndex(parsedLyrics, loopedProgress), [parsedLyrics, loopedProgress]);
   const emotionalNote = useMemo(() => {
     const note = (lumiReason || activeScene.reason || '').trim();
     return note && note !== DEFAULT_SCENE.reason ? note : '';
@@ -248,7 +258,7 @@ export function MusicMoodLayer() {
           ctx.fillText(nl.text, cx, lyricY + fs * 1.25);
         }
         // Current — with subtle ink bleed noise
-        const bleed = Math.min(1, (progress - cl.time) / 1.5);
+        const bleed = Math.min(1, (loopedProgress - cl.time) / 1.5);
         const ca = 0.5 + bleed * 0.3;
         ctx.font = `${fs}px "STSong", "Songti SC", "SimSun", serif`;
         for (let s = 0; s < 3; s++) {
@@ -269,7 +279,7 @@ export function MusicMoodLayer() {
 
       // ── 5. Progress brush line ──
       const progressY = h - 55;
-      const pct = duration > 0 ? progress / duration : 0;
+      const pct = duration > 0 ? Math.min(1, visualProgress / duration) : 0;
       const sw = w * 0.50;
       const sx = (w - sw) / 2;
       const segs = 50;
@@ -306,7 +316,7 @@ export function MusicMoodLayer() {
 
     frameRef.current = requestAnimationFrame(render);
     return () => { running = false; cancelAnimationFrame(frameRef.current); };
-  }, [visible, palette, isPlaying, intensity, parsedLyrics, currentLyricIdx, progress, duration, activeScene, track]);
+  }, [visible, palette, isPlaying, intensity, parsedLyrics, currentLyricIdx, loopedProgress, visualProgress, duration, activeScene, track]);
 
   useEffect(() => { if (!visible) particlesRef.current = []; }, [visible]);
 

@@ -45,6 +45,7 @@ export interface MusicAtmosphere {
   queue?: MusicQueueItem[];
   queueIndex?: number;
   lyrics?: MusicLyricLine[];
+  trackKey?: string;
   scene?: MusicScene;
 }
 
@@ -58,6 +59,7 @@ export interface MusicPlayerState {
   weather?: string;
   lumiReason?: string;
   lyrics: MusicLyricLine[];
+  trackKey?: string | null;
   scene: MusicScene | null;
   queue: MusicQueueItem[];
   queueIndex: number;
@@ -76,6 +78,7 @@ const DEFAULT_MUSIC_PLAYER_STATE: MusicPlayerState = {
   weather: undefined,
   lumiReason: undefined,
   lyrics: [],
+  trackKey: null,
   scene: null,
   queue: [],
   queueIndex: -1,
@@ -97,6 +100,30 @@ let _nativeProgressTimer: ReturnType<typeof setInterval> | null = null;
 let _userVolume = DEFAULT_MUSIC_PLAYER_STATE.volume;
 let _nativeVolumeRestoreTimer: ReturnType<typeof setTimeout> | null = null;
 
+function normalizeDurationSeconds(value?: number | null) {
+  const duration = Number(value || 0);
+  if (!Number.isFinite(duration) || duration <= 0) return 0;
+  return duration > 1000 ? duration / 1000 : duration;
+}
+
+function getTrackKey(track: MusicTrack | null | undefined, explicitKey?: string | null) {
+  if (explicitKey) return /^\d+$/.test(explicitKey) ? `song:${explicitKey}` : explicitKey;
+  if (!track?.name) return null;
+  return [
+    track.name,
+    track.artists?.join('/') || '',
+    track.album || '',
+    track.duration || '',
+  ].join('|');
+}
+
+function shouldKeepNativeProgress(prev: MusicPlayerState, incomingProgress: number, duration: number) {
+  if (incomingProgress >= prev.progress) return false;
+  if (duration > 0 && prev.progress >= duration - 4 && incomingProgress <= 2) return false;
+  if (incomingProgress === 0 && prev.progress > 3) return true;
+  return prev.progress - incomingProgress <= 2;
+}
+
 function startNativeProgressTicker() {
   if (_nativeProgressTimer) return;
   _nativeProgressTimer = setInterval(() => {
@@ -106,9 +133,10 @@ function startNativeProgressTicker() {
     }
     setMusicState(prev => {
       if (prev.source !== 'netease' || !prev.isPlaying) return prev;
+      const rawProgress = prev.progress + 1;
       const nextProgress = prev.duration > 0
-        ? Math.min(prev.duration, prev.progress + 1)
-        : prev.progress + 1;
+        ? rawProgress % prev.duration
+        : rawProgress;
       return { ...prev, progress: nextProgress };
     });
   }, 1000);
@@ -321,9 +349,11 @@ function playQueueAt(index: number) {
   setMusicState(prev => ({
     ...prev,
     track: item.track,
+    trackKey: getTrackKey(item.track, item.originalId || item.encryptedId || null),
     queueIndex: index,
     progress: 0,
-    duration: item.track.duration ? item.track.duration / 1000 : 0,
+    duration: normalizeDurationSeconds(item.track.duration),
+    lyrics: [],
     source: 'url',
     isPlaying: true,
     lastError: undefined,
@@ -350,10 +380,13 @@ function bindMusicSocket(socket: any) {
         ? [{ track: data.track, audioUrl: data.audioUrl }]
         : [];
     const queueIndex = Math.max(0, Math.min(data.queueIndex ?? 0, Math.max(0, queue.length - 1)));
+    const activeQueueItem = queue[queueIndex];
+    const trackKey = getTrackKey(data.track, data.trackKey || activeQueueItem?.originalId || activeQueueItem?.encryptedId || null);
     _failedQueueIndexes = new Set<number>();
     setMusicState(prev => ({
       ...prev,
       track: data.track,
+      trackKey,
       mood: data.mood,
       weather: data.weather,
       lumiReason: data.lumiReason,
@@ -364,7 +397,7 @@ function bindMusicSocket(socket: any) {
       visible: true,
       isPlaying: true,
       progress: 0,
-      duration: data.track.duration ? data.track.duration / 1000 : prev.duration,
+      duration: normalizeDurationSeconds(data.track.duration),
       source: nativePlayback ? 'netease' : data.audioUrl ? 'url' : 'netease',
       lastError: undefined,
     }));
@@ -379,21 +412,49 @@ function bindMusicSocket(socket: any) {
   const onState = (data: any) => {
     const isNativeState = data.source === 'netease' || (prevSourceIsNetease() && data.source == null);
     if (data.source === 'netease') stopLocalAudioForNativePlayback();
-    setMusicState(prev => ({
-      ...prev,
-      track: data.trackName ? {
+    setMusicState(prev => {
+      const incomingTrack = data.trackName ? {
         name: data.trackName,
         artists: data.artists || [],
         album: data.album,
         coverUrl: data.coverUrl,
         duration: data.duration,
-      } : prev.track,
-      isPlaying: data.playing ?? prev.isPlaying,
-      progress: data.progress != null ? data.progress : prev.progress,
-      duration: data.duration ? data.duration / 1000 : prev.duration,
-      volume: isNativeState ? prev.volume : data.volume ?? prev.volume,
-      source: data.source ?? prev.source,
-    }));
+      } : null;
+      const incomingTrackKey = getTrackKey(incomingTrack, data.trackKey);
+      const previousTrackKey = getTrackKey(prev.track, prev.trackKey);
+      const trackChanged = Boolean(incomingTrack && incomingTrackKey && incomingTrackKey !== previousTrackKey);
+      const duration = data.duration != null
+        ? normalizeDurationSeconds(data.duration)
+        : trackChanged
+          ? normalizeDurationSeconds(incomingTrack?.duration)
+          : prev.duration;
+      let progress = trackChanged ? 0 : prev.progress;
+      if (data.progress != null) {
+        const incomingProgress = Number(data.progress);
+        progress = Number.isFinite(incomingProgress) ? incomingProgress : progress;
+        if (
+          isNativeState &&
+          !trackChanged &&
+          (data.playing ?? prev.isPlaying) &&
+          Number.isFinite(incomingProgress) &&
+          shouldKeepNativeProgress(prev, incomingProgress, duration)
+        ) {
+          progress = prev.progress;
+        }
+      }
+
+      return {
+        ...prev,
+        track: incomingTrack || prev.track,
+        trackKey: incomingTrackKey || prev.trackKey,
+        isPlaying: data.playing ?? prev.isPlaying,
+        progress,
+        duration,
+        lyrics: trackChanged ? [] : prev.lyrics,
+        volume: isNativeState ? prev.volume : data.volume ?? prev.volume,
+        source: data.source ?? (isNativeState ? 'netease' : prev.source),
+      };
+    });
     if (data.volume != null && !isNativeState) applyAudioVolume();
     if ((data.source === 'netease' || isNativeState) && (data.playing ?? _musicSnapshot.isPlaying) && _duckingReasons.size === 0) {
       scheduleNativeVolumeRestore();
@@ -401,9 +462,13 @@ function bindMusicSocket(socket: any) {
     if (data.audioUrl && data.source !== 'netease') playAudioUrl(data.audioUrl);
   };
 
-  const onLyrics = (data: { lyrics: MusicLyricLine[] } | MusicLyricLine[]) => {
+  const onLyrics = (data: { lyrics: MusicLyricLine[]; trackKey?: string } | MusicLyricLine[]) => {
     const lyrics = Array.isArray(data) ? data : data.lyrics;
-    setMusicState(prev => ({ ...prev, lyrics: lyrics || [] }));
+    const trackKey = Array.isArray(data) ? undefined : data.trackKey;
+    setMusicState(prev => {
+      if (trackKey && prev.trackKey && trackKey !== prev.trackKey) return prev;
+      return { ...prev, trackKey: trackKey || prev.trackKey, lyrics: lyrics || [] };
+    });
   };
 
   const onError = (data: { message: string }) => {

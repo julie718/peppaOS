@@ -5,6 +5,9 @@
  */
 import { Socket } from 'socket.io';
 import { getNcmPlaybackStateAsync, runNcmCliAsync } from '../music/ncm_cli';
+import { getNeteaseLyricText } from '../music/netease_public';
+
+type MusicLyricLine = { time: number; text: string };
 
 interface MusicAtmosphere {
   track: { name: string; artists: string[]; album?: string; coverUrl?: string; duration?: number };
@@ -25,7 +28,10 @@ interface MusicAtmosphere {
 }
 
 const userPollers = new Map<string, ReturnType<typeof setInterval>>();
-const MUSIC_STATE_POLL_INTERVAL_MS = 10000;
+const activeNativeQueues = new Map<string, { queue: NonNullable<MusicAtmosphere['queue']>; queueIndex: number }>();
+const lastLyricTrackByClient = new Map<string, string>();
+const lyricCache = new Map<string, MusicLyricLine[]>();
+const MUSIC_STATE_POLL_INTERVAL_MS = 1500;
 const MUSIC_IDLE_POLLS_BEFORE_STOP = 2;
 
 async function ncmExecArgs(args: string[], timeout = 10000): Promise<string> {
@@ -77,6 +83,140 @@ function normalizeNcmProgressSeconds(value: any) {
   const progress = Number(value || 0);
   if (!Number.isFinite(progress) || progress < 0) return 0;
   return progress > 1000 ? progress / 1000 : progress;
+}
+
+function parseLrcText(lrc: string): MusicLyricLine[] {
+  if (!lrc) return [];
+  const lines: MusicLyricLine[] = [];
+  for (const line of lrc.split('\n')) {
+    const match = line.match(/^\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)$/);
+    if (!match) continue;
+    const time =
+      parseInt(match[1], 10) * 60 +
+      parseInt(match[2], 10) +
+      parseInt(match[3], 10) / (match[3].length === 3 ? 1000 : 100);
+    const text = match[4].trim();
+    if (text) lines.push({ time, text });
+  }
+  return lines;
+}
+
+function normalizeArtists(raw: any): string[] {
+  if (Array.isArray(raw)) return raw.map(String).filter(Boolean);
+  if (!raw) return [];
+  return [String(raw)].filter(Boolean);
+}
+
+function getMusicClientKey(socket: Socket) {
+  return getSocketUserRoom(socket) || socket.id;
+}
+
+function getStateTrackName(state: any) {
+  return String(state?.trackName || state?.name || state?.title || '').trim();
+}
+
+function getStateSongId(state: any): string {
+  const candidates = [
+    state?.originalId,
+    state?.originId,
+    state?.songId,
+    state?.trackId,
+    state?.id,
+    state?.encryptedId,
+  ];
+  for (const value of candidates) {
+    const id = String(value || '').trim();
+    if (/^\d+$/.test(id)) return id;
+  }
+  return '';
+}
+
+function findActiveQueueItem(clientKey: string, state?: any) {
+  const active = activeNativeQueues.get(clientKey);
+  if (!active?.queue?.length) return null;
+
+  const stateName = getStateTrackName(state);
+  if (stateName) {
+    const matchedIndex = active.queue.findIndex(item => item.track?.name === stateName);
+    if (matchedIndex >= 0) {
+      active.queueIndex = matchedIndex;
+      return active.queue[matchedIndex];
+    }
+  }
+
+  const currentIndex = Number(state?.currentIndex);
+  const queueLength = Number(state?.queueLength);
+  if (Number.isInteger(currentIndex)) {
+    const index = queueLength === active.queue.length && currentIndex >= 1
+      ? currentIndex - 1
+      : currentIndex;
+    if (index >= 0 && index < active.queue.length) {
+      active.queueIndex = index;
+      return active.queue[index];
+    }
+  }
+
+  return active.queue[active.queueIndex] || active.queue[0] || null;
+}
+
+function getStateTrackKey(state: any, clientKey: string) {
+  const id = getStateSongId(state);
+  if (id) return `song:${id}`;
+
+  const queueItem = findActiveQueueItem(clientKey, state);
+  const queueId = String(queueItem?.originalId || queueItem?.encryptedId || '').trim();
+  if (queueId) return `song:${queueId}`;
+
+  const name = getStateTrackName(state);
+  if (!name) return '';
+  const artists = normalizeArtists(state?.artists || state?.artist).join('/');
+  const duration = normalizeNcmDurationMs(state?.duration) || '';
+  return `fingerprint:${name}|${artists}|${duration}|${state?.album || ''}`;
+}
+
+function getLyricLookupId(state: any, clientKey: string) {
+  const id = getStateSongId(state);
+  if (id) return id;
+  const queueItem = findActiveQueueItem(clientKey, state);
+  const queueId = String(queueItem?.originalId || queueItem?.encryptedId || '').trim();
+  return /^\d+$/.test(queueId) ? queueId : '';
+}
+
+function advanceActiveQueue(socket: Socket, offset: number) {
+  const clientKey = getMusicClientKey(socket);
+  const active = activeNativeQueues.get(clientKey);
+  if (!active?.queue?.length) return;
+  active.queueIndex = (active.queueIndex + offset + active.queue.length) % active.queue.length;
+}
+
+async function emitLyricsForState(socket: Socket, state: any) {
+  const clientKey = getMusicClientKey(socket);
+  const trackKey = getStateTrackKey(state, clientKey);
+  if (!trackKey || lastLyricTrackByClient.get(clientKey) === trackKey) return;
+
+  lastLyricTrackByClient.set(clientKey, trackKey);
+  socket.emit('music:lyrics', { lyrics: [], trackKey });
+
+  const lookupId = getLyricLookupId(state, clientKey);
+  if (!lookupId) return;
+
+  let lyrics = lyricCache.get(lookupId);
+  if (!lyrics) {
+    try {
+      lyrics = parseLrcText(await getNeteaseLyricText(lookupId));
+    } catch {
+      lyrics = [];
+    }
+    lyricCache.set(lookupId, lyrics);
+    if (lyricCache.size > 200) {
+      const oldest = lyricCache.keys().next().value;
+      if (oldest) lyricCache.delete(oldest);
+    }
+  }
+
+  if (lastLyricTrackByClient.get(clientKey) === trackKey) {
+    socket.emit('music:lyrics', { lyrics, trackKey });
+  }
 }
 
 async function stopNativePlayback() {
@@ -169,6 +309,8 @@ export function registerMusicHandlers(
 
   socket.on('music:next', socketGuard(async () => {
     await ncmExecArgs(['next']);
+    advanceActiveQueue(socket, 1);
+    socket.emit('music:lyrics', { lyrics: [] });
     const state = await recoverNcmPlaying(8, 700);
     if (!isNcmPlaying(state)) {
       socket.emit('music:error', { message: `已切到下一首，但播放器没有进入播放状态（当前状态：${state?.status || 'unknown'}）。` });
@@ -181,6 +323,8 @@ export function registerMusicHandlers(
 
   socket.on('music:prev', socketGuard(async () => {
     await ncmExecArgs(['prev']);
+    advanceActiveQueue(socket, -1);
+    socket.emit('music:lyrics', { lyrics: [] });
     const state = await recoverNcmPlaying(8, 700);
     if (!isNcmPlaying(state)) {
       socket.emit('music:error', { message: `已切到上一首，但播放器没有进入播放状态（当前状态：${state?.status || 'unknown'}）。` });
@@ -278,18 +422,23 @@ async function pollAndEmitState(socket: Socket, options: { reportErrors?: boolea
     const result = tryParse(raw);
     const data = result?.state || result;
     if (data) {
-      const durationMs = normalizeNcmDurationMs(data.duration);
+      const clientKey = getMusicClientKey(socket);
+      const activeItem = findActiveQueueItem(clientKey, data);
+      const durationMs = normalizeNcmDurationMs(data.duration) || normalizeNcmDurationMs(activeItem?.track?.duration);
+      const trackKey = getStateTrackKey(data, clientKey);
       socket.emit('music:state', {
         playing: isNcmPlaying(data),
-        trackName: data.trackName || data.name || data.title,
-        artists: data.artists || (data.artist ? [data.artist] : undefined),
-        album: data.album,
+        trackName: data.trackName || data.name || data.title || activeItem?.track?.name,
+        artists: data.artists || (data.artist ? [data.artist] : undefined) || activeItem?.track?.artists,
+        album: data.album || activeItem?.track?.album,
         duration: durationMs,
         progress: normalizeNcmProgressSeconds(data.position ?? data.progress ?? 0),
-        coverUrl: data.coverUrl || data.cover,
+        coverUrl: data.coverUrl || data.cover || activeItem?.track?.coverUrl,
         volume: data.volume,
         source: 'netease',
+        trackKey,
       });
+      await emitLyricsForState(socket, data);
       return data;
     }
     return null;
@@ -330,11 +479,27 @@ function stopStatePoller(uid: string) {
 export function emitMusicAtmosphere(socket: Socket, atmosphere: MusicAtmosphere) {
   const rooms = Array.from(socket.rooms);
   const userRoom = rooms.find(r => r.startsWith('user:'));
+  const clientKeys = [userRoom, socket.id].filter(Boolean) as string[];
+  const queue = atmosphere.queue || [];
+  const queueIndex = Math.max(0, Math.min(atmosphere.queueIndex ?? 0, Math.max(0, queue.length - 1)));
+  for (const key of clientKeys) {
+    if (queue.length) activeNativeQueues.set(key, { queue, queueIndex });
+  }
+  const activeItem = queue[queueIndex];
+  const trackId = String(activeItem?.originalId || activeItem?.encryptedId || '').trim();
+  const trackKey = trackId
+    ? `song:${trackId}`
+    : `fingerprint:${atmosphere.track.name}|${atmosphere.track.artists?.join('/') || ''}|${atmosphere.track.duration || ''}|${atmosphere.track.album || ''}`;
+  const lyricPayload = { lyrics: atmosphere.lyrics || [], trackKey };
+  for (const key of clientKeys) {
+    if (lyricPayload.lyrics.length > 0) lastLyricTrackByClient.set(key, trackKey);
+    else lastLyricTrackByClient.delete(key);
+  }
   if (userRoom) {
     socket.to(userRoom).emit('music:atmosphere', atmosphere);
-    if (atmosphere.lyrics) socket.to(userRoom).emit('music:lyrics', { lyrics: atmosphere.lyrics });
+    socket.to(userRoom).emit('music:lyrics', lyricPayload);
   }
   socket.emit('music:atmosphere', atmosphere);
-  if (atmosphere.lyrics) socket.emit('music:lyrics', { lyrics: atmosphere.lyrics });
-  startStatePoller(socket, userRoom || 'default');
+  socket.emit('music:lyrics', lyricPayload);
+  startStatePoller(socket, userRoom || socket.id);
 }

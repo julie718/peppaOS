@@ -203,6 +203,7 @@ export function MusicCenter({ isOpen, onClose, t }: { isOpen: boolean; onClose: 
   if (!isOpen) return null;
 
   const progressMax = Math.max(1, Math.floor(player.duration || 0));
+  const displayProgress = player.duration > 0 ? (player.progress || 0) % player.duration : player.progress || 0;
   const profileUpdatedAt = profile?.updatedAt ? new Date(profile.updatedAt).toLocaleString() : '';
   const pct = (item: MusicProfileCount) => `${Math.round((item.ratio || 0) * 100)}%`;
 
@@ -273,12 +274,12 @@ export function MusicCenter({ isOpen, onClose, t }: { isOpen: boolean; onClose: 
                   type="range"
                   min={0}
                   max={progressMax}
-                  value={Math.min(player.progress || 0, progressMax)}
+                  value={Math.min(displayProgress, progressMax)}
                   onChange={(e) => player.seek(Number(e.target.value))}
                   className="w-full accent-red-400"
                 />
                 <div className="flex justify-between text-[10px] text-white/30 font-mono">
-                  <span>{formatTime(player.progress || 0)}</span>
+                  <span>{formatTime(displayProgress)}</span>
                   <span>{formatTime(player.duration || 0)}</span>
                 </div>
               </div>
