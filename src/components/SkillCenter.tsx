@@ -6,6 +6,7 @@ import { Input } from './ui/input';
 import { toast } from 'sonner';
 import { useSocket } from '@/hooks/useSocket';
 import { GitHubMCPBrowser } from './GitHubMCPBrowser';
+import { saveServerKeys } from '@/services/settingsKeys';
 
 const ICON_CLASSES: Record<string, string> = {
   CloudSun: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
@@ -426,16 +427,7 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
     if (!value.trim()) return;
     setSavingKey(envKey);
     try {
-      const res = await fetch('/api/settings/keys', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keys: { [envKey]: value.trim() } }),
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || `Failed to save ${envKey}`);
-      }
+      await saveServerKeys({ [envKey]: value.trim() });
       setSavedKeys(prev => ({ ...prev, [envKey]: true }));
       setKeyInputs(prev => { const n = { ...prev }; delete n[envKey]; return n; });
       toast.success(`${envKey} saved`);

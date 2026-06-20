@@ -4,11 +4,18 @@ export interface SaveKeysResult {
   success: boolean;
   saved: string[];
   deleted: string[];
+  ignored?: string[];
 }
 
 async function readJsonSafely(response: Response): Promise<any> {
   try {
-    return await response.json();
+    const text = await response.text();
+    if (!text) return {};
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { error: text.slice(0, 300) };
+    }
   } catch {
     return {};
   }
@@ -36,6 +43,10 @@ export async function saveServerKeys(keys: Record<string, string>): Promise<Save
   }
   const saved = Array.isArray(data.saved) ? data.saved : [];
   const deleted = Array.isArray(data.deleted) ? data.deleted : [];
+  const ignored = Array.isArray(data.ignored) ? data.ignored : [];
+  if (ignored.length > 0) {
+    throw new Error(`Unsupported key name(s): ${ignored.join(', ')}`);
+  }
 
   const status = await getSavedKeyStatus();
   for (const [name, value] of Object.entries(keys)) {
@@ -48,5 +59,11 @@ export async function saveServerKeys(keys: Record<string, string>): Promise<Save
     }
   }
 
-  return { success: true, saved, deleted };
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('lumi:keys-changed', {
+      detail: { saved, deleted },
+    }));
+  }
+
+  return { success: true, saved, deleted, ignored };
 }

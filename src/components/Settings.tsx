@@ -89,10 +89,26 @@ export function Settings({
   const ui = (zh: string, en: string) => (isZh ? zh : en);
 
   useEffect(() => {
-    fetch('/api/llm/providers')
-      .then(r => r.json())
-      .then(d => setProviderStatus(d.providers || {}))
-      .catch(() => toast.error(t.failedToLoadProviderStatus || ui('服务商状态加载失败', 'Failed to load provider status')));
+    let cancelled = false;
+    const loadProviderStatus = async () => {
+      try {
+        const response = await fetch('/api/llm/providers', { credentials: 'include' });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || `Provider status failed (${response.status})`);
+        if (!cancelled) setProviderStatus(data.providers || {});
+      } catch (err: any) {
+        if (!cancelled) {
+          toast.error(err?.message || t.failedToLoadProviderStatus || ui('服务商状态加载失败', 'Failed to load provider status'));
+        }
+      }
+    };
+    void loadProviderStatus();
+    const onKeysChanged = () => { void loadProviderStatus(); };
+    window.addEventListener('lumi:keys-changed', onKeysChanged);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('lumi:keys-changed', onKeysChanged);
+    };
   }, []);
 
   const handleSectionChange = (section: string) => {
@@ -716,8 +732,12 @@ function VisionLocalProviderRow({ icon, label, providerId, endpoint, storageKey,
   const [model, setModel] = useState(() => savedModels[providerId] || defaultModel);
 
   useEffect(() => {
-    fetch(endpoint)
-      .then(r => r.json())
+    fetch(endpoint, { credentials: 'include' })
+      .then(async r => {
+        const cfg = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(cfg.error || 'Failed to load local vision config');
+        return cfg;
+      })
       .then(cfg => {
         setBaseUrl(cfg.baseUrl || defaultUrl);
         setDetected(!!cfg.detected);
@@ -753,6 +773,7 @@ function VisionLocalProviderRow({ icon, label, providerId, endpoint, storageKey,
       const resp = await fetch(endpoint, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ baseUrl }),
       });
       const cfg = await resp.json();
@@ -1151,8 +1172,12 @@ function OllamaProviderRow({ t }: { t?: any }) {
 
   useEffect(() => {
     // Load current config on mount
-    fetch('/api/ollama/config')
-      .then(r => r.json())
+    fetch('/api/ollama/config', { credentials: 'include' })
+      .then(async r => {
+        const cfg = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(cfg.error || 'Failed to load Ollama config');
+        return cfg;
+      })
       .then(cfg => {
         setBaseUrl(cfg.baseUrl || 'http://localhost:11434');
         setDetected(!!cfg.detected);
@@ -1167,9 +1192,11 @@ function OllamaProviderRow({ t }: { t?: any }) {
       const resp = await fetch('/api/ollama/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ baseUrl }),
       });
-      const cfg = await resp.json();
+      const cfg = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(cfg.error || 'Ollama detection failed');
       setDetected(!!cfg.detected);
       setModels(cfg.models || []);
       localStorage.setItem('lumi_ollama_url', baseUrl);
@@ -1232,8 +1259,12 @@ function LmStudioProviderRow({ t }: { t?: any }) {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    fetch('/api/lmstudio/config')
-      .then(r => r.json())
+    fetch('/api/lmstudio/config', { credentials: 'include' })
+      .then(async r => {
+        const cfg = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(cfg.error || 'Failed to load LM Studio config');
+        return cfg;
+      })
       .then(cfg => {
         setBaseUrl(cfg.baseUrl || 'http://localhost:1234');
         setDetected(!!cfg.detected);
@@ -1248,9 +1279,11 @@ function LmStudioProviderRow({ t }: { t?: any }) {
       const resp = await fetch('/api/lmstudio/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ baseUrl }),
       });
-      const cfg = await resp.json();
+      const cfg = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(cfg.error || 'LM Studio detection failed');
       setDetected(!!cfg.detected);
       setModels(cfg.models || []);
       localStorage.setItem('lumi_lmstudio_url', baseUrl);

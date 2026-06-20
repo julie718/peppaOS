@@ -8,7 +8,7 @@ import { logger } from "../../logger";
 import { toolRegistry } from "../tools/registry";
 import { scheduler } from "../scheduler";
 import { getCloudHealth } from "../cloud/core";
-import { loadKeys, saveKeys, getKey, getAllKeyNames } from "../config/keys";
+import { loadKeys, saveKeys, getKey, getAllKeyNames, isPersistableKeyName } from "../config/keys";
 import { requireAuth } from "../middleware/auth";
 import { getLatencyStats } from "../monitor/latency_store";
 import { mcpManager, getMCPConfig } from "../mcp";
@@ -170,34 +170,39 @@ export function mountSystemRoutes(router: Router, jwtSecret: string, io?: any) {
 
   // Provider status
   router.get("/llm/providers", (_req, res) => {
-    const stored = loadKeys();
-    const envOrStore = (envKey: string, storeKey: string) =>
-      !!(process.env[envKey] && process.env[envKey]!.length > 0) || !!stored[storeKey as keyof typeof stored];
-    // Check local model configs
-    let ollamaAvailable = false;
-    let lmstudioAvailable = false;
     try {
-      const db = readDB();
-      const os = (db.settings || []).find((s: any) => s.key === 'ollama_config');
-      if (os) ollamaAvailable = !!JSON.parse(os.value).detected;
-      const ls = (db.settings || []).find((s: any) => s.key === 'lmstudio_config');
-      if (ls) lmstudioAvailable = !!JSON.parse(ls.value).detected;
-    } catch {}
-    res.json({
-      providers: {
-        deepseek: { available: envOrStore('DEEPSEEK_API_KEY', 'DEEPSEEK_API_KEY'), model: process.env.DEEPSEEK_MODEL || 'deepseek-chat' },
-        gemini: { available: envOrStore('GEMINI_API_KEY', 'GEMINI_API_KEY'), model: process.env.GEMINI_MODEL || 'gemini-2.0-flash' },
-        openai: { available: envOrStore('OPENAI_API_KEY', 'OPENAI_API_KEY'), model: process.env.OPENAI_MODEL || 'gpt-4o' },
-        anthropic: { available: envOrStore('ANTHROPIC_API_KEY', 'ANTHROPIC_API_KEY'), model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6' },
-        qwen: { available: envOrStore('QWEN_API_KEY', 'DASHSCOPE_API_KEY') || envOrStore('DASHSCOPE_API_KEY', 'DASHSCOPE_API_KEY'), model: process.env.QWEN_MODEL || 'qwen-plus' },
-        ark: { available: envOrStore('ARK_API_KEY', 'ARK_API_KEY'), model: process.env.ARK_MODEL || 'doubao-1-5-pro-32k' },
-        xiaomi: { available: envOrStore('XIAOMI_API_KEY', 'XIAOMI_API_KEY'), model: process.env.XIAOMI_MODEL || 'xiaomi-chat' },
-        kimi: { available: envOrStore('KIMI_API_KEY', 'KIMI_API_KEY'), model: process.env.KIMI_MODEL || 'moonshot-v1-8k' },
-        glm: { available: envOrStore('GLM_API_KEY', 'GLM_API_KEY'), model: process.env.GLM_MODEL || 'glm-4-plus' },
-        ollama: { available: ollamaAvailable, model: 'local' },
-        lmstudio: { available: lmstudioAvailable, model: 'local' },
-      },
-    });
+      const stored = loadKeys();
+      const envOrStore = (envKey: string, storeKey: string = envKey) =>
+        !!(process.env[envKey] && process.env[envKey]!.length > 0) || !!stored[storeKey];
+      // Check local model configs
+      let ollamaAvailable = false;
+      let lmstudioAvailable = false;
+      try {
+        const db = readDB();
+        const os = (db.settings || []).find((s: any) => s.key === 'ollama_config');
+        if (os) ollamaAvailable = !!JSON.parse(os.value).detected;
+        const ls = (db.settings || []).find((s: any) => s.key === 'lmstudio_config');
+        if (ls) lmstudioAvailable = !!JSON.parse(ls.value).detected;
+      } catch {}
+      res.json({
+        providers: {
+          deepseek: { available: envOrStore('DEEPSEEK_API_KEY'), model: process.env.DEEPSEEK_MODEL || 'deepseek-chat' },
+          gemini: { available: envOrStore('GEMINI_API_KEY'), model: process.env.GEMINI_MODEL || 'gemini-2.0-flash' },
+          openai: { available: envOrStore('OPENAI_API_KEY'), model: process.env.OPENAI_MODEL || 'gpt-4o' },
+          anthropic: { available: envOrStore('ANTHROPIC_API_KEY'), model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6' },
+          qwen: { available: envOrStore('QWEN_API_KEY') || envOrStore('DASHSCOPE_API_KEY'), model: process.env.QWEN_MODEL || 'qwen-plus' },
+          ark: { available: envOrStore('ARK_API_KEY'), model: process.env.ARK_MODEL || 'doubao-1-5-pro-32k' },
+          xiaomi: { available: envOrStore('XIAOMI_API_KEY'), model: process.env.XIAOMI_MODEL || 'xiaomi-chat' },
+          kimi: { available: envOrStore('KIMI_API_KEY'), model: process.env.KIMI_MODEL || 'moonshot-v1-8k' },
+          glm: { available: envOrStore('GLM_API_KEY'), model: process.env.GLM_MODEL || 'glm-4-plus' },
+          relay: { available: envOrStore('RELAY_API_KEY') && envOrStore('RELAY_BASE_URL'), model: process.env.RELAY_MODEL || 'openai-compatible' },
+          ollama: { available: ollamaAvailable, model: 'local' },
+          lmstudio: { available: lmstudioAvailable, model: 'local' },
+        },
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'Failed to load provider status' });
+    }
   });
 
   // LLM connection test
@@ -327,36 +332,58 @@ export function mountSystemRoutes(router: Router, jwtSecret: string, io?: any) {
   });
 
   router.get("/settings/keys", (_req, res) => {
-    const stored = loadKeys();
-    const masked: Record<string, boolean> = {};
-    for (const name of getAllKeyNames()) {
-      masked[name] = !!(process.env[name] || stored[name]);
+    try {
+      const stored = loadKeys();
+      const masked: Record<string, boolean> = {};
+      for (const name of getAllKeyNames()) {
+        masked[name] = !!(process.env[name] || stored[name]);
+      }
+      res.json(masked);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'Failed to load key status' });
     }
-    res.json(masked);
   });
 
   router.post("/settings/keys", (req, res) => {
-    const { keys } = req.body || {};
-    if (!keys || typeof keys !== 'object') {
-      return res.status(400).json({ error: 'Invalid keys payload' });
-    }
-    const allowed = new Set<string>(getAllKeyNames());
-    const toSave: Record<string, string> = {};
-    const toDelete: string[] = [];
-    for (const [k, v] of Object.entries(keys)) {
-      if (!allowed.has(k) || typeof v !== 'string') continue;
-      if (v.trim().length > 0) {
-        toSave[k] = v.trim();
-      } else {
-        toDelete.push(k);
+    try {
+      const { keys } = req.body || {};
+      if (!keys || typeof keys !== 'object' || Array.isArray(keys)) {
+        return res.status(400).json({ error: 'Invalid keys payload' });
       }
+      const toSave: Record<string, string> = {};
+      const toDelete: string[] = [];
+      const ignored: string[] = [];
+      for (const [k, v] of Object.entries(keys)) {
+        if (!isPersistableKeyName(k) || typeof v !== 'string') {
+          ignored.push(k);
+          continue;
+        }
+        if (v.trim().length > 0) {
+          toSave[k] = v.trim();
+        } else {
+          toDelete.push(k);
+        }
+      }
+      if (ignored.length > 0 && Object.keys(toSave).length === 0 && toDelete.length === 0) {
+        return res.status(400).json({
+          error: `Unsupported key name(s): ${ignored.join(', ')}`,
+          ignored,
+        });
+      }
+      // For explicit deletes, pass empty strings to saveKeys so they get removed
+      for (const k of toDelete) {
+        toSave[k] = '';
+      }
+      saveKeys(toSave);
+      res.json({
+        success: true,
+        saved: Object.keys(toSave).filter(k => !toDelete.includes(k)),
+        deleted: toDelete,
+        ignored,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'Failed to save key settings' });
     }
-    // For explicit deletes, pass empty strings to saveKeys so they get removed
-    for (const k of toDelete) {
-      (toSave as any)[k] = '';
-    }
-    saveKeys(toSave);
-    res.json({ success: true, saved: Object.keys(toSave).filter(k => !toDelete.includes(k)), deleted: toDelete });
   });
 
   // Generic settings store — for tool overrides, security prefs, etc.

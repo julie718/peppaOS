@@ -4,8 +4,10 @@ import { getDataPath } from './data_path';
 
 const KEYS_FILE = getDataPath('keys.json');
 
-interface KeyStore {
+export interface KeyStore {
+  [key: string]: string | undefined;
   DEEPGRAM_API_KEY?: string;
+  PICOVOICE_ACCESS_KEY?: string;
   DASHSCOPE_API_KEY?: string;
   OPENAI_API_KEY?: string;
   ANTHROPIC_API_KEY?: string;
@@ -26,6 +28,16 @@ interface KeyStore {
   GLM_API_KEY?: string;
   RELAY_API_KEY?: string;
   RELAY_BASE_URL?: string;
+  QICHACHA_API_KEY?: string;
+  FEISHU_APP_ID?: string;
+  FEISHU_APP_SECRET?: string;
+  FEISHU_VERIFICATION_TOKEN?: string;
+  WECHAT_BOT_TOKEN?: string;
+  WECHAT_BOT_ID?: string;
+  WECHAT_BASE_URL?: string;
+  GITHUB_TOKEN?: string;
+  NOTION_API_KEY?: string;
+  FIGMA_ACCESS_TOKEN?: string;
 }
 
 /** Which circuit-breaker provider(s) a given key name affects */
@@ -46,6 +58,62 @@ export function loadKeys(): KeyStore {
     }
   } catch {}
   return {};
+}
+
+const BUILTIN_KEY_NAMES = [
+  'DEEPGRAM_API_KEY',
+  'PICOVOICE_ACCESS_KEY',
+  'DASHSCOPE_API_KEY',
+  'OPENAI_API_KEY',
+  'ANTHROPIC_API_KEY',
+  'GEMINI_API_KEY',
+  'DEEPSEEK_API_KEY',
+  'QWEN_API_KEY',
+  'MINIMAX_API_KEY',
+  'E2B_API_KEY',
+  'ARK_API_KEY',
+  'DOUBAO_SPEECH_KEY',
+  'NETEASE_APP_ID',
+  'NETEASE_PRIVATE_KEY',
+  'ALIYUN_AK_ID',
+  'ALIYUN_AK_SECRET',
+  'SILICONFLOW_API_KEY',
+  'XIAOMI_API_KEY',
+  'KIMI_API_KEY',
+  'GLM_API_KEY',
+  'RELAY_API_KEY',
+  'RELAY_BASE_URL',
+  'QICHACHA_API_KEY',
+  'FEISHU_APP_ID',
+  'FEISHU_APP_SECRET',
+  'FEISHU_VERIFICATION_TOKEN',
+  'WECHAT_BOT_TOKEN',
+  'WECHAT_BOT_ID',
+  'WECHAT_BASE_URL',
+  'GITHUB_TOKEN',
+  'NOTION_API_KEY',
+  'FIGMA_ACCESS_TOKEN',
+] as const;
+
+const BLOCKED_CUSTOM_KEY_NAMES = new Set([
+  'PATH',
+  'PATHEXT',
+  'NODE_OPTIONS',
+  'NODE_ENV',
+  'PORT',
+  'HOST',
+  'JWT_SECRET',
+  'LUMI_DATA_DIR',
+]);
+
+const SAFE_CUSTOM_KEY_NAME = /^[A-Z][A-Z0-9_]{2,80}$/;
+const SAFE_CUSTOM_SECRET_NAME = /(?:_API_KEY|_TOKEN|_SECRET|_APP_ID|_PRIVATE_KEY|_BASE_URL|_ACCESS_KEY|_AK_ID|_AK_SECRET|_BOT_ID|_CLIENT_ID|_CLIENT_SECRET|_WEBHOOK_URL)$/;
+
+export function isPersistableKeyName(name: string): boolean {
+  if ((BUILTIN_KEY_NAMES as readonly string[]).includes(name)) return true;
+  if (!SAFE_CUSTOM_KEY_NAME.test(name)) return false;
+  if (BLOCKED_CUSTOM_KEY_NAMES.has(name)) return false;
+  return SAFE_CUSTOM_SECRET_NAME.test(name);
 }
 
 export function saveKeys(keys: Partial<KeyStore>): void {
@@ -87,28 +155,11 @@ export function getKey(name: keyof KeyStore): string | undefined {
   return keys[name];
 }
 
-export function getAllKeyNames(): (keyof KeyStore)[] {
-  return [
-    'DEEPGRAM_API_KEY',
-    'DASHSCOPE_API_KEY',
-    'OPENAI_API_KEY',
-    'ANTHROPIC_API_KEY',
-    'GEMINI_API_KEY',
-    'DEEPSEEK_API_KEY',
-    'QWEN_API_KEY',
-    'MINIMAX_API_KEY',
-    'E2B_API_KEY',
-    'ARK_API_KEY',
-    'DOUBAO_SPEECH_KEY',
-    'NETEASE_APP_ID',
-    'NETEASE_PRIVATE_KEY',
-    'ALIYUN_AK_ID',
-    'ALIYUN_AK_SECRET',
-    'SILICONFLOW_API_KEY',
-    'XIAOMI_API_KEY',
-    'KIMI_API_KEY',
-    'GLM_API_KEY',
-    'RELAY_API_KEY',
-    'RELAY_BASE_URL',
-  ];
+export function getAllKeyNames(): string[] {
+  const names = new Set<string>(BUILTIN_KEY_NAMES);
+  const stored = loadKeys();
+  for (const name of Object.keys(stored)) {
+    if (isPersistableKeyName(name)) names.add(name);
+  }
+  return [...names];
 }
