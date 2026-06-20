@@ -96,6 +96,12 @@ const MOJIBAKE_TOKENS = [
   '\u00c3',
   '\u00c2',
   '\ufffd',
+  '\u00e6',
+  '\u00e9',
+  '\u00e8',
+  '\u00e7',
+  '\u00e5',
+  '\u00e4',
   '\u951f',
   '\u93c2',
   '\u6d93',
@@ -110,7 +116,9 @@ const MOJIBAKE_TOKENS = [
 ];
 
 function looksMojibake(value: string): boolean {
-  return /[\u00c0-\u00ff]{2,}/.test(value) || MOJIBAKE_TOKENS.some(token => value.includes(token));
+  return /[\u0080-\u009f]/.test(value)
+    || /[\u00c0-\u00ff][\u0080-\u00bf]/.test(value)
+    || MOJIBAKE_TOKENS.some(token => value.includes(token));
 }
 
 function textScore(value: string): number {

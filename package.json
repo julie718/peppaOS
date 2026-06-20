@@ -34,7 +34,9 @@
     "mobile:open-ios": "cap open ios",
     "deploy:win": "powershell -ExecutionPolicy Bypass -File scripts/deploy-windows.ps1",
     "deploy:mac": "bash scripts/deploy-macos.sh",
-    "deploy:linux": "bash scripts/deploy-linux.sh"
+    "deploy:linux": "bash scripts/deploy-linux.sh",
+    "repair:knowledge-filenames": "node scripts/repair-knowledge-filenames.mjs --apply",
+    "repair:knowledge-filenames:dry": "node scripts/repair-knowledge-filenames.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",

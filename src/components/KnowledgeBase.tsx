@@ -17,6 +17,49 @@ interface KnowledgeBaseProps {
   domain?: 'personal' | 'work';
 }
 
+const BROKEN_FILENAME_MARKERS = [
+  '\u00c3',
+  '\u00c2',
+  '\ufffd',
+  '\u951f',
+  '\u93c2',
+  '\u6d93',
+  '\u7f01',
+  '\u7015',
+  '\u6fc2',
+  '\u5a34',
+  '\u6d7c',
+  '\u5fe1',
+  '\u9439',
+  '\u9359',
+];
+
+function looksBrokenFilename(value: string): boolean {
+  return /[\u0080-\u009f]/.test(value)
+    || /[\u00c0-\u00ff][\u0080-\u00bf]/.test(value)
+    || BROKEN_FILENAME_MARKERS.some(marker => value.includes(marker));
+}
+
+function scoreFilenameText(value: string): number {
+  const replacement = (value.match(/\ufffd/g) || []).length;
+  const cjk = (value.match(/[\u4e00-\u9fff]/g) || []).length;
+  const ascii = (value.match(/[A-Za-z0-9._ -]/g) || []).length;
+  const controls = (value.match(/[\u0080-\u009f]/g) || []).length;
+  const brokenMarkers = BROKEN_FILENAME_MARKERS.reduce((sum, marker) => sum + (value.includes(marker) ? 1 : 0), 0);
+  return cjk * 2 + ascii * 0.15 - replacement * 8 - controls * 6 - brokenMarkers * 2;
+}
+
+function repairKnowledgeFilename(value: string | undefined): string {
+  const original = String(value || '').normalize('NFC');
+  if (!original || !looksBrokenFilename(original)) return original;
+  const candidates = new Set<string>([original]);
+  try {
+    const bytes = Uint8Array.from(Array.from(original, ch => ch.charCodeAt(0) & 0xff));
+    candidates.add(new TextDecoder('utf-8', { fatal: false }).decode(bytes).normalize('NFC'));
+  } catch {}
+  return [...candidates].sort((a, b) => scoreFilenameText(b) - scoreFilenameText(a))[0] || original;
+}
+
 export function KnowledgeBase({ t, isOpen, onClose, domain = 'personal' }: KnowledgeBaseProps) {
   const socket = useSocket();
 
@@ -68,11 +111,15 @@ export function KnowledgeBase({ t, isOpen, onClose, domain = 'personal' }: Knowl
     if (filesRes.status === 'fulfilled' && filesRes.value.ok) {
       try {
         const d = await filesRes.value.json();
-        setFiles((d.files || []).map((file: FileEntry) => ({
-          ...file,
-          name: file.displayName || file.name,
-          domain: file.domain || domain,
-        })));
+        setFiles((d.files || []).map((file: FileEntry) => {
+          const readableName = repairKnowledgeFilename(file.displayName || file.name || file.id);
+          return {
+            ...file,
+            name: readableName,
+            displayName: readableName,
+            domain: file.domain || domain,
+          };
+        }));
       } catch {}
     } else {
       const status = filesRes.status === 'fulfilled' ? filesRes.value.status : 'network';
