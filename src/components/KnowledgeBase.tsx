@@ -61,7 +61,13 @@ export function KnowledgeBase({ t, isOpen, onClose, domain = 'personal' }: Knowl
     const errors: string[] = [];
 
     if (filesRes.status === 'fulfilled' && filesRes.value.ok) {
-      try { const d = await filesRes.value.json(); setFiles(d.files || []); } catch {}
+      try {
+        const d = await filesRes.value.json();
+        setFiles((d.files || []).map((file: FileEntry) => ({
+          ...file,
+          name: file.displayName || file.name,
+        })));
+      } catch {}
     } else {
       const status = filesRes.status === 'fulfilled' ? filesRes.value.status : 'network';
       errors.push(`${t.kbFilesLoadFailed || 'Files failed to load'} (${status})`);
@@ -148,7 +154,8 @@ export function KnowledgeBase({ t, isOpen, onClose, domain = 'personal' }: Knowl
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = id;
+      const file = files.find(f => f.id === id);
+      a.href = url; a.download = file?.displayName || file?.name || id;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch { toast.error('Download failed'); }

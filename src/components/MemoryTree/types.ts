@@ -21,6 +21,7 @@ export interface MemoryNode {
 export interface FileEntry {
   id: string;
   name: string;
+  displayName?: string;
   size?: string;
   rawSize?: number;
   source?: 'upload' | 'generated' | 'ingested';

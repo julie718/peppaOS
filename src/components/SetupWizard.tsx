@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Cpu, Cloud, Mic, CheckCircle, Loader2, ArrowRight, Download, Key, Volume2, Sparkles } from 'lucide-react';
 import { useT } from '../lib/useT';
+import { toast } from 'sonner';
+import { saveServerKeys } from '../services/settingsKeys';
 
 type Step = 'detect' | 'local-ready' | 'api-setup' | 'voice-test' | 'done';
 
@@ -106,14 +108,10 @@ export function SetupWizard({ onFinish }: Props) {
       anthropic: 'ANTHROPIC_API_KEY',
     };
     try {
-      await fetch('/api/settings/keys', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keys: { [keyMap[apiProvider]]: apiKey.trim() } }),
-      });
+      await saveServerKeys({ [keyMap[apiProvider]]: apiKey.trim() });
       setStep('voice-test');
-    } catch {
-      // Save failed, still allow continuing
+    } catch (err: any) {
+      toast.error(err.message || ui('API Key 保存失败', 'API key save failed'));
       setStep('voice-test');
     } finally {
       setSaving(false);

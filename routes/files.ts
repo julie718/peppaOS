@@ -13,6 +13,7 @@ import path from 'path';
 import fs from 'fs';
 import os from 'os';
 import { exec, spawn } from 'child_process';
+import iconv from 'iconv-lite';
 import { readDB, writeDB } from '../db_layer';
 import { ingestDocument } from '../server/agents/rag';
 import { getDataPath } from '../server/config/data_path';
@@ -60,6 +61,7 @@ function formatSize(bytes: number): string {
 interface KnowledgeEntry {
   id: string;
   name: string;
+  displayName: string;
   size: string;
   rawSize: number;
   type: 'file';
@@ -70,14 +72,47 @@ interface KnowledgeEntry {
   createdAt: string;
 }
 
+const MOJIBAKE_HINT = /[ÃÂ�]|锟|鏂|涓|绾|佹|妗|勭|忚|瀵|嗛|挜|厤|缃|犳|湇|姟/;
+
+function textScore(value: string): number {
+  let score = 0;
+  const replacement = value.match(/�/g)?.length || 0;
+  const mojibake = value.match(/[ÃÂ]|锟|鏂|涓|绾|佹|妗|勭|忚|瀵|嗛|挜|厤|缃|犳|湇|姟/g)?.length || 0;
+  const cjk = value.match(/[\u4e00-\u9fff]/g)?.length || 0;
+  const ascii = value.match(/[A-Za-z0-9._ -]/g)?.length || 0;
+  score += cjk * 2 + ascii * 0.15;
+  score -= replacement * 8 + mojibake * 2;
+  return score;
+}
+
+function repairFilename(value: string): string {
+  const original = String(value || '').normalize('NFC');
+  if (!original || !MOJIBAKE_HINT.test(original)) return original;
+  const candidates = new Set<string>([original]);
+  try { candidates.add(Buffer.from(original, 'latin1').toString('utf8').normalize('NFC')); } catch {}
+  try { candidates.add(iconv.encode(original, 'gbk').toString('utf8').normalize('NFC')); } catch {}
+  try { candidates.add(iconv.encode(original, 'gb18030').toString('utf8').normalize('NFC')); } catch {}
+  return [...candidates].sort((a, b) => textScore(b) - textScore(a))[0] || original;
+}
+
+function sanitizeKnowledgeFilename(value: string, fallback = 'untitled'): string {
+  const repaired = repairFilename(value || fallback)
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+    .trim();
+  const safe = repaired && repaired !== '.' && repaired !== '..' ? repaired : fallback;
+  return path.basename(safe);
+}
+
 function buildEntry(filename: string, source: 'upload' | 'generated' | 'ingested', agentIds: string[] = []): KnowledgeEntry {
   const filePath = path.join(KNOWLEDGE_DIR, filename);
+  const displayName = repairFilename(filename);
   let st: fs.Stats;
   try { st = fs.statSync(filePath); }
   catch { st = { size: 0, mtime: new Date(), birthtime: new Date() } as fs.Stats; }
   return {
     id: filename,
-    name: filename,
+    name: displayName,
+    displayName,
     size: formatSize(st.size),
     rawSize: st.size,
     type: 'file',
@@ -161,10 +196,11 @@ router.post('/files/upload', requireAuth, upload.array('files', 20), async (req:
 
     const saved: any[] = [];
     for (const file of uploadedFiles) {
-      let dest = path.join(KNOWLEDGE_DIR, file.originalname);
+      const uploadName = sanitizeKnowledgeFilename(file.originalname, 'upload');
+      let dest = path.join(KNOWLEDGE_DIR, uploadName);
       let counter = 1;
-      const ext = path.extname(file.originalname);
-      const base = path.basename(file.originalname, ext);
+      const ext = path.extname(uploadName);
+      const base = path.basename(uploadName, ext);
       while (fs.existsSync(dest)) {
         dest = path.join(KNOWLEDGE_DIR, `${base} (${counter})${ext}`);
         counter++;
@@ -228,10 +264,10 @@ router.post('/files/upload', requireAuth, upload.array('files', 20), async (req:
 // ── POST /files/save — save generated content as a file ──
 router.post('/files/save', requireAuth, (req: Request, res: Response) => {
   try {
-    const { name, content } = req.body;
-    if (!name || content === undefined) return res.status(400).json({ error: 'name and content required' });
+      const { name, content } = req.body;
+      if (!name || content === undefined) return res.status(400).json({ error: 'name and content required' });
 
-    const safeName = name.replace(/[<>:"/\\|?*]/g, '_');
+    const safeName = sanitizeKnowledgeFilename(name);
     const filePath = path.join(KNOWLEDGE_DIR, safeName);
     fs.writeFileSync(filePath, typeof content === 'string' ? content : JSON.stringify(content, null, 2), 'utf-8');
 
@@ -348,7 +384,7 @@ router.post('/files/rename', requireAuth, (req: Request, res: Response) => {
     if (!id || !newName) return res.status(400).json({ error: 'id and newName required' });
 
     const oldPath = path.join(KNOWLEDGE_DIR, path.basename(id));
-    const safeNewName = newName.replace(/[<>:"/\\|?*]/g, '_');
+    const safeNewName = sanitizeKnowledgeFilename(newName);
     const newPath = path.join(KNOWLEDGE_DIR, safeNewName);
 
     if (!fs.existsSync(oldPath)) return res.status(404).json({ error: 'Not found' });
@@ -379,7 +415,8 @@ router.get('/files/info/:id', (req: Request, res: Response) => {
     const meta = db.knowledgeFiles?.find((m: any) => m.filename === safeName);
     res.json({
       id: safeName,
-      name: safeName,
+      name: repairFilename(safeName),
+      displayName: repairFilename(safeName),
       size: st.size,
       formattedSize: formatSize(st.size),
       type: 'file',

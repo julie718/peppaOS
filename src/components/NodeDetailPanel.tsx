@@ -6,6 +6,7 @@ import { X, Download, Trash2, Edit3, Brain, Shield, ShieldOff, File, Clock, Laye
 interface FileEntry {
   id: string;
   name: string;
+  displayName?: string;
   size?: string;
   rawSize?: number;
   source?: 'upload' | 'generated' | 'ingested';
@@ -95,7 +96,7 @@ export function NodeDetailPanel({
   const [previewMediaUrl, setPreviewMediaUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
-  const fileName = node?.type === 'file' ? node.fileData?.name || node.title : '';
+  const fileName = node?.type === 'file' ? node.fileData?.displayName || node.fileData?.name || node.title : '';
   const imageExts = /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i;
   const audioExts = /\.(mp3|wav|ogg|flac|m4a|aac|wma)$/i;
   const videoExts = /\.(mp4|mov|avi|webm|mkv)$/i;

@@ -4,6 +4,7 @@ import * as authService from '../services/authService';
 import * as agentService from '../services/agentService';
 import * as notificationService from '../services/notificationService';
 import { socketService } from '../services/socketService';
+import { saveServerKeys } from '../services/settingsKeys';
 
 interface UserProfile {
   uid: string;
@@ -297,14 +298,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
           openai: 'OPENAI_API_KEY',
           gemini: 'GEMINI_API_KEY',
           anthropic: 'ANTHROPIC_API_KEY',
+          ark: 'ARK_API_KEY',
+          xiaomi: 'XIAOMI_API_KEY',
+          kimi: 'KIMI_API_KEY',
+          glm: 'GLM_API_KEY',
+          relay: 'RELAY_API_KEY',
         };
         const serverKey = KEY_MAP[updated.provider];
         if (serverKey) {
-          fetch('/api/settings/keys', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ keys: { [serverKey]: updated.apiKey } }),
-          }).catch(() => {});
+          saveServerKeys({ [serverKey]: updated.apiKey })
+            .catch(err => toast.error(err.message || 'API key save failed'));
         }
       }
 
@@ -360,11 +363,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         };
         const serverKey = KEY_MAP[updated.provider];
         if (serverKey) {
-          fetch('/api/settings/keys', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ keys: { [serverKey]: updated.apiKey } }),
-          }).catch(() => {});
+          saveServerKeys({ [serverKey]: updated.apiKey })
+            .catch(err => toast.error(err.message || 'Vision API key save failed'));
         }
       }
 
@@ -594,6 +594,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ key: 'tool_overrides', value: next }),
       }).catch(() => {});
       return next;

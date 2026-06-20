@@ -31,6 +31,7 @@ import { VoiceForge } from './VoiceForge';
 import { VoiceProviderSwitch } from './VoiceProviderSwitch';
 import { MCPSettings } from './MCPSettings';
 import { MessagingHub } from './MessagingHub';
+import { getSavedKeyStatus, saveServerKeys } from '@/services/settingsKeys';
 
 function buildSidebarGroups(t: any, isZh: boolean) {
   const ui = (zh: string, en: string) => (isZh ? zh : en);
@@ -447,40 +448,31 @@ function LLMProviderRow({ icon, label, providerId, models, placeholder, disabled
   });
 
   useEffect(() => {
-    fetch('/api/settings/keys')
-      .then(r => r.json())
+    getSavedKeyStatus()
       .then(data => setServerConfigured(!!data[serverKey]))
       .catch(() => {});
   }, [serverKey]);
 
   const handleRemoveKey = () => {
-    localStorage.removeItem(`lumi_${providerId}_key`);
-    fetch('/api/settings/keys', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keys: { [serverKey]: '' } }),
-    }).then(r => {
-      if (!r.ok) throw new Error(ui('移除失败', 'Remove failed'));
+    saveServerKeys({ [serverKey]: '' }).then(() => {
+      localStorage.removeItem(`lumi_${providerId}_key`);
       setServerConfigured(false);
       setKeyValue('');
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    }).catch(() => toast.error(t?.failedToRemoveKey || ui('密钥移除失败', 'Failed to remove key')));
+      toast.success(t?.apiKeyRemoved || ui('API Key 已移除', 'API key removed'));
+    }).catch(err => toast.error(err.message || t?.failedToRemoveKey || ui('密钥移除失败', 'Failed to remove key')));
   };
 
   const handleSaveKey = () => {
     if (!keyValue.trim()) return;
-    localStorage.setItem(`lumi_${providerId}_key`, keyValue.trim());
-    fetch('/api/settings/keys', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keys: { [serverKey]: keyValue.trim() } }),
-    }).then(r => {
-      if (!r.ok) throw new Error(ui('保存失败', 'Save failed'));
+    saveServerKeys({ [serverKey]: keyValue.trim() }).then(() => {
+      localStorage.setItem(`lumi_${providerId}_key`, keyValue.trim());
       setServerConfigured(true);
-    }).catch(() => toast.error(t?.failedToSaveKey || ui('密钥保存失败', 'Failed to save key')));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+      toast.success(t?.apiKeySaved || ui('API Key 已保存', 'API key saved'));
+    }).catch(err => toast.error(err.message || t?.failedToSaveKey || ui('密钥保存失败', 'Failed to save key')));
   };
 
   const syncToServer = (models: Record<string, string>) => {
@@ -586,43 +578,34 @@ function VisionProviderRow({ icon, label, providerId, models, placeholder, disab
   const [model, setModel] = useState(() => savedModels[providerId] || models[0]);
 
   useEffect(() => {
-    fetch('/api/settings/keys')
-      .then(r => r.json())
+    getSavedKeyStatus()
       .then(data => setServerConfigured(!!data[serverKey]))
       .catch(() => {});
   }, [serverKey]);
 
   const handleSaveKey = () => {
     if (!keyValue.trim()) return;
-    localStorage.setItem(`lumi_vision_${providerId}_key`, keyValue.trim());
-    fetch('/api/settings/keys', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keys: { [serverKey]: keyValue.trim() } }),
-    }).then(r => {
-      if (!r.ok) throw new Error(ui('保存失败', 'Save failed'));
+    saveServerKeys({ [serverKey]: keyValue.trim() }).then(() => {
+      localStorage.setItem(`lumi_vision_${providerId}_key`, keyValue.trim());
       setServerConfigured(true);
       if (visionConfig.provider === providerId) {
         updateVisionConfig({ apiKey: keyValue.trim(), model });
       }
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    }).catch(() => toast.error(t?.failedToSaveKey || ui('密钥保存失败', 'Failed to save key')));
+      toast.success(t?.apiKeySaved || ui('API Key 已保存', 'API key saved'));
+    }).catch(err => toast.error(err.message || t?.failedToSaveKey || ui('密钥保存失败', 'Failed to save key')));
   };
 
   const handleRemoveKey = () => {
-    localStorage.removeItem(`lumi_vision_${providerId}_key`);
-    fetch('/api/settings/keys', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keys: { [serverKey]: '' } }),
-    }).then(r => {
-      if (!r.ok) throw new Error(ui('移除失败', 'Remove failed'));
+    saveServerKeys({ [serverKey]: '' }).then(() => {
+      localStorage.removeItem(`lumi_vision_${providerId}_key`);
       setServerConfigured(false);
       setKeyValue('');
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    }).catch(() => toast.error(t?.failedToRemoveKey || ui('密钥移除失败', 'Failed to remove key')));
+      toast.success(t?.apiKeyRemoved || ui('API Key 已移除', 'API key removed'));
+    }).catch(err => toast.error(err.message || t?.failedToRemoveKey || ui('密钥移除失败', 'Failed to remove key')));
   };
 
   const handleModelChange = (m: string) => {
@@ -873,8 +856,7 @@ function VisionRelayProviderRow({ t }: { t?: any }) {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    fetch('/api/settings/keys')
-      .then(r => r.json())
+    getSavedKeyStatus()
       .then(data => setServerConfigured(!!data.RELAY_API_KEY && !!data.RELAY_BASE_URL))
       .catch(() => {});
   }, []);
@@ -891,18 +873,14 @@ function VisionRelayProviderRow({ t }: { t?: any }) {
 
   const handleSave = () => {
     if (!apiKey.trim() || !baseUrl.trim()) return;
-    localStorage.setItem('lumi_relay_key', apiKey.trim());
-    localStorage.setItem('lumi_relay_url', baseUrl.trim());
-    fetch('/api/settings/keys', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keys: { RELAY_API_KEY: apiKey.trim(), RELAY_BASE_URL: baseUrl.trim() } }),
-    }).then(r => {
-      if (!r.ok) throw new Error('Save failed');
+    saveServerKeys({ RELAY_API_KEY: apiKey.trim(), RELAY_BASE_URL: baseUrl.trim() }).then(() => {
+      localStorage.setItem('lumi_relay_key', apiKey.trim());
+      localStorage.setItem('lumi_relay_url', baseUrl.trim());
       setServerConfigured(true);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    }).catch(() => toast.error(t?.failedToSaveKey || ui('保存失败', 'Failed to save')));
+      toast.success(t?.apiKeySaved || ui('API Key 已保存', 'API key saved'));
+    }).catch(err => toast.error(err.message || t?.failedToSaveKey || ui('保存失败', 'Failed to save')));
   };
 
   const handleUse = () => {
@@ -1390,47 +1368,45 @@ function ApiKeyField({ icon, label, placeholder, disabled = false, storageKey, s
 
   useEffect(() => {
     if (!serverKey) return;
-    fetch('/api/settings/keys')
-      .then(r => r.json())
+    getSavedKeyStatus()
       .then(data => setServerConfigured(!!data[serverKey]))
       .catch(() => {});
   }, [serverKey]);
 
   const handleRemove = () => {
-    localStorage.removeItem(storageKey);
+    const removeLocal = () => {
+      localStorage.removeItem(storageKey);
+      setServerConfigured(false);
+      setValue('');
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+      toast.success(t?.apiKeyRemoved || ui('API Key 已移除', 'API key removed'));
+    };
     if (serverKey) {
-      fetch('/api/settings/keys', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keys: { [serverKey]: '' } }),
-      }).then(r => {
-        if (!r.ok) throw new Error(ui('移除失败', 'Remove failed'));
-        setServerConfigured(false);
-        setValue('');
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
-      }).catch(() => toast.error(t?.failedToRemoveKey || ui('密钥移除失败', 'Failed to remove key')));
+      saveServerKeys({ [serverKey]: '' })
+        .then(removeLocal)
+        .catch(err => toast.error(err.message || t?.failedToRemoveKey || ui('密钥移除失败', 'Failed to remove key')));
+      return;
     }
-    toast.success(t?.apiKeyRemoved || ui('API Key 已移除', 'API key removed'));
+    removeLocal();
   };
 
   const handleSave = () => {
     if (!value.trim()) return;
-    localStorage.setItem(storageKey, value.trim());
+    const saveLocal = () => {
+      localStorage.setItem(storageKey, value.trim());
+      setServerConfigured(!!serverKey || serverConfigured);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+      toast.success(t?.apiKeySaved || ui('API Key 已保存', 'API key saved'));
+    };
     if (serverKey) {
-      fetch('/api/settings/keys', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keys: { [serverKey]: value.trim() } }),
-      }).then(r => {
-        if (!r.ok) throw new Error(ui('保存失败', 'Save failed'));
-        return r.json();
-      }).then(() => setServerConfigured(true))
-        .catch(() => toast.error(t?.failedToSaveKey || ui('密钥保存到服务器失败', 'Failed to save key to server')));
+      saveServerKeys({ [serverKey]: value.trim() })
+        .then(saveLocal)
+        .catch(err => toast.error(err.message || t?.failedToSaveKey || ui('密钥保存到服务器失败', 'Failed to save key to server')));
+      return;
     }
-    toast.success(t?.apiKeySaved || ui('API Key 已保存', 'API key saved'));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    saveLocal();
   };
 
   return (
@@ -1489,8 +1465,7 @@ function RelayProviderRow({ t }: { t?: any }) {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    fetch('/api/settings/keys')
-      .then(r => r.json())
+    getSavedKeyStatus()
       .then(data => {
         setServerKeyOk(!!data['RELAY_API_KEY']);
         setServerUrlOk(!!data['RELAY_BASE_URL']);
@@ -1500,29 +1475,29 @@ function RelayProviderRow({ t }: { t?: any }) {
 
   const handleSave = () => {
     if (!apiKey.trim() || !baseUrl.trim()) return;
-    localStorage.setItem('lumi_relay_key', apiKey.trim());
-    localStorage.setItem('lumi_relay_url', baseUrl.trim());
-    fetch('/api/settings/keys', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keys: { RELAY_API_KEY: apiKey.trim(), RELAY_BASE_URL: baseUrl.trim() } }),
-    }).then(r => {
-      if (r.ok) { setServerKeyOk(true); setServerUrlOk(true); }
-    }).catch(() => toast.error(t?.failedToSaveKey || ui('保存失败', 'Failed to save')));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    saveServerKeys({ RELAY_API_KEY: apiKey.trim(), RELAY_BASE_URL: baseUrl.trim() }).then(() => {
+      localStorage.setItem('lumi_relay_key', apiKey.trim());
+      localStorage.setItem('lumi_relay_url', baseUrl.trim());
+      setServerKeyOk(true);
+      setServerUrlOk(true);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+      toast.success(t?.apiKeySaved || ui('API Key 已保存', 'API key saved'));
+    }).catch(err => toast.error(err.message || t?.failedToSaveKey || ui('保存失败', 'Failed to save')));
   };
 
   const handleRemove = () => {
-    localStorage.removeItem('lumi_relay_key');
-    localStorage.removeItem('lumi_relay_url');
-    fetch('/api/settings/keys', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keys: { RELAY_API_KEY: '', RELAY_BASE_URL: '' } }),
-    }).then(r => {
-      if (r.ok) { setServerKeyOk(false); setServerUrlOk(false); setApiKey(''); setBaseUrl(''); }
-    }).catch(() => {});
+    saveServerKeys({ RELAY_API_KEY: '', RELAY_BASE_URL: '' }).then(() => {
+      localStorage.removeItem('lumi_relay_key');
+      localStorage.removeItem('lumi_relay_url');
+      setServerKeyOk(false);
+      setServerUrlOk(false);
+      setApiKey('');
+      setBaseUrl('');
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+      toast.success(t?.apiKeyRemoved || ui('API Key 已移除', 'API key removed'));
+    }).catch(err => toast.error(err.message || t?.failedToRemoveKey || ui('移除失败', 'Failed to remove')));
   };
 
   return (
