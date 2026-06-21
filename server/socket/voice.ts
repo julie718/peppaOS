@@ -525,6 +525,7 @@ async function processVoiceInput(
   const ttsAbort = session.ttsAbortController;
 
   const toolContext = {
+    userId: session.userId,
     desktopRelay,
     llmGetters,
     source: 'voice',
