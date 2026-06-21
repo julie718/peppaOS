@@ -483,8 +483,8 @@ export function registerChatHandler(
       let activeProvider = userLLMPrefs.provider || 'deepseek';
       let activeModel = (userLLMPrefs.models || {})[activeProvider] || DEFAULT_MODELS[activeProvider] || 'deepseek-chat';
 
-      // ── Hybrid dispatch: if Ollama is available and no explicit cloud provider, use auto ──
-      if (llmGetters.isOllamaAvailable() && (!userLLMPrefs.provider || userLLMPrefs.provider === 'auto')) {
+      // Hybrid dispatch is opt-in only; do not change providers unless the user chose auto.
+      if (llmGetters.isOllamaAvailable() && userLLMPrefs.provider === 'auto') {
         activeProvider = 'auto';
         activeModel = 'qwen2.5:7b';
         console.log('[Chat] Hybrid mode enabled — local Ollama → cloud DeepSeek');
@@ -970,8 +970,8 @@ export function registerChatHandler(
           }
         } catch (llmErr: any) {
           console.error(`[Cognition] LLM '${activeProvider}/${activeModel}' failed: ${llmErr.message}`);
-          // Try fallback provider
-          if (llmErr.message?.includes('not configured') && activeProvider !== 'gemini') {
+          // Do not silently switch to another paid provider. The selected model should run or fail visibly.
+          if (false && llmErr.message?.includes('not configured') && activeProvider !== 'gemini') {
             try {
               const fallbackMessage = `主推理服务 ${activeProvider}/${activeModel} 不可用，Lumi 将临时降级到 Gemini。`;
               socket.emit('agent:notification', { type: 'llm_fallback', level: 'warning', message: fallbackMessage });
