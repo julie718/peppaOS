@@ -52,6 +52,7 @@ export async function bootstrap(ctx: BootstrapContext) {
     await ensureDatabaseInitialized();
     console.log('Database initialized successfully');
     pruneOldData();
+    await flushDB();
   } catch (error) {
     console.error('Failed to initialize database:', error);
     process.exit(1);
