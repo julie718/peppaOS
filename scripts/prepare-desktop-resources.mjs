@@ -8,7 +8,19 @@ const root = path.resolve(path.dirname(__filename), '..');
 const outDir = path.join(root, 'desktop-resources');
 const includeLocalVoice = process.env.LUMI_DESKTOP_WITH_LOCAL_VOICE === '1';
 
-const runtimeNodeModules = ['sqlite3', 'bindings', 'file-uri-to-path'];
+const runtimeNodeModules = ['sqlite3', 'bindings', 'file-uri-to-path', 'sharp', 'detect-libc', 'semver'];
+const runtimeScopedNodeModules = {
+  '@img': [
+    'colour',
+    'sharp-win32-x64',
+    'sharp-win32-arm64',
+    'sharp-win32-ia32',
+    'sharp-wasm32',
+    'sharp-libvips-win32-x64',
+    'sharp-libvips-win32-arm64',
+    'sharp-libvips-win32-ia32',
+  ],
+};
 const ignoredNames = new Set([
   '.git',
   '.github',
@@ -72,6 +84,15 @@ async function prepareServer() {
     const fallbackPath = path.join(root, 'node_modules', moduleName);
     const moduleSrc = existsSync(srcPath) ? srcPath : fallbackPath;
     await copyDir(moduleSrc, path.join(dest, 'node_modules', moduleName));
+  }
+
+  for (const [scopeName, packageNames] of Object.entries(runtimeScopedNodeModules)) {
+    for (const packageName of packageNames) {
+      const srcPath = path.join(src, 'node_modules', scopeName, packageName);
+      const fallbackPath = path.join(root, 'node_modules', scopeName, packageName);
+      const moduleSrc = existsSync(srcPath) ? srcPath : fallbackPath;
+      await copyDir(moduleSrc, path.join(dest, 'node_modules', scopeName, packageName));
+    }
   }
 }
 

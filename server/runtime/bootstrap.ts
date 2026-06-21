@@ -23,6 +23,23 @@ interface BootstrapContext {
   __dirname: string;
 }
 
+function scheduleFirstBootExploration(delayMs = 30000) {
+  const timer = setTimeout(() => {
+    try {
+      if (!isFirstBootComplete()) {
+        console.log('[Bootstrap] First boot detected - running system exploration after server startup...');
+        const snapshot = runFirstBootExploration();
+        console.log(`[Bootstrap] Exploration complete: ${snapshot.hardware.cpus.model}, ${snapshot.hardware.totalMemoryGB}GB RAM, ${snapshot.software.installedApps.length} apps, ${snapshot.filesystem.totalUserFiles} user files`);
+        const installed = installProfessionAgents();
+        if (installed > 0) console.log(`[Bootstrap] Installed ${installed} profession agents`);
+      }
+    } catch (err) {
+      console.warn('[Bootstrap] System exploration failed:', (err as Error).message);
+    }
+  }, delayMs);
+  if (typeof (timer as any).unref === 'function') (timer as any).unref();
+}
+
 export async function bootstrap(ctx: BootstrapContext) {
   const { server, io, PORT, HOST, jwtSecret, llm, __dirname } = ctx;
 
@@ -62,20 +79,6 @@ export async function bootstrap(ctx: BootstrapContext) {
     } catch (err) {
       console.warn('[Bootstrap] Failed to ensure admin account:', (err as Error).message);
     }
-  }
-
-  // ── First-boot system exploration — Lumi surveys its new home ──
-  try {
-    if (!isFirstBootComplete()) {
-      console.log('[Bootstrap] First boot detected — running system exploration...');
-      const snapshot = runFirstBootExploration();
-      console.log(`[Bootstrap] Exploration complete: ${snapshot.hardware.cpus.model}, ${snapshot.hardware.totalMemoryGB}GB RAM, ${snapshot.software.installedApps.length} apps, ${snapshot.filesystem.totalUserFiles} user files`);
-      // Install profession-specialist agents based on detected trade
-      const installed = installProfessionAgents();
-      if (installed > 0) console.log(`[Bootstrap] Installed ${installed} profession agents`);
-    }
-  } catch (err) {
-    console.warn('[Bootstrap] System exploration failed:', (err as Error).message);
   }
 
   // Register all agent tools
@@ -178,6 +181,8 @@ export async function bootstrap(ctx: BootstrapContext) {
     }).catch((err: any) => {
       console.warn('[Org] Failed to install design templates:', err.message);
     });
+
+    scheduleFirstBootExploration();
   });
 
   // Cleanup on exit

@@ -4,7 +4,15 @@ import { getUserPreferredVision, type VisionProvider } from '../../llm/vision_pr
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import sharp from 'sharp';
+
+let sharpLoader: Promise<any> | null = null;
+
+async function getSharp() {
+  if (!sharpLoader) {
+    sharpLoader = import('sharp').then(mod => mod.default || mod);
+  }
+  return sharpLoader;
+}
 
 function resolveVisionProvider(_args: Record<string, any>, context?: any): VisionProvider | null {
   const g = context?.llmGetters || {};
@@ -121,6 +129,7 @@ async function ocrImageFile(args: Record<string, any>, context?: any): Promise<s
     }, null, 2);
   }
 
+  const sharp = await getSharp();
   const meta = await sharp(imagePath).metadata();
   const buffer = await sharp(imagePath)
     .rotate()
@@ -235,6 +244,7 @@ async function floorplanExtractGeometry(args: Record<string, any>, context?: any
     }, null, 2);
   }
 
+  const sharp = await getSharp();
   const meta = await sharp(imagePath).metadata();
   const buffer = await sharp(imagePath)
     .rotate()

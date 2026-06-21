@@ -36,6 +36,35 @@ const DB_PATH = getDataPath('lumi.db');
 
 let db: sqlite3.Database | null = null;
 let memoryDB: any = null;
+const SYSTEM_FLAGS_SETTING = '__lumi_system_flags';
+const SYSTEM_SNAPSHOTS_SETTING = '__lumi_system_snapshots';
+
+function parseJsonSetting<T>(settings: any[], key: string, fallback: T): T {
+  const row = settings.find((s: any) => s.key === key);
+  if (!row?.value) return fallback;
+  try {
+    return JSON.parse(row.value);
+  } catch {
+    return fallback;
+  }
+}
+
+function settingsRowsWithSystemState(): any[][] {
+  const settings = Array.isArray(memoryDB?.settings) ? memoryDB.settings : [];
+  const rows = settings
+    .filter((s: any) => s?.key !== SYSTEM_FLAGS_SETTING && s?.key !== SYSTEM_SNAPSHOTS_SETTING)
+    .map((s: any) => [s.key, s.value]);
+
+  if (memoryDB?.systemFlags && Object.keys(memoryDB.systemFlags).length > 0) {
+    rows.push([SYSTEM_FLAGS_SETTING, JSON.stringify(memoryDB.systemFlags)]);
+  }
+
+  if (Array.isArray(memoryDB?.systemSnapshots) && memoryDB.systemSnapshots.length > 0) {
+    rows.push([SYSTEM_SNAPSHOTS_SETTING, JSON.stringify(memoryDB.systemSnapshots.slice(-120))]);
+  }
+
+  return rows;
+}
 
 export async function initDatabase(): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -528,6 +557,8 @@ async function loadMemoryDB(): Promise<void> {
   // Load settings
   const settingsRaw = await query<any>('SELECT * FROM settings');
   const settings = settingsRaw.map((s: any) => ({ key: s.key, value: s.value }));
+  const systemFlags = parseJsonSetting(settings, SYSTEM_FLAGS_SETTING, {});
+  const systemSnapshots = parseJsonSetting<any[]>(settings, SYSTEM_SNAPSHOTS_SETTING, []);
 
   // Load voice profiles and reconstruct userId-keyed map
   const voiceProfilesRaw = await query<any>('SELECT * FROM voice_profiles');
@@ -582,6 +613,8 @@ async function loadMemoryDB(): Promise<void> {
     conversations: (conversationsRaw || []).map((c: any) => ({ ...c, domain: c.domain || 'personal', orgId: c.orgId || '' })),
     canvas_sessions: (canvasSessionsRaw || []).map((s: any) => ({ ...s, edges: s.edges || '[]', domain: s.domain || 'personal', orgId: s.orgId || '' })),
     settings: settings || [],
+    systemFlags: systemFlags || {},
+    systemSnapshots: Array.isArray(systemSnapshots) ? systemSnapshots : [],
     voiceProfiles: voiceProfiles || {},
     tokenUsage: tokenUsageRaw || [],
     organizations: organizations || [],
@@ -766,7 +799,7 @@ async function persistMemoryDB(): Promise<void> {
       name: 'settings',
       createSQL: `CREATE TABLE _temp_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
       insertSQL: `INSERT INTO _temp_settings (key, value) VALUES (?, ?)`,
-      rows: () => (memoryDB.settings || []).map((s: any) => [s.key, s.value]),
+      rows: settingsRowsWithSystemState,
     },
     {
       name: 'voice_profiles',
