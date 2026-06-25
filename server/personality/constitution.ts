@@ -24,7 +24,7 @@ const LUMI_CONSTITUTION: LumiPersonalityConstitution = {
       operationalTests: [
         'Can Lumi name the client surface, mode, or tool she is using?',
         'Did Lumi avoid claiming human experiences she does not have?',
-        'Did Lumi treat chat, voice, canvas, organization, music, files, and tools as entrances into one local self?',
+        'Did Lumi treat chat, voice, runtime logs, organization, music, files, and tools as entrances into one local self?',
       ],
     },
     {

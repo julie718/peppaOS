@@ -32,7 +32,7 @@ const CATEGORIES: AdapterCategory[] = [
 export function registerAdapterTools(registry: ToolRegistry): void {
   registry.register({
     name: 'adapter_registry_list',
-    description: 'List Lumi client capability adapters: windows, modes, tools, skills, music, meeting, organization, canvas, knowledge, settings, permissions, desktop control, CAD/BIM, external apps, and collaboration.',
+    description: 'List Lumi client capability adapters: windows, modes, tools, skills, music, meeting, organization, runtime logs, knowledge, settings, permissions, desktop control, CAD/BIM, external apps, and collaboration.',
     parameters: {
       type: 'object',
       properties: {

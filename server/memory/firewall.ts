@@ -45,7 +45,7 @@ export function getMemoryFirewallPolicy(): MemoryFirewallPolicy {
     externalSources: Array.from(EXTERNAL_SOURCES),
     rules: [
       'Every memory receives source, privacyClass, retention, userApproved, and firewall metadata.',
-      'Personal chat, voice, canvas, manual, system, import, and consolidation memories are local private memories by default.',
+      'Personal chat, voice, runtime log, manual, system, import, and consolidation memories are local private memories by default.',
       'Work-domain memories are organization scoped and must keep orgId attached.',
       'Meeting memories default to session retention unless explicitly promoted later.',
       'LAP, community, and external-app memories are external by default and require explicit user approval for long-term storage.',

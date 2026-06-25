@@ -162,7 +162,7 @@ function shouldAutoPromoteVoiceWork(text: string, operationMode: OperationMode, 
   if (isMusicPlaybackRequest(text) || isMusicAdjustmentRequest(text)) return false;
   if (/[?？]\s*$/.test(text) || /是不是|为什么|怎么回事|有没有|找到了吗|听见了吗/.test(text)) return false;
   if (!hasExplicitToolIntent(text)) return false;
-  return /桌面|文件|文件夹|目录|草稿图|图纸|平面图|施工图|设计图|cad|CAD|DXF|画布|生成|创建|画一|画个|按照.*画|找|搜索|打开|执行|运行|去干活|开始干活|开始处理|继续处理|继续做|接着做/.test(text);
+  return /桌面|文件|文件夹|目录|草稿图|图纸|平面图|施工图|设计图|cad|CAD|DXF|运行日志|日志|生成|创建|画一|画个|按照.*画|找|搜索|打开|执行|运行|去干活|开始干活|开始处理|继续处理|继续做|接着做/.test(text);
 }
 
 function saveOperationModePreference(userId: string, mode: OperationMode): void {

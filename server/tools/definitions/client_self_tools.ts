@@ -16,7 +16,7 @@ const ACTIONS = [
   'start_meeting_mode',
   'end_meeting_mode',
   'open_meeting_notes',
-  'open_canvas_task',
+  'open_runtime_log',
   'show_knowledge_base',
   'open_organization_workspace',
   'open_files',
@@ -40,7 +40,10 @@ const RECOVERY_SURFACE_TARGETS: Record<string, string> = {
   skill: 'skills',
   music: 'music-center',
   'music-center': 'music-center',
-  canvas: 'canvas',
+  logs: 'runtime-log',
+  log: 'runtime-log',
+  runtime: 'runtime-log',
+  'runtime-log': 'runtime-log',
   knowledge: 'knowledge',
   files: 'files',
   settings: 'settings',
@@ -109,7 +112,7 @@ export function registerClientSelfTools(registry: ToolRegistry): void {
     name: 'client_action',
     description: [
       'Safely control Lumi client UI surfaces through the client action router.',
-      'Use explicit client-native actions like refresh_client_state, open_music_center, start_meeting_mode, open_canvas_task, show_knowledge_base, open_avatar_studio, open_sound_studio, open_computer_adaptation, open_settings, or set_wallpaper_mode.',
+      'Use explicit client-native actions like refresh_client_state, open_music_center, start_meeting_mode, open_runtime_log, show_knowledge_base, open_avatar_studio, open_sound_studio, open_computer_adaptation, open_settings, or set_wallpaper_mode.',
       'Legacy open_app/close_app/set_mode are still accepted for compatibility.',
       'This does not use mouse/keyboard control and should be preferred over computer_use for Lumi client UI navigation.',
     ].join(' '),
@@ -123,7 +126,7 @@ export function registerClientSelfTools(registry: ToolRegistry): void {
         },
         target: {
           type: 'string',
-          description: 'Target app/surface for open_app or close_app, e.g. org, knowledge, canvas, files, skills, team, music-center, settings.',
+          description: 'Target app/surface for open_app or close_app, e.g. org, knowledge, runtime-log, files, skills, team, music-center, settings.',
         },
         mode: {
           type: 'string',
@@ -132,7 +135,7 @@ export function registerClientSelfTools(registry: ToolRegistry): void {
         },
         task: {
           type: 'string',
-          description: 'Optional task text for open_canvas_task.',
+          description: 'Optional context text for routed client actions.',
         },
         enabled: {
           type: 'boolean',
@@ -170,7 +173,7 @@ export function registerClientSelfTools(registry: ToolRegistry): void {
 
   registry.register({
     name: 'client_health_check',
-    description: 'Run Lumi local self-governance health check: client body state, runtime errors, music/canvas/files/voice issues, autonomy boundary, and skill runtime findings.',
+    description: 'Run Lumi local self-governance health check: client body state, runtime errors, music/runtime/files/voice issues, autonomy boundary, and skill runtime findings.',
     parameters: {
       type: 'object',
       properties: {},
@@ -193,7 +196,7 @@ export function registerClientSelfTools(registry: ToolRegistry): void {
     description: [
       'Perform safe Lumi client self-repair actions that do not write user files or operate external apps.',
       'Use refresh_client_state to force a state relay refresh.',
-      'Use open_recovery_surface to open the relevant Lumi surface (skills, music, canvas, settings, kernel, plans, files, org).',
+      'Use open_recovery_surface to open the relevant Lumi surface (skills, music, runtime-log, settings, kernel, plans, files, org).',
       'For skill package repair use client_repair_skill, which requires confirmation.',
     ].join(' '),
     parameters: {
@@ -206,7 +209,7 @@ export function registerClientSelfTools(registry: ToolRegistry): void {
         },
         surface: {
           type: 'string',
-          description: 'Recovery surface for open_recovery_surface: skills, music, canvas, settings, kernel, plans, files, org.',
+          description: 'Recovery surface for open_recovery_surface: skills, music, runtime-log, settings, kernel, plans, files, org.',
         },
       },
       required: ['action'],

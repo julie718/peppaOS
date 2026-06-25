@@ -130,7 +130,7 @@ function getSkillAvailability(
   if (installedSkill?.connected) {
     return {
       label: lang === 'zh' ? '可调用' : 'Callable',
-      detail: lang === 'zh' ? '已连接到 Lumi，聊天、画布和工具调度可使用。' : 'Connected to Lumi and available to chat, canvas, and tool routing.',
+      detail: lang === 'zh' ? '已连接到 Lumi，聊天、运行日志和工具调度可使用。' : 'Connected to Lumi and available to chat, run logs, and tool routing.',
       tone: 'green',
       installedSkill,
     };

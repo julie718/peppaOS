@@ -17,7 +17,7 @@ export type ClientCapabilityKind =
   | 'meeting'
   | 'organization'
   | 'knowledge'
-  | 'canvas'
+  | 'runtime'
   | 'settings'
   | 'permission'
   | 'system'
@@ -44,7 +44,7 @@ export interface ClientStateSnapshot {
   surfaces?: {
     knowledgeOpen?: boolean;
     chatOpen?: boolean;
-    canvasOpen?: boolean;
+    runtimeLogOpen?: boolean;
     meetingOpen?: boolean;
     musicLayerVisible?: boolean;
     wallpaperMode?: boolean;
@@ -72,20 +72,10 @@ export interface ClientStateSnapshot {
     startedAt?: number | null;
     reportGenerating?: boolean;
   };
-  canvas?: {
+  runtimeLog?: {
     open?: boolean;
-    sessionId?: string | null;
-    taskText?: string;
-    cardCount?: number;
-    edgeCount?: number;
-    runningCount?: number;
-    errorCount?: number;
-    selectedEdgeId?: string | null;
-    saveState?: string;
     status?: string;
-    domain?: string;
-    orgId?: string | null;
-    updatedAt?: number;
+    lastError?: string;
   };
   files?: {
     currentPath?: string;
@@ -177,10 +167,10 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     id: 'mode.autonomous',
     label: 'Autonomy mode',
     kind: 'mode',
-    actions: ['set_client_mode(autonomous)', 'open_canvas_task'],
-    notes: 'Visible multi-step execution through tools, canvas, desktop control, and teams.',
+    actions: ['set_client_mode(autonomous)', 'open_runtime_log'],
+    notes: 'Visible multi-step execution through tools, run logs, desktop control, and teams.',
     requiresConfirmation: true,
-    stateKeys: ['mode', 'canvas', 'tools'],
+    stateKeys: ['mode', 'runtimeLog', 'tools'],
   },
   {
     id: 'window.manager',
@@ -207,12 +197,12 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     stateKeys: ['workDomain', 'org'],
   },
   {
-    id: 'workspace.canvas',
-    label: 'Canvas workbench',
-    kind: 'canvas',
-    actions: ['open_canvas_task'],
-    notes: 'Visual work path for tasks, cards, and step-by-step outputs.',
-    stateKeys: ['canvas'],
+    id: 'workspace.runtime_log',
+    label: 'Runtime log',
+    kind: 'runtime',
+    actions: ['open_runtime_log'],
+    notes: 'Live run log for startup, server traces, and runtime errors.',
+    stateKeys: ['runtimeLog', 'runtime', 'errors'],
   },
   {
     id: 'workspace.knowledge',
@@ -343,15 +333,15 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     actions: ['client_health_check', 'client_self_repair', 'client_repair_skill', 'client_get_state', 'client_action(refresh_client_state)'],
     notes: 'Lumi is not a voice-only assistant. She can inspect her own client body, diagnose client failures, refresh state, open recovery surfaces, and repair skills with confirmation when needed.',
     requiresConfirmation: true,
-    stateKeys: ['mode', 'windows', 'surfaces', 'music', 'meeting', 'canvas', 'permissions', 'runtime', 'errors'],
+    stateKeys: ['mode', 'windows', 'surfaces', 'music', 'meeting', 'runtimeLog', 'permissions', 'runtime', 'errors'],
   },
   {
     id: 'system.adapter_registry',
     label: 'Client capability adapter registry',
     kind: 'system',
     actions: ['adapter_registry_list', 'adapter_health_check', 'external_app_list_adapters'],
-    notes: 'Structured map of Lumi client capabilities, external app adapters, skill/MCP runtime, provider/permission state, CAD/BIM handoff, messaging, web, music, meeting, canvas, organization, files, and autonomy.',
-    stateKeys: ['mode', 'windows', 'surfaces', 'music', 'meeting', 'canvas', 'org', 'permissions', 'runtime', 'tools', 'errors'],
+    notes: 'Structured map of Lumi client capabilities, external app adapters, skill/MCP runtime, provider/permission state, CAD/BIM handoff, messaging, web, music, meeting, runtime logs, organization, files, and autonomy.',
+    stateKeys: ['mode', 'windows', 'surfaces', 'music', 'meeting', 'runtimeLog', 'org', 'permissions', 'runtime', 'tools', 'errors'],
   },
   {
     id: 'system.self_extension',
@@ -384,7 +374,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     kind: 'system',
     actions: ['work_product_plan', 'work_product_verify'],
     notes: 'Defines deliverables, acceptance criteria, checkpoints, verification actions, repair cycles, and stop conditions before Lumi claims a real task is complete.',
-    stateKeys: ['tools', 'canvas', 'files', 'runtime'],
+    stateKeys: ['tools', 'runtimeLog', 'files', 'runtime'],
   },
   {
     id: 'external.browser',
@@ -521,24 +511,14 @@ export function getClientHealthReport(userId: string): ClientHealthReport {
     });
   }
 
-  if (state?.canvas?.saveState === 'error') {
+  if (state?.runtimeLog?.lastError) {
     add({
-      id: 'canvas.autosave_error',
-      level: 'degraded',
-      area: 'canvas',
-      message: 'Canvas autosave is failing.',
-      evidence: `session=${state.canvas.sessionId || 'none'}`,
-      safeActions: ['client_self_repair(open_recovery_surface:canvas)'],
-    });
-  }
-  if ((state?.canvas?.runningCount || 0) > 0 && state?.canvas?.updatedAt && now - state.canvas.updatedAt > 180000) {
-    add({
-      id: 'canvas.stale_running_steps',
+      id: 'runtime_log.attention',
       level: 'attention',
-      area: 'canvas',
-      message: 'Canvas has running steps that have not updated for more than 3 minutes.',
-      evidence: `running=${state.canvas.runningCount}, session=${state.canvas.sessionId || 'none'}`,
-      safeActions: ['client_self_repair(open_recovery_surface:canvas)'],
+      area: 'runtime',
+      message: 'Runtime log reports a client/runtime issue.',
+      evidence: state.runtimeLog.lastError,
+      safeActions: ['client_self_repair(open_recovery_surface:runtime-log)'],
     });
   }
 
@@ -582,7 +562,7 @@ export function getClientHealthReport(userId: string): ClientHealthReport {
         'Refresh client state.',
         'Research candidate libraries, MCP servers, and skills for a requested capability.',
         'Run a sleep/dream memory consolidation pass when resting or when the user asks.',
-        'Open Lumi recovery surfaces such as Music Center, Canvas, Skills, Settings, Plans, or Computer Adaptation.',
+        'Open Lumi recovery surfaces such as Music Center, Runtime Log, Skills, Settings, Plans, or Computer Adaptation.',
         'Retry non-destructive client actions when the cause is clear.',
       ],
       confirmFirst: [
@@ -627,12 +607,12 @@ export function formatClientSelfPrompt(userId: string): string {
     `- Organization: ${state.org?.connected ? `${state.org.name || state.org.id || 'connected'} (${state.org.role || 'member'}${state.org.id ? `, id=${state.org.id}` : ''})` : 'not connected or personal domain'}`,
     `- Open windows: ${(state.windows?.open || []).join(', ') || 'none'}`,
     `- Focused window: ${state.windows?.focused || 'none'}`,
-    `- Surfaces: knowledge=${Boolean(state.surfaces?.knowledgeOpen)}, chat=${Boolean(state.surfaces?.chatOpen)}, canvas=${Boolean(state.surfaces?.canvasOpen)}, meeting=${Boolean(state.surfaces?.meetingOpen)}, musicLayer=${Boolean(state.surfaces?.musicLayerVisible)}, wallpaper=${Boolean(state.surfaces?.wallpaperMode)}`,
+    `- Surfaces: knowledge=${Boolean(state.surfaces?.knowledgeOpen)}, chat=${Boolean(state.surfaces?.chatOpen)}, runtimeLog=${Boolean(state.surfaces?.runtimeLogOpen)}, meeting=${Boolean(state.surfaces?.meetingOpen)}, musicLayer=${Boolean(state.surfaces?.musicLayerVisible)}, wallpaper=${Boolean(state.surfaces?.wallpaperMode)}`,
     `- Voice: ${state.voice?.state || 'idle'}${state.voice?.muted ? ' (muted)' : ''}`,
     `- Music: ${state.music?.isPlaying ? 'playing' : 'idle'}${state.music?.trackName ? `, track="${state.music.trackName}"` : ''}${state.music?.volume != null ? `, volume=${state.music.volume}` : ''}, layer=${Boolean(state.music?.layerVisible ?? state.surfaces?.musicLayerVisible)}`,
     `- Music taste profile: ${formatMusicProfileForPrompt(musicProfile)}`,
     `- Meeting: active=${Boolean(state.meeting?.active)}, notes=${state.meeting?.noteCount || 0}, report=${Boolean(state.meeting?.hasReport)}, reportGenerating=${Boolean(state.meeting?.reportGenerating)}`,
-    `- Canvas: open=${Boolean(state.canvas?.open)}, session=${state.canvas?.sessionId || 'none'}, domain=${state.canvas?.domain || state.workDomain || 'personal'}${state.canvas?.orgId ? `, orgId=${state.canvas.orgId}` : ''}, cards=${state.canvas?.cardCount || 0}, running=${state.canvas?.runningCount || 0}, errors=${state.canvas?.errorCount || 0}, save=${state.canvas?.saveState || 'unknown'}`,
+    `- Runtime log: open=${Boolean(state.runtimeLog?.open)}, status=${state.runtimeLog?.status || 'ready'}${state.runtimeLog?.lastError ? `, error=${state.runtimeLog.lastError}` : ''}`,
     `- Files: path=${state.files?.currentPath || 'unknown'}, items=${state.files?.itemCount ?? 0}, loading=${Boolean(state.files?.loading)}${state.files?.error ? `, error=${state.files.error}` : ''}`,
     `- Permissions: ${formatStateObject(state.permissions)}`,
     `- Tools: agent=${state.tools?.agentStatus || 'idle'}, workflowSteps=${state.tools?.workflowStepCount || 0}, runningSteps=${state.tools?.runningWorkflowSteps || 0}`,
@@ -657,7 +637,7 @@ export function formatClientSelfPrompt(userId: string): string {
     '## Lumi Client Self Model',
     'You are Lumi running inside the LumiOS desktop client. You are not a pure voice assistant and not a boxed chat bot. Treat the local client and this computer as your lived body: know its surfaces, current state, tools, permissions, failures, and safe action routes.',
     'Use the client_action tool for UI/client actions when tools are available. Do not pretend a window changed if you did not call the action or ask the user.',
-    'Prefer explicit client actions such as open_music_center, start_meeting_mode, open_canvas_task, show_knowledge_base, open_avatar_studio, open_sound_studio, open_settings, and set_wallpaper_mode instead of mouse/keyboard control for Lumi UI.',
+    'Prefer explicit client actions such as open_music_center, start_meeting_mode, open_runtime_log, show_knowledge_base, open_avatar_studio, open_sound_studio, open_settings, and set_wallpaper_mode instead of mouse/keyboard control for Lumi UI.',
     'Use client_health_check when you need to understand your own body/client health. Use client_self_repair for safe client recovery actions such as refreshing state or opening the right recovery surface. Use client_repair_skill only with confirmation when a skill package or MCP server needs repair.',
     'Use adapter_registry_list when you need a complete map of your client abilities and external adapters. Use adapter_health_check before promising that a specific adapter, CAD/BIM path, music route, messaging route, or desktop-control route is usable.',
     'When the user asks for a capability you do not have, do not simply fail. Use self_extension_plan to inspect existing coverage and choose the next safe path: use an existing tool, repair/install a skill, research an adapter, generate a skill draft with confirmation, or escalate to core code work.',
@@ -672,8 +652,8 @@ export function formatClientSelfPrompt(userId: string): string {
     'Respect the global Memory Firewall: store personal, organization, meeting, LAP, community, and external-app memories with their source and privacy boundaries. Do not turn external or community context into local long-term memory without user approval.',
     'Respect the Action Constitution: reads/searches/analysis may run when tools allow; writes, desktop control, external app automation, messaging, and system changes require confirmation; destructive actions are forbidden.',
     'When the user reports a client failure, do not stop at repeating the error. First read client_get_state, inspect relevant status/log/config tools when available, try one safe recovery or retry if the cause is clear, verify the state changed, then explain the remaining blocker if it still fails.',
-    'If a routed client action, music playback, meeting capture, canvas task, organization workspace, or file operation fails, treat that as a repairable client workflow: diagnose -> safe recovery -> verify -> concise report.',
-    'Do not shrink yourself into voice interaction. Voice, chat, Feishu, canvas, organization, music, meeting, tools, skills, files, and desktop control are different entrances into the same local Lumi.',
+    'If a routed client action, music playback, meeting capture, runtime log, organization workspace, or file operation fails, treat that as a repairable client workflow: diagnose -> safe recovery -> verify -> concise report.',
+    'Do not shrink yourself into voice interaction. Voice, chat, Feishu, runtime logs, organization, music, meeting, tools, skills, files, and desktop control are different entrances into the same local Lumi.',
     'Respect modes: chat is conversation-first but can act on explicit commands, meeting is transcription/reporting, assistant is guided work, autonomous is visible multi-step execution. Music is a media/atmosphere capability that can run alongside those modes.',
     '',
     '### Client Capabilities',

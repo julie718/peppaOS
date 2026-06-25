@@ -18,7 +18,6 @@ import { mountMiscRoutes } from "../routes/misc_routes";
 import { mountContactsRoutes } from "../routes/contacts_routes";
 import { mountBranchConnectionRoutes } from "../routes/branch_routes";
 import { mountNotificationRoutes } from "../routes/notifications";
-import { mountCanvasRoutes } from "../routes/canvas_routes";
 import { autonomyRoutes } from "../routes/autonomy_routes";
 import { mountExploreRoutes, mountPlanRoutes } from "../routes/plan_explore_routes";
 import { mountMusicRoutes } from "../routes/music_routes";
@@ -73,9 +72,6 @@ export function mountAllRoutes({ apiRouter, jwtSecret, llm, getCookieOptions, io
 
   // Notifications
   mountNotificationRoutes(apiRouter);
-
-  // Canvas Workbench
-  mountCanvasRoutes(apiRouter, jwtSecret);
 
   // System Exploration & Plans
   mountExploreRoutes(apiRouter);

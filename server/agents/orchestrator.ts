@@ -102,7 +102,7 @@ function compactTextBlock(value: string, limit: number, label = 'context'): stri
 }
 
 function compactTaskForPlanning(text: string, limit = 8000): string {
-  const marker = '\n\n## Canvas Context';
+  const marker = '\n\n## Work Context';
   const markerIndex = text.indexOf(marker);
   if (markerIndex < 0) return compactTextBlock(text, limit, 'task');
 
@@ -112,8 +112,8 @@ function compactTaskForPlanning(text: string, limit = 8000): string {
   return [
     request,
     '',
-    '## Canvas Context',
-    compactTextBlock(context, contextLimit, 'canvas context'),
+    '## Work Context',
+    compactTextBlock(context, contextLimit, 'work context'),
   ].join('\n');
 }
 

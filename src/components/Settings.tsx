@@ -1770,7 +1770,7 @@ function AutonomousSettingsPanel({ t, operationMode, setOperationMode }: { t: an
         <div className="flex items-center justify-between">
           <div>
             <div className="text-xs font-black uppercase tracking-widest text-white/60">{ui('自主模式', 'Autonomy Mode')}</div>
-            <p className="text-xs text-white/40 mt-1">{ui('允许 Lumi 先给行动指南，再用工具、画布、桌面控制和团队智能体处理多步工作。', 'Allow Lumi to give an action guide, then handle multi-step work with tools, canvas, desktop control, and team agents.')}</p>
+            <p className="text-xs text-white/40 mt-1">{ui('允许 Lumi 先给行动指南，再用工具、运行日志、桌面控制和团队智能体处理多步工作。', 'Allow Lumi to give an action guide, then handle multi-step work with tools, run logs, desktop control, and team agents.')}</p>
           </div>
           <button
             onClick={() => setOperationMode(isAutonomous ? 'assistant' : 'autonomous')}

@@ -106,7 +106,7 @@ export function DesktopOnboarding({ isOpen, onFinish, t }: OnboardingProps) {
             <span>09:41</span>
           </div>
           <div className="mt-7 grid grid-cols-3 gap-4">
-            {['Chat', 'Skills', 'Files', 'Canvas', 'Settings', 'Tools'].map((label, index) => (
+            {['Chat', 'Skills', 'Files', 'Run Log', 'Settings', 'Tools'].map((label, index) => (
               <motion.div
                 key={label}
                 initial={false}
@@ -180,7 +180,7 @@ export function DesktopOnboarding({ isOpen, onFinish, t }: OnboardingProps) {
           <div className="mt-5 rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4">
             <div className="text-sm font-black text-cyan-50">{ui('当前：助手模式', 'Current: Assistant Mode')}</div>
             <p className="mt-2 text-sm leading-relaxed text-cyan-50/68">
-              {ui('适合按任务选择工具、技能、团队、画布或键鼠操作。需要动手前，Lumi 会显示正在做什么。', 'Lumi can choose tools, skills, teams, canvas, or desktop control for the task. Before acting, Lumi shows what is happening.')}
+              {ui('适合按任务选择工具、技能、团队、运行日志或键鼠操作。需要动手前，Lumi 会显示正在做什么。', 'Lumi can choose tools, skills, teams, run logs, or desktop control for the task. Before acting, Lumi shows what is happening.')}
             </p>
           </div>
           <div className="mt-4 space-y-2">

@@ -44,6 +44,49 @@ function getRuntimeVersionInfo() {
   };
 }
 
+function tailLogFile(filePath: string, maxLines: number): string[] {
+  try {
+    const raw = fs.readFileSync(filePath, "utf-8");
+    return raw.split(/\r?\n/).filter(Boolean).slice(-maxLines);
+  } catch {
+    return [];
+  }
+}
+
+function collectRuntimeLogSources() {
+  const cwd = process.cwd();
+  const candidates: string[] = [];
+  const addFile = (filePath: string) => {
+    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) candidates.push(filePath);
+  };
+  const addMatchingFiles = (dir: string, pattern: RegExp) => {
+    if (!fs.existsSync(dir)) return;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isFile() && pattern.test(entry.name)) addFile(path.join(dir, entry.name));
+    }
+  };
+
+  addMatchingFiles(path.join(cwd, ".codex-run"), /^lumi-tauri-.*\.(out|err)\.log$/);
+  addMatchingFiles(path.join(cwd, "logs"), /\.log$/i);
+  addFile(path.join(cwd, "server_output.log"));
+  addFile(path.join(cwd, "server_startup.log"));
+
+  return [...new Set(candidates)]
+    .map(filePath => {
+      const stat = fs.statSync(filePath);
+      return {
+        id: path.relative(cwd, filePath).replace(/\\/g, "/"),
+        path: path.relative(cwd, filePath).replace(/\\/g, "/"),
+        name: path.basename(filePath),
+        modifiedAt: stat.mtime.toISOString(),
+        size: stat.size,
+        filePath,
+      };
+    })
+    .sort((a, b) => new Date(b.modifiedAt).getTime() - new Date(a.modifiedAt).getTime())
+    .slice(0, 8);
+}
+
 function getUserIdFromRequest(req: any, jwtSecret: string): string {
   let uid = 'anonymous';
   const token = req.cookies?.token || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
@@ -63,6 +106,23 @@ function sumTimes(times: Record<string, number>): number {
 export function mountSystemRoutes(router: Router, jwtSecret: string, io?: any) {
   router.get("/version", (_req, res) => {
     res.json(getRuntimeVersionInfo());
+  });
+
+  router.get("/runtime/logs", requireAuth, (req, res) => {
+    const maxLines = Math.min(Math.max(Number(req.query.lines) || 240, 40), 600);
+    const sources = collectRuntimeLogSources().map(source => ({
+      id: source.id,
+      path: source.path,
+      name: source.name,
+      modifiedAt: source.modifiedAt,
+      size: source.size,
+      lines: tailLogFile(source.filePath, maxLines),
+    }));
+    res.json({
+      runtime: getRuntimeVersionInfo(),
+      generatedAt: new Date().toISOString(),
+      sources,
+    });
   });
 
   // Health Check

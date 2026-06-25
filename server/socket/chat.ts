@@ -43,7 +43,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'lumiOS_default_jwt_secret_2026_loc
 function normalizeChatHistoryRecord(m: any): NormalizedMessage[] {
   const role = m?.role === 'assistant' ? 'assistant' : m?.role === 'system' ? 'system' : m?.role === 'user' ? 'user' : '';
   const source = typeof m?.source === 'string' ? m.source : '';
-  const uiOnlySources = new Set(['error', 'proactive', 'canvas_redirect', 'canvas_suggestion']);
+  const uiOnlySources = new Set(['error', 'proactive']);
   if (
     !role ||
     m?.role === 'tool' ||
@@ -127,7 +127,7 @@ export function registerChatHandler(
     const { text, history, personalityId = "lumi", category, agentId, mode: payloadMode, source } = data;
     const requestId = typeof data.requestId === 'string' ? data.requestId.slice(0, 120) : undefined;
     const eventSource = source || 'chat';
-    const toolResultPreviewLimit = eventSource === 'canvas' ? 5000 : 500;
+    const toolResultPreviewLimit = 500;
     const formatToolResultForUi = (value?: string) => value?.slice(0, toolResultPreviewLimit) || '';
     const emitAgent = (event: string, payload: Record<string, any> = {}) => {
       socket.emit(event, {
@@ -423,21 +423,13 @@ export function registerChatHandler(
             maxIterations: 8,
           }
         : null;
-      const canvasDefaultToolPolicy = {
-        allowedTools: ['*'],
-        requireConfirmation: ['file_delete', 'delete_file', 'rm', 'unlink', 'format', 'rmdir', 'uninstall'],
-        forbiddenTools: [],
-        maxIterations: 25,
-      };
       const routedToolPolicy = isSanctuary
         ? { allowedTools: [], requireConfirmation: [], forbiddenTools: ['*'], maxIterations: 0 }
         : selfRepairToolPolicy
           ? selfRepairToolPolicy
           : clientActionToolPolicy
             ? clientActionToolPolicy
-            : source === 'canvas'
-              ? (workSurfaceRoute.toolPolicy || canvasDefaultToolPolicy)
-              : (workSurfaceRoute.toolPolicy || opModeConfig?.toolPolicy);
+            : (workSurfaceRoute.toolPolicy || opModeConfig?.toolPolicy);
       const exposeAgentWork = shouldExposeAgentWork(text);
       effectiveSystemPrompt += '\n\n' + formatClientSelfPrompt(uid);
       console.log('[ChatHandler] tool gate:', allowToolUseForTurn ? 'enabled' : 'chat-only', 'operationMode:', operationMode, 'clientActionOnly:', clientActionOnlyTurn, 'selfRepair:', selfRepairTurn);
@@ -452,12 +444,6 @@ export function registerChatHandler(
       }
       if (workSurfaceRoute.promptOverlay) {
         effectiveSystemPrompt += '\n\n' + workSurfaceRoute.promptOverlay;
-      }
-
-      // Canvas mode: full-power assistant with visual plan-first workflow
-      if (source === 'canvas') {
-        effectiveSystemPrompt += '\n\n## Canvas File Verification\nFor any task that creates or modifies CAD drawings, documents, images, code, or other files, verify the final file path before saying the task is complete. Use desktop_path_info for exact desktop paths, desktop_list_files for Desktop/Documents/user folders and Chinese filenames, and read_file or the creating tool result for server-side files. For image-based floor-plan/CAD drafting tasks, locate the image first, prefer floorplan_extract_geometry, then pass extracted geometry into cad_generate_dxf. Use ocr_image_file for non-floor-plan images or as fallback. Do not claim a desktop file exists unless you verified it. If verification fails, say what failed and keep working.';
-        effectiveSystemPrompt += '\n\n## Canvas Workbench\nYou are working inside the Canvas Workbench — a visual workspace where the user sees your thought process as cards.\n- You have FULL access to all tools including desktop control, file system, commands, mouse/keyboard.\n- Before executing destructive or desktop-modifying actions, show a plan card first so the user can see what you intend to do.\n- After each major step, summarize the result as a card.\n- When generating code, assets, or analysis, put the final output in the canvas as well.\n- The canvas is your visual trace — not a sandbox.';
       }
 
       // Keep this late so English system/tool context cannot pull the reply language.
@@ -585,7 +571,7 @@ export function registerChatHandler(
               addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'tool', content: `[Tool: ${quickResult.toolCall.name}] Called`, domain: resolvedDomain, orgId: resolvedOrgId });
             }
             addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'assistant', content: quickResult.responseText, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
-            socket.emit('chat:conversation_updated', { conversationId, agentId: conversationAgentId, source: source === 'canvas' ? 'canvas' : 'chat' });
+            socket.emit('chat:conversation_updated', { conversationId, agentId: conversationAgentId, source: 'chat' });
           }
           emitAgent("agent:status", { status: "idle" });
           // Track topics for quick commands too
@@ -617,7 +603,7 @@ export function registerChatHandler(
         if (conversationId) {
           addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'user', content: text, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
           addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'assistant', content: profileResponse, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
-          socket.emit('chat:conversation_updated', { conversationId, agentId: conversationAgentId, source: source === 'canvas' ? 'canvas' : 'chat' });
+          socket.emit('chat:conversation_updated', { conversationId, agentId: conversationAgentId, source: 'chat' });
         }
         emitAgent("agent:status", { status: "idle" });
         chatSessionMap.delete(sessionKey);
@@ -677,9 +663,10 @@ export function registerChatHandler(
       let llmWasCalled = false;
       const allToolRecords: ToolExecutionRecord[] = [];
       const deferCompletionStream = needsCompletionEvidence(text);
-      const prefersSequentialCanvasWorkflow =
+      const prefersSequentialWorkflow =
         shouldChainTask(text) &&
-        (eventSource === 'canvas' || (workSurfaceRoute.artifactFirst && !workSurfaceRoute.directDesktop));
+        workSurfaceRoute.artifactFirst &&
+        !workSurfaceRoute.directDesktop;
 
       if (cognition.directToolExecuted && cognition.responseText) {
         // Path A: Lumi handled this directly — no LLM needed
@@ -709,7 +696,7 @@ export function registerChatHandler(
         }
       }
 
-      if (!responseText && !prefersSequentialCanvasWorkflow && allowToolUseForTurn && !clientActionOnlyTurn && !selfRepairTurn && !isSanctuary && (cognition.intent.category === 'command' || cognition.intent.category === 'code' || cognition.intent.category === 'question')) {
+      if (!responseText && !prefersSequentialWorkflow && allowToolUseForTurn && !clientActionOnlyTurn && !selfRepairTurn && !isSanctuary && (cognition.intent.category === 'command' || cognition.intent.category === 'code' || cognition.intent.category === 'question')) {
         // Path B: Orchestrator — decompose tasks into sub-tasks for worker agents
         // (Skipped for sanctuary agents — they stay in their territory)
         try {
@@ -917,7 +904,7 @@ export function registerChatHandler(
               userId: uid,
               desktopRelay,
               llmGetters,
-              source: source === 'canvas' ? 'canvas' : 'chat',
+              source: 'chat',
               isCancelled: () => abortController.signal.aborted,
               onToolStart: (call) => {
                 if (isDirectDesktopTool(call.name)) return;
@@ -931,7 +918,7 @@ export function registerChatHandler(
                 emitAgent("agent:chunk", { text: `[${step}]\n`, agentName: "Lumi" });
               },
               ...(routedToolPolicy ? { toolPolicy: routedToolPolicy } : {}),
-              ...(source === 'canvas' || operationMode === 'assistant' || operationMode === 'autonomous' || clientActionOnlyTurn || selfRepairTurn ? {
+              ...(operationMode === 'assistant' || operationMode === 'autonomous' || clientActionOnlyTurn || selfRepairTurn ? {
                 requestConfirmation: async (toolName: string, args: Record<string, any>): Promise<boolean> => {
                   return new Promise((resolve) => {
                     const cid = crypto.randomUUID();
@@ -1029,14 +1016,14 @@ export function registerChatHandler(
                     error: record.error,
                   });
                 },
-                source === 'canvas' ? 8 : 1,
+                1,
                 llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
                 undefined,
                 {
                   userId: uid,
                   desktopRelay,
                   llmGetters,
-                  source: source === 'canvas' ? 'canvas' : 'chat',
+                  source: 'chat',
                   isCancelled: () => abortController.signal.aborted,
                   onToolStart: (call) => {
                     if (isDirectDesktopTool(call.name)) return;
@@ -1047,7 +1034,7 @@ export function registerChatHandler(
                     });
                   },
                   ...(routedToolPolicy ? { toolPolicy: routedToolPolicy } : {}),
-                  ...(source === 'canvas' || operationMode === 'assistant' || operationMode === 'autonomous' || clientActionOnlyTurn || selfRepairTurn ? {
+                  ...(operationMode === 'assistant' || operationMode === 'autonomous' || clientActionOnlyTurn || selfRepairTurn ? {
                     requestConfirmation: async (toolName: string, args: Record<string, any>): Promise<boolean> => {
                       return new Promise((resolve) => {
                         const cid = crypto.randomUUID();
@@ -1092,7 +1079,7 @@ export function registerChatHandler(
         task: text,
         response: responseText,
         toolCalls: allToolRecords,
-        source: source === 'canvas' ? 'canvas' : 'chat',
+        source: 'chat',
       });
       if (completionGuard.blocked) {
         console.warn('[ChatHandler] Completion claim blocked:', completionGuard.reason);
@@ -1146,7 +1133,7 @@ export function registerChatHandler(
       emitAgent("agent:response", { text: responseText, agentName: personality.name });
       // Re-emit conversation_updated AFTER response so the client syncs from API with complete data
       if (conversationId) {
-        socket.emit('chat:conversation_updated', { conversationId, agentId: conversationAgentId, source: source === 'canvas' ? 'canvas' : 'chat' });
+        socket.emit('chat:conversation_updated', { conversationId, agentId: conversationAgentId, source: 'chat' });
       }
       emitAgent("agent:status", { status: "idle" });
 
@@ -1167,7 +1154,7 @@ export function registerChatHandler(
               userId: uid, type: mem.type, content: mem.content,
               keywords: mem.keywords, confidence: Math.min((mem.confidence || 0.5) + 0.2, 1.0),
               sourceInteractionId: interactionId, agentId: agentId || '',
-            } as any, { domain: resolvedDomain, orgId: resolvedOrgId, source: source === 'canvas' ? 'canvas' : 'chat' });
+            } as any, { domain: resolvedDomain, orgId: resolvedOrgId, source: 'chat' });
           }
           console.log(`[ChatHandler] Correction learned: ${corrected.memories.length} memories with boosted confidence`);
 
@@ -1247,7 +1234,7 @@ export function registerChatHandler(
             userId: uid, type: mem.type, content: mem.content,
             keywords: mem.keywords, confidence: mem.confidence, sourceInteractionId: interactionId,
             agentId: agentId || '',
-          } as any, { parentId, location: locationTag, domain: resolvedDomain, orgId: resolvedOrgId, source: source === 'canvas' ? 'canvas' : 'chat' });
+          } as any, { parentId, location: locationTag, domain: resolvedDomain, orgId: resolvedOrgId, source: 'chat' });
         }
         for (const rem of extracted.reminders) {
           addReminder({ userId: uid, content: rem.content, dueAt: rem.dueAt, sourceInteractionId: interactionId });

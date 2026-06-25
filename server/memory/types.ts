@@ -12,7 +12,7 @@ export type MemoryPerspective = 'owner_trait'   // About the owner's traits
                               | 'shared_memory' // "Our" shared experiences
                               | 'lumi_growth';  // Lumi's growth milestones
 
-export type MemorySource = 'chat' | 'voice' | 'canvas' | 'meeting' | 'manual' | 'organization' | 'lap' | 'community' | 'external_app' | 'system' | 'import' | 'consolidation';
+export type MemorySource = 'chat' | 'voice' | 'runtime_log' | 'meeting' | 'manual' | 'organization' | 'lap' | 'community' | 'external_app' | 'system' | 'import' | 'consolidation';
 export type MemoryPrivacyClass = 'private' | 'organization' | 'shared' | 'public' | 'secret';
 export type MemoryRetention = 'ephemeral' | 'session' | 'long_term' | 'permanent';
 

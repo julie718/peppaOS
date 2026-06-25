@@ -118,7 +118,7 @@ export function registerAutonomyTools(registry: ToolRegistry): void {
         },
         allowedActions: {
           type: 'array',
-          description: 'Allowed action/tool families, e.g. knowledge, browser, wechat_draft, cad_dxf, canvas, files.',
+          description: 'Allowed action/tool families, e.g. knowledge, browser, wechat_draft, cad_dxf, runtime_logs, files.',
         },
         externalAppsAllowed: { type: 'boolean', description: 'Whether this workflow may use confirmed external app adapters.' },
         enabled: { type: 'boolean', description: 'Whether the workflow is enabled.' },

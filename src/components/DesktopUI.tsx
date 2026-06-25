@@ -47,7 +47,6 @@ import {
   Briefcase,
   Terminal as TerminalIcon,
   Music,
-  Layers,
   Bot,
   Monitor,
   HardDrive,
@@ -79,7 +78,7 @@ import { ContextMenu } from './ContextMenu';
 import { DesktopOnboarding } from './DesktopOnboarding';
 import { DeviceSyncCenter } from './DeviceSyncCenter';
 import { AgentChatPage } from './AgentChatPage';
-import { CanvasWorkbench } from './Workbench/CanvasWorkbench';
+import { RuntimeLogPanel } from './RuntimeLogPanel';
 import { OrgHub } from './org/OrgHub';
 import { OrgPortal } from './OrgPortal';
 import { WorkModeSwitch } from './org/WorkModeSwitch';
@@ -156,22 +155,6 @@ interface NativeFile {
   name: string;
   path: string;
   isDirectory: boolean;
-}
-
-interface ClientCanvasRuntime {
-  open?: boolean;
-  sessionId?: string | null;
-  taskText?: string;
-  cardCount?: number;
-  edgeCount?: number;
-  runningCount?: number;
-  errorCount?: number;
-  selectedEdgeId?: string | null;
-  saveState?: string;
-  status?: string;
-  domain?: string;
-  orgId?: string | null;
-  updatedAt?: number;
 }
 
 type ClientPermissionSnapshot = Record<string, string | boolean | number | null | undefined>;
@@ -1474,8 +1457,6 @@ export function DesktopUI({
   const [knowledgeOpen, setKnowledgeOpen] = useState(activeTab === 'knowledge');
   const [chatOpen, setChatOpen] = useState(false);
   const [chatPrefill, setChatPrefill] = useState('');
-  const [canvasOpen, setCanvasOpen] = useState(false);
-  const [canvasInitialTask, setCanvasInitialTask] = useState('');
   const [sanctuaryOpen, setSanctuaryOpen] = useState(false);
   const [sanctuaryAgent, setSanctuaryAgent] = useState<any>(null);
   const [petReaction, setPetReaction] = useState<{ animation: string; until: number } | null>(null);
@@ -1558,7 +1539,6 @@ export function DesktopUI({
   const [nativeFilesError, setNativeFilesError] = useState<string | null>(null);
   const [clientPermissions, setClientPermissions] = useState<ClientPermissionSnapshot>({});
   const [clientRuntime, setClientRuntime] = useState<ClientRuntimeSnapshot>({});
-  const [canvasRuntime, setCanvasRuntime] = useState<ClientCanvasRuntime>({ open: false });
   const [isControlCenterOpen, setIsControlCenterOpen] = useState(false);
   const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -1596,7 +1576,7 @@ export function DesktopUI({
     { id: 'sound', labelKey: 'sound', icon: <Volume2 size={24} />, colorClass: 'from-sky-500 to-indigo-600', windowId: 'sound' },
     { id: 'music', labelKey: 'music', icon: <Music size={24} />, colorClass: 'from-red-500 to-pink-600', windowId: 'music-center' },
     { id: 'team', labelKey: 'team', icon: <Bot size={24} />, colorClass: 'from-cyan-500 to-blue-600', windowId: 'team' },
-    { id: 'canvas', labelKey: 'canvasWorkbench', icon: <Layers size={24} />, colorClass: 'from-teal-500 to-cyan-600', windowId: 'canvas' },
+    { id: 'runtime-log', labelKey: 'runtimeLog', icon: <TerminalIcon size={24} />, colorClass: 'from-teal-500 to-cyan-600', windowId: 'runtime-log' },
   ];
 
   const handleWallpaperUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1871,8 +1851,8 @@ export function DesktopUI({
   const isSpacebarRecording = useRef(false);
   const callStateRef = useRef(callState);
   useEffect(() => { callStateRef.current = callState; }, [callState]);
-  const canvasOpenRef = useRef(canvasOpen);
-  useEffect(() => { canvasOpenRef.current = canvasOpen; }, [canvasOpen]);
+  const runtimeLogOpenRef = useRef(openWindows.includes('runtime-log'));
+  useEffect(() => { runtimeLogOpenRef.current = openWindows.includes('runtime-log'); }, [openWindows]);
   // Wake word detection — server-side Qwen ASR (DASHSCOPE_API_KEY), falls back to Picovoice
   // Default off — user must explicitly enable in Settings to avoid continuous ASR charges
   const [wakeEnabled, setWakeEnabled] = useState(() => localStorage.getItem('lumi_wake_word_enabled') === 'true');
@@ -1893,18 +1873,6 @@ export function DesktopUI({
       window.removeEventListener('lumi:setting-changed', onSettingChanged);
       window.removeEventListener('storage', onStorage);
     };
-  }, []);
-
-  useEffect(() => {
-    const handler = (event: Event) => {
-      const detail = (event as CustomEvent<ClientCanvasRuntime>).detail || {};
-      setCanvasRuntime(prev => ({
-        ...prev,
-        ...detail,
-      }));
-    };
-    window.addEventListener('lumi:canvas-state', handler);
-    return () => window.removeEventListener('lumi:canvas-state', handler);
   }, []);
 
   useEffect(() => {
@@ -2346,7 +2314,6 @@ export function DesktopUI({
         setWindowOrder([]);
         setKnowledgeOpen(false);
         setChatOpen(false);
-        setCanvasOpen(false);
         setActiveTab('home');
         return;
       }
@@ -2755,7 +2722,7 @@ export function DesktopUI({
       }
       if (e.key === ' ' && !e.repeat) {
         if (isInputFocused()) return;
-        if (canvasOpenRef.current || isSearchOpen || isControlCenterOpen) return;
+        if (runtimeLogOpenRef.current || isSearchOpen || isControlCenterOpen) return;
         if (meetingModeRef.current) return;
         e.preventDefault();
         const cs = callStateRef.current;
@@ -2845,7 +2812,7 @@ export function DesktopUI({
       return;
     }
 
-    // Knowledge base, Chat, and Canvas open fullscreen, not as windows
+    // Knowledge base and Chat open fullscreen, not as windows
     if (tab === 'knowledge') {
       setKnowledgeOpen(prev => !prev);
       return;
@@ -2853,10 +2820,6 @@ export function DesktopUI({
     if (tab === 'chat') {
       setChatOpen(prev => !prev);
       setActiveTab(tab);
-      return;
-    }
-    if (tab === 'canvas') {
-      setCanvasOpen(prev => !prev);
       return;
     }
     if (tab === 'memory-avatar') {
@@ -2942,11 +2905,6 @@ export function DesktopUI({
           setActiveTab('chat');
           return;
         }
-        if (windowId === 'canvas') {
-          setCanvasOpen(true);
-          if (task.trim()) setCanvasInitialTask(task.trim());
-          return;
-        }
         if (windowId === 'notifications') {
           setIsNotificationPanelOpen(true);
           setOpenWindows(prev => prev.filter(w => w !== 'notifications'));
@@ -2979,10 +2937,6 @@ export function DesktopUI({
         }
         if (windowId === 'chat') {
           setChatOpen(false);
-          return;
-        }
-        if (windowId === 'canvas') {
-          setCanvasOpen(false);
           return;
         }
         if (windowId === 'notifications') {
@@ -3075,9 +3029,9 @@ export function DesktopUI({
           respond({ ok: true, action });
           return;
         }
-        if (action === 'open_canvas_task') {
-          openSurface('canvas');
-          respond({ ok: true, action, task: task.trim() });
+        if (action === 'open_runtime_log') {
+          openSurface('runtime-log');
+          respond({ ok: true, action, target: 'runtime-log' });
           return;
         }
         if (action === 'show_knowledge_base') {
@@ -3178,7 +3132,7 @@ export function DesktopUI({
         nativeFilesError ? { source: 'files', message: nativeFilesError, at: Date.now() } : null,
         callError ? { source: 'voice', message: callError, at: Date.now() } : null,
         musicSnapshot.lastError ? { source: 'music', message: musicSnapshot.lastError, at: Date.now() } : null,
-        canvasRuntime.saveState === 'error' ? { source: 'canvas', message: 'Canvas autosave failed', at: canvasRuntime.updatedAt || Date.now() } : null,
+        clientRuntime.lastError ? { source: 'runtime', message: clientRuntime.lastError, at: Date.now() } : null,
       ].filter(Boolean);
 
       socket.emit('client:state', {
@@ -3200,7 +3154,7 @@ export function DesktopUI({
         surfaces: {
           knowledgeOpen,
           chatOpen,
-          canvasOpen,
+          runtimeLogOpen: openWindows.includes('runtime-log'),
           meetingOpen: meetingNotesOpen,
           musicLayerVisible: musicVisible,
           wallpaperMode: isWallpaperMode,
@@ -3231,20 +3185,10 @@ export function DesktopUI({
           startedAt: meetingStartedAt,
           reportGenerating: meetingReportGenerating,
         },
-        canvas: {
-          open: canvasOpen || Boolean(canvasRuntime.open),
-          sessionId: canvasRuntime.sessionId || null,
-          taskText: canvasRuntime.taskText || '',
-          cardCount: canvasRuntime.cardCount || 0,
-          edgeCount: canvasRuntime.edgeCount || 0,
-          runningCount: canvasRuntime.runningCount || 0,
-          errorCount: canvasRuntime.errorCount || 0,
-          selectedEdgeId: canvasRuntime.selectedEdgeId || null,
-          saveState: canvasRuntime.saveState || 'idle',
-          status: canvasRuntime.status || 'idle',
-          domain: canvasRuntime.domain || workDomain,
-          orgId: canvasRuntime.orgId || (workDomain === 'work' ? orgConnection?.orgId || '' : ''),
-          updatedAt: canvasRuntime.updatedAt,
+        runtimeLog: {
+          open: openWindows.includes('runtime-log'),
+          status: clientRuntime.lastError ? 'attention' : 'ready',
+          lastError: clientRuntime.lastError || '',
         },
         files: {
           currentPath: nativePath,
@@ -3278,8 +3222,6 @@ export function DesktopUI({
   }, [
     activeTab,
     callState,
-    canvasOpen,
-    canvasRuntime,
     chatOpen,
     clientPermissions,
     clientRuntime,
@@ -3408,11 +3350,11 @@ export function DesktopUI({
     if (windowId === 'avatar-studio') return { w: '1050px', h: '720px' };
     if (windowId === 'sound') return { w: '900px', h: '700px' };
     if (windowId === 'terminal') return { w: '900px', h: '600px' };
+    if (windowId === 'runtime-log') return { w: '980px', h: '680px' };
     return { w: '900px', h: '700px' };
   };
   const dockApps = [
     ...appIcons,
-    ...(canvasOpen && !appIcons.some(app => app.id === 'canvas') ? [getWindowMeta('canvas')] : []),
     ...openWindows
       .filter(windowId => !appIcons.some(app => app.id === windowId))
       .map(getWindowMeta),
@@ -3438,7 +3380,7 @@ export function DesktopUI({
       id: 'assistant' as const,
       label: t.modeAssistant || (lang === 'zh' ? '助手' : 'Assistant'),
       title: t.modeAssistantTitle || (lang === 'zh' ? '助手模式' : 'Assistant mode'),
-      description: t.modeAssistantDesc || (lang === 'zh' ? '按任务选择聊天、画布、文件工具或桌面操作；开始前先给行动指南。' : 'Chooses chat, canvas, file tools, or desktop control by task, with an action guide first.'),
+      description: t.modeAssistantDesc || (lang === 'zh' ? '按任务选择聊天、运行日志、文件工具或桌面操作；开始前先给行动指南。' : 'Chooses chat, run logs, file tools, or desktop control by task, with an action guide first.'),
       hint: t.modeAssistantHint || (lang === 'zh' ? '引导执行' : 'Guided execution'),
       icon: <Sparkles size={16} />,
     },
@@ -3446,7 +3388,7 @@ export function DesktopUI({
       id: 'autonomous' as const,
       label: t.modeAutonomy || t.modeAutoExecute || (lang === 'zh' ? '自主' : 'Autonomy'),
       title: t.modeAutonomyTitle || t.modeAutoExecuteTitle || (lang === 'zh' ? '自主模式' : 'Autonomy mode'),
-      description: t.modeAutonomyDesc || t.modeAutoExecuteDesc || (lang === 'zh' ? '适合多步任务；Lumi 会先给行动指南，再用画布、桌面控制、命令、工具和团队推进，并展示进度。' : 'For multi-step work. Lumi gives an action guide, then uses canvas, desktop control, commands, tools, and teams with visible progress.'),
+      description: t.modeAutonomyDesc || t.modeAutoExecuteDesc || (lang === 'zh' ? '适合多步任务；Lumi 会先给行动指南，再用运行日志、桌面控制、命令、工具和团队推进，并展示进度。' : 'For multi-step work. Lumi gives an action guide, then uses run logs, desktop control, commands, tools, and teams with visible progress.'),
       hint: t.modeAutonomyHint || t.modeAutoExecuteHint || (lang === 'zh' ? '自主推进' : 'Visible autonomous work'),
       icon: <Zap size={16} />,
     },
@@ -3961,7 +3903,7 @@ export function DesktopUI({
           <div className="h-8 w-px bg-white/10 mx-2" />
           <AnimatePresence>
             {dockApps.map(app => {
-              const isActive = openWindows.includes(app.id) || (app.id === 'chat' && chatOpen) || (app.id === 'canvas' && canvasOpen);
+              const isActive = openWindows.includes(app.id) || (app.id === 'chat' && chatOpen);
               return (
               <motion.button
                 key={app.id}
@@ -4209,18 +4151,8 @@ export function DesktopUI({
               {desktopIcons.map((def, i) => {
                 const { x, y } = getDefaultDesktopIconPosition(i);
                 const label = (t as any)[def.labelKey] || def.labelKey;
-                const isIconOpen =
-                  def.windowId === 'org'
-                    ? activeTab === 'org'
-                    : def.windowId === 'canvas'
-                      ? canvasOpen
-                      : openWindows.includes(def.windowId);
-                const isIconFocused =
-                  def.windowId === 'org'
-                    ? activeTab === 'org'
-                    : def.windowId === 'canvas'
-                      ? canvasOpen
-                      : focusedWindow === def.windowId;
+                const isIconOpen = def.windowId === 'org' ? activeTab === 'org' : openWindows.includes(def.windowId);
+                const isIconFocused = def.windowId === 'org' ? activeTab === 'org' : focusedWindow === def.windowId;
                 const handleClick = () => {
                   if (def.id === 'files') openNativeFilesWindow();
                   else if (def.id === 'workbench') setActiveTab('org');
@@ -4477,7 +4409,7 @@ export function DesktopUI({
                   <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs leading-relaxed text-white/45">
                     {pendingOperationMode === 'meeting'
                       ? (t.modeMeetingConfirmNote || 'Meeting mode starts microphone speech-to-text, records notes, and can generate a report when you end it.')
-                      : (t.modeAutoConfirmNote || (lang === 'zh' ? '自主模式可以使用工具、画布、团队、命令和桌面控制；进度会可见，敏感操作仍会确认。' : 'Autonomy can use tools, canvas, teams, commands, and desktop control with visible progress and confirmations for sensitive actions.'))}
+                      : (t.modeAutoConfirmNote || (lang === 'zh' ? '自主模式可以使用工具、运行日志、团队、命令和桌面控制；进度会可见，敏感操作仍会确认。' : 'Autonomy can use tools, run logs, teams, commands, and desktop control with visible progress and confirmations for sensitive actions.'))}
                   </div>
                 </div>
               </div>
@@ -4617,6 +4549,8 @@ export function DesktopUI({
                     <ReminderPanel t={t} />
                   ) : windowId === 'plans' ? (
                     <ExecutionWorkQueue t={t} />
+                  ) : windowId === 'runtime-log' ? (
+                    <RuntimeLogPanel t={t} />
                   ) : windowId === 'devices' ? (
                     <DeviceSyncCenter t={t} />
                   ) : windowId === 'tokens' ? (
@@ -4678,23 +4612,6 @@ export function DesktopUI({
         onClose={() => { setChatOpen(false); setChatPrefill(''); }}
         prefillMessage={chatPrefill}
         onPrefillConsumed={() => setChatPrefill('')}
-        onOpenCanvas={(task?: string) => {
-          setChatOpen(false);
-          setCanvasInitialTask(task || '');
-          setCanvasOpen(true);
-        }}
-      />
-
-      {/* Canvas Workbench fullscreen overlay */}
-      <CanvasWorkbench
-        isOpen={canvasOpen}
-        onClose={() => setCanvasOpen(false)}
-        t={t}
-        user={user}
-        domain={workDomain}
-        orgId={workDomain === 'work' ? orgConnection?.orgId || null : null}
-        initialTask={canvasInitialTask}
-        onInitialTaskConsumed={() => setCanvasInitialTask('')}
       />
 
       {/* Org Workbench fullscreen overlay — available to all logged-in users */}

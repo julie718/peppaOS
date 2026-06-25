@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, Loader2, ArrowLeft, Ghost, Zap, Cpu, Sparkles, Upload, FileText, Mic, Video, CheckCircle2, Pause, Play, Square, ChevronDown, ChevronRight, XCircle, Copy, Check, Layers } from 'lucide-react';
+import { Send, Loader2, ArrowLeft, Ghost, Zap, Cpu, Sparkles, Upload, FileText, Mic, Video, CheckCircle2, Pause, Play, Square, ChevronDown, ChevronRight, XCircle, Copy, Check } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { useTTS } from '@/hooks/useTTS';
@@ -18,23 +18,6 @@ import { useVoiceCall } from '@/hooks/useVoiceCall';
 import { useVoiceCloning } from '@/hooks/useVoiceCloning';
 import { listVoices } from '@/services/voiceService';
 
-function shouldUseCanvasForTask(text: string): boolean {
-  const normalized = text.trim();
-  if (!normalized) return false;
-  const canvasPatterns = [
-    /\b(plan|roadmap|workflow|project|report|deck|presentation|codebase|refactor|design|implement|organize|research|multi-step|canvas)\b/i,
-    /(?:规划|路线图|工作流|项目|报告|方案|文档|代码|仓库|重构|设计|实现|整理|研究|多步|画布|团队|子\s*agent|智能体|草稿|CAD|cad|文件)/u,
-    /(?:规划|路线图|工作流|项目|报告|方案|文档|代码|仓库|重构|设计|实现|整理|研究|多步|画布|团队|子\s*agent|智能体)/u,
-  ];
-  const taskPatterns = [
-    /\b(help me|please|create|make|build|prepare|write|review|analyze|organize|design|implement)\b/i,
-    /(?:帮我|请|需要|创建|制作|生成|写|审查|分析|整理|设计|实现|查找|寻找|打开|处理|做一个|出一个)/u,
-    /(?:帮我|请|需要|创建|制作|生成|写|审查|分析|整理|设计|实现)/u,
-  ];
-  return canvasPatterns.some(pattern => pattern.test(normalized))
-    || (normalized.length > 120 && taskPatterns.some(pattern => pattern.test(normalized)));
-}
-
 const CHAT_HISTORY_LIMIT = 2000;
 const CHAT_SEARCH_LIMIT = 200;
 
@@ -49,8 +32,7 @@ function buildChatHistoryPayload(messages: any[]) {
     const text = getDisplayText(m).trim();
     if (!text) return [];
     if (m.type === 'tool') return [];
-    if (['error', 'proactive', 'canvas_redirect', 'canvas_suggestion'].includes(m.source)) return [];
-    if (/^(Request failed|请求失败|出错了|Failed to route)/i.test(text)) return [];
+    if (['error', 'proactive'].includes(m.source)) return [];
     if (/^(Request failed|请求失败|出错了|Failed to route)/i.test(text)) return [];
     if (m.type === 'agent') return [{ role: 'assistant', content: text }];
     if (m.type === 'user' || m.type === 'file_context') return [{ role: 'user', content: text }];
@@ -58,13 +40,13 @@ function buildChatHistoryPayload(messages: any[]) {
   }).slice(-80);
 }
 
-export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage, onPrefillConsumed, onOpenCanvas }: { t: any; user: any; agent?: any; isOpen: boolean; onClose: () => void; prefillMessage?: string; onPrefillConsumed?: () => void; onOpenCanvas?: (task?: string) => void }) {
+export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage, onPrefillConsumed }: { t: any; user: any; agent?: any; isOpen: boolean; onClose: () => void; prefillMessage?: string; onPrefillConsumed?: () => void }) {
   const [messages, setMessages] = useState<any[]>([]);
   const [agentMetadata, setAgentMetadata] = useState<Partial<AgentResponse>>({});
   const isZh = t?.langCode !== 'en';
   const ui = (zh: string, en: string) => isZh ? zh : en;
   const { platform, isElectron } = usePlatform();
-  const { aiConfig, orgConnection, workDomain, operationMode } = useApp();
+  const { aiConfig, orgConnection, workDomain } = useApp();
   const socket = socketService.connect();
   const [selectedVoiceId, setSelectedVoiceId] = useState<string | undefined>();
   const [voices, setVoices] = useState<any[]>([]);
@@ -291,7 +273,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
       setMessages([]);
     }
 
-    // Only load once — don't overwrite live conversation
+    // Only load once; do not overwrite live conversation.
     if (initialLoadDoneRef.current) return;
     initialLoadDoneRef.current = true;
 
@@ -436,7 +418,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
       if (!isCurrentChatEvent(data)) return;
       setIsTyping(false);
       if (streamingMsgId.current) {
-        // Finalize streamed message — keep chunked text if response text is empty
+        // Finalize streamed message; keep chunked text if response text is empty.
         const finalText = (data.text && data.text.trim()) ? data.text : null;
         setMessages(prev => prev.map(m =>
           m.id === streamingMsgId.current
@@ -445,7 +427,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
         ));
         streamingMsgId.current = null;
       } else if (data.text && data.text.trim()) {
-        // No streaming — add as new message (only if non-empty)
+        // No streaming; add as new message only if non-empty.
         setMessages(prev => [...prev, {
           id: Date.now().toString(),
           text: data.text,
@@ -495,7 +477,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     };
 
     // conversation_updated: only reload for non-text-chat channels (voice, etc.)
-    // Text chat state is managed live via agent:chunk/agent:response — API reload here
+    // Text chat state is managed live via agent:chunk/agent:response; API reload here
     // would replace messages with different ids, causing React to remount & re-animate them.
     const onConversationUpdated = (data: { conversationId: string; agentId: string; source?: string }) => {
       if (data.agentId !== agentId) return;
@@ -565,38 +547,6 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
       timestamp: new Date().toISOString(),
       type: 'user'
     };
-
-    const canvasCandidate = Boolean(onOpenCanvas && shouldUseCanvasForTask(text));
-    if (canvasCandidate && operationMode === 'autonomous') {
-      setMessages(prev => [...prev, userMsg, {
-        id: `canvas-auto-${Date.now()}`,
-        text: t.canvasAutoOpening || 'Opening this task in Canvas so Lumi can work through the path visibly.',
-        userName: agentNameRef.current || 'Lumi',
-        timestamp: new Date().toISOString(),
-        type: 'agent',
-        source: 'canvas_redirect',
-      }]);
-      setNewMessage('');
-      stop();
-      onOpenCanvas?.(text);
-      return;
-    }
-
-    if (canvasCandidate && operationMode === 'assistant') {
-      setMessages(prev => [...prev, userMsg, {
-        id: `canvas-suggestion-${Date.now()}`,
-        text: t.canvasSuggestion || 'This looks like a multi-step task. Canvas can show the work path, tool calls, and revisions clearly.',
-        userName: agentNameRef.current || 'Lumi',
-        timestamp: new Date().toISOString(),
-        type: 'agent',
-        source: 'canvas_suggestion',
-        canvasTask: text,
-      }]);
-      setNewMessage('');
-      stop();
-      return;
-    }
-
     textChatActiveRef.current = true;
 
     setMessages(prev => [...prev, userMsg]);
@@ -879,15 +829,6 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
             onEnd={endCall}
             hasVoice={voices.length > 0}
           />
-          {onOpenCanvas && (
-            <button
-              onClick={() => onOpenCanvas()}
-              className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-teal-500/10 flex items-center justify-center text-teal-400 hover:bg-teal-500/20 border border-teal-400/20 hover:border-teal-400/40 transition-all"
-              title={t.canvasWorkbench || 'Canvas Workbench'}
-            >
-              <Layers className="w-4 h-4 md:w-5 md:h-5" />
-            </button>
-          )}
           <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-celestial-saturn/20 flex items-center justify-center text-celestial-saturn border border-celestial-saturn/20">
             <Ghost className="w-4 h-4 md:w-5 md:h-5" />
           </div>
@@ -907,7 +848,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
 
       <div className="flex gap-3 flex-1 min-h-0">
 
-        {/* ── Chat Panel ── */}
+        {/* Chat Panel */}
         <div className="flex-1 flex flex-col glass rounded-[2.5rem] md:rounded-[3rem] border-white/10 overflow-hidden shadow-2xl min-w-0">
           <div className="p-4 md:p-6 border-b border-white/5 flex items-center justify-between bg-white/5">
             <div className="flex items-center gap-3">
@@ -1068,7 +1009,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                   animate={{ opacity: 1, y: 0 }}
                   className={`flex flex-col ${msg.type === 'agent' ? 'items-start' : 'items-end'}`}
                 >
-                  {/* Image / File previews — parse tool results and detect in mid-text agent replies */}
+                  {/* Image / file previews */}
                   {(() => {
                     const messageText = getDisplayText(msg);
                     let imageUrls: string[] = [];
@@ -1097,7 +1038,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                             <FileText size={16} className="text-emerald-400" />
                             <div className="flex-1 min-w-0">
                               <span className="text-xs text-white/70 truncate block">{filePath.split(/[\\/]/).pop()}</span>
-                              <span className="text-[12px] text-white/55">{t.fileReady || 'File ready — click to copy path'}</span>
+                              <span className="text-[12px] text-white/55">{t.fileReady || 'File ready - click to copy path'}</span>
                             </div>
                             <button onClick={() => handleCopyMessage(filePath, msg.id)}
                               className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
@@ -1115,15 +1056,6 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                       : 'bg-white/5 text-white/80 border border-white/10 rounded-tr-none'
                   }`}>
                     <span className="whitespace-pre-wrap">{getDisplayText(msg)}</span>
-                    {msg.source === 'canvas_suggestion' && msg.canvasTask && onOpenCanvas && (
-                      <button
-                        onClick={() => onOpenCanvas(msg.canvasTask)}
-                        className="mt-4 flex items-center gap-2 rounded-xl border border-teal-300/25 bg-teal-300/10 px-3 py-2 text-xs font-black uppercase tracking-widest text-teal-200 transition-colors hover:bg-teal-300/18"
-                      >
-                        <Layers size={14} />
-                        {t.openInCanvas || 'Open in Canvas'}
-                      </button>
-                    )}
                     {getDisplayText(msg) && (
                       <button
                         onClick={() => handleCopyMessage(getDisplayText(msg), msg.id)}
@@ -1140,7 +1072,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                     )}
                   </div>
                   <span className="text-[12px] uppercase tracking-widest opacity-30 mt-2 px-3">
-                    {msg.userName} • {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {msg.userName} - {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </motion.div>
               )));
@@ -1219,7 +1151,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
           </div>
         </div>
 
-        {/* ── Info Sidebar ── */}
+        {/* Info Sidebar */}
             <motion.div
               initial={{ opacity: 0, x: 40 }}
               animate={{ opacity: 1, x: 0 }}
@@ -1394,7 +1326,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
           {/* Bottom hint */}
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
             <span className="text-[12px] font-bold text-white/40 uppercase tracking-[0.15em] bg-black/30 px-4 py-1.5 rounded-full border border-white/[0.04]">
-              {t.chatEscClose || 'ESC to close'} · {agentName} · {agentCategory}
+              {t.chatEscClose || 'ESC to close'} - {agentName} - {agentCategory}
             </span>
           </div>
         </motion.div>
