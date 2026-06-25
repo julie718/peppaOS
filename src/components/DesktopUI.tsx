@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'motion/react';
 import { HardcoreBootSequence } from './HardcoreBootSequence';
 import { GlobalNodeMap } from './GlobalNodeMap';
@@ -3640,7 +3641,7 @@ export function DesktopUI({
 
       {/* Workflow Status Panel — breathing lights + step log */}
       <AnimatePresence>
-        {pendingOperationModeOption && (
+        {pendingOperationModeOption && !chatOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -3855,6 +3856,60 @@ export function DesktopUI({
         prefillMessage={chatPrefill}
         onPrefillConsumed={() => setChatPrefill('')}
       />
+      {chatOpen && typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {pendingOperationModeOption && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100010] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm"
+              onClick={() => setPendingOperationMode(null)}
+            >
+              <motion.div
+                initial={{ opacity: 0, y: 16, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 16, scale: 0.96 }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-md rounded-2xl border border-cyan-400/20 bg-zinc-950/95 p-5 shadow-2xl"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300">
+                    {pendingOperationModeOption.icon}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-300">
+                      {t.confirmModeSwitch || 'Confirm mode switch'}
+                    </div>
+                    <h3 className="mt-1 text-lg font-black text-white">{pendingOperationModeOption.title}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-white/60">{pendingOperationModeOption.description}</p>
+                    <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs leading-relaxed text-white/45">
+                      {pendingOperationMode === 'meeting'
+                        ? (t.modeMeetingConfirmNote || 'Meeting mode starts microphone speech-to-text, records notes, and can generate a report when you end it.')
+                        : (t.modeAutoConfirmNote || 'Autonomy can use tools, run logs, teams, commands, and desktop control with visible progress and confirmations for sensitive actions.')}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-5 flex items-center justify-end gap-2">
+                  <button
+                    onClick={() => setPendingOperationMode(null)}
+                    className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-xs font-black uppercase tracking-widest text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+                  >
+                    {t.cancel || 'Cancel'}
+                  </button>
+                  <button
+                    onClick={confirmOperationModeChange}
+                    className="rounded-lg border border-cyan-400/25 bg-cyan-400/15 px-4 py-2 text-xs font-black uppercase tracking-widest text-cyan-200 transition-colors hover:bg-cyan-400/25"
+                  >
+                    {t.enterMode || 'Enter mode'}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
       {/* Org Workbench fullscreen overlay — available to all logged-in users */}
       <AnimatePresence>
