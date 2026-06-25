@@ -100,7 +100,11 @@ export function initSocketRuntime({ io, jwtSecret, llm }: SocketContext) {
       }
       const noisyEvents = new Set([
         'audio:chunk',
+        'wake:audio',
+        'ambient:idle_report',
         'ambient:noise_level',
+        'ambient:window_update',
+        'ambient:clipboard_report',
         'client:state',
         'presence:heartbeat',
       ]);

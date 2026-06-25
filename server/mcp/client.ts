@@ -11,6 +11,7 @@ import path from 'path';
 import os from 'os';
 import { exec } from 'child_process';
 import { getDataPath } from '../config/data_path';
+import { loadKeys } from '../config/keys';
 
 export interface MCPServerConfig {
   command?: string;
@@ -25,6 +26,9 @@ export interface MCPServerConfig {
   generatedFrom?: string;              // trace: conversation ID or workflow ID
   description?: string;                // human-readable description
   toolCount?: number;                  // cached tool count for UI
+  requiresApiKey?: boolean;             // true if startup needs a configured secret
+  apiKeyEnv?: string;                   // env/stored key name required by this server
+  apiKeyUrl?: string;                   // provider console URL for setup UI
 }
 
 export interface MCPToolDef {
@@ -837,6 +841,10 @@ main().catch((err) => { console.error('[npm-skill] Fatal:', err); process.exit(1
 
     for (const [serverName, serverConfig] of Object.entries(finalConfig)) {
       if (!serverConfig.enabled) continue;
+      if (this.isMissingRequiredApiKey(serverConfig)) {
+        console.log(`[MCP] ${serverName}: skipped (missing ${serverConfig.apiKeyEnv})`);
+        continue;
+      }
 
       try {
         const tools = await this.connectServer(serverName, serverConfig);
@@ -895,7 +903,6 @@ main().catch((err) => { console.error('[npm-skill] Fatal:', err); process.exit(1
       // Expand ${VAR_NAME} placeholders in env values using process.env + stored keys
       const storedKeys: Record<string, string> = {};
       try {
-        const { loadKeys } = require('../config/keys');
         Object.assign(storedKeys, loadKeys());
       } catch {}
       const resolvedEnv: Record<string, string> = {};
@@ -1079,6 +1086,17 @@ main().catch((err) => { console.error('[npm-skill] Fatal:', err); process.exit(1
       }
       this.broadcastHealth();
     }, delay);
+  }
+
+  private isMissingRequiredApiKey(config: MCPServerConfig): boolean {
+    if (!config.requiresApiKey || !config.apiKeyEnv) return false;
+    const fromEnv = process.env[config.apiKeyEnv]?.trim();
+    if (fromEnv) return false;
+    try {
+      return !loadKeys()[config.apiKeyEnv]?.trim();
+    } catch {
+      return true;
+    }
   }
 
   private recordStartupFailure(name: string, err: any): void {

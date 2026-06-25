@@ -28,6 +28,7 @@ import { resolveWorkSurfaceRoute } from "../cognition/work_surface";
 import { updatePresence } from "../biometrics/presence";
 import { getVoiceprints } from "../biometrics/store";
 import { formatClientSelfPrompt } from "../client/self_model";
+import { getIdleState } from "../context/activity_stream";
 import { adjustMusicPlayback, getMusicFailureMessage, isMusicAdjustmentRequest, isMusicPlaybackRequest, searchAndPlay } from "../music/search_play";
 import { analyzeLikedMusicProfile, formatMusicProfileReport, isMusicProfileAnalysisRequest } from "../music/library_profile";
 import { guardCompletionClaims, needsCompletionEvidence } from "../work_product/completion_guard";
@@ -1358,7 +1359,6 @@ export function registerVoiceHandlers(
     }
 
     try {
-      const { getIdleState } = require('../context/activity_stream');
       const idleState = getIdleState(userId);
       if (idleState.isIdle && idleState.idleSince) {
         const idleMs = Date.now() - new Date(idleState.idleSince).getTime();

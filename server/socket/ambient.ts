@@ -4,6 +4,7 @@ import { pushActivityEvent, setIdleState, getIdleState, getLastEvent, clearActiv
 import { detectClipboardChange } from "../context/clipboard_monitor";
 import { processActivityEvent } from "../context/proactive_triggers";
 import { reportIdleState } from "../autonomy/safety_gate";
+import { getTaskHistory } from "../autonomy/task_queue";
 
 const ambientNoise = new Map<string, { rms: number; lastUpdate: string }>();
 
@@ -84,7 +85,6 @@ export function registerAmbientHandlers(socket: Socket, getUserId: (s: Socket) =
     if (!isIdle && wasIdle && data.idle_seconds < 10 && idleSince) {
       const awayMinutes = Math.round((Date.now() - new Date(idleSince).getTime()) / 60000);
       if (awayMinutes >= 2) {
-        const { getTaskHistory } = require('../autonomy/task_queue');
         const recentTasks = getTaskHistory(20, 0).filter(
           (t: any) => t.userId === uid && t.status === 'completed' && new Date(t.completedAt!).getTime() > new Date(idleSince).getTime()
         );
