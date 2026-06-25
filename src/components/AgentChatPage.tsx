@@ -17,9 +17,11 @@ import { socketService } from '@/services/socketService';
 import { useVoiceCall } from '@/hooks/useVoiceCall';
 import { useVoiceCloning } from '@/hooks/useVoiceCloning';
 import { listVoices } from '@/services/voiceService';
+import WorkflowPanel, { type WorkflowStep } from './WorkflowPanel';
 
 const CHAT_HISTORY_LIMIT = 2000;
 const CHAT_SEARCH_LIMIT = 200;
+type WorkflowStatus = 'idle' | 'thinking' | 'background' | 'executing' | 'waiting_confirmation' | 'done' | 'error';
 
 function getDisplayText(message: any): string {
   if (typeof message?.text === 'string') return message.text;
@@ -128,11 +130,14 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearchingHistory, setIsSearchingHistory] = useState(false);
   const [searchError, setSearchError] = useState('');
+  const [workflowStatus, setWorkflowStatus] = useState<WorkflowStatus>('idle');
+  const [workflowSteps, setWorkflowSteps] = useState<WorkflowStep[]>([]);
   const { speak, stop, pause, resume, isSpeaking, isPaused } = useTTS();
   const recognition = useRef<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const agentNameRef = useRef<string>('Lumi');
   const seenToolEventIds = useRef<Set<string>>(new Set());
+  const seenWorkflowToolEvents = useRef<Set<string>>(new Set());
 
   // Escape to close panels
   useEffect(() => {
@@ -391,6 +396,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
       const eventId = data.correlationId || `tool-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       const args = data.arguments ?? data.args;
       const status = data.error ? 'error' : (data.result !== undefined ? 'done' : 'running');
+      const phase = data.error !== undefined ? 'error' : data.result !== undefined ? 'result' : 'start';
       const nextMessage = {
         id: eventId,
         userName: data.name,
@@ -415,11 +421,75 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
         seenToolEventIds.current.add(eventId);
         return [...prev, nextMessage];
       });
+
+      if (data.correlationId) {
+        const workflowEventKey = `${data.correlationId}:${phase}`;
+        if (seenWorkflowToolEvents.current.has(workflowEventKey)) return;
+        seenWorkflowToolEvents.current.add(workflowEventKey);
+      }
+
+      setWorkflowStatus('executing');
+      if (data.result !== undefined) {
+        setWorkflowSteps(prev => [...prev, {
+          id: `chat-tool-ok-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+          type: 'tool_result',
+          text: `${data.name} ${t.workflowToolDone || 'done'}`,
+          detail: data.result?.slice(0, 100),
+          time: Date.now(),
+        }]);
+      } else if (data.error !== undefined) {
+        setWorkflowSteps(prev => [...prev, {
+          id: `chat-tool-err-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+          type: 'error',
+          text: `${data.name} ${t.workflowToolFailed || 'failed'}`,
+          detail: data.error?.slice(0, 100),
+          time: Date.now(),
+        }]);
+      } else {
+        const argsSummary = args
+          ? Object.entries(args).map(([k, v]) => `${k}=${typeof v === 'string' ? v.slice(0, 30) : String(v).slice(0, 30)}`).join(', ')
+          : '';
+        setWorkflowSteps(prev => [...prev, {
+          id: `chat-tool-start-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+          type: 'tool_start',
+          text: `${t.workflowCalling || 'Calling'} ${data.name}`,
+          detail: argsSummary || undefined,
+          time: Date.now(),
+        }]);
+      }
+    };
+
+    const onConfirmTool = (data: { correlationId: string; name: string; arguments?: any; requestId?: string; source?: string }) => {
+      if (!isCurrentChatEvent(data)) return;
+      setWorkflowStatus('waiting_confirmation');
+      const argsSummary = data.arguments
+        ? Object.entries(data.arguments).map(([k, v]) => `${k}=${typeof v === 'string' ? v.slice(0, 30) : String(v).slice(0, 30)}`).join(', ')
+        : '';
+      setWorkflowSteps(prev => [...prev, {
+        id: `chat-confirm-${data.correlationId || Date.now()}`,
+        type: 'confirmation',
+        text: `${t.workflowWaitingConfirm || 'Waiting for approval'}: ${data.name}`,
+        detail: argsSummary || (t.workflowConfirmHint || 'Review the permission dialog to continue.'),
+        time: Date.now(),
+      }]);
     };
 
     const onResponse = (data: { text: string; agentName: string; source?: string; requestId?: string }) => {
       if (!isCurrentChatEvent(data)) return;
       setIsTyping(false);
+      setWorkflowStatus('done');
+      setWorkflowSteps(prev => [...prev, {
+        id: `chat-resp-${Date.now()}`,
+        type: 'response',
+        text: t.workflowResponseReady || 'Response ready',
+        detail: data.text?.slice(0, 100),
+        time: Date.now(),
+      }]);
+      setTimeout(() => {
+        setWorkflowStatus('idle');
+        setWorkflowSteps([]);
+        seenWorkflowToolEvents.current.clear();
+      }, 5000);
       if (streamingMsgId.current) {
         // Finalize streamed message; keep chunked text if response text is empty.
         const finalText = (data.text && data.text.trim()) ? data.text : null;
@@ -445,6 +515,39 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     const onStatus = (data: { status: string; requestId?: string; source?: string }) => {
       if (!isCurrentChatEvent(data)) return;
       setIsTyping(data.status === "thinking");
+      if (data.status === 'thinking') {
+        setWorkflowStatus('thinking');
+        setWorkflowSteps(prev => {
+          const last = prev[prev.length - 1];
+          if (last?.type === 'thinking' && Date.now() - last.time < 1200) return prev;
+          return [...prev, {
+            id: `chat-thinking-${Date.now()}`,
+            type: 'thinking',
+            text: t.workflowAnalyzing || 'Analyzing your request...',
+            time: Date.now(),
+          }];
+        });
+      } else if (data.status === 'idle') {
+        setWorkflowStatus('done');
+        setWorkflowSteps(prev => [...prev, {
+          id: `chat-done-${Date.now()}`,
+          type: 'response',
+          text: t.workflowCompleted || 'Completed',
+          time: Date.now(),
+        }]);
+        setTimeout(() => {
+          setWorkflowStatus('idle');
+          setWorkflowSteps([]);
+          seenWorkflowToolEvents.current.clear();
+        }, 5000);
+      } else if (data.status === 'error') {
+        setWorkflowStatus('error');
+        setTimeout(() => {
+          setWorkflowStatus('idle');
+          setWorkflowSteps([]);
+          seenWorkflowToolEvents.current.clear();
+        }, 5000);
+      }
       if (data.status === "idle" || data.status === "error") {
         // Drop partial streaming chunks that were never finalized
         if (streamingMsgId.current) {
@@ -458,6 +561,19 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     const onError = (data: { message: string; code?: string; requestId?: string; source?: string }) => {
       if (!isCurrentChatEvent(data)) return;
       setIsTyping(false);
+      setWorkflowStatus('error');
+      setWorkflowSteps(prev => [...prev, {
+        id: `chat-err-${Date.now()}`,
+        type: 'error',
+        text: t.workflowError || 'Processing failed',
+        detail: data.message,
+        time: Date.now(),
+      }]);
+      setTimeout(() => {
+        setWorkflowStatus('idle');
+        setWorkflowSteps([]);
+        seenWorkflowToolEvents.current.clear();
+      }, 5000);
       if (streamingMsgId.current) {
         const sid = streamingMsgId.current;
         setMessages(prev => prev.filter(m => m.id !== sid));
@@ -500,6 +616,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     socket.on("agent:chunk", onChunk);
     socket.on("agent:tool", onTool);
     socket.on("agent:tool_call", onTool);
+    socket.on("agent:confirm_tool", onConfirmTool);
     socket.on("agent:response", onResponse);
     socket.on("agent:status", onStatus);
     socket.on("agent:error", onError);
@@ -510,6 +627,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
       socket.off("agent:chunk", onChunk);
       socket.off("agent:tool", onTool);
       socket.off("agent:tool_call", onTool);
+      socket.off("agent:confirm_tool", onConfirmTool);
       socket.off("agent:response", onResponse);
       socket.off("agent:status", onStatus);
       socket.off("agent:error", onError);
@@ -540,6 +658,13 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (isOpen) return;
+    setWorkflowStatus('idle');
+    setWorkflowSteps([]);
+    seenWorkflowToolEvents.current.clear();
+  }, [isOpen]);
+
   const sendText = async (text: string) => {
     if (!text || !user) return;
 
@@ -551,6 +676,14 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
       type: 'user'
     };
     textChatActiveRef.current = true;
+    seenWorkflowToolEvents.current.clear();
+    setWorkflowStatus('thinking');
+    setWorkflowSteps([{
+      id: `chat-start-${Date.now()}`,
+      type: 'thinking',
+      text: t.workflowAnalyzing || 'Analyzing your request...',
+      time: Date.now(),
+    }]);
 
     setMessages(prev => [...prev, userMsg]);
     setNewMessage('');
@@ -756,6 +889,17 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     return <FoundersSanctuary t={t} user={user} onBack={onClose} />;
   }
 
+  const workflowHasExecution = workflowSteps.some(step =>
+    step.type === 'background' ||
+    step.type === 'confirmation' ||
+    step.type === 'tool_start' ||
+    step.type === 'tool_result' ||
+    step.type === 'error'
+  );
+  const workflowPanelVisible =
+    isOpen &&
+    (workflowStatus !== 'idle' || workflowSteps.length > 0 || workflowHasExecution);
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -776,6 +920,13 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
         multiple
         accept={acceptMap[importType]}
         onChange={(e) => { doUpload(e.target.files); e.target.value = ''; }}
+      />
+      <WorkflowPanel
+        visible={workflowPanelVisible}
+        agentStatus={workflowStatus}
+        steps={workflowSteps}
+        t={t}
+        placement="corner"
       />
     <div className="flex-1 max-w-[90rem] mx-auto w-full space-y-4 md:space-y-8 pb-32 md:pb-0 overflow-hidden flex flex-col">
       <div className="flex items-center justify-between px-4 md:px-0 pt-6 flex-shrink-0">

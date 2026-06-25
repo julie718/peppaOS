@@ -2753,9 +2753,11 @@ export function DesktopUI({
     step.type === 'error'
   );
   const workflowPanelVisible =
-    agentStatus !== 'idle' ||
-    workflowSteps.length > 0 ||
-    workflowHasExecution;
+    !chatOpen && (
+      agentStatus !== 'idle' ||
+      workflowSteps.length > 0 ||
+      workflowHasExecution
+    );
 
   const tutorialLabel = t.showTutorial || (lang === 'zh' ? '教程' : 'Tutorial');
 
