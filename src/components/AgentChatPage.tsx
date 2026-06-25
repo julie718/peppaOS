@@ -153,6 +153,9 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     const separator = path.includes('?') ? '&' : '?';
     return `${path}${separator}domain=${encodeURIComponent(workDomain)}&agentId=${encodeURIComponent(agentId)}`;
   }, [workDomain, agentId]);
+  const requestMeetingMode = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('lumi:request-meeting-mode'));
+  }, []);
 
   const isFounder = agentId === 'founder' || agentCategory === 'founder' || agentName.includes('Founder') || agentName.includes('创始人');
 
@@ -829,6 +832,15 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
             onEnd={endCall}
             hasVoice={voices.length > 0}
           />
+          <button
+            type="button"
+            onClick={requestMeetingMode}
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-400/10 text-cyan-200 transition-all hover:border-cyan-300/35 hover:bg-cyan-400/15 md:h-10 md:w-10"
+            title={ui('会议模式', 'Meeting mode')}
+            aria-label={ui('打开会议模式', 'Open meeting mode')}
+          >
+            <FileText className="h-4 w-4 md:h-5 md:w-5" />
+          </button>
           <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-celestial-saturn/20 flex items-center justify-center text-celestial-saturn border border-celestial-saturn/20">
             <Ghost className="w-4 h-4 md:w-5 md:h-5" />
           </div>

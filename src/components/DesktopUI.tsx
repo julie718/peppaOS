@@ -1373,23 +1373,8 @@ export function DesktopUI({
   const [sanctuaryOpen, setSanctuaryOpen] = useState(false);
   const [sanctuaryAgent, setSanctuaryAgent] = useState<any>(null);
   const [petReaction, setPetReaction] = useState<{ animation: string; until: number } | null>(null);
-  const [modeHintVisible, setModeHintVisible] = useState(false);
-  const modeHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activePersonality, setActivePersonality] = useState('lumi');
   const petReactionTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const showModeHintBriefly = useCallback((ms: number = 3200) => {
-    if (modeHintTimerRef.current) clearTimeout(modeHintTimerRef.current);
-    setModeHintVisible(true);
-    modeHintTimerRef.current = setTimeout(() => {
-      setModeHintVisible(false);
-      modeHintTimerRef.current = null;
-    }, ms);
-  }, []);
-
-  useEffect(() => () => {
-    if (modeHintTimerRef.current) clearTimeout(modeHintTimerRef.current);
-  }, []);
 
   const triggerPetReaction = (animation: string, ms: number = 1500) => {
     if (petReactionTimeout.current) clearTimeout(petReactionTimeout.current);
@@ -1442,6 +1427,15 @@ export function DesktopUI({
 
   const [theme, setTheme] = useState<string>('celestial');
   const [isLightMode, setIsLightMode] = useState(false);
+  useEffect(() => {
+    const themeForMode: Partial<Record<OperationMode, string>> = {
+      chat: 'celestial',
+      assistant: 'nebula',
+      autonomous: 'cyber',
+    };
+    const nextTheme = themeForMode[operationMode];
+    if (nextTheme && theme !== nextTheme) setTheme(nextTheme);
+  }, [operationMode, theme]);
   useEffect(() => {
     document.documentElement.setAttribute('data-mode', isLightMode ? 'light' : 'dark');
   }, [isLightMode]);
@@ -1744,7 +1738,6 @@ export function DesktopUI({
       return;
     }
 
-    setMeetingNotesOpen(true);
     setMeetingStartedAt(prev => {
       if (prev) return prev;
       const now = Date.now();
@@ -2206,16 +2199,28 @@ export function DesktopUI({
       return;
     }
     setOperationMode(nextMode);
-    showModeHintBriefly();
-  }, [operationMode, setOperationMode, showModeHintBriefly]);
+  }, [operationMode, setOperationMode]);
 
   const confirmOperationModeChange = useCallback(() => {
     if (!pendingOperationMode) return;
     setOperationMode(pendingOperationMode);
     if (pendingOperationMode === 'meeting') setMeetingNotesOpen(true);
-    showModeHintBriefly();
     setPendingOperationMode(null);
-  }, [pendingOperationMode, setOperationMode, showModeHintBriefly]);
+  }, [pendingOperationMode, setOperationMode]);
+
+  const openMeetingMode = useCallback(() => {
+    if (operationMode === 'meeting') {
+      setMeetingNotesOpen(true);
+      return;
+    }
+    requestOperationModeChange('meeting');
+  }, [operationMode, requestOperationModeChange]);
+
+  useEffect(() => {
+    const handler = () => openMeetingMode();
+    window.addEventListener('lumi:request-meeting-mode', handler);
+    return () => window.removeEventListener('lumi:request-meeting-mode', handler);
+  }, [openMeetingMode]);
 
   // Listen for org navigation events
   useEffect(() => {
@@ -2866,7 +2871,6 @@ export function DesktopUI({
       const setClientMode = (value: string) => {
         if (value === 'music') {
           openSurface('music-center');
-          showModeHintBriefly();
           return;
         }
         const allowed = ['chat', 'meeting', 'assistant', 'autonomous'];
@@ -2876,7 +2880,6 @@ export function DesktopUI({
         }
         setOperationMode(value as OperationMode);
         if (value === 'meeting') setMeetingNotesOpen(true);
-        showModeHintBriefly();
       };
 
       try {
@@ -3035,7 +3038,6 @@ export function DesktopUI({
     resetMeetingCapture,
     setActiveTab,
     setOperationMode,
-    showModeHintBriefly,
   ]);
 
   useEffect(() => {
@@ -3306,57 +3308,9 @@ export function DesktopUI({
       icon: <Zap size={16} />,
     },
   ];
-  const currentOperationMode = operationModeOptions.find(m => m.id === operationMode) || operationModeOptions[0];
   const pendingOperationModeOption = pendingOperationMode
     ? operationModeOptions.find(m => m.id === pendingOperationMode)
     : null;
-  const operationModeControl: Record<OperationMode, {
-    level: string;
-    input: string;
-    tools: string;
-    execution: string;
-    tone: string;
-    dot: string;
-    selected: string;
-  }> = {
-    chat: {
-      level: t.modeLevelChat || 'Conversation',
-      input: t.modeInputTextVoice || 'Text / voice',
-      tools: t.modeToolsOff || 'Tools off',
-      execution: t.modeExecutionOff || 'Execution off',
-      tone: 'border-sky-400/20 bg-sky-400/10 text-sky-200',
-      dot: 'bg-sky-300',
-      selected: 'border-sky-400/30 bg-sky-400/20 text-sky-100 shadow-sky-500/10',
-    },
-    meeting: {
-      level: t.modeLevelMeeting || 'Capture',
-      input: t.modeInputStt || 'Speech-to-text',
-      tools: t.modeToolsOff || 'Tools off',
-      execution: t.modeExecutionNotes || 'Notes only',
-      tone: 'border-cyan-400/20 bg-cyan-400/10 text-cyan-200',
-      dot: 'bg-cyan-300',
-      selected: 'border-cyan-400/30 bg-cyan-400/20 text-cyan-100 shadow-cyan-500/10',
-    },
-    assistant: {
-      level: t.modeLevelAssistant || 'Guided',
-      input: t.modeInputTask || 'Task request',
-      tools: t.modeToolsConfirm || 'Tools with intent',
-      execution: t.modeExecutionGuided || 'Guided work',
-      tone: 'border-violet-400/20 bg-violet-400/10 text-violet-200',
-      dot: 'bg-violet-300',
-      selected: 'border-violet-400/30 bg-violet-400/20 text-violet-100 shadow-violet-500/10',
-    },
-    autonomous: {
-      level: t.modeLevelAutonomous || (lang === 'zh' ? '自主' : 'Autonomous'),
-      input: t.modeInputWorkflow || 'Workflow goal',
-      tools: t.modeToolsAuto || 'Tools + teams',
-      execution: t.modeExecutionVisible || 'Visible execution',
-      tone: 'border-amber-400/20 bg-amber-400/10 text-amber-200',
-      dot: 'bg-amber-300',
-      selected: 'border-amber-400/30 bg-amber-400/20 text-amber-100 shadow-amber-500/10',
-    },
-  };
-  const currentModeControl = operationModeControl[currentOperationMode.id];
   const workflowHasExecution = workflowSteps.some(step =>
     step.type === 'background' ||
     step.type === 'confirmation' ||
@@ -3368,69 +3322,6 @@ export function DesktopUI({
     agentStatus !== 'idle' ||
     workflowSteps.length > 0 ||
     workflowHasExecution;
-  const renderOperationModeSelector = (compact = false) => (
-    <div
-      className={`flex flex-col items-center ${compact ? 'gap-1.5' : 'gap-2'}`}
-      onMouseEnter={() => setModeHintVisible(true)}
-      onMouseLeave={() => setModeHintVisible(false)}
-      onFocus={() => setModeHintVisible(true)}
-      onBlur={() => setModeHintVisible(false)}
-    >
-      <div className={`flex flex-wrap items-center justify-center ${compact ? 'gap-1.5' : 'gap-2'}`}>
-        {operationModeOptions.map(m => (
-          <button
-            key={m.id}
-            onClick={() => requestOperationModeChange(m.id)}
-            className={`flex items-center ${compact ? 'gap-1 px-2.5 py-1 text-[11px]' : 'min-w-[118px] gap-2 px-3 py-2 text-sm'} rounded-2xl border font-bold transition-all ${
-              operationMode === m.id
-                ? `${operationModeControl[m.id].selected} shadow-sm`
-                : 'border-white/10 bg-white/[0.035] text-white/45 hover:bg-white/[0.075] hover:text-white/70'
-            }`}
-            title={`${m.title}: ${m.description}`}
-          >
-            <span className={`flex shrink-0 items-center justify-center rounded-lg ${compact ? 'h-5 w-5' : 'h-7 w-7'} ${operationMode === m.id ? 'bg-white/10' : 'bg-black/20'}`}>
-              {React.isValidElement(m.icon)
-                ? React.cloneElement(m.icon as React.ReactElement<any>, { size: compact ? 12 : 15 })
-                : m.icon}
-            </span>
-            <span className="min-w-0 text-left">
-              <span className={`block truncate ${compact ? 'text-[11px]' : 'text-xs'} font-black uppercase tracking-[0.12em]`}>{m.label}</span>
-              {!compact && <span className="mt-0.5 block truncate text-[10px] font-semibold text-white/32">{m.hint}</span>}
-            </span>
-          </button>
-        ))}
-      </div>
-      <AnimatePresence>
-        {modeHintVisible && (
-          <motion.div
-            initial={{ opacity: 0, y: -4, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -4, scale: 0.98 }}
-            transition={{ duration: 0.16 }}
-            className={`rounded-2xl border bg-black/35 backdrop-blur-xl ${currentModeControl.tone} ${compact ? 'max-w-[300px] px-3 py-2' : 'max-w-[460px] px-4 py-3'}`}
-          >
-            <div className="flex flex-wrap items-center justify-center gap-2 text-center">
-              <span className="flex items-center gap-2 rounded-full border border-white/10 bg-black/25 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em]">
-                <Circle size={7} className={currentModeControl.dot} fill="currentColor" />
-                {currentModeControl.level}
-              </span>
-              <span className="text-[11px] font-black uppercase tracking-[0.18em] text-white/65">
-                {t.currentMode || 'Current mode'} · {currentOperationMode.title}
-              </span>
-            </div>
-            {!compact && (
-              <div className="mt-2 grid grid-cols-3 gap-2 text-center text-[10px] font-bold text-white/42">
-                <span className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1">{currentModeControl.input}</span>
-                <span className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1">{currentModeControl.tools}</span>
-                <span className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1">{currentModeControl.execution}</span>
-              </div>
-            )}
-            <p className={`${compact ? 'text-[11px]' : 'text-[12px]'} mt-1 leading-relaxed text-white/55`}>{currentOperationMode.description}</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
 
   const tutorialLabel = t.showTutorial || (lang === 'zh' ? '教程' : 'Tutorial');
 
@@ -3932,8 +3823,13 @@ export function DesktopUI({
                 >
                   {callState !== 'idle' ? <Mic size={20} className="animate-pulse" /> : <Mic size={20} />}
                 </button>
-                {/* Operation Mode selector */}
-                {renderOperationModeSelector(false)}
+                <MeetingModeButton
+                  t={t}
+                  lang={lang}
+                  active={operationMode === 'meeting'}
+                  live={operationMode === 'meeting' && callState !== 'idle'}
+                  onClick={openMeetingMode}
+                />
                 {/* Reset to sphere button */}
                 <button
                   onClick={(e) => {
@@ -3975,9 +3871,14 @@ export function DesktopUI({
                 gesturesDisabled={false}
                 isLightMode={isLightMode}
               />
-              {/* Operation Mode selector */}
               <div className="mt-2">
-                {renderOperationModeSelector(true)}
+                <MeetingModeButton
+                  t={t}
+                  lang={lang}
+                  active={operationMode === 'meeting'}
+                  live={operationMode === 'meeting' && callState !== 'idle'}
+                  onClick={openMeetingMode}
+                />
               </div>
               {wakeEnabled && wakeWord.isListening && callState === 'idle' && (
                 <div className="mt-2 text-xs text-white/45 uppercase tracking-[0.25em] font-mono">
@@ -4102,7 +4003,14 @@ export function DesktopUI({
 
             <div className="flex flex-col gap-6 w-full lg:w-96">
               {/* Modern Widgets Grid */}
-              <ThemeWidget t={t} theme={theme} setTheme={setTheme} />
+              <ThemeWidget
+                t={t}
+                lang={lang}
+                theme={theme}
+                setTheme={setTheme}
+                operationMode={operationMode}
+                onModeChange={requestOperationModeChange}
+              />
 
               <NeuralSynthesisMonitor t={t} onOpenTokens={() => toggleWindow('tokens')} />
 
@@ -4168,15 +4076,15 @@ export function DesktopUI({
       </AnimatePresence>
 
       <AnimatePresence>
-        {(meetingNotesOpen || operationMode === 'meeting') && (
+        {meetingNotesOpen && (
           <motion.div
-            initial={{ opacity: 0, x: 24, scale: 0.96 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 24, scale: 0.96 }}
-            className="fixed top-16 right-6 z-[62] w-[360px] pointer-events-auto"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[62] pointer-events-auto bg-black/[0.72] p-3 backdrop-blur-2xl md:p-6"
           >
-            <GlassCard className="rounded-2xl border-cyan-400/20 bg-black/75 p-4 backdrop-blur-2xl">
-              <div className="flex items-start justify-between gap-3">
+            <GlassCard className="flex h-full w-full flex-col overflow-hidden rounded-[2rem] border-cyan-400/20 bg-black/[0.86] p-4 shadow-2xl backdrop-blur-2xl md:p-6">
+              <div className="flex shrink-0 items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">
                     <span className={`h-2 w-2 rounded-full ${operationMode === 'meeting' && callState !== 'idle' ? 'bg-cyan-400 animate-pulse' : 'bg-white/25'}`} />
@@ -4212,15 +4120,17 @@ export function DesktopUI({
                   </button>
                   <button
                     onClick={() => setMeetingNotesOpen(false)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white/45 transition-colors hover:bg-white/10 hover:text-white"
-                    title={lang === 'zh' ? '收起' : 'Hide'}
+                    className="flex h-9 items-center justify-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-3 text-xs font-black uppercase tracking-[0.14em] text-cyan-100 transition-colors hover:bg-cyan-400/15"
+                    aria-label={lang === 'zh' ? '退出全屏，继续录制' : 'Exit fullscreen, keep recording'}
+                    title={lang === 'zh' ? '退出全屏，继续录制' : 'Exit fullscreen, keep recording'}
                   >
-                    <X size={14} />
+                    <X size={15} />
+                    <span>{lang === 'zh' ? '退出全屏' : 'Exit'}</span>
                   </button>
                 </div>
               </div>
 
-              <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+              <div className="mt-5 grid shrink-0 grid-cols-3 gap-2 text-center md:gap-3">
                 <div className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-2">
                   <div className="text-[10px] font-black uppercase tracking-widest text-white/30">{lang === 'zh' ? '状态' : 'State'}</div>
                   <div className="mt-1 text-xs font-bold text-cyan-300">{callState === 'idle' ? 'Idle' : callState}</div>
@@ -4237,7 +4147,7 @@ export function DesktopUI({
                 </div>
               </div>
 
-              <div className="mt-4 max-h-72 space-y-2 overflow-y-auto pr-1 custom-scrollbar">
+              <div className="mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 custom-scrollbar">
                 {meetingReportGenerating && (
                   <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-xs font-bold text-cyan-200">
                     {lang === 'zh' ? 'Lumi 正在整理会议报告...' : 'Lumi is preparing the meeting report...'}
@@ -4256,7 +4166,7 @@ export function DesktopUI({
                     {lang === 'zh' ? '进入会议模式后，说话内容会自动出现在这里。' : 'Speech captured in meeting mode will appear here automatically.'}
                   </div>
                 ) : (
-                  meetingNotes.slice(-12).reverse().map(note => (
+                  meetingNotes.slice(-80).reverse().map(note => (
                     <div key={note.id} className="border-l border-cyan-400/25 pl-3">
                       <div className="text-[10px] font-black uppercase tracking-widest text-cyan-300/70">{formatMeetingTime(note.time)}</div>
                       <p className="mt-1 text-sm leading-relaxed text-white/70">{note.text}</p>
@@ -4265,7 +4175,7 @@ export function DesktopUI({
                 )}
               </div>
 
-              <div className="mt-4 flex items-center gap-2">
+              <div className="mt-5 flex shrink-0 flex-col gap-2 border-t border-white/10 pt-4 sm:flex-row">
                 <button
                   onClick={() => void endMeetingAndReport()}
                   disabled={meetingReportGenerating}
@@ -4852,11 +4762,59 @@ function BatteryIndicator({ lang = 'zh' }: { lang?: 'en' | 'zh' }) {
   );
 }
 
-function ThemeWidget({ t, theme, setTheme }: { t?: any; theme: string; setTheme: (value: string) => void }) {
+function MeetingModeButton({
+  t,
+  lang,
+  active,
+  live,
+  onClick,
+}: {
+  t?: any;
+  lang: 'en' | 'zh';
+  active: boolean;
+  live: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex min-w-[156px] items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-xs font-black uppercase tracking-[0.16em] transition-all ${
+        active
+          ? 'border-cyan-400/30 bg-cyan-400/15 text-cyan-100 shadow-[0_12px_32px_rgba(34,211,238,0.12)]'
+          : 'border-white/10 bg-white/[0.035] text-white/45 hover:bg-white/[0.075] hover:text-white/75'
+      }`}
+      title={t?.modeMeetingTitle || (lang === 'zh' ? '会议模式' : 'Meeting mode')}
+    >
+      <span className={`h-2 w-2 rounded-full ${live ? 'bg-cyan-300 animate-pulse' : active ? 'bg-cyan-300' : 'bg-white/25'}`} />
+      <FileText size={14} />
+      <span>{t?.modeMeeting || (lang === 'zh' ? '会议' : 'Meeting')}</span>
+    </button>
+  );
+}
+
+function ThemeWidget({
+  t,
+  lang,
+  theme,
+  setTheme,
+  operationMode,
+  onModeChange,
+}: {
+  t?: any;
+  lang: 'en' | 'zh';
+  theme: string;
+  setTheme: (value: string) => void;
+  operationMode: OperationMode;
+  onModeChange: (mode: OperationMode) => void;
+}) {
   const themeOptions = [
     {
       id: 'celestial',
       label: t?.celestial || 'Celestial',
+      mode: 'chat' as OperationMode,
+      modeLabel: t?.modeChat || (lang === 'zh' ? '聊天' : 'Chat'),
+      accessLabel: lang === 'zh' ? '请求批准' : 'Request Approval',
       icon: <Sparkles size={16} />,
       glow: 'from-celestial-saturn/35 to-cyan-300/20',
       orb: 'from-celestial-saturn to-cyan-200',
@@ -4865,6 +4823,9 @@ function ThemeWidget({ t, theme, setTheme }: { t?: any; theme: string; setTheme:
     {
       id: 'nebula',
       label: t?.nebula || 'Nebula',
+      mode: 'assistant' as OperationMode,
+      modeLabel: t?.modeAssistant || (lang === 'zh' ? '助手' : 'Assistant'),
+      accessLabel: lang === 'zh' ? '替我审批' : 'Approve For Me',
       icon: <Moon size={16} />,
       glow: 'from-indigo-500/35 to-fuchsia-400/20',
       orb: 'from-indigo-500 to-fuchsia-400',
@@ -4873,6 +4834,9 @@ function ThemeWidget({ t, theme, setTheme }: { t?: any; theme: string; setTheme:
     {
       id: 'cyber',
       label: t?.cyber || 'Cyber',
+      mode: 'autonomous' as OperationMode,
+      modeLabel: t?.modeAutonomy || t?.modeAutoExecute || (lang === 'zh' ? '自主' : 'Autonomy'),
+      accessLabel: lang === 'zh' ? '完全访问' : 'Full Access',
       icon: <Zap size={16} />,
       glow: 'from-emerald-400/30 to-teal-300/20',
       orb: 'from-emerald-400 to-teal-300',
@@ -4881,43 +4845,61 @@ function ThemeWidget({ t, theme, setTheme }: { t?: any; theme: string; setTheme:
   ];
 
   return (
-    <div className="grid grid-cols-3 gap-3">
-      {themeOptions.map((option) => {
-        const active = theme === option.id;
-        return (
-          <GlassCard
-            key={option.id}
-            onClick={() => {
-              setTheme(option.id);
-              sounds.playPulse();
-            }}
-            className={`group relative min-h-[128px] overflow-hidden rounded-[1.5rem] border p-3 text-left transition-all ${
-              active
-                ? 'border-white/20 bg-white/[0.08] shadow-[0_18px_45px_rgba(0,0,0,0.28)]'
-                : 'border-white/5 bg-black/20 hover:bg-white/[0.05]'
-            }`}
-          >
-            <div className={`absolute inset-0 bg-gradient-to-br ${option.glow} transition-opacity group-hover:opacity-80 ${active ? 'opacity-100' : 'opacity-50'}`} />
-            <div className="relative flex h-full flex-col justify-between">
-              <div className={`flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${option.orb} text-black shadow-lg`}>
-                {option.icon}
-              </div>
-              <div>
-                <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/80">
-                  {option.label}
+    <GlassCard className="rounded-[1.6rem] border-white/5 bg-black/20 p-3">
+      <div className="grid grid-cols-3 gap-3">
+        {themeOptions.map((option) => {
+          const active = theme === option.id && operationMode === option.mode;
+          const visualActive = theme === option.id;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => {
+                if (option.mode !== 'autonomous' || operationMode === 'autonomous') {
+                  setTheme(option.id);
+                }
+                onModeChange(option.mode);
+                sounds.playPulse();
+              }}
+              className={`group relative min-h-[134px] overflow-hidden rounded-[1.25rem] border p-3 text-left transition-all ${
+                active
+                  ? 'border-white/20 bg-white/[0.10] shadow-[0_18px_45px_rgba(0,0,0,0.28)]'
+                  : visualActive
+                    ? 'border-white/10 bg-white/[0.06]'
+                    : 'border-white/5 bg-black/20 hover:bg-white/[0.05]'
+              }`}
+            >
+              <div className={`absolute inset-0 bg-gradient-to-br ${option.glow} transition-opacity group-hover:opacity-80 ${visualActive ? 'opacity-100' : 'opacity-40'}`} />
+              <div className="relative flex h-full flex-col justify-between">
+                <div className="flex items-start justify-between gap-2">
+                  <div className={`flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${option.orb} text-black shadow-lg`}>
+                    {option.icon}
+                  </div>
+                  <span className={`h-2 w-2 rounded-full ${active ? option.line : 'bg-white/20'}`} />
                 </div>
-                <div className="mt-2 h-1 rounded-full bg-white/10">
-                  <motion.div
-                    animate={{ width: active ? '100%' : '32%' }}
-                    className={`h-full rounded-full ${option.line}`}
-                  />
+                <div>
+                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/85">
+                    {option.label}
+                  </div>
+                  <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white/45">
+                    {option.modeLabel}
+                  </div>
+                  <div className="mt-2 min-h-[22px] rounded-lg border border-white/10 bg-black/20 px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-white/70">
+                    {option.accessLabel}
+                  </div>
+                  <div className="mt-2 h-1 rounded-full bg-white/10">
+                    <motion.div
+                      animate={{ width: active ? '100%' : visualActive ? '64%' : '28%' }}
+                      className={`h-full rounded-full ${option.line}`}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          </GlassCard>
-        );
-      })}
-    </div>
+            </button>
+          );
+        })}
+      </div>
+    </GlassCard>
   );
 }
 

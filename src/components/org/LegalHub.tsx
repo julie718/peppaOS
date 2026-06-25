@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Scale, FileText, Search, Crosshair, Shield, Brain, CheckCircle, Upload,
-  Calendar, Mic, ClipboardList, Plus, FolderOpen, Gavel, AlertTriangle, RefreshCw, Loader2,
+  Calendar, ClipboardList, Plus, FolderOpen, Gavel, AlertTriangle, RefreshCw, Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { LegalBidWorkbench } from './LegalBidWorkbench';
@@ -562,6 +562,7 @@ function LegalCaseWorkspace({
             {ui('辅助律师办案，不替代执业律师的最终判断。', 'Assists legal work; final judgment remains with licensed counsel.')}
           </p>
         </div>
+        <LegalMeetingInlineButton className="ml-auto" label={ui('会议', 'Meeting')} onClick={onStartConsultation} />
         <button
           onClick={onCreateCase}
           className="lumi-button h-10 px-4 text-sm"
@@ -668,7 +669,7 @@ function LegalCaseWorkspace({
           </section>
 
           <section className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-            <LegalActionButton icon={<Mic size={16} />} title={ui('当事人会谈', 'Consultation')} desc={ui('开启会议转写并归档', 'Start transcription')} onClick={onStartConsultation} />
+            <LegalMeetingActionButton title={ui('当事人会谈', 'Consultation')} desc={ui('开启会议转写并归档', 'Start transcription')} onClick={onStartConsultation} />
             <LegalActionButton icon={<Search size={16} />} title={ui('类案分析', 'Case analysis')} desc={ui('按事实检索裁判思路', 'Search precedents')} onClick={() => onSetView('case-search')} />
             <LegalActionButton icon={<Brain size={16} />} title={ui('诉讼策略', 'Strategy')} desc={ui('形成争议焦点和打法', 'Build litigation route')} onClick={() => onSetView('strategy')} />
             <LegalActionButton icon={<ClipboardList size={16} />} title={ui('案件计划', 'Case plan')} desc={ui('生成推进步骤', 'Create workflow')} onClick={onCreatePlan} />
@@ -688,9 +689,7 @@ function LegalCaseWorkspace({
               <button onClick={calculateAppealDeadline} className="lumi-button h-9 px-3 text-xs">
                 {ui('按判决日期计算上诉期限', 'Calculate appeal deadline')}
               </button>
-              <button onClick={onOpenMeetingNotes} className="lumi-button h-9 px-3 text-xs">
-                {ui('打开会谈笔记', 'Open meeting notes')}
-              </button>
+              <LegalMeetingInlineButton label={ui('打开会谈笔记', 'Open meeting notes')} onClick={onOpenMeetingNotes} />
               <button onClick={() => onSetView('import')} className="lumi-button h-9 px-3 text-xs">
                 {ui('导入裁判文书', 'Import judgment')}
               </button>
@@ -735,15 +734,13 @@ function LegalCaseWorkspace({
                 >
                   {documentLoading === 'engagement' ? ui('生成中...', 'Drafting...') : ui('生成委托书', 'Engagement letter')}
                 </button>
-                <button
+                <LegalMeetingInlineButton
+                  label={ui('庭审笔录', 'Trial notes')}
                   onClick={() => {
                     setDocumentStatus(ui('已启动庭审/会谈转写，结束后会把纪要归档到当前案件。', 'Trial/consultation transcription started; notes will archive to this case when finished.'));
                     onStartConsultation();
                   }}
-                  className="lumi-button h-9 px-3 text-xs"
-                >
-                  {ui('庭审笔录', 'Trial notes')}
-                </button>
+                />
                 <button onClick={() => onSetView('contract-review')} className="lumi-button h-9 px-3 text-xs">
                   {ui('合同审查', 'Contract review')}
                 </button>
@@ -826,6 +823,36 @@ function DateField({ label, value, onChange, onReminder }: { label: string; valu
         )}
       </div>
     </label>
+  );
+}
+
+function LegalMeetingInlineButton({ label, onClick, className = '' }: { label: string; onClick: () => void; className?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-3 text-xs font-black uppercase tracking-[0.12em] text-cyan-100 transition-colors hover:border-cyan-300/35 hover:bg-cyan-400/15 ${className}`}
+    >
+      <span className="h-2 w-2 rounded-full bg-cyan-300" />
+      <FileText size={14} />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function LegalMeetingActionButton({ title, desc, onClick }: { title: string; desc: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="lumi-panel group border-cyan-400/15 bg-cyan-400/[0.045] p-4 text-left transition-colors hover:border-cyan-300/30 hover:bg-cyan-400/[0.075]"
+    >
+      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-400/10 text-cyan-200 group-hover:bg-cyan-400/15">
+        <FileText size={16} />
+      </div>
+      <div className="text-sm font-bold text-cyan-100">{title}</div>
+      <div className="mt-1 text-xs leading-5 text-cyan-100/48">{desc}</div>
+    </button>
   );
 }
 
