@@ -1485,13 +1485,6 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
             </motion.div>
       </div>
     </div>
-
-          {/* Bottom hint */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-            <span className="text-[12px] font-bold text-white/40 uppercase tracking-[0.15em] bg-black/30 px-4 py-1.5 rounded-full border border-white/[0.04]">
-              {t.chatEscClose || 'ESC to close'} - {agentName} - {agentCategory}
-            </span>
-          </div>
         </motion.div>
       )}
     </AnimatePresence>
