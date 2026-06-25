@@ -23,13 +23,11 @@ import {
   Bluetooth,
   Moon,
   Sun,
-  Maximize2,
   Minimize2,
   Minus,
   Square,
   ChevronRight,
   ArrowLeft,
-  Clock,
   Bell,
   Disc,
   Headphones,
@@ -351,7 +349,7 @@ function OSWindow({
   );
 }
 
-function ControlCenter({ isOpen, onClose, t, brightness, setBrightness, volume, setVolume, theme, setTheme, lang, setLang, isLightMode, setIsLightMode, toggleWindow }: {
+function ControlCenter({ isOpen, onClose, t, brightness, setBrightness, volume, setVolume, lang, setLang, isLightMode, setIsLightMode, toggleWindow }: {
   isOpen: boolean;
   onClose: () => void;
   t: any;
@@ -359,25 +357,15 @@ function ControlCenter({ isOpen, onClose, t, brightness, setBrightness, volume, 
   setBrightness: (v: number) => void;
   volume: number;
   setVolume: (v: number) => void;
-  theme: string;
-  setTheme: (t: string) => void;
   lang: 'en' | 'zh';
   setLang: (l: 'en' | 'zh') => void;
   isLightMode: boolean;
   setIsLightMode: (v: boolean) => void;
   toggleWindow: (id: string) => void;
 }) {
-  const [nightShift, setNightShift] = useState(false);
-  const [focusMode, setFocusMode] = useState(false);
   const { selectedVoiceId, unreadCount } = useApp();
 
   if (!isOpen) return null;
-
-  const themes = [
-    { id: 'celestial', label: t.celestial || 'Celestial', color: 'bg-celestial-saturn', icon: <Sparkles size={14} /> },
-    { id: 'nebula', label: t.nebula || 'Nebula', color: 'bg-indigo-500', icon: <Moon size={14} /> },
-    { id: 'cyber', label: t.cyber || 'Cyber', color: 'bg-emerald-500', icon: <Zap size={14} /> },
-  ];
 
   return (
     <motion.div 
@@ -401,8 +389,7 @@ function ControlCenter({ isOpen, onClose, t, brightness, setBrightness, volume, 
       </div>
 
       <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className="col-span-1 bg-white/5 rounded-2xl p-4 flex flex-col gap-3">
-          <div className="flex gap-3">
+        <div className="col-span-1 bg-white/5 rounded-2xl p-4 flex items-center justify-center gap-3">
              <button
                onClick={async () => {
                  try { const r = await fetch('/api/health'); if (r.ok) toast.info(t.serverOnline); else toast.info(t.serverDegraded); }
@@ -416,23 +403,6 @@ function ControlCenter({ isOpen, onClose, t, brightness, setBrightness, volume, 
                className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white/40 active:scale-95 transition-transform"
                title={t.bluetooth}
              ><Bluetooth size={18} /></button>
-          </div>
-          <div className="flex gap-3">
-             <button 
-               className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${theme === 'cyber' ? 'bg-emerald-500 text-white' : 'bg-white/10 text-white/40'}`}
-               onClick={() => { setTheme('cyber'); sounds.playPulse(); }}
-               title={t.cyber}
-             >
-               <Rocket size={18} />
-             </button>
-             <button 
-               className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${theme === 'nebula' ? 'bg-indigo-500 text-white' : 'bg-white/10 text-white/40'}`}
-               onClick={() => { setTheme('nebula'); sounds.playPulse(); }}
-               title={t.nebula}
-             >
-               <Moon size={18} />
-             </button>
-          </div>
         </div>
         <div className="col-span-1 bg-white/5 rounded-[1.5rem] p-5 flex flex-col justify-between">
            <div className="space-y-2">
@@ -511,63 +481,6 @@ function ControlCenter({ isOpen, onClose, t, brightness, setBrightness, volume, 
           </button>
         </div>
       </div>
-
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <span className="text-xs font-black text-white/45 uppercase tracking-widest px-2">{t.matrixSynthesis || 'Matrix Synthesis'}</span>
-          <div className="grid grid-cols-3 gap-2">
-            {themes.map((themeOption) => (
-              <button 
-                key={themeOption.id}
-                onClick={() => { setTheme(themeOption.id); sounds.playPulse(); }}
-                className={`flex flex-col items-center gap-2 p-3 rounded-2xl transition-all ${theme === themeOption.id ? 'bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.05)]' : 'hover:bg-white/5'}`}
-              >
-                <div className={`w-8 h-8 rounded-full ${themeOption.color} flex items-center justify-center text-white shadow-lg`}>
-                  {themeOption.icon}
-                </div>
-                <span className="text-xs font-black uppercase text-white/40">{themeOption.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-1">
-        <div
-          onClick={() => {
-            const next = !nightShift;
-            setNightShift(next);
-            document.documentElement.style.filter = next ? 'sepia(0.3) hue-rotate(-10deg)' : '';
-            toast.info(next ? t.nightShiftOn : t.nightShiftOff);
-          }}
-          className="flex items-center justify-between p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${nightShift ? 'bg-orange-500/30 text-orange-400' : 'bg-orange-500/20 text-orange-500'}`}><Sun size={16} /></div>
-            <span className="text-xs font-bold text-white/80">{t.nightShift || 'Night Shift'}</span>
-          </div>
-          <div className={`w-8 h-4 rounded-full p-0.5 transition-colors ${nightShift ? 'bg-orange-500' : 'bg-white/10'}`}>
-            <div className={`w-3 h-3 rounded-full bg-white transition-transform ${nightShift ? 'translate-x-4' : 'translate-x-0'}`} />
-          </div>
-        </div>
-        <div
-          onClick={() => {
-            const next = !focusMode;
-            setFocusMode(next);
-            toast.info(next ? t.focusModeOn : t.focusModeOff);
-          }}
-          className="flex items-center justify-between p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${focusMode ? 'bg-purple-500/30 text-purple-400' : 'bg-purple-500/20 text-purple-500'}`}><Maximize2 size={16} /></div>
-            <span className="text-xs font-bold text-white/80">{t.focusMode || 'Focus Mode'}</span>
-          </div>
-          <div className={`w-8 h-4 rounded-full p-0.5 transition-colors ${focusMode ? 'bg-purple-500' : 'bg-white/10'}`}>
-            <div className={`w-3 h-3 rounded-full bg-white transition-transform ${focusMode ? 'translate-x-4' : 'translate-x-0'}`} />
-          </div>
-        </div>
-      </div>
-      
       <div className="mt-6 pt-6 border-t border-white/5 flex items-center justify-between font-sans">
         <span className="text-xs font-bold text-white/45 tracking-widest uppercase">{t.desktopVersion || 'Lumi OS v3.0.0'}</span>
         <button onClick={onClose} className="text-xs font-black text-celestial-saturn hover:underline uppercase tracking-widest">{t.closeNexus || 'Close Nexus'}</button>
@@ -2363,7 +2276,7 @@ export function DesktopUI({
     }
 
     if (!options.silent) {
-      toast(enabled ? (t.wallpaperFusionActive || 'Wallpaper Fusion Active') : (t.standardFocusMode || 'Standard Focus Mode'), {
+      toast(enabled ? (t.wallpaperFusionActive || 'Wallpaper Fusion Active') : (t.standardFocusMode || 'Standard Desktop'), {
         icon: enabled ? <Sparkles className="text-celestial-saturn" /> : <Box className="text-white/40" />
       });
     }
@@ -3554,8 +3467,6 @@ export function DesktopUI({
         setBrightness={setBrightness}
         volume={volume}
         setVolume={setVolume}
-        theme={theme}
-        setTheme={setTheme}
         lang={lang}
         setLang={setLang}
         isLightMode={isLightMode}
@@ -3785,7 +3696,7 @@ export function DesktopUI({
                   title={isWallpaperMode ? (lang === 'zh' ? '退出壁纸模式' : 'Exit wallpaper mode') : (lang === 'zh' ? '壁纸模式' : 'Wallpaper mode')}
                >
                  <Zap size={10} className={isWallpaperMode ? 'animate-pulse' : ''} />
-                 {isWallpaperMode ? 'Fusion' : 'Focus'}
+                 {isWallpaperMode ? 'Fusion' : (lang === 'zh' ? '壁纸' : 'Wallpaper')}
                </button>
             </div>
 
@@ -4191,10 +4102,7 @@ export function DesktopUI({
 
             <div className="flex flex-col gap-6 w-full lg:w-96">
               {/* Modern Widgets Grid */}
-              <div className="grid grid-cols-2 gap-4">
-                 <ClockWidget t={t} time={time} />
-                 <BatteryWidget t={t} />
-              </div>
+              <ThemeWidget t={t} theme={theme} setTheme={setTheme} />
 
               <NeuralSynthesisMonitor t={t} onOpenTokens={() => toggleWindow('tokens')} />
 
@@ -4669,6 +4577,7 @@ export function DesktopUI({
 
       <ToolConfirmDialog socket={socket} isWallpaperMode={isWallpaperMode} />
       <UserSwitchPrompt socket={socket} />
+      <MusicMoodLayer />
 
     </div>
   );
@@ -4943,159 +4852,71 @@ function BatteryIndicator({ lang = 'zh' }: { lang?: 'en' | 'zh' }) {
   );
 }
 
-function useClickAway(ref: React.RefObject<HTMLElement | null>, handler: () => void) {
-  useEffect(() => {
-    const listener = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) handler();
-    };
-    document.addEventListener('mousedown', listener);
-    return () => document.removeEventListener('mousedown', listener);
-  }, [ref, handler]);
-}
-
-function ClockWidget({ t, time }: { t?: any; time: Date }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useClickAway(ref, () => setIsOpen(false));
-
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const today = time;
-  const monthDays = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).getDay();
-  const calDays = Array.from({ length: monthDays }, (_, i) => i + 1);
-
-  return (
-    <div ref={ref} className="relative">
-      <GlassCard
-        className="p-4 rounded-[2rem] border-white/5 bg-black/20 flex flex-col items-center justify-center text-center gap-2 cursor-pointer hover:bg-white/[0.06] transition-all"
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        <Clock size={20} className="text-celestial-saturn" />
-        <div className="text-xl font-black text-white/80">
-          {today.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        </div>
-        <span className="text-xs font-bold text-white/55 uppercase tracking-widest">
-          {days[today.getDay()]}, {months[today.getMonth()]} {today.getDate()}
-        </span>
-      </GlassCard>
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: -8 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          className="absolute top-full mt-2 left-0 z-[80] w-64 p-4 rounded-2xl bg-black/90 backdrop-blur-2xl border border-white/10 shadow-2xl pointer-events-auto"
-        >
-          <div className="text-center mb-3">
-            <div className="text-xs font-black uppercase tracking-widest text-white/60">
-              {months[today.getMonth()]} {today.getFullYear()}
-            </div>
-          </div>
-          <div className="grid grid-cols-7 gap-1 mb-2">
-            {['S','M','T','W','T','F','S'].map((d, i) => (
-              <span key={i} className="text-xs font-bold text-white/45 text-center">{d}</span>
-            ))}
-          </div>
-          <div className="grid grid-cols-7 gap-1">
-            {Array.from({ length: firstDay }, (_, i) => <div key={`e${i}`} />)}
-            {calDays.map(d => (
-              <div
-                key={d}
-                className={`text-xs text-center py-1 rounded-md font-mono ${
-                  d === today.getDate() ? 'bg-celestial-saturn text-black font-bold' : 'text-white/60 hover:bg-white/10 cursor-pointer'
-                }`}
-              >
-                {d}
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 pt-3 border-t border-white/5 text-[12px] text-white/55 text-center font-mono">
-            {today.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-          </div>
-        </motion.div>
-      )}
-    </div>
-  );
-}
-
-function BatteryWidget({ t }: { t?: any }) {
-  const [level, setLevel] = useState<number | null>(null);
-  const [charging, setCharging] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useClickAway(ref, () => setIsOpen(false));
-
-  useEffect(() => {
-    const nav = navigator as any;
-    if (nav.getBattery) {
-      nav.getBattery().then((b: any) => {
-        setLevel(Math.round(b.level * 100));
-        setCharging(b.charging);
-        b.addEventListener('levelchange', () => setLevel(Math.round(b.level * 100)));
-        b.addEventListener('chargingchange', () => setCharging(b.charging));
-      }).catch(() => setLevel(null));
-    }
-  }, []);
-
-  const estHours = level != null ? Math.round((level / 100) * (charging ? 0 : 8)) : null;
-  const powerDraw = level != null ? Math.round(60 - level * 0.3) : null;
+function ThemeWidget({ t, theme, setTheme }: { t?: any; theme: string; setTheme: (value: string) => void }) {
+  const themeOptions = [
+    {
+      id: 'celestial',
+      label: t?.celestial || 'Celestial',
+      icon: <Sparkles size={16} />,
+      glow: 'from-celestial-saturn/35 to-cyan-300/20',
+      orb: 'from-celestial-saturn to-cyan-200',
+      line: 'bg-celestial-saturn',
+    },
+    {
+      id: 'nebula',
+      label: t?.nebula || 'Nebula',
+      icon: <Moon size={16} />,
+      glow: 'from-indigo-500/35 to-fuchsia-400/20',
+      orb: 'from-indigo-500 to-fuchsia-400',
+      line: 'bg-indigo-400',
+    },
+    {
+      id: 'cyber',
+      label: t?.cyber || 'Cyber',
+      icon: <Zap size={16} />,
+      glow: 'from-emerald-400/30 to-teal-300/20',
+      orb: 'from-emerald-400 to-teal-300',
+      line: 'bg-emerald-400',
+    },
+  ];
 
   return (
-    <div ref={ref} className="relative">
-      <GlassCard
-        className="p-4 rounded-[2rem] border-white/5 bg-black/20 flex flex-col items-center justify-center text-center gap-2 cursor-pointer hover:bg-white/[0.06] transition-all"
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        <Battery size={20} className={level != null && level <= 20 ? 'text-red-400' : level != null && level <= 50 ? 'text-yellow-400' : 'text-celestial-glow'} />
-        <div className="text-xl font-black text-white/80">{level != null ? `${level}%` : '--%'}</div>
-        <span className="text-xs font-bold text-white/55 uppercase tracking-widest">
-          {level == null ? (t?.webMode || 'Web Mode') : charging ? (t?.charging || 'Charging') : (t?.battery || 'Battery')}
-        </span>
-      </GlassCard>
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: -8 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          className="absolute top-full mt-2 right-0 z-[80] w-56 p-4 rounded-2xl bg-black/90 backdrop-blur-2xl border border-white/10 shadow-2xl pointer-events-auto"
-        >
-          <div className="text-xs font-black uppercase tracking-widest text-white/50 mb-3">
-            {t?.powerUsage || 'Power Usage'}
-          </div>
-          <div className="space-y-2">
-            <div className="flex justify-between text-xs">
-              <span className="text-white/40">{t?.currentLevel || 'Current Level'}</span>
-              <span className="font-bold text-white/80">{level}%</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-white/40">{t?.status || 'Status'}</span>
-              <span className={`font-bold ${charging ? 'text-green-400' : 'text-white/80'}`}>
-                {charging ? (t?.charging || 'Charging') : (t?.onBattery || 'On Battery')}
-              </span>
-            </div>
-            {estHours != null && !charging && (
-              <div className="flex justify-between text-xs">
-                <span className="text-white/40">{t?.estRemaining || 'Est. Remaining'}</span>
-                <span className="font-bold text-white/80">~{estHours}h</span>
+    <div className="grid grid-cols-3 gap-3">
+      {themeOptions.map((option) => {
+        const active = theme === option.id;
+        return (
+          <GlassCard
+            key={option.id}
+            onClick={() => {
+              setTheme(option.id);
+              sounds.playPulse();
+            }}
+            className={`group relative min-h-[128px] overflow-hidden rounded-[1.5rem] border p-3 text-left transition-all ${
+              active
+                ? 'border-white/20 bg-white/[0.08] shadow-[0_18px_45px_rgba(0,0,0,0.28)]'
+                : 'border-white/5 bg-black/20 hover:bg-white/[0.05]'
+            }`}
+          >
+            <div className={`absolute inset-0 bg-gradient-to-br ${option.glow} transition-opacity group-hover:opacity-80 ${active ? 'opacity-100' : 'opacity-50'}`} />
+            <div className="relative flex h-full flex-col justify-between">
+              <div className={`flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${option.orb} text-black shadow-lg`}>
+                {option.icon}
               </div>
-            )}
-            {powerDraw != null && (
-              <div className="flex justify-between text-xs">
-                <span className="text-white/40">{t?.estPowerDraw || 'Est. Power Draw'}</span>
-                <span className="font-bold text-white/80">~{powerDraw}W</span>
+              <div>
+                <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/80">
+                  {option.label}
+                </div>
+                <div className="mt-2 h-1 rounded-full bg-white/10">
+                  <motion.div
+                    animate={{ width: active ? '100%' : '32%' }}
+                    className={`h-full rounded-full ${option.line}`}
+                  />
+                </div>
               </div>
-            )}
-            <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${level ?? 0}%` }}
-                className={`h-full rounded-full ${(level ?? 100) <= 20 ? 'bg-red-500' : (level ?? 100) <= 50 ? 'bg-yellow-500' : 'bg-gradient-to-r from-cyan-400 to-green-400'}`}
-              />
             </div>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Music Mood Layer — fullscreen overlay triggered by backend music:atmosphere */}
-      <MusicMoodLayer />
+          </GlassCard>
+        );
+      })}
     </div>
   );
 }
