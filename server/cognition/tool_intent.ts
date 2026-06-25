@@ -1,4 +1,5 @@
 import { normalizeOperationMode } from './operation_modes';
+import { hasVisionIntent } from './vision_routing';
 
 const TOOL_INTENT_PATTERNS: RegExp[] = [
   /\b(open|launch|start|run|execute|call\s+(?:a\s+)?tool|use\s+(?:a\s+)?tool|tool\s+call|search|look\s+up|browse|fetch|research|learn|study|integrate|connect|sleep|dream|rest|consolidate\s+(?:memory|memories)|read\s+(?:file|screen|folder|directory)|scan|screenshot|screen\s*shot|click|type|copy|paste|write|save|create|export|delete|remove|install|uninstall|play|pause|resume|download|upload|sync|build|test|commit|push|deploy|cad|dxf|dwg|ifc|bim|revit|dynamo|draft|drawing)\b/i,
@@ -60,8 +61,9 @@ export function isDiagnosticOrRepairRequest(text: string): boolean {
 export function shouldAllowToolUseForTurn(text: string, source?: string, operationMode?: string): boolean {
   const mode = normalizeOperationMode(operationMode);
   if (isDiagnosticOrRepairRequest(text)) return true;
-  if (mode === 'chat') return hasClientActionIntent(text) || hasExplicitToolIntent(text);
+  if (mode === 'chat') return hasClientActionIntent(text) || hasExplicitToolIntent(text) || hasVisionIntent(text);
   if (mode === 'meeting') return hasClientActionIntent(text);
+  if (hasVisionIntent(text)) return true;
   if (mode === 'autonomous' && AUTONOMOUS_TASK_PATTERNS.some((pattern) => pattern.test(text.trim()))) return true;
   if (hasExplicitToolIntent(text)) return true;
   return false;

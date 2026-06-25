@@ -233,6 +233,39 @@ export function parseDeepSeekResponse(rawResponse: any): NormalizedLLMResponse {
 
 // ── Gemini ──
 
+function geminiPartsFromContent(content: MessageContent): any[] {
+  if (typeof content === 'string') return [{ text: content }];
+  if (!content) return [{ text: '' }];
+
+  const parts: any[] = [];
+  for (const part of content) {
+    if (part.type === 'text') {
+      parts.push({ text: part.text });
+      continue;
+    }
+
+    const url = part.image_url?.url || '';
+    const dataUrl = url.match(/^data:([^;]+);base64,(.+)$/);
+    if (dataUrl) {
+      parts.push({
+        inlineData: {
+          mimeType: dataUrl[1],
+          data: dataUrl[2],
+        },
+      });
+    } else if (url) {
+      parts.push({
+        fileData: {
+          mimeType: 'image/jpeg',
+          fileUri: url,
+        },
+      });
+    }
+  }
+
+  return parts.length > 0 ? parts : [{ text: '' }];
+}
+
 export function formatGeminiRequest(params: {
   model: string;
   messages: NormalizedMessage[];
@@ -287,7 +320,7 @@ export function formatGeminiRequest(params: {
     if (m.role === 'assistant') {
       const parts: any[] = [];
       if (m.content) {
-        parts.push({ text: m.content });
+        parts.push(...geminiPartsFromContent(m.content));
       }
       if (m.toolCalls) {
         for (const tc of m.toolCalls) {
@@ -306,7 +339,7 @@ export function formatGeminiRequest(params: {
     // user messages
     contents.push({
       role: 'user',
-      parts: [{ text: m.content || '' }],
+      parts: geminiPartsFromContent(m.content),
     });
   }
 

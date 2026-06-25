@@ -7,7 +7,7 @@ async function computerUse(args: Record<string, any>, context?: any): Promise<st
   }
 
   if (!context?.llmGetters) {
-    throw new Error('Computer use requires a vision-capable model (OpenAI GPT-4o or Gemini).');
+    throw new Error('Computer use requires a configured Vision Model. Set one in Settings -> LLM Providers -> Vision Model.');
   }
 
   const task = args.task || args.prompt || '';
@@ -33,7 +33,7 @@ export function registerComputerUseTool(registry: ToolRegistry): void {
   registry.register({
     name: 'computer_use',
     description:
-      'Take control of the user desktop to complete a task after confirmation. This tool uses screenshot capture and vision AI to understand what is on screen, then controls the mouse and keyboard step by step. Use this for opening applications, navigating websites, filling forms, closing dialogs, moving files, managing windows, or other visible desktop interactions. Each iteration takes a screenshot, analyzes it, executes one mouse/keyboard action, and repeats. Default 12 iterations, hard-capped at 15. It does not enter wallpaper mode.',
+      'Take control of the user desktop to complete a task after confirmation. This tool uses screenshot capture and the configured Vision Model to understand what is on screen, then controls the mouse and keyboard step by step. Supports configured vision providers such as Qwen-VL/DashScope, GPT-4o, Gemini, Doubao Vision, Ollama, LM Studio, or relay models. Use this for opening applications, navigating websites, filling forms, closing dialogs, moving files, managing windows, or other visible desktop interactions. Each iteration takes a screenshot, analyzes it, executes one mouse/keyboard action, and repeats. Default 12 iterations, hard-capped at 15. It does not enter wallpaper mode.',
     parameters: {
       type: 'object',
       properties: {

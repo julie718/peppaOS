@@ -32,6 +32,7 @@ import { getIdleState } from "../context/activity_stream";
 import { adjustMusicPlayback, getMusicFailureMessage, isMusicAdjustmentRequest, isMusicPlaybackRequest, searchAndPlay } from "../music/search_play";
 import { analyzeLikedMusicProfile, formatMusicProfileReport, isMusicProfileAnalysisRequest } from "../music/library_profile";
 import { guardCompletionClaims, needsCompletionEvidence } from "../work_product/completion_guard";
+import { buildVisionRoutingOverlay, hasVisionIntent } from "../cognition/vision_routing";
 
 interface AudioSession {
   sttSession: ReturnType<typeof createStreamingSession> | null;
@@ -412,6 +413,7 @@ async function processVoiceInput(
   const selfRepairTurn = isDiagnosticOrRepairRequest(userText);
   const clientActionOnlyTurn = !selfRepairTurn && hasClientActionOnlyIntent(userText) && (effectiveOperationMode === 'chat' || effectiveOperationMode === 'meeting');
   const workSurfaceRoute = resolveWorkSurfaceRoute(userText);
+  const visionIntent = hasVisionIntent(userText);
   const clientActionToolPolicy = clientActionOnlyTurn
     ? { allowedTools: ['client_get_state', 'client_action'], requireConfirmation: [], forbiddenTools: [], maxIterations: 4 }
     : null;
@@ -450,12 +452,13 @@ async function processVoiceInput(
     ? '\n\n## Client Self-Repair Turn\nThe user is reporting that Lumi or one of its client workflows is failing. Do not only apologize or repeat the raw error. Use client_get_state first when tools are available, inspect relevant status/log/config surfaces, apply one safe recovery or retry when the cause is clear, verify the result, and then give a concise spoken report. Reads and status checks are allowed; writes, desktop control, external app automation, and system changes still require confirmation.'
     : (effectiveOpModeConfig && (allowToolUseForTurn || effectiveOperationMode === 'meeting') ? '\n\n' + effectiveOpModeConfig.promptOverlay : '');
   const workSurfaceOverlay = workSurfaceRoute.promptOverlay ? '\n\n' + workSurfaceRoute.promptOverlay : '';
+  const visionRoutingOverlay = visionIntent && effectiveOperationMode !== 'meeting' ? '\n\n' + buildVisionRoutingOverlay(session.userId, userText) : '';
   const interactionOverlay = allowToolUseForTurn
     ? toolVoiceOverlay
     : baseVoiceOverlay + '\n\n## Interaction Mode\nThis turn is chat-only. Do not call tools, operate the desktop, assemble a team, or claim that you are taking actions. Answer naturally unless the user gives an explicit command.';
 
   const clientSelfPrompt = '\n\n' + formatClientSelfPrompt(session.userId);
-  const voiceSystemPrompt = fullPersonalityPrompt + interactionOverlay + opModeOverlay + workSurfaceOverlay + buildVoiceReplyStyleOverlay() + clientSelfPrompt + topicContext;
+  const voiceSystemPrompt = fullPersonalityPrompt + interactionOverlay + opModeOverlay + workSurfaceOverlay + visionRoutingOverlay + buildVoiceReplyStyleOverlay() + clientSelfPrompt + topicContext;
 
   const DEFAULT_MODELS: Record<string, string> = {
     deepseek: 'deepseek-v4-pro', qwen: 'qwen-plus', openai: 'gpt-4o',

@@ -37,6 +37,7 @@ import { buildProfessionOverlay } from "../autonomy/professions";
 import { analyzeLikedMusicProfile, formatMusicProfileReport, isMusicProfileAnalysisRequest } from "../music/library_profile";
 import { buildResponseLanguageInstruction } from "../utils/language";
 import { guardCompletionClaims, needsCompletionEvidence } from "../work_product/completion_guard";
+import { buildModelSelfAwareness, buildVisionRoutingOverlay, hasVisionIntent } from "../cognition/vision_routing";
 
 const JWT_SECRET = process.env.JWT_SECRET || 'lumiOS_default_jwt_secret_2026_local';
 
@@ -406,6 +407,7 @@ export function registerChatHandler(
       const selfRepairTurn = isDiagnosticOrRepairRequest(text);
       const clientActionOnlyTurn = !selfRepairTurn && hasClientActionOnlyIntent(text) && (operationMode === 'chat' || operationMode === 'meeting');
       const workSurfaceRoute = resolveWorkSurfaceRoute(text);
+      const visionIntent = hasVisionIntent(text);
       const clientActionToolPolicy = clientActionOnlyTurn
         ? { allowedTools: ['client_get_state', 'client_action'], requireConfirmation: [], forbiddenTools: [], maxIterations: 4 }
         : null;
@@ -450,6 +452,10 @@ export function registerChatHandler(
       }
       if (workSurfaceRoute.promptOverlay) {
         effectiveSystemPrompt += '\n\n' + workSurfaceRoute.promptOverlay;
+      }
+      const visionRoutingOverlay = operationMode !== 'meeting' ? buildVisionRoutingOverlay(uid, text) : '';
+      if (visionRoutingOverlay) {
+        effectiveSystemPrompt += '\n\n' + visionRoutingOverlay;
       }
 
       // Keep this late so English system/tool context cannot pull the reply language.
@@ -821,8 +827,8 @@ export function registerChatHandler(
           ? persistedHistory
           : (history ? history.flatMap(normalizeChatHistoryRecord) : []);
 
-        // Tell Lumi which model is currently active so it can self-identify correctly
-        const selfAwareness = `\n\n[System note: You are currently running on ${activeProvider} provider, model: ${activeModel}. If asked, mention this exact model.]`;
+        // Tell Lumi which model is currently active without hiding routed vision capacity.
+        const selfAwareness = buildModelSelfAwareness(activeProvider, activeModel, uid, { visionAware: visionIntent && operationMode !== 'meeting' });
         const messages: NormalizedMessage[] = [
           { role: 'system', content: effectiveSystemPrompt + selfAwareness },
           ...conversationHistory,

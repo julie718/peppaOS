@@ -20,6 +20,7 @@ import { loadHIMState, saveHIMState, updateEmotionalStateWithHIM } from "../pers
 import { shouldExposeAgentWork } from "../cognition/tool_intent";
 import { resolveWorkSurfaceRoute } from "../cognition/work_surface";
 import { formatClientSelfPrompt } from "../client/self_model";
+import { buildVisionRoutingOverlay, hasVisionIntent } from "../cognition/vision_routing";
 
 export function registerTaskHandler(
   socket: Socket,
@@ -91,9 +92,14 @@ export function registerTaskHandler(
 
     // ── Load persisted conversation history (survives page reload) ──
     const workSurfaceRoute = resolveWorkSurfaceRoute(data.text);
+    const visionIntent = hasVisionIntent(data.text);
     let effectiveSystemPrompt = systemInstruction + '\n\n' + formatClientSelfPrompt(uid);
     if (workSurfaceRoute.promptOverlay) {
       effectiveSystemPrompt += '\n\n' + workSurfaceRoute.promptOverlay;
+    }
+    const visionRoutingOverlay = visionIntent ? buildVisionRoutingOverlay(uid, data.text) : '';
+    if (visionRoutingOverlay) {
+      effectiveSystemPrompt += '\n\n' + visionRoutingOverlay;
     }
     const convForHistory = getOrCreateActiveConversation(uid);
     const voiceHistory: NormalizedMessage[] = [];
