@@ -87,7 +87,6 @@ import { ReminderPanel } from './ReminderPanel';
 import { PetAvatar } from './SpriteAnimator';
 import { getDefaultPets } from '../pets/defaults';
 import type { PetConfig } from '../pets/types';
-import { NeuralSynthesisMonitor } from './NeuralSynthesisMonitor';
 import { ContributorNodePanel } from './ContributorNodePanel';
 import { MeshSyncSelector } from './MeshSyncSelector';
 import { useSocket } from '@/hooks/useSocket';
@@ -4011,8 +4010,6 @@ export function DesktopUI({
                 operationMode={operationMode}
                 onModeChange={requestOperationModeChange}
               />
-
-              <NeuralSynthesisMonitor t={t} onOpenTokens={() => toggleWindow('tokens')} />
 
               {/* Daily Plans Widget */}
               <DailyPlans t={t} onOpenQueue={() => toggleWindow('plans')} />
