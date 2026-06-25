@@ -111,6 +111,7 @@ import { useMusicPlayerSnapshot, useMusicVisible } from '../hooks/useMusicPlayer
 import { useVoiceprint } from '../hooks/useVoiceprint';
 import { useFaceRecognition } from '../hooks/useFaceRecognition';
 import { usePresence } from '../hooks/usePresence';
+import { getSensorPermissionSnapshot, SENSOR_PERMISSIONS_CHANGED } from '@/services/sensorPermissionService';
 import {
   archiveLegalMeetingToConsultationCase,
   clearLegalConsultationCaseId,
@@ -1248,38 +1249,26 @@ export function DesktopUI({
   useEffect(() => {
     let disposed = false;
 
-    const readPermission = async (name: string) => {
-      try {
-        if (!navigator.permissions?.query) return 'unknown';
-        const status = await navigator.permissions.query({ name } as any);
-        return status.state || 'unknown';
-      } catch {
-        return 'unknown';
-      }
-    };
-
     const refreshPermissions = async () => {
-      const [microphone, camera, notifications] = await Promise.all([
-        readPermission('microphone'),
-        readPermission('camera'),
-        readPermission('notifications'),
-      ]);
-      if (disposed) return;
-      setClientPermissions({
-        microphone,
-        camera,
-        notifications,
+      const snapshot = await getSensorPermissionSnapshot({
         desktopAutomation: isTauri ? 'available' : 'unavailable',
         wakeWordEnabled: wakeEnabled,
         sensorPrimerSeen,
         biometricsPrimerSeen: sensorPrimerSeen,
       });
+      if (disposed) return;
+      setClientPermissions({ ...snapshot });
     };
 
     void refreshPermissions();
+    const onSensorChange = () => void refreshPermissions();
+    window.addEventListener(SENSOR_PERMISSIONS_CHANGED, onSensorChange);
+    window.addEventListener('visibilitychange', onSensorChange);
     const interval = window.setInterval(refreshPermissions, 30000);
     return () => {
       disposed = true;
+      window.removeEventListener(SENSOR_PERMISSIONS_CHANGED, onSensorChange);
+      window.removeEventListener('visibilitychange', onSensorChange);
       window.clearInterval(interval);
     };
   }, [isTauri, sensorPrimerSeen, wakeEnabled]);

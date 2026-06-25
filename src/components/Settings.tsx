@@ -33,6 +33,12 @@ import { MCPSettings } from './MCPSettings';
 import { MessagingHub } from './MessagingHub';
 import { getSavedKeyStatus, saveServerKeys } from '@/services/settingsKeys';
 import { apiFetch } from '@/services/apiClient';
+import {
+  getSensorPermissionSnapshot,
+  requestSensorPermission,
+  SENSOR_PERMISSIONS_CHANGED,
+  type SensorPermissionState,
+} from '@/services/sensorPermissionService';
 
 function buildSidebarGroups(t: any, isZh: boolean) {
   const ui = (zh: string, en: string) => (isZh ? zh : en);
@@ -305,27 +311,50 @@ export function Settings({
 function HardwareSettings({ t }: { t: any }) {
   const isZh = t?.langCode !== 'en';
   const ui = (zh: string, en: string) => (isZh ? zh : en);
-  const [micStatus, setMicStatus] = useState<'prompt' | 'granted' | 'denied'>('prompt');
-  const [camStatus, setCamStatus] = useState<'prompt' | 'granted' | 'denied'>('prompt');
+  const [micStatus, setMicStatus] = useState<SensorPermissionState>('unknown');
+  const [camStatus, setCamStatus] = useState<SensorPermissionState>('unknown');
   const [isRequesting, setIsRequesting] = useState(false);
+
+  useEffect(() => {
+    let disposed = false;
+
+    const refresh = async () => {
+      const snapshot = await getSensorPermissionSnapshot();
+      if (disposed) return;
+      setMicStatus(snapshot.microphone);
+      setCamStatus(snapshot.camera);
+    };
+
+    const onSensorChange = (event: Event) => {
+      const detail = (event as CustomEvent<Partial<Record<'microphone' | 'camera', SensorPermissionState>>>).detail;
+      if (detail?.microphone) setMicStatus(detail.microphone);
+      if (detail?.camera) setCamStatus(detail.camera);
+      if (!detail?.microphone && !detail?.camera) void refresh();
+    };
+
+    void refresh();
+    window.addEventListener(SENSOR_PERMISSIONS_CHANGED, onSensorChange);
+    window.addEventListener('visibilitychange', refresh);
+    return () => {
+      disposed = true;
+      window.removeEventListener(SENSOR_PERMISSIONS_CHANGED, onSensorChange);
+      window.removeEventListener('visibilitychange', refresh);
+    };
+  }, []);
 
   const requestPermissions = async (type: 'mic' | 'camera') => {
     setIsRequesting(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: type === 'mic', 
-        video: type === 'camera' 
-      });
-      // Immediately stop the stream after getting permission
-      stream.getTracks().forEach(track => track.stop());
-      
-      if (type === 'mic') setMicStatus('granted');
-      if (type === 'camera') setCamStatus('granted');
-      
+      const kind = type === 'mic' ? 'microphone' : 'camera';
+      const result = await requestSensorPermission(kind);
+      if (type === 'mic') setMicStatus(result.state);
+      if (type === 'camera') setCamStatus(result.state);
+      if (!result.ok) {
+        throw new Error(result.error || ui('璇峰湪绯荤粺鏉冮檺涓墦寮€璁块棶', 'Please enable access in system permissions.'));
+      }
+
       toast.success(type === 'mic' ? (t.micAccessSynced || ui('麦克风权限已同步。', 'Microphone access synchronized.')) : (t.camAccessSynced || ui('摄像头权限已同步。', 'Camera access synchronized.')));
     } catch (err: any) {
-      if (type === 'mic') setMicStatus('denied');
-      if (type === 'camera') setCamStatus('denied');
       toast.error(`${t.sensorLinkFailed || ui('传感器连接失败', 'Sensor link failed')}: ${err.message}`);
     } finally {
       setIsRequesting(false);
@@ -378,13 +407,14 @@ function HardwareCapCard({ icon, label, desc, status, onEnable, disabled, t }: {
   icon: React.ReactNode,
   label: string,
   desc: string,
-  status: 'prompt' | 'granted' | 'denied',
+  status: SensorPermissionState,
   onEnable: () => void,
   disabled: boolean,
   t: any
 }) {
   const isZh = t?.langCode !== 'en';
   const ui = (zh: string, en: string) => (isZh ? zh : en);
+  const isUnavailable = status === 'unavailable';
   return (
     <div className="p-8 bg-white/5 rounded-[2.5rem] border border-white/5 flex flex-col justify-between gap-6 group hover:border-white/10 transition-all">
       <div className="space-y-4">
@@ -411,6 +441,11 @@ function HardwareCapCard({ icon, label, desc, status, onEnable, disabled, t }: {
                <AlertCircle size={12} />
                 {t.blocked || ui('已阻止', 'Blocked')}
              </div>
+           ) : isUnavailable ? (
+             <div className="flex items-center gap-1.5 text-white/35 text-xs font-black uppercase tracking-widest">
+               <AlertCircle size={12} />
+                {t.unavailable || ui('不可用', 'Unavailable')}
+             </div>
            ) : (
               <div className="text-xs font-black uppercase tracking-widest text-white/45">{t.awaitingAccess || ui('等待授权', 'Awaiting Access')}</div>
            )}
@@ -419,10 +454,10 @@ function HardwareCapCard({ icon, label, desc, status, onEnable, disabled, t }: {
         {status !== 'granted' && (
           <Button
             onClick={onEnable}
-            disabled={disabled}
+            disabled={disabled || isUnavailable}
             className="bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-black uppercase tracking-widest px-4 h-9 rounded-xl"
           >
-            {status === 'denied' ? (t.retryLink || ui('重新连接', 'Retry Link')) : (t.authorize || ui('授权', 'Authorize'))}
+            {isUnavailable ? (t.unavailable || ui('不可用', 'Unavailable')) : status === 'denied' ? (t.retryLink || ui('重新连接', 'Retry Link')) : (t.authorize || ui('授权', 'Authorize'))}
           </Button>
         )}
       </div>

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePlatform } from '@/hooks/usePlatform';
+import { getSensorPermissionSnapshot, SENSOR_PERMISSIONS_CHANGED } from '@/services/sensorPermissionService';
 
 interface DiskInfo {
   name: string;
@@ -373,29 +374,17 @@ export function SystemExplorer({ t, onSectionChange }: { t?: any; onSectionChang
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
 
-  const readPermission = useCallback(async (name: string): Promise<PermissionStateValue> => {
-    try {
-      if (!navigator.permissions?.query) return 'unknown';
-      const status = await navigator.permissions.query({ name } as any);
-      return (status.state || 'unknown') as PermissionStateValue;
-    } catch {
-      return 'unknown';
-    }
-  }, []);
-
   const loadPermissions = useCallback(async () => {
-    const [microphone, camera, notifications] = await Promise.all([
-      readPermission('microphone'),
-      readPermission('camera'),
-      readPermission('notifications'),
-    ]);
-    setPermissions({
-      microphone,
-      camera,
-      notifications,
+    const snapshot = await getSensorPermissionSnapshot({
       desktopAutomation: isTauri ? 'available' : 'unavailable',
     });
-  }, [isTauri, readPermission]);
+    setPermissions({
+      microphone: snapshot.microphone as PermissionStateValue,
+      camera: snapshot.camera as PermissionStateValue,
+      notifications: snapshot.notifications as PermissionStateValue,
+      desktopAutomation: snapshot.desktopAutomation || 'unknown',
+    });
+  }, [isTauri]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -428,6 +417,16 @@ export function SystemExplorer({ t, onSectionChange }: { t?: any; onSectionChang
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
+
+  useEffect(() => {
+    const refresh = () => void loadPermissions();
+    window.addEventListener(SENSOR_PERMISSIONS_CHANGED, refresh);
+    window.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.removeEventListener(SENSOR_PERMISSIONS_CHANGED, refresh);
+      window.removeEventListener('visibilitychange', refresh);
+    };
+  }, [loadPermissions]);
 
   const runScan = async () => {
     setScanning(true);

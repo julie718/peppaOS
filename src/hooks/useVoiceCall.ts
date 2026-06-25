@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { requestMicrophoneStream } from '@/services/sensorPermissionService';
 
 export type CallState = 'idle' | 'connecting' | 'listening' | 'thinking' | 'speaking' | 'queued' | 'passive';
 
@@ -493,12 +494,10 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
       setCallState('connecting');
       transcriptionOnlyRef.current = options.transcriptionOnly === true;
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
+      const stream = await requestMicrophoneStream({
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
       });
       streamRef.current = stream;
 

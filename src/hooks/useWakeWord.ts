@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Socket } from 'socket.io-client';
 import { apiFetch } from '@/services/apiClient';
+import { requestMicrophoneStream } from '@/services/sensorPermissionService';
 
 interface UseWakeWordOptions {
   /** Socket.IO connection for server-side Qwen ASR wake word detection */
@@ -158,8 +159,10 @@ export function useWakeWord({
       setError(null);
       console.log('[WakeWord-Qwen] Opening microphone...');
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      const stream = await requestMicrophoneStream({
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
       });
       streamRef.current = stream;
       console.log('[WakeWord-Qwen] Mic opened, setting up AudioContext');
@@ -308,8 +311,10 @@ export function useWakeWord({
         }
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      const stream = await requestMicrophoneStream({
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
       });
       streamRef.current = stream;
 

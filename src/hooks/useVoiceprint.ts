@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { requestMicrophoneStream } from '@/services/sensorPermissionService';
 
 // ── MFCC extraction (pure JS, 16kHz mono PCM) ──
 
@@ -247,8 +248,10 @@ export function useVoiceprint(options?: UseVoiceprintOptions) {
   const startListening = useCallback(async () => {
     if (audioContextRef.current) return; // already running
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      const stream = await requestMicrophoneStream({
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
       });
       streamRef.current = stream;
       audioContextRef.current = new AudioContext({ sampleRate: SAMPLE_RATE });

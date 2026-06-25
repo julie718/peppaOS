@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { initMediaPipe, detectHands, detectFaces, isMediaPipeReady } from '../lib/mediapipe/loader';
+import { requestCameraStream } from '@/services/sensorPermissionService';
 
 export interface GestureState {
   handOpenness: number;
@@ -98,9 +99,10 @@ export function useGestureDetector(options?: { enabled?: boolean }) {
         video.setAttribute('autoplay', '');
         video.muted = true;
 
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 480, height: 360, facingMode: 'user' },
-          audio: false,
+        stream = await requestCameraStream({
+          width: 480,
+          height: 360,
+          facingMode: 'user',
         });
         video.srcObject = stream;
         await video.play();

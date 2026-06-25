@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { uploadSamples, cloneVoice as apiCloneVoice, listVoices } from '../services/voiceService';
+import { requestMicrophoneStream } from '@/services/sensorPermissionService';
 
 interface VoiceCloneState {
   isRecording: boolean;
@@ -68,7 +69,7 @@ export function useVoiceCloning() {
   const startRecording = useCallback(async () => {
     try {
       chunks.current = [];
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await requestMicrophoneStream(true);
 
       audioContext.current = new AudioContext();
       const source = audioContext.current.createMediaStreamSource(stream);

@@ -7,6 +7,7 @@ import { GlassCard } from './SharedUI';
 import { useSocket } from '@/hooks/useSocket';
 import { useTTS } from '@/hooks/useTTS';
 import { useApp } from '@/contexts/AppContext';
+import { requestMicrophoneStream } from '@/services/sensorPermissionService';
 import Markdown from 'react-markdown';
 
 export function FloatingAgent({ t }: { t: any }) {
@@ -83,7 +84,8 @@ export function FloatingAgent({ t }: { t: any }) {
     }
 
     try {
-      await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await requestMicrophoneStream(true);
+      stream.getTracks().forEach(track => track.stop());
     } catch (err) {
       console.error('Microphone access denied:', err);
       return;

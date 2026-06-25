@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { initMediaPipe, detectFaceLandmarks, extractFaceEmbedding, isMediaPipeReady } from '../lib/mediapipe/loader';
+import { requestCameraStream } from '@/services/sensorPermissionService';
 
 // ── Cosine similarity ──
 
@@ -95,9 +96,10 @@ export function useFaceRecognition(options?: UseFaceRecognitionOptions) {
         video.setAttribute('autoplay', '');
         video.muted = true;
 
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 480, height: 360, facingMode: 'user' },
-          audio: false,
+        stream = await requestCameraStream({
+          width: 480,
+          height: 360,
+          facingMode: 'user',
         });
         video.srcObject = stream;
         await video.play();
@@ -223,9 +225,10 @@ export function useFaceRecognition(options?: UseFaceRecognitionOptions) {
         video.setAttribute('autoplay', '');
         video.muted = true;
 
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 480, height: 360, facingMode: 'user' },
-          audio: false,
+        const stream = await requestCameraStream({
+          width: 480,
+          height: 360,
+          facingMode: 'user',
         });
         video.srcObject = stream;
         await video.play();
