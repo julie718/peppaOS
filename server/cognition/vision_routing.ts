@@ -5,6 +5,7 @@ const VISUAL_INTENT_PATTERNS: RegExp[] = [
   /\b(?:what(?:'s| is)|who(?:'s| is)|tell me what)\b.*\b(?:on|in)\b.*\b(?:screen|screenshot|image|photo|picture|diagram|drawing)\b/i,
   /\b(?:screen|screenshot|image|photo|picture|diagram|drawing|ui|interface|qr|barcode|chart)\b.*\b(?:look|read|ocr|identify|recognize|describe|analy[sz]e|inspect)\b/i,
   /\.(?:png|jpe?g|webp|bmp|gif|tiff?)\b/i,
+  /(?:屏幕上有什么|桌面上有什么|看一下屏幕|看看屏幕|看一下桌面|看看桌面|当前画面|当前窗口|前台窗口|识别屏幕|读屏幕|分析屏幕|看屏幕|看桌面)/u,
   /(?:看|看看|识别|辨认|读取|读一下|读取|分析|描述|解释|检查|扫|扫描).*(?:屏幕|截图|截屏|图片|照片|图像|图里|这张图|这个图|界面|画面|报错|二维码|条形码|表格|票据|手写|户型图|平面图|图纸|设计图|CAD)/u,
   /(?:屏幕|截图|截屏|图片|照片|图像|图里|这张图|这个图|界面|画面|报错|二维码|条形码|表格|户型图|平面图|图纸|设计图|CAD).*(?:看|看看|识别|辨认|读取|读一下|分析|描述|解释|检查|扫|扫描)/u,
   /(?:识别|辨认).*(?:这个|这个人|这是什么|是谁|哪种|什么东西|哪里不对)/u,

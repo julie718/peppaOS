@@ -6,6 +6,7 @@ import { formatMusicProfileForPrompt, getCachedMusicProfile } from '../music/lib
 import { getAdapterRegistry } from '../adapters/registry';
 import { formatLumiConstitutionForPrompt } from '../personality/constitution';
 import { getActionConstitutionPolicy } from '../tools/action_constitution';
+import { formatDesktopAwarenessForPrompt } from './desktop_awareness';
 
 export type ClientMode = 'chat' | 'assistant' | 'autonomous' | 'meeting';
 export type ClientCapabilityKind =
@@ -567,6 +568,7 @@ export function formatClientSelfPrompt(userId: string): string {
   const actionConstitution = getActionConstitutionPolicy();
   const musicProfile = getCachedMusicProfile(userId);
   const adapterRegistry = getAdapterRegistry({ userId, clientState: state as Record<string, any> | null });
+  const desktopAwareness = formatDesktopAwarenessForPrompt();
   const capabilityLines = CLIENT_CAPABILITIES.map(cap => (
     `- ${cap.label} [${cap.kind}]: ${cap.notes} Actions: ${cap.actions.join(', ')}${cap.requiresConfirmation ? ' (confirmation-sensitive)' : ''}`
   ));
@@ -641,6 +643,8 @@ export function formatClientSelfPrompt(userId: string): string {
     '',
     '### Current Client State',
     ...stateLines,
+    '',
+    desktopAwareness,
     '',
     '### Client Health And Self-Governance',
     ...healthLines,

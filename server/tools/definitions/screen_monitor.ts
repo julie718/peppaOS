@@ -43,7 +43,7 @@ export function registerScreenMonitorTools(registry: ToolRegistry): void {
   registry.register({
     name: 'get_running_processes',
     description:
-      'Get the list of running processes on the user\'s desktop, sorted by CPU usage. Includes process name, PID, CPU%, and memory usage. Use this to understand the user\'s overall activity context — what apps are open, what\'s consuming resources, what the user is likely working on.',
+      'Get the list of running processes on the user\'s desktop, sorted by CPU usage. Includes process name, PID, CPU%, and memory usage. Use this to understand the user\'s overall activity context: what apps are open, what is consuming resources, and what the user is likely working on.',
     parameters: {
       type: 'object',
       properties: {
@@ -59,7 +59,7 @@ export function registerScreenMonitorTools(registry: ToolRegistry): void {
   registry.register({
     name: 'capture_screen',
     description:
-      'Capture a screenshot of the user\'s primary monitor and save it to disk. Returns the file path and dimensions. Use this sparingly and only when the user has explicitly asked for visual feedback or screen analysis.',
+      'Capture a screenshot of the user\'s primary monitor and save it to disk. Returns the file path and dimensions. Use this sparingly when the user asks Lumi to look at the screen or when a desktop task needs current visual confirmation; do not use it for continuous surveillance.',
     parameters: {
       type: 'object',
       properties: {
