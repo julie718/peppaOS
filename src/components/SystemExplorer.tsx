@@ -191,7 +191,6 @@ function getPermissionName(key: string, isZh: boolean) {
     microphone: '麦克风',
     camera: '摄像头',
     notifications: '通知',
-    nativeFiles: '本地文件',
     desktopAutomation: '桌面控制',
   };
   return labels[key] || key;
@@ -248,10 +247,10 @@ function buildReport(
       actionSection: (ecosystem?.enabledSkillCount || 0) > 0 ? undefined : 'mcp',
     },
     {
-      id: 'files',
-      label: ui(isZh, '文件工作区', 'Files workspace'),
-      status: latest?.filesystem?.homeDir ? 'ready' : 'partial',
-      detail: latest?.filesystem?.homeDir ? ui(isZh, `已检测到用户目录：${latest.filesystem.homeDir}`, `Home detected: ${latest.filesystem.homeDir}`) : ui(isZh, '尚未上报用户目录。', 'Home directory not reported yet.'),
+      id: 'knowledge_files',
+      label: ui(isZh, '知识库文件', 'Knowledge files'),
+      status: 'ready',
+      detail: ui(isZh, '文件会进入 Lumi 知识库，并由知识库负责浏览、吸收和检索。', 'Files live in Lumi Knowledge Base, where they can be browsed, absorbed, and retrieved.'),
     },
     {
       id: 'sensors',
@@ -308,7 +307,7 @@ function buildReport(
   const suggestions: SetupSuggestion[] = [];
   if (!isDesktop) suggestions.push({
     id: 'desktop',
-    text: ui(isZh, '安装或启动桌面客户端，才能启用原生文件和桌面控制。', 'Install or launch the desktop client to enable native file and desktop control.'),
+    text: ui(isZh, '安装或启动桌面客户端，才能启用知识库导入和桌面控制。', 'Install or launch the desktop client to enable desktop control and knowledge import.'),
     priority: 'high',
   });
   if (!nodeReady) suggestions.push({
@@ -394,7 +393,6 @@ export function SystemExplorer({ t, onSectionChange }: { t?: any; onSectionChang
       microphone,
       camera,
       notifications,
-      nativeFiles: isTauri ? 'available' : 'unavailable',
       desktopAutomation: isTauri ? 'available' : 'unavailable',
     });
   }, [isTauri, readPermission]);
@@ -705,9 +703,9 @@ export function SystemExplorer({ t, onSectionChange }: { t?: any; onSectionChang
         <div className="mb-4 text-sm font-black uppercase tracking-widest text-white/70">{ui(isZh, '可用工作流', 'Ready Workflows')}</div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           <WorkflowTile
-            title={ui(isZh, '本地文件', 'Local files')}
-            detail={latest?.filesystem?.homeDir ? ui(isZh, '可以在文件工作区浏览用户目录、桌面、文档和下载。', 'Browse home, desktop, documents, and downloads from the Files workspace.') : ui(isZh, '文件工作区需要重新扫描。', 'File workspace needs a fresh scan.')}
-            ready={Boolean(latest?.filesystem?.homeDir)}
+            title={ui(isZh, '知识库文件', 'Knowledge files')}
+            detail={ui(isZh, '上传到知识库的文件会自动吸收，未吸收的文件也可以在知识库里一键补吸收。', 'Uploaded knowledge files are absorbed automatically, and any pending file can be absorbed from Knowledge Base.')}
+            ready={true}
           />
           <WorkflowTile
             title={ui(isZh, '语音与会议', 'Voice and meetings')}

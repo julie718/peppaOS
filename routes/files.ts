@@ -150,6 +150,38 @@ function sanitizeKnowledgeFilename(value: string, fallback = 'untitled'): string
   return path.basename(safe);
 }
 
+const TEXT_KNOWLEDGE_EXTS = /\.(txt|md|json|csv|log|xml|yaml|yml|ts|tsx|js|jsx|py|html|css|env|toml|ini|cfg)$/i;
+const EXTRACTABLE_KNOWLEDGE_EXTS = /\.(docx|xlsx|xls|pdf)$/i;
+
+async function extractKnowledgeFileContent(filePath: string): Promise<string | null> {
+  const extName = path.extname(filePath);
+  try {
+    if (TEXT_KNOWLEDGE_EXTS.test(extName)) {
+      return fs.readFileSync(filePath, 'utf-8');
+    }
+    if (/\.docx$/i.test(extName)) {
+      const mammoth = await import('mammoth');
+      return (await mammoth.extractRawText({ path: filePath })).value;
+    }
+    if (/\.xlsx?$/i.test(extName)) {
+      const XLSX = await import('xlsx');
+      const wb = XLSX.readFile(filePath);
+      return wb.SheetNames.map((name: string) => {
+        const csv = XLSX.utils.sheet_to_csv(wb.Sheets[name]);
+        return `[${name}]\n${csv}`;
+      }).join('\n\n');
+    }
+    if (/\.pdf$/i.test(extName)) {
+      const pdfModule: any = await import('pdf-parse');
+      const pdfParse = pdfModule.default || pdfModule;
+      return (await pdfParse(fs.readFileSync(filePath))).text;
+    }
+  } catch (err: any) {
+    console.warn(`[Files] Failed to extract "${path.basename(filePath)}": ${err.message}`);
+  }
+  return null;
+}
+
 function normalizeFileDomain(value: unknown): 'personal' | 'work' {
   return String(value || '').toLowerCase() === 'work' ? 'work' : 'personal';
 }
@@ -219,7 +251,7 @@ function sendRouteError(res: Response, err: any, fallbackStatus = 400): void {
   res.status(err?.status || fallbackStatus).json({ error: err?.message || 'Request failed' });
 }
 
-function buildEntry(filename: string, source: 'upload' | 'generated' | 'ingested', agentIds: string[] = [], scope: FileScope): KnowledgeEntry {
+function buildEntry(filename: string, source: 'upload' | 'generated' | 'ingested', agentIds: string[] = [], scope: FileScope, status?: 'ready' | 'indexing' | 'indexed'): KnowledgeEntry {
   const filePath = path.join(scope.dir, filename);
   const displayName = repairFilename(filename);
   let st: fs.Stats;
@@ -236,7 +268,7 @@ function buildEntry(filename: string, source: 'upload' | 'generated' | 'ingested
     type: 'file',
     source,
     agentIds,
-    status: agentIds.length > 0 ? 'indexed' : 'ready',
+    status: status || (agentIds.length > 0 ? 'indexed' : 'ready'),
     updatedAt: st.mtime.toISOString(),
     createdAt: st.birthtime.toISOString(),
   };
@@ -261,7 +293,7 @@ router.get('/files/list', (req: Request, res: Response) => {
       if (name.startsWith('.') || name.startsWith('_')) continue;
       const meta = fileMeta[name] || { source: 'upload' as const, agentIds: [] as string[] };
       const source = (meta.source as 'upload' | 'generated' | 'ingested') || 'upload';
-      files.push(buildEntry(name, source, meta.agentIds, scope));
+      files.push(buildEntry(name, source, meta.agentIds, scope, meta.status));
     }
 
     files.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
@@ -283,37 +315,6 @@ router.post('/files/upload', requireAuth, upload.array('files', 20), async (req:
     const scope = getFileScope(req);
     const db = readDB();
     if (!db.knowledgeFiles) db.knowledgeFiles = [];
-
-    const textExts = /\.(txt|md|json|csv|log|xml|yaml|yml|ts|tsx|js|jsx|py|html|css|env|toml|ini|cfg)$/i;
-    const extractableExts = /\.(docx|xlsx|xls|pdf)$/i;
-
-    async function extractPreviewContent(filePath: string, extName: string): Promise<string | null> {
-      try {
-        if (textExts.test(extName)) {
-          return fs.readFileSync(filePath, 'utf-8');
-        }
-        if (/\.docx$/i.test(extName)) {
-          const mammoth = await import('mammoth');
-          return (await mammoth.extractRawText({ path: filePath })).value;
-        }
-        if (/\.xlsx?$/i.test(extName)) {
-          const XLSX = await import('xlsx');
-          const wb = XLSX.readFile(filePath);
-          return wb.SheetNames.map((name: string) => {
-            const csv = XLSX.utils.sheet_to_csv(wb.Sheets[name]);
-            return `[${name}]\n${csv}`;
-          }).join('\n\n');
-        }
-        if (/\.pdf$/i.test(extName)) {
-          const pdfModule: any = await import('pdf-parse');
-          const pdfParse = pdfModule.default || pdfModule;
-          return (await pdfParse(fs.readFileSync(filePath))).text;
-        }
-      } catch (err: any) {
-        console.warn(`[Files] Failed to extract preview for "${path.basename(filePath)}": ${err.message}`);
-      }
-      return null;
-    }
 
     const saved: any[] = [];
     for (const file of uploadedFiles) {
@@ -362,8 +363,8 @@ router.post('/files/upload', requireAuth, upload.array('files', 20), async (req:
       let extractedContent: string | null = null;
 
       // For text files: return content so the chat can use it immediately
-      if (textExts.test(ext) || extractableExts.test(ext)) {
-        extractedContent = await extractPreviewContent(dest, ext);
+      if (TEXT_KNOWLEDGE_EXTS.test(ext) || EXTRACTABLE_KNOWLEDGE_EXTS.test(ext)) {
+        extractedContent = await extractKnowledgeFileContent(dest);
         if (extractedContent) {
           entry.content = extractedContent.slice(0, 50000); // cap at 50KB for chat context
           entry.preview = extractedContent.slice(0, 1000);
@@ -388,15 +389,17 @@ router.post('/files/upload', requireAuth, upload.array('files', 20), async (req:
           console.warn(`[OrgKB] Failed to sync "${finalName}": ${orgErr.message}`);
           entry.syncError = orgErr.message;
         }
-      } else if (isNew && (textExts.test(ext) || extractableExts.test(ext))) {
+      } else if (isNew && (TEXT_KNOWLEDGE_EXTS.test(ext) || EXTRACTABLE_KNOWLEDGE_EXTS.test(ext))) {
         try {
-          const content = extractedContent || await extractPreviewContent(dest, ext);
+          const content = extractedContent || await extractKnowledgeFileContent(dest);
           if (content) {
             const result = await ingestDocument(userId, 'lumi', finalName, content);
             const meta = findFileMeta(db, finalName, scope);
             if (meta) {
               if (!Array.isArray(meta.agentIds)) meta.agentIds = [];
               if (!meta.agentIds.includes('lumi')) meta.agentIds.push('lumi');
+              meta.status = 'indexed';
+              meta.updatedAt = new Date().toISOString();
             }
             entry.ingested = true;
             console.log(`[AutoIngest] "${finalName}" → ${result.chunkCount} chunks`);
@@ -416,7 +419,7 @@ router.post('/files/upload', requireAuth, upload.array('files', 20), async (req:
 });
 
 // ── POST /files/save — save generated content as a file ──
-router.post('/files/save', requireAuth, (req: Request, res: Response) => {
+router.post('/files/save', requireAuth, async (req: Request, res: Response) => {
   try {
     const { name, content } = req.body;
     if (!name || content === undefined) return res.status(400).json({ error: 'name and content required' });
@@ -458,6 +461,17 @@ router.post('/files/save', requireAuth, (req: Request, res: Response) => {
         meta.orgArticleId = orgArticleId;
         meta.status = 'indexed';
         if (!meta.agentIds.includes('org-kb')) meta.agentIds.push('org-kb');
+      }
+    } else if (meta) {
+      try {
+        const result = await ingestDocument(userId, 'lumi', safeName, contentText);
+        if (!Array.isArray(meta.agentIds)) meta.agentIds = [];
+        if (!meta.agentIds.includes('lumi')) meta.agentIds.push('lumi');
+        meta.status = 'indexed';
+        meta.updatedAt = new Date().toISOString();
+        console.log(`[AutoIngest] "${safeName}" -> ${result.chunkCount} chunks`);
+      } catch (ingestErr: any) {
+        console.warn(`[AutoIngest] Failed for generated "${safeName}": ${ingestErr.message}`);
       }
     }
     writeDB(db);
@@ -629,7 +643,10 @@ router.post('/files/ingest', requireAuth, async (req: Request, res: Response) =>
       return res.status(404).json({ error: 'File not found' });
     }
 
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const content = await extractKnowledgeFileContent(filePath);
+    if (!content || !content.trim()) {
+      return res.status(415).json({ error: 'This file type has no extractable text for Lumi to absorb' });
+    }
 
     // Mark as indexing
     const db = readDB();
@@ -666,6 +683,8 @@ router.post('/files/ingest', requireAuth, async (req: Request, res: Response) =>
 
     // Mark as indexed
     if (!meta.agentIds.includes(agentId)) meta.agentIds.push(agentId);
+    meta.status = 'indexed';
+    meta.updatedAt = new Date().toISOString();
     delete meta.indexingAt;
     writeDB(db);
 

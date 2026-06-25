@@ -106,7 +106,7 @@ export function DesktopOnboarding({ isOpen, onFinish, t }: OnboardingProps) {
             <span>09:41</span>
           </div>
           <div className="mt-7 grid grid-cols-3 gap-4">
-            {['Chat', 'Skills', 'Files', 'Run Log', 'Settings', 'Tools'].map((label, index) => (
+            {['Chat', 'Skills', 'Knowledge', 'Run Log', 'Settings', 'Tools'].map((label, index) => (
               <motion.div
                 key={label}
                 initial={false}

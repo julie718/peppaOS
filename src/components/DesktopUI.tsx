@@ -47,7 +47,6 @@ import {
   Music,
   Bot,
   Monitor,
-  HardDrive,
   Trash2,
   RefreshCw,
   Circle,
@@ -55,8 +54,6 @@ import {
   Camera,
   Copy,
   Download,
-  FolderPlus,
-  Pencil,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { GlassCard } from './SharedUI';
@@ -147,13 +144,6 @@ function serializePetPreference(pet: PetConfig | null) {
   };
 }
 
-// Define the shape of the native API
-interface NativeFile {
-  name: string;
-  path: string;
-  isDirectory: boolean;
-}
-
 type ClientPermissionSnapshot = Record<string, string | boolean | number | null | undefined>;
 type ClientRuntimeSnapshot = {
   autostartSupported?: boolean;
@@ -168,61 +158,10 @@ type ClientRuntimeSnapshot = {
   lastError?: string;
 };
 
-const normalizeNativeFiles = (value: unknown): NativeFile[] => {
-  if (!Array.isArray(value)) return [];
-  return value.map((file: any) => ({
-    name: String(file?.name || ''),
-    path: String(file?.path || ''),
-    isDirectory: Boolean(file?.isDirectory ?? file?.is_directory),
-  })).filter(file => file.name && file.path);
-};
-
-const getParentNativePath = (path: string) => {
-  const trimmed = path.replace(/[\\/]+$/, '');
-  if (!trimmed) return '';
-  const separator = trimmed.includes('\\') ? '\\' : '/';
-  const parts = trimmed.split(/[\\/]/);
-  if (parts.length <= 1) return '';
-  if (/^[A-Za-z]:$/.test(parts[0]) && parts.length <= 2) return `${parts[0]}\\`;
-  parts.pop();
-  return parts.join(separator) || separator;
-};
-
-const joinNativePath = (base: string, child: string) => {
-  const trimmed = base.replace(/[\\/]+$/, '');
-  if (!trimmed) return child;
-  const separator = trimmed.includes('\\') ? '\\' : '/';
-  return `${trimmed}${separator}${child}`;
-};
-
-const getNativePathCrumbs = (path: string) => {
-  const trimmed = path.replace(/[\\/]+$/, '');
-  if (!trimmed) return [];
-  const separator = path.includes('\\') ? '\\' : '/';
-  const isUnixRooted = trimmed.startsWith('/');
-  const parts = trimmed.split(/[\\/]/).filter(Boolean);
-  if (parts.length === 0 && isUnixRooted) return [{ label: '/', path: '/' }];
-
-  let cursor = isUnixRooted ? '/' : '';
-  return parts.map(part => {
-    if (/^[A-Za-z]:$/.test(part)) {
-      cursor = `${part}\\`;
-      return { label: part, path: cursor };
-    }
-    if (cursor && cursor !== '/' && !cursor.endsWith('\\') && !cursor.endsWith('/')) {
-      cursor += separator;
-    }
-    cursor = cursor === '/' ? `/${part}` : `${cursor}${part}`;
-    return { label: part, path: cursor };
-  });
-};
-
 declare global {
   interface Window {
     lumiElectron?: {
       getSystemInfo: () => Promise<{ platform: string; hostname: string; freeMemory: number }>;
-      listHomeFiles: () => Promise<NativeFile[]>;
-      selectDirectory: () => Promise<string | null>;
       runCommand: (command: string) => Promise<{ success: boolean; output: string }>;
     };
   }
@@ -512,395 +451,6 @@ function DesktopIcon({ label, icon, colorClass, onClick, onContextMenu }: Deskto
         </div>
       </div>
       <span className="desktop-icon-label">{label}</span>
-    </div>
-  );
-}
-
-interface NativeFilesWindowProps {
-  t: any;
-  files: NativeFile[];
-  currentPath: string;
-  homePath: string;
-  isLoading: boolean;
-  error: string | null;
-  onRefresh: () => void;
-  onHome: () => void;
-  onPickDirectory: () => void;
-  onNavigate: (path: string) => void;
-  onOpenItem: (path: string) => void;
-  onCreateFolder: (name: string) => void;
-  onRenameItem: (path: string, newName: string) => void;
-  onDeleteItem: (path: string) => void;
-}
-
-function NativeFilesWindow({
-  t,
-  files,
-  currentPath,
-  homePath,
-  isLoading,
-  error,
-  onRefresh,
-  onHome,
-  onPickDirectory,
-  onNavigate,
-  onOpenItem,
-  onCreateFolder,
-  onRenameItem,
-  onDeleteItem,
-}: NativeFilesWindowProps) {
-  const [query, setQuery] = useState('');
-  const [pathInput, setPathInput] = useState(currentPath);
-  const [sortBy, setSortBy] = useState<'name' | 'kind'>('name');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [showNewFolder, setShowNewFolder] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
-  const [renamingPath, setRenamingPath] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState('');
-  useEffect(() => {
-    setPathInput(currentPath);
-  }, [currentPath]);
-  const parentPath = getParentNativePath(currentPath);
-  const pathCrumbs = getNativePathCrumbs(currentPath);
-  const quickLocations = [
-    { id: 'home', label: t.home || 'Home', path: homePath, icon: <HardDrive size={15} /> },
-    { id: 'desktop', label: t.desktopFolder || 'Desktop', path: homePath ? joinNativePath(homePath, 'Desktop') : '', icon: <Monitor size={15} /> },
-    { id: 'documents', label: t.documentsFolder || 'Documents', path: homePath ? joinNativePath(homePath, 'Documents') : '', icon: <FileText size={15} /> },
-    { id: 'downloads', label: t.downloadsFolder || 'Downloads', path: homePath ? joinNativePath(homePath, 'Downloads') : '', icon: <Folder size={15} /> },
-  ].filter(location => location.id === 'home' || location.path);
-  const queryText = query.trim().toLowerCase();
-  const visibleFiles = files
-    .filter(file => file.name.toLowerCase().includes(queryText))
-    .sort((a, b) => {
-      const direction = sortDirection === 'asc' ? 1 : -1;
-      if (sortBy === 'kind' && a.isDirectory !== b.isDirectory) {
-        return a.isDirectory ? -1 * direction : 1 * direction;
-      }
-      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
-      return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }) * direction;
-    });
-  const folderCount = files.filter(file => file.isDirectory).length;
-  const fileCount = files.length - folderCount;
-  const handlePathSubmit = (event: React.FormEvent) => {
-    event.preventDefault();
-    const nextPath = pathInput.trim();
-    if (nextPath) onNavigate(nextPath);
-    else onHome();
-  };
-  const copyCurrentPath = async () => {
-    if (!currentPath) return;
-    try {
-      await navigator.clipboard.writeText(currentPath);
-      toast.success(t.pathCopied || 'Path copied');
-    } catch {
-      toast.error(t.copyFailed || 'Copy failed');
-    }
-  };
-  const toggleSort = (nextSort: 'name' | 'kind') => {
-    if (sortBy === nextSort) {
-      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-      return;
-    }
-    setSortBy(nextSort);
-    setSortDirection('asc');
-  };
-  const submitNewFolder = (event: React.FormEvent) => {
-    event.preventDefault();
-    const name = newFolderName.trim();
-    if (!name) return;
-    onCreateFolder(name);
-    setNewFolderName('');
-    setShowNewFolder(false);
-  };
-  const startRename = (file: NativeFile) => {
-    setRenamingPath(file.path);
-    setRenameValue(file.name);
-  };
-  const submitRename = (event: React.FormEvent, file: NativeFile) => {
-    event.preventDefault();
-    const nextName = renameValue.trim();
-    if (!nextName || nextName === file.name) {
-      setRenamingPath(null);
-      return;
-    }
-    onRenameItem(file.path, nextName);
-    setRenamingPath(null);
-    setRenameValue('');
-  };
-  const confirmDelete = async (file: NativeFile) => {
-    const ok = await appConfirm({
-      title: t.delete || 'Delete',
-      message: `${t.delete || 'Delete'} "${file.name}"?`,
-      confirmText: t.delete || 'Delete',
-      cancelText: t.cancel || 'Cancel',
-      tone: 'danger',
-    });
-    if (!ok) return;
-    onDeleteItem(file.path);
-  };
-
-  return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          onClick={() => parentPath && onNavigate(parentPath)}
-          disabled={!parentPath || isLoading}
-          className="lumi-button"
-        >
-          <ArrowLeft size={15} />
-          {t.back || 'Back'}
-        </button>
-        <button
-          onClick={onHome}
-          disabled={isLoading}
-          className="lumi-button"
-        >
-          <HardDrive size={15} />
-          Home
-        </button>
-        <button
-          onClick={onRefresh}
-          disabled={isLoading}
-          className="lumi-button"
-        >
-          <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} />
-          {t.refresh || 'Refresh'}
-        </button>
-        <button
-          onClick={() => setShowNewFolder(prev => !prev)}
-          disabled={isLoading || !currentPath}
-          className="lumi-button"
-        >
-          <FolderPlus size={15} />
-          {t.newFolder || 'New Folder'}
-        </button>
-        <button
-          onClick={onPickDirectory}
-          disabled={isLoading}
-          className="lumi-button ml-auto border-cyan-400/20 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/15"
-        >
-          <Folder size={15} />
-          {t.chooseFolder || 'Choose Folder'}
-        </button>
-        <button
-          onClick={() => currentPath && onOpenItem(currentPath)}
-          disabled={!currentPath || isLoading}
-          className="lumi-button-primary"
-        >
-          <Folder size={15} />
-          {t.openInExplorer || 'Open in Explorer'}
-        </button>
-      </div>
-
-      {showNewFolder && (
-        <form onSubmit={submitNewFolder} className="lumi-panel flex items-center gap-2 border-celestial-saturn/20 bg-celestial-saturn/10 px-3 py-2">
-          <FolderPlus size={15} className="shrink-0 text-celestial-saturn" />
-          <input
-            value={newFolderName}
-            onChange={event => setNewFolderName(event.target.value)}
-            onKeyDown={event => { if (event.key === 'Escape') setShowNewFolder(false); }}
-            autoFocus
-            placeholder={t.folderName || 'Folder name'}
-            className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-white/72 outline-none placeholder:text-white/25"
-          />
-          <button type="submit" disabled={!newFolderName.trim()} className="lumi-button-primary h-8 px-3 text-[10px] uppercase tracking-[0.14em]">
-            {t.create || 'Create'}
-          </button>
-        </form>
-      )}
-
-      <form onSubmit={handlePathSubmit} className="lumi-panel flex items-center gap-2 bg-black/25 px-3 py-2">
-        <Folder size={16} className="shrink-0 text-celestial-saturn" />
-        <input
-          value={pathInput}
-          onChange={event => setPathInput(event.target.value)}
-          placeholder={t.enterPath || 'Enter a folder path'}
-          disabled={isLoading}
-          className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-white/72 outline-none placeholder:text-white/25 disabled:opacity-40"
-        />
-        <button
-          type="button"
-          onClick={copyCurrentPath}
-          disabled={!currentPath || isLoading}
-          className="lumi-icon-button h-8 w-8 rounded-lg"
-          title={t.copyPath || 'Copy path'}
-        >
-          <Copy size={14} />
-        </button>
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="lumi-button-primary h-8 shrink-0 px-3 text-[10px] uppercase tracking-[0.14em]"
-        >
-          {t.go || 'Go'}
-        </button>
-      </form>
-
-      <div className="grid gap-2 sm:grid-cols-4">
-        {quickLocations.map(location => (
-          <button
-            key={location.id}
-            onClick={() => location.id === 'home' ? onHome() : onNavigate(location.path)}
-            disabled={isLoading || (location.id !== 'home' && !location.path)}
-            className="lumi-button min-w-0 justify-start"
-          >
-            <span className="shrink-0 text-celestial-saturn">{location.icon}</span>
-            <span className="truncate">{location.label}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="lumi-panel flex items-center gap-3 bg-black/25 px-4 py-3">
-        <Folder size={17} className="shrink-0 text-celestial-saturn" />
-        <div className="min-w-0 flex-1 overflow-x-auto custom-scrollbar">
-          {pathCrumbs.length > 0 ? (
-            <div className="flex min-w-max items-center gap-1">
-              {pathCrumbs.map((crumb, index) => (
-                <React.Fragment key={`${crumb.path}-${index}`}>
-                  {index > 0 && <ChevronRight size={13} className="text-white/22" />}
-                  <button
-                    onClick={() => onNavigate(crumb.path)}
-                    disabled={isLoading || crumb.path === currentPath}
-                    className="max-w-[150px] truncate rounded-lg px-2 py-1 text-xs font-bold text-white/58 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-default disabled:bg-transparent disabled:text-white/78"
-                    title={crumb.path}
-                  >
-                    {crumb.label}
-                  </button>
-                </React.Fragment>
-              ))}
-            </div>
-          ) : (
-            <span className="text-sm font-semibold text-white/72">Home</span>
-          )}
-        </div>
-        <span className="text-[11px] font-black uppercase tracking-[0.18em] text-white/28">
-          {visibleFiles.length}/{files.length} items
-        </span>
-      </div>
-
-      <div className="lumi-panel flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <Search size={16} className="shrink-0 text-white/35" />
-          <input
-            value={query}
-            onChange={event => setQuery(event.target.value)}
-            placeholder={t.search || 'Search'}
-            className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-white outline-none placeholder:text-white/25"
-          />
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {(['name', 'kind'] as const).map(option => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => toggleSort(option)}
-              className={`h-8 rounded-lg border px-3 text-[10px] font-black uppercase tracking-[0.14em] transition-colors ${
-                sortBy === option
-                  ? 'border-celestial-saturn/30 bg-celestial-saturn/10 text-celestial-saturn'
-                  : 'border-white/10 bg-black/20 text-white/32 hover:bg-white/10 hover:text-white/60'
-              }`}
-            >
-              {option === 'name' ? (t.name || 'Name') : (t.kind || 'Kind')}
-              {sortBy === option ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : ''}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {error && (
-        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-300">
-          {error}
-        </div>
-      )}
-
-      <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-black/20">
-        {isLoading ? (
-          <div className="flex h-full items-center justify-center text-sm font-bold text-white/35">
-            {t.loading || 'Loading...'}
-          </div>
-        ) : visibleFiles.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-sm font-bold text-white/30">
-            {query ? (t.noResults || 'No results') : (t.noFilesYet || 'No files yet')}
-          </div>
-        ) : (
-          <div className="h-full overflow-y-auto custom-scrollbar">
-            <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_88px_132px] gap-3 border-b border-white/[0.06] bg-black/70 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/28 backdrop-blur-xl">
-              <span>{t.name || 'Name'}</span>
-              <span className="justify-self-end">{t.kind || 'Kind'}</span>
-              <span className="justify-self-end">{t.action || 'Action'}</span>
-            </div>
-            {visibleFiles.map(file => (
-              <div
-                key={file.path}
-                className="group grid w-full grid-cols-[minmax(0,1fr)_88px_132px] items-center gap-3 border-b border-white/[0.04] px-4 py-2.5 text-left transition-colors hover:bg-white/[0.05]"
-              >
-                {renamingPath === file.path ? (
-                  <form onSubmit={(event) => submitRename(event, file)} className="flex min-w-0 items-center gap-2">
-                    {file.isDirectory ? (
-                      <Folder size={18} className="shrink-0 text-celestial-saturn" />
-                    ) : (
-                      <FileText size={18} className="shrink-0 text-white/35" />
-                    )}
-                    <input
-                      value={renameValue}
-                      onChange={event => setRenameValue(event.target.value)}
-                      onKeyDown={event => { if (event.key === 'Escape') setRenamingPath(null); }}
-                      autoFocus
-                      className="min-w-0 flex-1 rounded-lg border border-celestial-saturn/25 bg-black/35 px-2 py-1 text-sm font-semibold text-white/78 outline-none"
-                    />
-                  </form>
-                ) : (
-                  <button
-                    onClick={() => file.isDirectory ? onNavigate(file.path) : onOpenItem(file.path)}
-                    className="flex min-w-0 items-center gap-3 rounded-lg py-1 text-left"
-                    title={file.path}
-                  >
-                    {file.isDirectory ? (
-                      <Folder size={18} className="shrink-0 text-celestial-saturn" />
-                    ) : (
-                      <FileText size={18} className="shrink-0 text-white/35" />
-                    )}
-                    <span className="min-w-0 truncate text-sm font-semibold text-white/68 group-hover:text-white">
-                      {file.name}
-                    </span>
-                  </button>
-                )}
-                <span className="justify-self-end rounded-lg border border-white/8 bg-white/[0.03] px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-white/30">
-                  {file.isDirectory ? (t.folder || 'Folder') : (t.file || 'File')}
-                </span>
-                <div className="justify-self-end flex items-center gap-1">
-                  <button
-                    onClick={() => onOpenItem(file.path)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-white/40 transition-colors hover:border-celestial-saturn/30 hover:bg-celestial-saturn/10 hover:text-celestial-saturn"
-                    title={file.isDirectory ? (t.explorer || 'Explorer') : (t.open || 'Open')}
-                  >
-                    {file.isDirectory ? <Folder size={14} /> : <FileText size={14} />}
-                  </button>
-                  <button
-                    onClick={() => startRename(file)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-white/34 transition-colors hover:bg-white/10 hover:text-white/70"
-                    title={t.rename || 'Rename'}
-                  >
-                    <Pencil size={14} />
-                  </button>
-                  <button
-                    onClick={() => confirmDelete(file)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-400/10 bg-red-500/8 text-red-200/45 transition-colors hover:bg-red-500/15 hover:text-red-100"
-                    title={t.delete || 'Delete'}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-[11px] font-bold text-white/30">
-        <span>{folderCount} {t.folders || 'folders'} · {fileCount} {t.filesLower || 'files'}</span>
-        <span className="max-w-full truncate">{currentPath || homePath || (t.home || 'Home')}</span>
-      </div>
     </div>
   );
 }
@@ -1438,11 +988,6 @@ export function DesktopUI({
   useEffect(() => {
     document.documentElement.setAttribute('data-mode', isLightMode ? 'light' : 'dark');
   }, [isLightMode]);
-  const [nativeFiles, setNativeFiles] = useState<NativeFile[]>([]);
-  const [nativePath, setNativePath] = useState('');
-  const [nativeHomePath, setNativeHomePath] = useState('');
-  const [nativeFilesLoading, setNativeFilesLoading] = useState(false);
-  const [nativeFilesError, setNativeFilesError] = useState<string | null>(null);
   const [clientPermissions, setClientPermissions] = useState<ClientPermissionSnapshot>({});
   const [clientRuntime, setClientRuntime] = useState<ClientRuntimeSnapshot>({});
   const [isControlCenterOpen, setIsControlCenterOpen] = useState(false);
@@ -1474,7 +1019,6 @@ export function DesktopUI({
   const isOrgAdmin = orgConnection?.connected && (orgConnection.orgRole === 'owner' || orgConnection.orgRole === 'admin');
   const desktopIcons = [
     { id: 'workbench', labelKey: 'orgWorkbench', icon: <Briefcase size={24} />, colorClass: 'from-blue-500 to-indigo-600', windowId: 'org' as const },
-    { id: 'files', labelKey: 'files', icon: <Folder size={24} />, colorClass: 'from-celestial-saturn to-amber-600', windowId: 'files' },
     { id: 'tools', labelKey: 'tools', icon: <Wrench size={24} />, colorClass: 'from-amber-500 to-orange-600', windowId: 'tools' },
     { id: 'skills', labelKey: 'skills', icon: <Sparkles size={24} />, colorClass: 'from-emerald-500 to-teal-600', windowId: 'skills' },
     { id: 'memory-avatar', labelKey: 'memoryAvatars', icon: <Castle size={24} />, colorClass: 'from-fuchsia-500 to-purple-600', windowId: 'memory-avatar' },
@@ -1498,92 +1042,6 @@ export function DesktopUI({
     };
     reader.readAsDataURL(file);
   };
-
-  const loadNativeFiles = useCallback(async (path?: string) => {
-    setNativeFilesLoading(true);
-    setNativeFilesError(null);
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      let targetPath = path ?? nativePath;
-      if (!targetPath) {
-        const info: any = await invoke('get_system_info');
-        targetPath = String(info?.home_dir || '');
-        setNativeHomePath(targetPath);
-      }
-      const files = targetPath
-        ? await invoke('list_directory', { path: targetPath, limit: 500 })
-        : await invoke('list_home_files');
-      setNativePath(targetPath);
-      setNativeFiles(normalizeNativeFiles(files));
-    } catch (err: any) {
-      const message = err?.message || String(err || 'Failed to list files');
-      setNativeFilesError(message);
-      toast.error(message);
-    } finally {
-      setNativeFilesLoading(false);
-    }
-  }, [nativePath]);
-
-  const openNativeItem = useCallback(async (path: string) => {
-    if (!path) return;
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      await invoke('open_item', { target: path });
-    } catch (err: any) {
-      toast.error(err?.message || String(err || 'Failed to open item'));
-    }
-  }, []);
-
-  const createNativeDirectory = useCallback(async (name: string) => {
-    if (!nativePath || !name.trim()) return;
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const result: any = await invoke('create_directory', { parent: nativePath, name: name.trim() });
-      if (!result?.success) throw new Error(result?.output || 'Failed to create folder');
-      toast.success(t.folderCreated || 'Folder created');
-      await loadNativeFiles(nativePath);
-    } catch (err: any) {
-      toast.error(err?.message || String(err || 'Failed to create folder'));
-    }
-  }, [loadNativeFiles, nativePath, t]);
-
-  const renameNativeItem = useCallback(async (path: string, newName: string) => {
-    if (!path || !newName.trim()) return;
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const result: any = await invoke('rename_item', { target: path, newName: newName.trim() });
-      if (!result?.success) throw new Error(result?.output || 'Failed to rename item');
-      toast.success(t.itemRenamed || 'Item renamed');
-      await loadNativeFiles(nativePath);
-    } catch (err: any) {
-      toast.error(err?.message || String(err || 'Failed to rename item'));
-    }
-  }, [loadNativeFiles, nativePath, t]);
-
-  const deleteNativeItem = useCallback(async (path: string) => {
-    if (!path) return;
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const result: any = await invoke('delete_item', { target: path });
-      if (!result?.success) throw new Error(result?.output || 'Failed to delete item');
-      toast.success(t.itemDeleted || 'Item moved to Recycle Bin');
-      await loadNativeFiles(nativePath);
-    } catch (err: any) {
-      toast.error(err?.message || String(err || 'Failed to delete item'));
-    }
-  }, [loadNativeFiles, nativePath, t]);
-
-  const pickNativeDirectory = useCallback(async () => {
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const path = await invoke<string | null>('pick_directory');
-      if (path) {
-        await loadNativeFiles(path);
-      }
-    } catch (err: any) {
-      toast.error(err?.message || String(err || 'Failed to choose folder'));
-    }
-  }, [loadNativeFiles]);
 
   const handleWindowMinimize = async () => {
     try {
@@ -1804,7 +1262,6 @@ export function DesktopUI({
         microphone,
         camera,
         notifications,
-        nativeFiles: isTauri ? 'available' : 'unavailable',
         desktopAutomation: isTauri ? 'available' : 'unavailable',
         wakeWordEnabled: wakeEnabled,
         sensorPrimerSeen,
@@ -2761,11 +2218,6 @@ export function DesktopUI({
     setActiveTab(tab);
   };
 
-  const openNativeFilesWindow = () => {
-    toggleWindow('files');
-    void loadNativeFiles();
-  };
-
   const closeWindow = (tab: string) => {
     try { sounds.playClick(); } catch {}
     const nextWindows = openWindows.filter(w => w !== tab);
@@ -2793,6 +2245,7 @@ export function DesktopUI({
       const normalizeTarget = (value: string) => {
         if (value === 'music') return 'music-center';
         if (value === 'memory') return 'knowledge';
+        if (value === 'files') return 'knowledge';
         if (value === 'sync') return 'devices';
         return value;
       };
@@ -2834,10 +2287,6 @@ export function DesktopUI({
           void openMemoryAvatar();
           return;
         }
-        if (windowId === 'files') {
-          void loadNativeFiles();
-        }
-
         setOpenWindows(prev => prev.includes(windowId) ? prev : [...prev, windowId]);
         setMinimizedWindows(prev => prev.filter(w => w !== windowId));
         setFocusedWindow(windowId);
@@ -2960,8 +2409,8 @@ export function DesktopUI({
           return;
         }
         if (action === 'open_files') {
-          openSurface('files');
-          respond({ ok: true, action, target: 'files' });
+          openSurface('knowledge');
+          respond({ ok: true, action, target: 'knowledge' });
           return;
         }
         if (action === 'open_settings') {
@@ -3032,7 +2481,6 @@ export function DesktopUI({
     applyWallpaperMode,
     closeWindow,
     endMeetingAndReport,
-    loadNativeFiles,
     musicSnapshot.track,
     resetMeetingCapture,
     setActiveTab,
@@ -3043,7 +2491,6 @@ export function DesktopUI({
     if (!socket) return;
     const sendState = () => {
       const recentErrors = [
-        nativeFilesError ? { source: 'files', message: nativeFilesError, at: Date.now() } : null,
         callError ? { source: 'voice', message: callError, at: Date.now() } : null,
         musicSnapshot.lastError ? { source: 'music', message: musicSnapshot.lastError, at: Date.now() } : null,
         clientRuntime.lastError ? { source: 'runtime', message: clientRuntime.lastError, at: Date.now() } : null,
@@ -3104,12 +2551,6 @@ export function DesktopUI({
           status: clientRuntime.lastError ? 'attention' : 'ready',
           lastError: clientRuntime.lastError || '',
         },
-        files: {
-          currentPath: nativePath,
-          itemCount: nativeFiles.length,
-          loading: nativeFilesLoading,
-          error: nativeFilesError || '',
-        },
         permissions: clientPermissions,
         tools: {
           agentStatus,
@@ -3155,10 +2596,6 @@ export function DesktopUI({
     minimizedWindows,
     musicSnapshot,
     musicVisible,
-    nativeFiles.length,
-    nativeFilesError,
-    nativeFilesLoading,
-    nativePath,
     openWindows,
     operationMode,
     orgConnection?.connected,
@@ -3191,7 +2628,10 @@ export function DesktopUI({
         toggleWindow('terminal');
         break;
       case 'open':
-        if (context?.targetId === 'files') openNativeFilesWindow();
+        if (context?.targetId === 'files') {
+          setKnowledgeOpen(true);
+          setActiveTab('knowledge');
+        }
         else if (context?.targetId) toggleWindow(context.targetId);
         break;
       case 'properties':
@@ -3216,7 +2656,6 @@ export function DesktopUI({
     color: def.colorClass,
   }));
   const utilityAppEntries = [
-    { id: 'files', label: t.files || 'Files', icon: <Folder size={24} />, color: 'from-celestial-saturn to-amber-600' },
     { id: 'knowledge', label: t.knowledgeBase || 'Knowledge Base', icon: <BrainCircuit size={24} />, color: 'from-cyan-400 to-blue-600' },
     { id: 'notifications', label: t.notificationsLabel || 'Notifications', icon: <Bell size={24} />, color: 'from-amber-500 to-orange-600' },
     { id: 'terminal', label: t.terminal || 'Terminal', icon: <TerminalIcon size={24} />, color: 'from-green-500 to-emerald-600' },
@@ -3250,7 +2689,6 @@ export function DesktopUI({
     if (windowId === 'generate') return { w: '1050px', h: '720px' };
     if (windowId === 'music') return { w: '1050px', h: '720px' };
     if (windowId === 'music-center') return { w: '800px', h: '600px' };
-    if (windowId === 'files') return { w: '920px', h: '640px' };
     if (windowId === 'tools') return { w: '850px', h: '620px' };
     if (windowId === 'team') return { w: '900px', h: '700px' };
     if (windowId === 'github-mcp') return { w: '850px', h: '620px' };
@@ -3965,8 +3403,7 @@ export function DesktopUI({
                 const isIconOpen = def.windowId === 'org' ? activeTab === 'org' : openWindows.includes(def.windowId);
                 const isIconFocused = def.windowId === 'org' ? activeTab === 'org' : focusedWindow === def.windowId;
                 const handleClick = () => {
-                  if (def.id === 'files') openNativeFilesWindow();
-                  else if (def.id === 'workbench') setActiveTab('org');
+                  if (def.id === 'workbench') setActiveTab('org');
                   else toggleWindow(def.windowId);
                 };
                 return (
@@ -4329,23 +3766,6 @@ export function DesktopUI({
                     <MusicCenter isOpen={true} onClose={() => closeWindow('music-center')} t={t} />
                   ) : windowId === 'personality' ? (
                     <PersonalityEditor t={t} />
-                  ) : windowId === 'files' ? (
-                    <NativeFilesWindow
-                      t={t}
-                      files={nativeFiles}
-                      currentPath={nativePath}
-                      homePath={nativeHomePath}
-                      isLoading={nativeFilesLoading}
-                      error={nativeFilesError}
-                      onRefresh={() => void loadNativeFiles(nativePath)}
-                      onHome={() => void loadNativeFiles('')}
-                      onPickDirectory={() => void pickNativeDirectory()}
-                      onNavigate={(path) => void loadNativeFiles(path)}
-                      onOpenItem={(path) => void openNativeItem(path)}
-                      onCreateFolder={(name) => void createNativeDirectory(name)}
-                      onRenameItem={(path, newName) => void renameNativeItem(path, newName)}
-                      onDeleteItem={(path) => void deleteNativeItem(path)}
-                    />
                   ) : windowId === 'tools' ? (
                     <ToolPanel />
                   ) : windowId === 'team' ? (

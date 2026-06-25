@@ -77,12 +77,6 @@ export interface ClientStateSnapshot {
     status?: string;
     lastError?: string;
   };
-  files?: {
-    currentPath?: string;
-    itemCount?: number;
-    loading?: boolean;
-    error?: string;
-  };
   permissions?: Record<string, string | boolean | number | null | undefined>;
   tools?: {
     agentStatus?: string;
@@ -208,17 +202,9 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     id: 'workspace.knowledge',
     label: 'Knowledge base and memory',
     kind: 'knowledge',
-    actions: ['show_knowledge_base'],
-    notes: 'Personal knowledge, memories, imports, and memory organization.',
+    actions: ['show_knowledge_base', 'open_files'],
+    notes: 'Personal knowledge, uploaded knowledge-base files, memories, imports, and memory organization. Use this as Lumi\'s single file knowledge surface.',
     stateKeys: ['surfaces.knowledgeOpen'],
-  },
-  {
-    id: 'workspace.files',
-    label: 'Files',
-    kind: 'window',
-    actions: ['open_files'],
-    notes: 'Native file browser surface inside the desktop client.',
-    stateKeys: ['windows', 'files', 'permissions.nativeFiles'],
   },
   {
     id: 'window.device_sync',
@@ -374,7 +360,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     kind: 'system',
     actions: ['work_product_plan', 'work_product_verify'],
     notes: 'Defines deliverables, acceptance criteria, checkpoints, verification actions, repair cycles, and stop conditions before Lumi claims a real task is complete.',
-    stateKeys: ['tools', 'runtimeLog', 'files', 'runtime'],
+    stateKeys: ['tools', 'runtimeLog', 'surfaces', 'runtime'],
   },
   {
     id: 'external.browser',
@@ -426,7 +412,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     label: 'Sensor permissions',
     kind: 'permission',
     actions: ['open_settings'],
-    notes: 'Microphone, camera, notifications, native files, desktop automation, wake word, and biometric primer states.',
+    notes: 'Microphone, camera, notifications, knowledge import, desktop automation, wake word, and biometric primer states.',
     requiresConfirmation: true,
     stateKeys: ['permissions'],
   },
@@ -522,17 +508,6 @@ export function getClientHealthReport(userId: string): ClientHealthReport {
     });
   }
 
-  if (state?.files?.error) {
-    add({
-      id: 'files.error',
-      level: 'degraded',
-      area: 'files',
-      message: state.files.error,
-      evidence: `path=${state.files.currentPath || 'unknown'}`,
-      safeActions: ['client_self_repair(open_recovery_surface:files)'],
-    });
-  }
-
   for (const err of (state?.errors || []).slice(-5)) {
     add({
       id: `recent_error.${err.source}.${err.code || 'runtime'}`,
@@ -613,7 +588,6 @@ export function formatClientSelfPrompt(userId: string): string {
     `- Music taste profile: ${formatMusicProfileForPrompt(musicProfile)}`,
     `- Meeting: active=${Boolean(state.meeting?.active)}, notes=${state.meeting?.noteCount || 0}, report=${Boolean(state.meeting?.hasReport)}, reportGenerating=${Boolean(state.meeting?.reportGenerating)}`,
     `- Runtime log: open=${Boolean(state.runtimeLog?.open)}, status=${state.runtimeLog?.status || 'ready'}${state.runtimeLog?.lastError ? `, error=${state.runtimeLog.lastError}` : ''}`,
-    `- Files: path=${state.files?.currentPath || 'unknown'}, items=${state.files?.itemCount ?? 0}, loading=${Boolean(state.files?.loading)}${state.files?.error ? `, error=${state.files.error}` : ''}`,
     `- Permissions: ${formatStateObject(state.permissions)}`,
     `- Tools: agent=${state.tools?.agentStatus || 'idle'}, workflowSteps=${state.tools?.workflowStepCount || 0}, runningSteps=${state.tools?.runningWorkflowSteps || 0}`,
     `- Native runtime: autostart=${Boolean(state.runtime?.autostartEnabled)}, closeToBackground=${Boolean(state.runtime?.closeToBackground)}, backend=${state.runtime?.backendNodeRunning ? 'running' : 'dev/not-spawned'}, shortcut=${state.runtime?.globalShortcut || 'Alt+Space'}${state.runtime?.lastError ? `, error=${state.runtime.lastError}` : ''}`,

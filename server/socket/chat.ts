@@ -206,11 +206,17 @@ export function registerChatHandler(
       });
       console.log('[ChatHandler] relevantMemories (vector):', relevantMemories.length);
 
-      // RAG: retrieve relevant knowledge chunks from agent's ingested documents
+      // RAG: retrieve relevant knowledge chunks from agent-scoped and Lumi knowledge.
       let ragChunks: string[] = [];
-      if (agentId) {
-        const chunks = retrieveChunks(uid, agentId, text, 3);
-        ragChunks = chunks.map((c: any) => c.content);
+      const ragAgentIds = Array.from(new Set([conversationAgentId, 'lumi'].filter(Boolean)));
+      for (const ragAgentId of ragAgentIds) {
+        const chunks = retrieveChunks(uid, ragAgentId, text, 3);
+        for (const chunk of chunks) {
+          const content = (chunk as any).content;
+          if (content && !ragChunks.includes(content)) ragChunks.push(content);
+          if (ragChunks.length >= 5) break;
+        }
+        if (ragChunks.length >= 5) break;
       }
 
       // Org: search company KB when in work domain

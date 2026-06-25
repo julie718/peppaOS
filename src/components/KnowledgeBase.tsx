@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Loader2, Search, Sparkles, TrendingUp, Network, GitMerge, Upload, ArrowRight, File, FileText, Trash2, Download, Eye, ChevronRight, AlertCircle } from 'lucide-react';
+import { X, Loader2, Search, Sparkles, TrendingUp, Network, GitMerge, Upload, ArrowRight, File, FileText, Trash2, Download, Eye, ChevronRight, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSocket } from '@/hooks/useSocket';
 import { appConfirm } from '@/lib/appConfirm';
@@ -77,6 +77,7 @@ export function KnowledgeBase({ t, isOpen, onClose, domain = 'personal' }: Knowl
   const [reflecting, setReflecting] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [ingestingFiles, setIngestingFiles] = useState<Set<string>>(() => new Set());
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const lastLoadErrorRef = React.useRef<string | null>(null);
 
@@ -180,6 +181,34 @@ export function KnowledgeBase({ t, isOpen, onClose, domain = 'personal' }: Knowl
       .slice(0, 5);
   }, [memories, search]);
 
+  const targetAgentId = domain === 'work' ? 'org-kb' : 'lumi';
+  const fileIsAbsorbed = useCallback((file: FileEntry) => {
+    if (file.agentIds?.includes(targetAgentId)) return true;
+    return domain === 'work' && file.status === 'indexed';
+  }, [domain, targetAgentId]);
+
+  const visibleFiles = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const sorted = [...files].sort((a, b) => {
+      const aAbsorbed = fileIsAbsorbed(a) ? 1 : 0;
+      const bAbsorbed = fileIsAbsorbed(b) ? 1 : 0;
+      if (aAbsorbed !== bAbsorbed) return aAbsorbed - bAbsorbed;
+      return new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime();
+    });
+    if (!q) return sorted;
+    return sorted.filter(file => [
+      file.displayName || file.name,
+      file.name,
+      file.source || '',
+      file.status || '',
+      ...(file.agentIds || []),
+    ].some(value => String(value || '').toLowerCase().includes(q)));
+  }, [fileIsAbsorbed, files, search]);
+
+  const absorbedFileCount = useMemo(() => files.filter(fileIsAbsorbed).length, [fileIsAbsorbed, files]);
+  const pendingFileCount = Math.max(0, files.length - absorbedFileCount);
+  const fileSearchResults = search.trim() ? visibleFiles.slice(0, 5) : [];
+
   // Actions
   const handleDelete = async (id: string) => {
     const n = treeNodes.find(nd => nd.id === id);
@@ -215,17 +244,34 @@ export function KnowledgeBase({ t, isOpen, onClose, domain = 'personal' }: Knowl
   };
 
   const handleIngest = async (id: string) => {
-    const agentId = prompt(t.kbEnterAgentId || 'Enter agent ID:');
-    if (!agentId) return;
+    const agentId = targetAgentId;
+    setIngestingFiles(prev => new Set(prev).add(id));
     try {
       const res = await fetch(scopedFileUrl('/api/files/ingest'), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ fileId: id, agentId, domain }),
       });
-      if (res.ok) { toast.success(t.kbIngested || 'Ingested'); fetchAll(); }
-      else toast.error(t.kbIngestFailed || 'Ingest failed');
-    } catch { toast.error(t.kbIngestFailed || 'Ingest failed'); }
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const count = data.chunkCount || data.memoryIds?.length || 0;
+        toast.success(domain === 'work'
+          ? (t.kbIngested || 'Synced to organization knowledge')
+          : `${t.kbIngested || 'Absorbed into Lumi'}${count ? ` | ${count} chunks` : ''}`);
+        fetchAll();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || t.kbIngestFailed || 'Ingest failed');
+      }
+    } catch {
+      toast.error(t.kbIngestFailed || 'Ingest failed');
+    } finally {
+      setIngestingFiles(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
   };
 
   const handleToggleProtect = async (id: string) => {
@@ -282,7 +328,9 @@ export function KnowledgeBase({ t, isOpen, onClose, domain = 'personal' }: Knowl
       const res = await fetch(scopedFileUrl('/api/files/upload'), { method: 'POST', body: formData, credentials: 'include' });
       if (res.ok) {
         const d = await res.json();
-        toast.success(`${t.kbUploadedFiles || 'Uploaded'}: ${d.files?.length || files.length}`);
+        const uploaded = d.files?.length || files.length;
+        const absorbed = (d.files || []).filter((file: any) => file.ingested).length;
+        toast.success(`${t.kbUploadedFiles || 'Uploaded'}: ${uploaded}${absorbed ? ` | ${t.kbIngested || 'Absorbed'}: ${absorbed}` : ''}`);
         fetchAll();
       } else toast.error(t.kbUploadFailed || 'Upload failed');
     } catch { toast.error(t.kbUploadFailed || 'Upload failed'); }
@@ -402,18 +450,29 @@ export function KnowledgeBase({ t, isOpen, onClose, domain = 'personal' }: Knowl
               <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
                 <span className="text-xs font-bold text-white/45 uppercase tracking-widest flex items-center gap-2">
                   <File size={12} className="text-blue-400/60" />
-                  {t.kbFiles || 'Files'} ({totalFiles})
+                  {t.kbFiles || 'Files'} ({visibleFiles.length}/{totalFiles})
+                </span>
+                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-300/65">
+                  {absorbedFileCount} {t.kbIngested || 'absorbed'}
                 </span>
               </div>
+              {pendingFileCount > 0 && (
+                <div className="border-b border-amber-400/10 bg-amber-400/[0.055] px-4 py-2 text-[11px] font-bold leading-5 text-amber-100/68">
+                  {pendingFileCount} {t.kbPendingIngest || 'file(s) waiting to be absorbed by Lumi'}
+                </div>
+              )}
               <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
                 {files.length === 0 ? (
                   <div className="text-xs text-white/25 text-center py-8">{t.noFilesYet || 'No files yet'}</div>
                 ) : (
-                  files.map(f => (
-                    <button
+                  visibleFiles.map(f => {
+                    const absorbed = fileIsAbsorbed(f);
+                    const ingesting = ingestingFiles.has(f.id);
+                    return (
+                    <div
                       key={f.id}
                       onClick={() => { setSelectedId(f.id); setCardPos(null); }}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-all group ${
+                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-all group cursor-pointer ${
                         selectedId === f.id
                           ? 'bg-white/10 border border-white/15 shadow-[0_0_20px_rgba(59,130,246,0.08)]'
                           : 'hover:bg-white/5 border border-transparent'
@@ -430,13 +489,37 @@ export function KnowledgeBase({ t, isOpen, onClose, domain = 'personal' }: Knowl
                       )}
                       <div className="flex-1 min-w-0">
                         <span className="text-xs text-white/70 truncate block">{f.name}</span>
-                        {f.source && (
-                          <span className="text-[12px] text-white/25 uppercase">{f.source}</span>
-                        )}
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          {f.source && (
+                            <span className="text-[10px] font-black uppercase tracking-[0.12em] text-white/25">{f.source}</span>
+                          )}
+                          <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.08em] ${
+                            absorbed
+                              ? 'border-emerald-400/18 bg-emerald-400/10 text-emerald-200/75'
+                              : 'border-amber-400/18 bg-amber-400/10 text-amber-200/75'
+                          }`}>
+                            {absorbed ? <CheckCircle2 size={9} /> : ingesting ? <Loader2 size={9} className="animate-spin" /> : <Clock size={9} />}
+                            {absorbed ? (t.kbIngested || 'absorbed') : (t.kbReadyToIngest || 'pending')}
+                          </span>
+                        </div>
                       </div>
+                      {!absorbed && (
+                        <button
+                          type="button"
+                          disabled={ingesting}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void handleIngest(f.id);
+                          }}
+                          className="shrink-0 rounded-lg border border-amber-400/20 bg-amber-400/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-100 transition-colors hover:bg-amber-400/16 disabled:pointer-events-none disabled:opacity-60"
+                        >
+                          {ingesting ? (t.loading || 'Loading') : (t.kbIngest || 'Absorb')}
+                        </button>
+                      )}
                       <ChevronRight size={12} className="text-white/20 shrink-0 group-hover:text-white/40 transition-colors" />
-                    </button>
-                  ))
+                    </div>
+                  );
+                  })
                 )}
               </div>
             </div>
@@ -468,10 +551,24 @@ export function KnowledgeBase({ t, isOpen, onClose, domain = 'personal' }: Knowl
                       exit={{ opacity: 0, y: -4 }}
                       className="absolute top-full left-0 right-0 mt-2 bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl"
                     >
-                      {searchResults.length === 0 ? (
+                      {fileSearchResults.length === 0 && searchResults.length === 0 ? (
                         <div className="px-4 py-3 text-xs text-white/55">{t.noMatchesFound || 'No matches found'}</div>
                       ) : (
-                        searchResults.map(m => (
+                        <>
+                        {fileSearchResults.map(f => (
+                          <button
+                            key={`file-${f.id}`}
+                            onClick={() => setSelectedId(f.id)}
+                            className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-white/5 transition-colors group"
+                          >
+                            <File size={12} className="text-blue-400/50 shrink-0 group-hover:text-blue-300 transition-colors" />
+                            <span className="text-xs text-white/60 group-hover:text-white/80 transition-colors truncate">
+                              {f.displayName || f.name}
+                            </span>
+                            <span className="ml-auto text-[10px] font-black uppercase tracking-[0.12em] text-white/24">{t.kbFiles || 'file'}</span>
+                          </button>
+                        ))}
+                        {searchResults.map(m => (
                           <button
                             key={m.id}
                             onClick={() => setSelectedId(m.id)}
@@ -482,7 +579,8 @@ export function KnowledgeBase({ t, isOpen, onClose, domain = 'personal' }: Knowl
                               {m.content.slice(0, 60)}
                             </span>
                           </button>
-                        ))
+                        ))}
+                        </>
                       )}
                     </motion.div>
                   )}
@@ -545,6 +643,8 @@ export function KnowledgeBase({ t, isOpen, onClose, domain = 'personal' }: Knowl
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-3 bg-black/40 backdrop-blur-xl border border-white/[0.08] rounded-2xl px-4 py-2">
                   <span className="text-[12px] font-bold text-blue-400/60">{totalFiles} {t.kbFiles || 'files'}</span>
+                  <span className="w-px h-3 bg-white/[0.08]" />
+                  <span className="text-[12px] font-bold text-emerald-400/60">{absorbedFileCount} {t.kbIngested || 'absorbed'}</span>
                   <span className="w-px h-3 bg-white/[0.08]" />
                   <span className="text-[12px] font-bold text-amber-400/60">{totalMemories} {t.kbMem || 'mem'}</span>
                   <span className="w-px h-3 bg-white/[0.08]" />

@@ -16,6 +16,7 @@ export type AdapterCategory =
   | 'workspace'
   | 'media'
   | 'files'
+  | 'knowledge'
   | 'web'
   | 'messaging'
   | 'cad_bim'
@@ -91,6 +92,7 @@ const CATEGORY_ORDER: AdapterCategory[] = [
   'workspace',
   'media',
   'files',
+  'knowledge',
   'web',
   'messaging',
   'cad_bim',
@@ -197,18 +199,16 @@ export function getAdapterRegistry(options: AdapterRegistryOptions = {}): Adapte
       notes: 'Skills are Lumi expansion points. Repair/install actions need confirmation.',
     },
     {
-      id: 'workspace.files',
-      label: 'Native Files',
-      category: 'files',
-      status: state?.files?.error ? 'degraded' : 'ready',
-      actions: ['open_files', 'desktop_list_files', 'read_file', 'search_files'],
-      surfaces: ['Files window', 'native file picker', 'knowledge import'],
+      id: 'workspace.knowledge_files',
+      label: 'Knowledge Base Files',
+      category: 'knowledge',
+      status: 'ready',
+      actions: ['show_knowledge_base', 'open_files', 'read_file', 'search_files'],
+      surfaces: ['Knowledge Base', 'knowledge import', 'absorbed file browser'],
       diagnostics: [
-        state?.files?.currentPath ? `path=${state.files.currentPath}` : '',
-        state?.files?.itemCount != null ? `items=${state.files.itemCount}` : '',
-        state?.files?.error ? `error=${state.files.error}` : '',
+        state?.surfaces?.knowledgeOpen ? 'knowledge=open' : '',
       ].filter(Boolean),
-      notes: 'Use native file APIs for file work. Ask before writing or deleting user files.',
+      notes: 'Use Lumi Knowledge Base for browsing, importing, absorbing, and retrieving user-provided knowledge files.',
     },
     {
       id: 'media.music_netease',
