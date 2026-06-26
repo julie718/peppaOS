@@ -96,7 +96,6 @@ const NexusGlobe = lazy(() => import('./NexusGlobe/NexusGlobe').then(m => ({ def
 const InkWorldLazy = lazy(() => import('./InkWorld').then(m => ({ default: m.InkWorld })));
 import WorkflowPanel, { type WorkflowStep } from './WorkflowPanel';
 import { useWakeWord } from '../hooks/useWakeWord';
-import { useGestureDetector } from '../hooks/useGestureDetector';
 import { ErrorBoundary } from './ErrorBoundary';
 import { ToolConfirmDialog } from './ToolConfirmDialog';
 import { appConfirm } from '@/lib/appConfirm';
@@ -1342,9 +1341,6 @@ export function DesktopUI({
     isCallActive: () => callState !== 'idle',
     onInterrupt: () => interrupt(),
   });
-
-  // Gesture detection via webcam
-  const { facePresent } = useGestureDetector({ enabled: sensorPrimerSeen });
 
   // ── Biometrics: voiceprint + face recognition + presence ──
   const faceRecognition = useFaceRecognition({ enabled: sensorPrimerSeen, socket });
@@ -3348,7 +3344,7 @@ export function DesktopUI({
                 onInterrupt={interrupt}
                 onToggleMute={toggleMute}
                 onMessage={() => {}}
-                facePresent={facePresent}
+                facePresent={faceRecognition.result.facePresent}
                 gesturesDisabled={false}
                 isLightMode={isLightMode}
               />

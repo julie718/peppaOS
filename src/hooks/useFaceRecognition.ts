@@ -41,6 +41,19 @@ interface FaceTemplate {
   embedding: number[];
 }
 
+const FACE_RECOGNITION_INTERVAL_MS = 700;
+
+function faceResultKey(result: FaceRecognitionResult): string {
+  return [
+    result.facePresent,
+    result.ownerPresent,
+    result.confidence,
+    result.bestMatch?.faceId || '',
+    result.threshold,
+    result.faceCount,
+  ].join(':');
+}
+
 // ── Hook ──
 
 interface UseFaceRecognitionOptions {
@@ -64,9 +77,10 @@ export function useFaceRecognition(options?: UseFaceRecognitionOptions) {
 
   const templatesRef = useRef<FaceTemplate[]>([]);
   const animRef = useRef(0);
-  const faceTickRef = useRef(0);
   const faceLostRef = useRef(0);           // consecutive frames without face
   const lastKnownFaceResult = useRef<FaceRecognitionResult | null>(null);
+  const lastProcessTimeRef = useRef(0);
+  const lastResultKeyRef = useRef('');
   const isEnrollingRef = useRef(false);
 
   // ── Load templates from server ──
@@ -97,19 +111,37 @@ export function useFaceRecognition(options?: UseFaceRecognitionOptions) {
         video.muted = true;
 
         stream = await requestCameraStream({
-          width: 480,
-          height: 360,
+          width: 320,
+          height: 240,
           facingMode: 'user',
         });
         video.srcObject = stream;
         await video.play();
 
+        const publishFaceResult = (nextResult: FaceRecognitionResult) => {
+          const nextKey = faceResultKey(nextResult);
+          if (nextKey === lastResultKeyRef.current) return;
+          lastResultKeyRef.current = nextKey;
+          lastKnownFaceResult.current = nextResult;
+          setResult(nextResult);
+          socketRef.current?.emit('face:result', {
+            facePresent: nextResult.facePresent,
+            ownerPresent: nextResult.ownerPresent,
+            confidence: nextResult.confidence,
+            faceCount: nextResult.faceCount,
+          });
+        };
+
         const loop = () => {
           if (!running) return;
-          faceTickRef.current++;
 
-          // Run face recognition every 10 frames (~150ms at 60fps)
-          if (faceTickRef.current % 10 === 0 && video.readyState >= 2 && isMediaPipeReady()) {
+          const now = performance.now();
+          if (
+            now - lastProcessTimeRef.current >= FACE_RECOGNITION_INTERVAL_MS &&
+            video.readyState >= 2 &&
+            isMediaPipeReady()
+          ) {
+            lastProcessTimeRef.current = now;
             const faces = detectFaceLandmarks(video);
 
             if (faces.length > 0) {
@@ -152,16 +184,7 @@ export function useFaceRecognition(options?: UseFaceRecognitionOptions) {
                 faceCount: faces.length,
               };
 
-              lastKnownFaceResult.current = faceResult;
-              setResult(faceResult);
-
-              // Emit to socket
-              socketRef.current?.emit('face:result', {
-                facePresent: true,
-                ownerPresent: faceResult.ownerPresent,
-                confidence: bestConf,
-                faceCount: faces.length,
-              });
+              publishFaceResult(faceResult);
             } else {
               // Face lost counting
               faceLostRef.current++;
@@ -170,7 +193,7 @@ export function useFaceRecognition(options?: UseFaceRecognitionOptions) {
 
               if (stillPresent && lastKnown) {
                 // Grace period: keep last known state but mark facePresent as fading
-                setResult({ ...lastKnown, facePresent: true });
+                publishFaceResult({ ...lastKnown, facePresent: true });
               } else {
                 // Face definitely gone
                 const goneResult: FaceRecognitionResult = {
@@ -182,14 +205,7 @@ export function useFaceRecognition(options?: UseFaceRecognitionOptions) {
                   threshold: 'reject',
                   faceCount: 0,
                 };
-                lastKnownFaceResult.current = goneResult;
-                setResult(goneResult);
-                socketRef.current?.emit('face:result', {
-                  facePresent: false,
-                  ownerPresent: false,
-                  confidence: 0,
-                  faceCount: 0,
-                });
+                publishFaceResult(goneResult);
               }
             }
           }

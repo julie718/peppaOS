@@ -4,6 +4,8 @@ dist/
 dist-server/
 desktop-resources/
 coverage/
+logs/
+.codex-run/
 .DS_Store
 *.log
 .env*
