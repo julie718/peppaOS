@@ -281,9 +281,9 @@ function getAudioSession(socket: Socket): AudioSession {
 }
 
 function isVoiceprintGateOpen(session: AudioSession): boolean {
-  if (!session.voiceprintRequired || session.transcriptionOnly) return true;
+  if (!session.voiceprintRequired) return true;
   const fresh = Date.now() - session.voiceprintLastAt < 3500;
-  return fresh && session.voiceprintMatched && session.voiceprintConfidence >= 0.55;
+  return fresh && session.voiceprintMatched && session.voiceprintConfidence >= 0.68;
 }
 
 function blockUnverifiedVoice(socket: Socket, session: AudioSession, reason: string): void {
@@ -1147,7 +1147,7 @@ export function registerVoiceHandlers(
     session.agentId = data.agentId || 'lumi';
     session.transcriptionOnly = data.transcriptionOnly === true;
     const enrolledVoiceprints = session.userId ? getVoiceprints(session.userId) : [];
-    session.voiceprintRequired = !session.transcriptionOnly && enrolledVoiceprints.length > 0;
+    session.voiceprintRequired = enrolledVoiceprints.length > 0;
     session.voiceprintMatched = !session.voiceprintRequired;
     session.voiceprintConfidence = 0;
     session.voiceprintLastAt = 0;
@@ -1307,11 +1307,12 @@ export function registerVoiceHandlers(
   });
 
   // ── Voiceprint: receive MFCC match results from frontend hook ──
-  socket.on("voiceprint:result", (data: { isOwnerSpeaking: boolean; confidence: number }) => {
+  socket.on("voiceprint:result", (data: { isOwnerSpeaking: boolean; confidence: number; source?: string; quality?: number; reason?: string }) => {
     const session = getAudioSession(socket);
     session.voiceprintMatched = data.isOwnerSpeaking;
     session.voiceprintConfidence = data.confidence;
     session.voiceprintLastAt = Date.now();
+    logger.info(`[Voiceprint] result source=${data.source || 'unknown'} matched=${data.isOwnerSpeaking} conf=${Number(data.confidence || 0).toFixed(2)} quality=${typeof data.quality === 'number' ? data.quality.toFixed(2) : '-'} reason=${data.reason || '-'}`);
   });
 
   // ── Presence: periodic heartbeat from usePresence hook ──

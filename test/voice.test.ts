@@ -79,4 +79,95 @@ describe('Voice API', () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it('verifies enrolled voiceprints on the server', async () => {
+    const makeFrames = (invert = false) => Array.from({ length: 24 }, (_, frameIndex) => {
+      const sign = invert ? -1 : 1;
+      return Array.from({ length: 13 }, (_, coeffIndex) => {
+        if (coeffIndex === 0) return 0.2 + frameIndex * 0.001;
+        return sign * (Math.sin(coeffIndex * 0.7) + Math.cos(coeffIndex * 0.31)) + frameIndex * 0.002;
+      });
+    });
+
+    const enrolledFrames = makeFrames(false);
+    const enroll = await fetch(`${url}/api/auth/biometric/voiceprint/enroll`, {
+      method: 'PUT',
+      headers: headers(),
+      body: JSON.stringify({ label: 'Owner voice', mfccFeatures: enrolledFrames, sampleCount: enrolledFrames.length }),
+      signal: AbortSignal.timeout(5000),
+    });
+    expect(enroll.status).toBe(200);
+
+    const pass = await fetch(`${url}/api/auth/biometric/voiceprint/verify`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ mfccFeatures: makeFrames(false) }),
+      signal: AbortSignal.timeout(5000),
+    });
+    const passBody = await pass.json();
+    expect(pass.status).toBe(200);
+    expect(passBody.isOwnerSpeaking).toBe(true);
+    expect(passBody.confidence).toBeGreaterThanOrEqual(0.68);
+
+    const reject = await fetch(`${url}/api/auth/biometric/voiceprint/verify`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ mfccFeatures: makeFrames(true) }),
+      signal: AbortSignal.timeout(5000),
+    });
+    const rejectBody = await reject.json();
+    expect(reject.status).toBe(200);
+    expect(rejectBody.isOwnerSpeaking).toBe(false);
+  });
+
+  it('accepts PCM voiceprint payloads with MFCC fallback when mature provider is disabled', async () => {
+    const previousProvider = process.env.LUMI_VOICEPRINT_PROVIDER;
+    process.env.LUMI_VOICEPRINT_PROVIDER = 'mfcc';
+    try {
+      const makeFrames = () => Array.from({ length: 24 }, (_, frameIndex) => {
+        return Array.from({ length: 13 }, (_, coeffIndex) => {
+          if (coeffIndex === 0) return 0.15 + frameIndex * 0.001;
+          return Math.sin(coeffIndex * 0.37) + Math.cos(coeffIndex * 0.19) + frameIndex * 0.0015;
+        });
+      });
+      const pcm16Base64 = Buffer.alloc(16000 * 2).toString('base64');
+      const frames = makeFrames();
+
+      const enroll = await fetch(`${url}/api/auth/biometric/voiceprint/enroll`, {
+        method: 'PUT',
+        headers: headers(),
+        body: JSON.stringify({
+          label: 'Fallback voice',
+          mfccFeatures: frames,
+          audioPcm16Base64: pcm16Base64,
+          sampleRate: 16000,
+          sampleCount: frames.length,
+        }),
+        signal: AbortSignal.timeout(5000),
+      });
+      const enrollBody = await enroll.json();
+      expect(enroll.status).toBe(200);
+      expect(enrollBody.voiceprint.embeddingReady).toBe(false);
+      expect(enrollBody.voiceprintProvider.source).toBe('local');
+
+      const verify = await fetch(`${url}/api/auth/biometric/voiceprint/verify`, {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({
+          mfccFeatures: frames,
+          audioPcm16Base64: pcm16Base64,
+          sampleRate: 16000,
+        }),
+        signal: AbortSignal.timeout(5000),
+      });
+      const verifyBody = await verify.json();
+      expect(verify.status).toBe(200);
+      expect(verifyBody.isOwnerSpeaking).toBe(true);
+      expect(verifyBody.source).toBe('local');
+      expect(verifyBody.fallbackReason).toBe('provider_disabled');
+    } finally {
+      if (previousProvider === undefined) delete process.env.LUMI_VOICEPRINT_PROVIDER;
+      else process.env.LUMI_VOICEPRINT_PROVIDER = previousProvider;
+    }
+  });
 });

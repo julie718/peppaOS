@@ -5,6 +5,10 @@ export interface VoiceprintTemplate {
   voiceprintId: string;       // unique ID per voiceprint
   label: string;              // human-readable label e.g. "Owner voice 1"
   mfccFeatures: number[][];   // 13-dim MFCC vectors per audio frame
+  embedding?: number[];        // optional mature speaker embedding
+  embeddingProvider?: string;  // e.g. speechbrain-ecapa
+  embeddingModel?: string;
+  embeddingDim?: number;
   sampleCount: number;        // how many audio frames contributed
   createdAt: string;
   lastMatchedAt: string;
@@ -24,7 +28,7 @@ export interface VoiceprintVerificationResult {
   topMatch?: VoiceprintMatch;
   allMatches: VoiceprintMatch[];
   threshold: 'high' | 'medium' | 'low' | 'reject';
-  source: 'local' | 'cloud';
+  source: 'local' | 'cloud' | 'speechbrain';
 }
 
 // ── Face ──

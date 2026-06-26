@@ -537,7 +537,7 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
           return;
         }
 
-        const micAllowed = transcriptionOnlyRef.current || (canSendMicAudioRef.current?.() ?? true);
+        const micAllowed = canSendMicAudioRef.current?.() ?? true;
         if (!micAllowed) {
           ttsPreRollChunks.current = [];
           flushTtsPreRollOnNextAudio.current = false;

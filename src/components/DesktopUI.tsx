@@ -1128,7 +1128,7 @@ export function DesktopUI({
     if (!voiceprint.templatesLoaded) return false;
     if (voiceprint.enrolledCount === 0) return true;
     if (!voiceprint.hasUsableTemplates) return false;
-    return voiceprint.result.isOwnerSpeaking && voiceprint.result.confidence >= 0.55;
+    return voiceprint.result.isOwnerSpeaking && voiceprint.result.confidence >= 0.68;
   }, [
     voiceprint.enrolledCount,
     voiceprint.hasUsableTemplates,

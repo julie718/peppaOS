@@ -6,6 +6,8 @@ import { readDB, writeDB } from "../../db_layer";
 import { syncUserToSupabase } from "../config/supabase";
 import { getMember, listUserOrgs } from "../org/db";
 import { saveVoiceprint, saveFace, getVoiceprints, getFaces, deleteVoiceprint, deleteFace } from "../biometrics/store";
+import { verifyVoiceprintAudio } from "../biometrics/voiceprint_verify";
+import { extractSpeechBrainEmbedding } from "../biometrics/voiceprint_provider";
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -253,24 +255,79 @@ export function mountAuthRoutes(router: Router, jwtSecret: string, getCookieOpti
   // ── Biometric enrollment ──
 
   // Enroll a voiceprint: receives MFCC features extracted in-browser
-  router.put("/auth/biometric/voiceprint/enroll", (req, res) => {
+  router.put("/auth/biometric/voiceprint/enroll", async (req, res) => {
     let token = req.cookies.token;
     if (!token && req.headers.authorization?.startsWith('Bearer ')) token = req.headers.authorization.slice(7);
     if (!token) return res.status(401).json({ error: "Not authenticated" });
     try {
       const decoded: any = jwt.verify(token, jwtSecret);
-      const { label, mfccFeatures, sampleCount } = req.body;
-      if (!label || !mfccFeatures || !Array.isArray(mfccFeatures)) {
-        return res.status(400).json({ error: "label and mfccFeatures (array of 13-dim vectors) are required" });
+      const { label, mfccFeatures, sampleCount, sampleRate } = req.body || {};
+      const audioPcm16Base64 = req.body?.audioPcm16Base64 || req.body?.pcm16Base64;
+      const hasMfcc = Array.isArray(mfccFeatures);
+      if (!label || (!hasMfcc && !audioPcm16Base64)) {
+        return res.status(400).json({ error: "label plus mfccFeatures or audioPcm16Base64 are required" });
       }
+      const embeddingResult = await extractSpeechBrainEmbedding({
+        pcm16Base64: audioPcm16Base64,
+        sampleRate: Number(sampleRate) || 16000,
+      });
       const vp = saveVoiceprint(decoded.uid, {
         voiceprintId: `vp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         label,
-        mfccFeatures,
-        sampleCount: sampleCount || mfccFeatures.length,
+        mfccFeatures: hasMfcc ? mfccFeatures : [],
+        sampleCount: sampleCount || (hasMfcc ? mfccFeatures.length : 0),
+        embedding: embeddingResult.ok ? embeddingResult.embedding : undefined,
+        embeddingProvider: embeddingResult.ok ? embeddingResult.provider : undefined,
+        embeddingModel: embeddingResult.ok ? embeddingResult.model : undefined,
+        embeddingDim: embeddingResult.ok ? embeddingResult.embeddingDim : undefined,
       });
-      res.json({ success: true, voiceprint: { id: vp.voiceprintId, label: vp.label, sampleCount: vp.sampleCount } });
+      res.json({
+        success: true,
+        voiceprint: {
+          id: vp.voiceprintId,
+          label: vp.label,
+          sampleCount: vp.sampleCount,
+          embeddingReady: Boolean(vp.embedding?.length),
+          embeddingProvider: vp.embeddingProvider || null,
+          embeddingModel: vp.embeddingModel || null,
+          embeddingDim: vp.embeddingDim || 0,
+        },
+        voiceprintProvider: embeddingResult.ok
+          ? { source: 'speechbrain', model: embeddingResult.model, durationSec: embeddingResult.durationSec }
+          : { source: 'local', fallbackReason: embeddingResult.reason, install: embeddingResult.install },
+      });
     } catch (e) {
+      res.status(401).json({ error: "Invalid token" });
+    }
+  });
+
+  // Verify a recent speech window against enrolled voiceprints.
+  router.post("/auth/biometric/voiceprint/verify", async (req, res) => {
+    let token = req.cookies.token;
+    if (!token && req.headers.authorization?.startsWith('Bearer ')) token = req.headers.authorization.slice(7);
+    if (!token) return res.status(401).json({ error: "Not authenticated" });
+    try {
+      const decoded: any = jwt.verify(token, jwtSecret);
+      const { mfccFeatures, minFrames, threshold, sampleRate } = req.body || {};
+      const audioPcm16Base64 = req.body?.audioPcm16Base64 || req.body?.pcm16Base64;
+      if (!Array.isArray(mfccFeatures) && !audioPcm16Base64) {
+        return res.status(400).json({ error: "mfccFeatures array or audioPcm16Base64 is required" });
+      }
+      const result = await verifyVoiceprintAudio(decoded.uid, Array.isArray(mfccFeatures) ? mfccFeatures : [], {
+        pcm16Base64: audioPcm16Base64,
+        sampleRate: Number(sampleRate) || 16000,
+      }, {
+        minFrames: Number(minFrames) || undefined,
+        matchThreshold: Number(threshold) || undefined,
+      });
+      res.json({
+        success: true,
+        ...result,
+        isOwnerSpeaking: result.isOwner,
+        confidence: result.topMatch?.confidence || 0,
+        speakerLabel: result.topMatch?.label || null,
+      });
+    } catch {
       res.status(401).json({ error: "Invalid token" });
     }
   });
@@ -310,6 +367,10 @@ export function mountAuthRoutes(router: Router, jwtSecret: string, getCookieOpti
         sampleCount: v.sampleCount,
         createdAt: v.createdAt,
         mfccFeatures: v.mfccFeatures,
+        hasEmbedding: Boolean(v.embedding?.length),
+        embeddingProvider: v.embeddingProvider || null,
+        embeddingModel: v.embeddingModel || null,
+        embeddingDim: v.embeddingDim || 0,
       }));
       const faces = getFaces(decoded.uid).map(f => ({ id: f.faceId, label: f.label, createdAt: f.createdAt }));
       res.json({ voiceprints, faces });

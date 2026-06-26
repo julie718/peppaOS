@@ -42,9 +42,9 @@ export function BiometricsEnrollPanel() {
     setVoiceProgress(0);
     voiceprint.startListening();
 
-    // Animate progress over ~3 seconds
+    // Animate progress over ~6 seconds
     const startTime = Date.now();
-    const duration = 3500;
+    const duration = 6500;
     const tick = setInterval(() => {
       const elapsed = Date.now() - startTime;
       const pct = Math.min(elapsed / duration, 1);
@@ -105,7 +105,7 @@ export function BiometricsEnrollPanel() {
           </div>
           <div>
             <h3 className="text-sm font-bold text-white/90">{ui('声纹录入', 'Voiceprint Enrollment')}</h3>
-            <p className="text-xs text-white/45">{ui('录制 3 秒语音提取声纹特征', 'Record 3 seconds of speech to extract voiceprint features')}</p>
+            <p className="text-xs text-white/45">{ui('录制约 6 秒语音，建立更稳的服务端声纹模板', 'Record about 6 seconds to build a stronger server-side voiceprint template')}</p>
           </div>
         </div>
 
@@ -140,7 +140,7 @@ export function BiometricsEnrollPanel() {
               >
                 <span className="text-sm text-amber-300 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                  {ui('正在录音，请说话...', 'Recording. Please speak...')}
+                  {ui('正在录音，请连续说几句话...', 'Recording. Please speak a few sentences...')}
                 </span>
                 <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
                   <motion.div

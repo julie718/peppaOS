@@ -102,6 +102,20 @@ function dct(input: Float64Array, numCoeffs: number): Float64Array {
 
 function extractMFCC(samples: Float32Array): number[] {
   const N = FFT_SIZE;
+  if (samples.length > N) {
+    const hop = N;
+    const avg = new Array(13).fill(0);
+    let count = 0;
+    for (let offset = 0; offset + N <= samples.length && count < 16; offset += hop) {
+      const mfcc = extractMFCC(samples.subarray(offset, offset + N));
+      for (let i = 0; i < 13; i++) avg[i] += mfcc[i];
+      count++;
+    }
+    if (count > 0) {
+      for (let i = 0; i < 13; i++) avg[i] /= count;
+      return avg;
+    }
+  }
   if (samples.length < N) {
     // Zero-pad to FFT_SIZE
     const padded = new Float32Array(N);
@@ -178,6 +192,10 @@ export interface VoiceprintResult {
   speakerLabel: string | null;
   threshold: 'high' | 'medium' | 'low' | 'reject';
   rms: number;
+  source: 'speechbrain' | 'server-local' | 'client-local' | 'none';
+  quality?: number;
+  frameCount?: number;
+  reason?: string;
 }
 
 // ── Hook ──
@@ -187,6 +205,7 @@ interface VoiceprintTemplate {
   label: string;
   mfccFrames: number[][];   // accumulated MFCC vectors from enrollment
   voiceprintId: string;
+  hasEmbedding?: boolean;
 }
 
 interface UseVoiceprintOptions {
@@ -203,9 +222,11 @@ export function useVoiceprint(options?: UseVoiceprintOptions) {
     speakerLabel: null,
     threshold: 'reject',
     rms: 0,
+    source: 'none',
   });
   const [enrolledCount, setEnrolledCount] = useState(0);
   const [templateFrameCount, setTemplateFrameCount] = useState(0);
+  const [usableTemplateCount, setUsableTemplateCount] = useState(0);
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
 
   const templatesRef = useRef<VoiceprintTemplate[]>([]);
@@ -213,11 +234,15 @@ export function useVoiceprint(options?: UseVoiceprintOptions) {
   const lastCheckTimeRef = useRef(0);
   const isEnrollingRef = useRef(false);
   const enrollmentFramesRef = useRef<number[][]>([]);
+  const enrollmentPcmFramesRef = useRef<Float32Array[]>([]);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const onVoiceprintResultRef = useRef<((r: VoiceprintResult) => void) | null>(null);
+  const verifyingRef = useRef(false);
+  const verifySeqRef = useRef(0);
 
   // ── Load enrolled templates from server ──
   const loadTemplates = useCallback(async () => {
@@ -230,15 +255,18 @@ export function useVoiceprint(options?: UseVoiceprintOptions) {
           label: vp.label,
           voiceprintId: vp.id,
           mfccFrames: Array.isArray(vp.mfccFeatures) ? vp.mfccFeatures : [],
+          hasEmbedding: vp.hasEmbedding === true,
         }));
         templatesRef.current = templates;
         setEnrolledCount(templates.length);
         setTemplateFrameCount(templates.reduce((sum: number, tpl: VoiceprintTemplate) => sum + tpl.mfccFrames.length, 0));
+        setUsableTemplateCount(templates.filter((tpl: VoiceprintTemplate) => tpl.hasEmbedding || tpl.mfccFrames.length > 0).length);
       }
     } catch {
       templatesRef.current = [];
       setEnrolledCount(0);
       setTemplateFrameCount(0);
+      setUsableTemplateCount(0);
     } finally {
       setTemplatesLoaded(true);
     }
@@ -256,41 +284,36 @@ export function useVoiceprint(options?: UseVoiceprintOptions) {
       streamRef.current = stream;
       audioContextRef.current = new AudioContext({ sampleRate: SAMPLE_RATE });
       const source = audioContextRef.current.createMediaStreamSource(stream);
-      analyserRef.current = audioContextRef.current.createAnalyser();
-      analyserRef.current.fftSize = FFT_SIZE * 2;
-      source.connect(analyserRef.current);
+      const processor = audioContextRef.current.createScriptProcessor(4096, 1, 1);
+      processorRef.current = processor;
 
-      // Process audio every ~256ms (matches 4096 samples @ 16kHz)
-      const processInterval = () => {
-        if (!analyserRef.current) return;
-        const buffer = new Float32Array(FFT_SIZE);
-        analyserRef.current.getFloatTimeDomainData(buffer);
+      processor.onaudioprocess = (event) => {
+        const input = event.inputBuffer.getChannelData(0);
+        const buffer = new Float32Array(input.length);
+        buffer.set(input);
         const rms = computeRMS(buffer);
         if (rms > 0.01) {
           frameBufferRef.current.push(new Float32Array(buffer));
-          // Keep only last 10 frames (~2.5s of speech)
-          if (frameBufferRef.current.length > 10) frameBufferRef.current.shift();
+          // Keep only last ~5s of speech.
+          if (frameBufferRef.current.length > 20) frameBufferRef.current.shift();
 
-          // Check every ~500ms (every other frame)
+          // Check every ~650ms.
           const now = Date.now();
-          if (now - lastCheckTimeRef.current > 500 && frameBufferRef.current.length >= 3) {
+          if (now - lastCheckTimeRef.current > 650 && frameBufferRef.current.length >= 5) {
             lastCheckTimeRef.current = now;
-            const averagedMFCC = getAveragedMFCC();
-            if (averagedMFCC) {
-              const matchResult = compareWithTemplates(averagedMFCC);
-              setResult(matchResult);
-              onVoiceprintResultRef.current?.(matchResult);
-              // Forward to server for voice gating
-              socketRef.current?.emit('voiceprint:result', {
-                isOwnerSpeaking: matchResult.isOwnerSpeaking,
-                confidence: matchResult.confidence,
-              });
+            const mfccFrames = getRecentMFCCFrames();
+            if (mfccFrames.length >= 5) {
+              void verifyRecentSpeech(mfccFrames, rms);
             }
           }
         }
       };
 
-      intervalRef.current = setInterval(processInterval, 256);
+      source.connect(processor);
+      const zeroGain = audioContextRef.current.createGain();
+      zeroGain.gain.value = 0;
+      processor.connect(zeroGain);
+      zeroGain.connect(audioContextRef.current.destination);
     } catch {
       // Mic not available — voiceprint won't work, but doesn't break the app
     }
@@ -298,23 +321,116 @@ export function useVoiceprint(options?: UseVoiceprintOptions) {
 
   const stopListening = useCallback(() => {
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+    if (processorRef.current) { processorRef.current.disconnect(); processorRef.current = null; }
     if (audioContextRef.current) { audioContextRef.current.close(); audioContextRef.current = null; }
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
     analyserRef.current = null;
     frameBufferRef.current = [];
   }, []);
 
-  // ── Average MFCC over recent frames ──
-  function getAveragedMFCC(): number[] | null {
+  // ── MFCC over recent frames ──
+  function getRecentMFCCFrames(): number[][] {
     const frames = frameBufferRef.current;
-    if (frames.length < 3) return null;
-    const mfccFrames = frames.map(f => extractMFCC(f));
+    if (frames.length < 3) return [];
+    return frames.map(f => extractMFCC(f));
+  }
+
+  function framesToPcm16Base64(frames: Float32Array[], maxFrames = 24): string {
+    const selected = frames.slice(-maxFrames);
+    const sampleCount = selected.reduce((sum, frame) => sum + frame.length, 0);
+    if (sampleCount <= 0) return '';
+    const bytes = new Uint8Array(sampleCount * 2);
+    let offset = 0;
+    for (const frame of selected) {
+      for (let i = 0; i < frame.length; i++) {
+        const s = Math.max(-1, Math.min(1, frame[i]));
+        const v = s < 0 ? Math.round(s * 0x8000) : Math.round(s * 0x7FFF);
+        bytes[offset++] = v & 0xFF;
+        bytes[offset++] = (v >> 8) & 0xFF;
+      }
+    }
+    let binary = '';
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, i + chunkSize);
+      let part = '';
+      for (let j = 0; j < chunk.length; j++) part += String.fromCharCode(chunk[j]);
+      binary += part;
+    }
+    return btoa(binary);
+  }
+
+  function getAveragedMFCC(): number[] | null {
+    const mfccFrames = getRecentMFCCFrames();
+    if (mfccFrames.length < 3) return null;
     const avg = new Array(13).fill(0);
     for (const mfcc of mfccFrames) {
       for (let i = 0; i < 13; i++) avg[i] += mfcc[i];
     }
     for (let i = 0; i < 13; i++) avg[i] /= mfccFrames.length;
     return avg;
+  }
+
+  async function verifyRecentSpeech(mfccFrames: number[][], rms: number): Promise<void> {
+    if (verifyingRef.current) return;
+    verifyingRef.current = true;
+    const seq = ++verifySeqRef.current;
+    let matchResult: VoiceprintResult | null = null;
+
+    try {
+      const res = await fetch('/api/auth/biometric/voiceprint/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          mfccFeatures: mfccFrames,
+          audioPcm16Base64: framesToPcm16Base64(frameBufferRef.current, 18),
+          sampleRate: SAMPLE_RATE,
+          minFrames: 5,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const source = data.source === 'speechbrain'
+          ? 'speechbrain'
+          : data.source === 'local'
+            ? 'server-local'
+            : 'server-local';
+        matchResult = {
+          isOwnerSpeaking: data.isOwnerSpeaking === true,
+          confidence: Math.round(Number(data.confidence || 0) * 100) / 100,
+          speakerLabel: data.speakerLabel || data.topMatch?.label || null,
+          threshold: data.threshold || 'reject',
+          rms,
+          source,
+          quality: typeof data.quality === 'number' ? data.quality : undefined,
+          frameCount: typeof data.frameCount === 'number' ? data.frameCount : mfccFrames.length,
+          reason: data.reason || data.fallbackReason,
+        };
+      }
+    } catch {
+      // Fall through to local fallback below.
+    } finally {
+      verifyingRef.current = false;
+    }
+
+    if (!matchResult) {
+      const averagedMFCC = getAveragedMFCC();
+      matchResult = averagedMFCC
+        ? { ...compareWithTemplates(averagedMFCC), rms, source: 'client-local', frameCount: mfccFrames.length }
+        : { isOwnerSpeaking: false, confidence: 0, speakerLabel: null, threshold: 'reject', rms, source: 'none', frameCount: mfccFrames.length };
+    }
+
+    if (seq !== verifySeqRef.current) return;
+    setResult(matchResult);
+    onVoiceprintResultRef.current?.(matchResult);
+    socketRef.current?.emit('voiceprint:result', {
+      isOwnerSpeaking: matchResult.isOwnerSpeaking,
+      confidence: matchResult.confidence,
+      source: matchResult.source,
+      quality: matchResult.quality,
+      reason: matchResult.reason,
+    });
   }
 
   // ── Compare against stored templates ──
@@ -341,6 +457,7 @@ export function useVoiceprint(options?: UseVoiceprintOptions) {
       speakerLabel: bestLabel,
       threshold,
       rms: 0,
+      source: 'client-local',
     };
   }
 
@@ -348,8 +465,9 @@ export function useVoiceprint(options?: UseVoiceprintOptions) {
   const startEnrollment = useCallback(async (label: string) => {
     isEnrollingRef.current = true;
     enrollmentFramesRef.current = [];
+    enrollmentPcmFramesRef.current = [];
     await startListening();
-    // Collect frames for ~3 seconds
+    // Collect voiced frames for roughly 6 seconds.
     return new Promise<{ success: boolean; voiceprintId?: string }>((resolve) => {
       const collectInterval = setInterval(() => {
         if (!isEnrollingRef.current) {
@@ -359,22 +477,24 @@ export function useVoiceprint(options?: UseVoiceprintOptions) {
         }
         const frames = frameBufferRef.current;
         if (frames.length > 0) {
-          const mfcc = extractMFCC(frames[frames.length - 1]);
+          const latestFrame = frames[frames.length - 1];
+          const mfcc = extractMFCC(latestFrame);
           enrollmentFramesRef.current.push(mfcc);
+          enrollmentPcmFramesRef.current.push(new Float32Array(latestFrame));
         }
-        if (enrollmentFramesRef.current.length >= 12) {
-          // ~3 seconds of voice collected
+        if (enrollmentFramesRef.current.length >= 24) {
+          // ~6 seconds of voice collected
           isEnrollingRef.current = false;
           clearInterval(collectInterval);
           submitEnrollment(label).then(resolve);
         }
       }, 256);
-      // Timeout after 10s
+      // Timeout after 12s
       setTimeout(() => {
         isEnrollingRef.current = false;
         clearInterval(collectInterval);
         submitEnrollment(label).then(resolve);
-      }, 10000);
+      }, 12000);
     });
   }, [startListening]);
 
@@ -385,12 +505,19 @@ export function useVoiceprint(options?: UseVoiceprintOptions) {
   async function submitEnrollment(label: string): Promise<{ success: boolean; voiceprintId?: string }> {
     const frames = enrollmentFramesRef.current;
     if (frames.length < 4) return { success: false };
+    const audioPcm16Base64 = framesToPcm16Base64(enrollmentPcmFramesRef.current, 32);
     try {
       const res = await fetch('/api/auth/biometric/voiceprint/enroll', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ label, mfccFeatures: frames, sampleCount: frames.length }),
+        body: JSON.stringify({
+          label,
+          mfccFeatures: frames,
+          audioPcm16Base64,
+          sampleRate: SAMPLE_RATE,
+          sampleCount: frames.length,
+        }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -400,9 +527,11 @@ export function useVoiceprint(options?: UseVoiceprintOptions) {
           label,
           voiceprintId: data.voiceprint.id,
           mfccFrames: frames,
+          hasEmbedding: data.voiceprint.embeddingReady === true,
         });
         setEnrolledCount(templatesRef.current.length);
         setTemplateFrameCount(prev => prev + frames.length);
+        setUsableTemplateCount(templatesRef.current.filter(tpl => tpl.hasEmbedding || tpl.mfccFrames.length > 0).length);
         return { success: true, voiceprintId: data.voiceprint.id };
       }
       return { success: false };
@@ -420,6 +549,7 @@ export function useVoiceprint(options?: UseVoiceprintOptions) {
   useEffect(() => {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      if (processorRef.current) processorRef.current.disconnect();
       if (audioContextRef.current) audioContextRef.current.close();
       if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
     };
@@ -434,7 +564,7 @@ export function useVoiceprint(options?: UseVoiceprintOptions) {
     cancelEnrollment,
     onResult,
     enrolledCount,
-    hasUsableTemplates: templateFrameCount > 0,
+    hasUsableTemplates: usableTemplateCount > 0,
     templatesLoaded,
     isListening: !!audioContextRef.current,
     isEnrolling: isEnrollingRef.current,
