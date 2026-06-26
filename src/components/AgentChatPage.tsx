@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, Loader2, ArrowLeft, Ghost, Zap, Cpu, Sparkles, FileText, Mic, CheckCircle2, Pause, Play, Square, ChevronDown, ChevronRight, XCircle, Copy, Check, Paperclip, Image as ImageIcon, Download } from 'lucide-react';
+import { Send, Loader2, ArrowLeft, Ghost, Zap, Cpu, Sparkles, FileText, Mic, CheckCircle2, Pause, Play, Square, ChevronDown, ChevronRight, XCircle, Copy, Check, Paperclip, Image as ImageIcon, Download, MessageCircle } from 'lucide-react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
@@ -21,6 +21,7 @@ import { useVoiceCall } from '@/hooks/useVoiceCall';
 import { useVoiceCloning } from '@/hooks/useVoiceCloning';
 import { listVoices } from '@/services/voiceService';
 import WorkflowPanel, { type WorkflowStep } from './WorkflowPanel';
+import { WeChatSettings } from './WeChatSettings';
 
 const CHAT_HISTORY_LIMIT = 300;
 const CHAT_RENDER_LIMIT = 80;
@@ -136,6 +137,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
   const [selectedVoiceId, setSelectedVoiceId] = useState<string | undefined>();
   const [voices, setVoices] = useState<any[]>([]);
   const [showVoicePicker, setShowVoicePicker] = useState(false);
+  const [showWeChatSettings, setShowWeChatSettings] = useState(false);
   const voicePickerRef = useRef<HTMLDivElement>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [installedSkillNames, setInstalledSkillNames] = useState<string[]>([]);
@@ -240,11 +242,12 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (showVoicePicker) setShowVoicePicker(false);
+        if (showWeChatSettings) setShowWeChatSettings(false);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [showVoicePicker]);
+  }, [showVoicePicker, showWeChatSettings]);
 
   const agentName = agent?.name || (t.lumiEssence || 'Lumi Essence');
   const agentCategory = agent?.category || (t.friend || 'friend');
@@ -1086,6 +1089,44 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
         t={t}
         placement="corner"
       />
+      <AnimatePresence>
+        {showWeChatSettings && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[230] flex items-start justify-center bg-black/60 px-4 pt-20 backdrop-blur-sm"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setShowWeChatSettings(false);
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 18, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.98 }}
+              className="w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-[#080b12]/95 shadow-2xl"
+            >
+              <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                <div>
+                  <h3 className="text-sm font-bold text-white">{ui('个人微信连接', 'Personal WeChat')}</h3>
+                  <p className="mt-1 text-xs text-white/40">{ui('扫码后，Lumi 可以通过你的个人微信接收消息。', 'After scanning, Lumi can receive messages through your personal WeChat.')}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowWeChatSettings(false)}
+                  className="rounded-full p-1.5 text-white/35 transition-colors hover:bg-white/10 hover:text-white"
+                  aria-label={ui('关闭', 'Close')}
+                >
+                  <XCircle size={18} />
+                </button>
+              </div>
+              <div className="p-5">
+                <WeChatSettings t={t} />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     <div className="flex-1 max-w-[90rem] mx-auto w-full space-y-4 md:space-y-8 pb-32 md:pb-0 overflow-hidden flex flex-col">
       <div className="flex items-center justify-between px-4 md:px-0 pt-6 flex-shrink-0">
         <button
@@ -1141,6 +1182,17 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
             onEnd={endCall}
             hasVoice={voices.length > 0}
           />
+          {workDomain === 'personal' && (
+            <button
+              type="button"
+              onClick={() => setShowWeChatSettings(true)}
+              className="flex h-8 w-8 items-center justify-center rounded-xl border border-emerald-400/20 bg-emerald-400/10 text-emerald-200 transition-all hover:border-emerald-300/35 hover:bg-emerald-400/15 md:h-10 md:w-10"
+              title={ui('个人微信连接', 'Personal WeChat')}
+              aria-label={ui('打开个人微信连接', 'Open personal WeChat connection')}
+            >
+              <MessageCircle className="h-4 w-4 md:h-5 md:w-5" />
+            </button>
+          )}
           <button
             type="button"
             onClick={requestMeetingMode}

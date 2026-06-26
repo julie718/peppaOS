@@ -1,4 +1,4 @@
-// WeChat ClawBot settings — QR code login flow
+// Personal WeChat connection — QR code login flow
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { toast } from 'sonner';

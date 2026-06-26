@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   Building2, BookOpen, Package, Users, Settings,
   ClipboardCheck, ScrollText, MessageSquare, ArrowLeft,
-  Shield, User, Briefcase, Home, Scale, Palette, GitBranch, Loader2,
+  Shield, User, Briefcase, Home, Scale, Palette, GitBranch, Loader2, MessagesSquare,
 } from 'lucide-react';
 import { BranchDashboard } from './BranchDashboard';
 import { KnowledgeBaseBrowser } from './KnowledgeBaseBrowser';
@@ -17,11 +17,12 @@ import { AuditLogViewer } from './AuditLogViewer';
 import { LegalHub } from './LegalHub';
 import { DesignHub } from './DesignHub';
 import { OrgBranchPanel } from '../OrgBranchPanel';
+import { MessagingHub } from '../MessagingHub';
 import { useApp } from '../../contexts/AppContext';
 import { useT } from '../../lib/useT';
 import { toast } from 'sonner';
 
-type SubView = 'dashboard' | 'kb' | 'kb-edit' | 'templates' | 'templates-create' | 'review' | 'chat' | 'members' | 'settings' | 'audit' | 'legal' | 'design' | 'branch';
+type SubView = 'dashboard' | 'kb' | 'kb-edit' | 'templates' | 'templates-create' | 'review' | 'chat' | 'messaging' | 'members' | 'settings' | 'audit' | 'legal' | 'design' | 'branch';
 
 interface NavItem {
   id: SubView;
@@ -43,6 +44,7 @@ export function OrgHub() {
     { id: 'dashboard', label: t.orgDashboard, icon: <Home size={16} />, roles: ['owner', 'admin', 'member', 'viewer'] },
     { id: 'chat', label: t.orgChat, icon: <MessageSquare size={16} />, roles: ['owner', 'admin', 'member', 'viewer'] },
     { id: 'kb', label: t.orgKB, icon: <BookOpen size={16} />, roles: ['owner', 'admin', 'member', 'viewer'] },
+    { id: 'messaging', label: t.messaging || ui('消息接入', 'Messaging'), icon: <MessagesSquare size={16} />, roles: ['owner', 'admin', 'member'] },
     { id: 'templates', label: t.orgTemplates, icon: <Package size={16} />, roles: ['owner', 'admin', 'member', 'viewer'] },
     { id: 'review', label: t.orgReview, icon: <ClipboardCheck size={16} />, roles: ['owner', 'admin'] },
     { id: 'members', label: t.orgMembers, icon: <Users size={16} />, roles: ['owner', 'admin'] },
@@ -102,6 +104,7 @@ export function OrgHub() {
       case 'templates-create': return <TemplateCreator />;
       case 'review': return <TemplateReviewQueue />;
       case 'chat': return <CentralLumiChat />;
+      case 'messaging': return <MessagingHub t={t} />;
       case 'members': return <OrgMembers />;
       case 'settings': return <OrgSettings />;
       case 'audit': return <AuditLogViewer />;

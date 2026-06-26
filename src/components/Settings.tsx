@@ -30,7 +30,6 @@ import { useApp, type OperationMode } from '@/contexts/AppContext';
 import { VoiceForge } from './VoiceForge';
 import { VoiceProviderSwitch } from './VoiceProviderSwitch';
 import { MCPSettings } from './MCPSettings';
-import { MessagingHub } from './MessagingHub';
 import { getSavedKeyStatus, saveServerKeys } from '@/services/settingsKeys';
 import { apiFetch } from '@/services/apiClient';
 import {
@@ -64,7 +63,6 @@ function buildSidebarGroups(t: any, isZh: boolean) {
         { id: 'security', label: t.privacySecurity || ui('隐私与安全', 'Security'), icon: <Shield size={16} /> },
         { id: 'hardware', label: t.settingsHardware || ui('硬件权限', 'Hardware'), icon: <Camera size={16} /> },
         { id: 'mcp', label: t.settingsMCP || 'MCP', icon: <Cpu size={16} /> },
-        { id: 'messaging', label: t.messaging || ui('消息连接', 'Messaging'), icon: <MessagesSquare size={16} /> },
       ],
     },
   ];
@@ -91,7 +89,7 @@ export function Settings({
   const { operationMode, setOperationMode } = useApp();
   const [providerStatus, setProviderStatus] = useState<Record<string, { available: boolean; model: string }>>({});
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  const visibleSection = activeSection === 'computer' ? 'general' : activeSection;
+  const visibleSection = activeSection === 'computer' || activeSection === 'messaging' ? 'general' : activeSection;
   const isZh = lang !== 'en';
   const ui = (zh: string, en: string) => (isZh ? zh : en);
 
@@ -223,8 +221,6 @@ export function Settings({
         return <HardwareSettings t={t} />;
       case 'mcp':
         return <MCPSettings t={t} />;
-      case 'messaging':
-        return <MessagingHub t={t} />;
       default:
         return null;
     }
