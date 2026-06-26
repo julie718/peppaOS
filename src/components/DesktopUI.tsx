@@ -23,7 +23,6 @@ import {
   Battery,
   Bluetooth,
   Moon,
-  Sun,
   Minimize2,
   Minus,
   Square,
@@ -287,7 +286,7 @@ function OSWindow({
   );
 }
 
-function ControlCenter({ isOpen, onClose, t, brightness, setBrightness, volume, setVolume, lang, setLang, isLightMode, setIsLightMode, toggleWindow }: {
+function ControlCenter({ isOpen, onClose, t, brightness, setBrightness, volume, setVolume, lang, setLang, toggleWindow }: {
   isOpen: boolean;
   onClose: () => void;
   t: any;
@@ -297,8 +296,6 @@ function ControlCenter({ isOpen, onClose, t, brightness, setBrightness, volume, 
   setVolume: (v: number) => void;
   lang: 'en' | 'zh';
   setLang: (l: 'en' | 'zh') => void;
-  isLightMode: boolean;
-  setIsLightMode: (v: boolean) => void;
   toggleWindow: (id: string) => void;
 }) {
   const { selectedVoiceId, unreadCount } = useApp();
@@ -346,15 +343,7 @@ function ControlCenter({ isOpen, onClose, t, brightness, setBrightness, volume, 
            <div className="space-y-2">
              <div className="flex justify-between items-center text-xs font-bold text-white/40 uppercase">
                <span>{t.display || 'Display'}</span>
-               <button
-                 onClick={() => setIsLightMode(!isLightMode)}
-                 className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-                   isLightMode ? 'bg-amber-400 text-black' : 'bg-white/10 text-blue-300'
-                 }`}
-                 title={isLightMode ? (t.lightMode || 'Light') : (t.darkMode || 'Dark')}
-               >
-                 {isLightMode ? <Sun size={14} /> : <Moon size={14} />}
-               </button>
+               <Moon size={12} className="text-blue-300/70" />
              </div>
              <div className="h-4 w-full bg-white/5 rounded-full relative group cursor-pointer" onClick={(e) => {
                const rect = e.currentTarget.getBoundingClientRect();
@@ -975,7 +964,6 @@ export function DesktopUI({
   }, []);
 
   const [theme, setTheme] = useState<string>('celestial');
-  const [isLightMode, setIsLightMode] = useState(false);
   useEffect(() => {
     const themeForMode: Partial<Record<OperationMode, string>> = {
       chat: 'celestial',
@@ -986,8 +974,8 @@ export function DesktopUI({
     if (nextTheme && theme !== nextTheme) setTheme(nextTheme);
   }, [operationMode, theme]);
   useEffect(() => {
-    document.documentElement.setAttribute('data-mode', isLightMode ? 'light' : 'dark');
-  }, [isLightMode]);
+    document.documentElement.setAttribute('data-mode', 'dark');
+  }, []);
   const [clientPermissions, setClientPermissions] = useState<ClientPermissionSnapshot>({});
   const [clientRuntime, setClientRuntime] = useState<ClientRuntimeSnapshot>({});
   const [isControlCenterOpen, setIsControlCenterOpen] = useState(false);
@@ -2795,10 +2783,9 @@ export function DesktopUI({
 
   return (
     <div
-      data-mode={isLightMode ? 'light' : 'dark'}
+      data-mode="dark"
       className={`fixed inset-0 overflow-hidden cursor-default select-none transition-all duration-1000 ${
       isWallpaperMode ? 'bg-transparent pointer-events-none' :
-      isLightMode ? 'bg-[#f5f5f7]' :
       theme === 'celestial' ? 'bg-[#010103]' :
       theme === 'nebula' ? 'bg-[#050010]' :
       theme === 'cyber' ? 'bg-[#000808]' :
@@ -2828,8 +2815,6 @@ export function DesktopUI({
         setVolume={setVolume}
         lang={lang}
         setLang={setLang}
-        isLightMode={isLightMode}
-        setIsLightMode={setIsLightMode}
         toggleWindow={toggleWindow}
       />
       {/* CRT Scanline / Noise Overlay */}
@@ -2907,20 +2892,6 @@ export function DesktopUI({
                   >
                     <div className="absolute inset-0 bg-[linear-gradient(rgba(16,185,129,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(16,185,129,0.05)_1px,transparent_1px)] bg-[size:40px_40px]" />
                     <div className="absolute inset-0 bg-gradient-to-b from-black/0 to-black/80" />
-                  </motion.div>
-                )}
-                {/* Other themes ... */}
-                {/* Light mode wallpaper — white-green gradient */}
-                {isLightMode && (
-                  <motion.div
-                    key="light-wp"
-                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                    transition={{ duration: 1 }}
-                    className="absolute inset-0"
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-br from-[#f0fdf4] via-[#ecfdf5] to-[#dcfce7]" />
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,rgba(34,197,94,0.06)_0%,transparent_60%),radial-gradient(circle_at_70%_80%,rgba(16,185,129,0.04)_0%,transparent_60%)]" />
-                    <div className="absolute inset-0 bg-[linear-gradient(rgba(34,197,94,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(34,197,94,0.04)_1px,transparent_1px)] bg-[size:60px_60px]" />
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -3346,7 +3317,7 @@ export function DesktopUI({
                 onMessage={() => {}}
                 facePresent={faceRecognition.result.facePresent}
                 gesturesDisabled={false}
-                isLightMode={isLightMode}
+                isLightMode={false}
               />
               <div className="mt-2">
                 <MeetingModeButton
