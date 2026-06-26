@@ -456,7 +456,7 @@ router.post('/files/upload', requireAuth, upload.array('files', 20), async (req:
       }
 
       // Personal files are ingested into personal memory; work files become org KB articles.
-      if (isNew && scope.domain === 'work') {
+      if (scope.domain === 'work') {
         try {
           const meta = findFileMeta(db, finalName, scope);
           const article = ensureOrgArticleFromFile(scope, userId, finalName, extractedContent, meta?.orgArticleId);

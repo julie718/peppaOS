@@ -147,6 +147,10 @@ export function mountOrgRoutes(router: Router, io?: SocketIOServer) {
 
   // ── Knowledge Base ───────────────────────────────────────────────────
 
+  router.get('/org/kb/stats', requireAuth, requireOrgMember, (req: Request, res: Response) => {
+    res.json(KB.getStats(req.user!.orgId!));
+  });
+
   router.get('/org/kb/articles', requireAuth, requireOrgMember, (req: Request, res: Response) => {
     const articles = KB.listArticles(req.user!.orgId!, {
       category: req.query.category as string | undefined,
@@ -201,12 +205,12 @@ export function mountOrgRoutes(router: Router, io?: SocketIOServer) {
   });
 
   router.post('/org/kb/search', requireAuth, requireOrgMember, (req: Request, res: Response) => {
-    const { query, limit } = req.body;
+    const { query, limit, category, status } = req.body;
     if (!query) {
       res.status(400).json({ error: 'query is required' });
       return;
     }
-    KB.searchKnowledgeBase(req.user!.orgId!, query, limit || 5).then(results => {
+    KB.searchKnowledgeBase(req.user!.orgId!, query, { limit: limit || 5, category, status }).then(results => {
       res.json(results);
     }).catch(err => {
       res.status(500).json({ error: err.message });
