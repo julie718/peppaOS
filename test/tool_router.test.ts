@@ -40,6 +40,8 @@ const DECLARATIONS = [
   'legal_equity_penetration',
   'legal_case_strategy',
   'legal_generate_litigation_packet',
+  'legal_extract_dispute_focus',
+  'legal_generate_argument_or_opinion',
   'legal_external_research_plan',
   'legal_verify_citation',
   'legal_import_judgment',
@@ -88,9 +90,36 @@ describe('tool router', () => {
     expect(route.categories).toContain('legal');
     expect(route.toolNames).toEqual(expect.arrayContaining([
       'legal_generate_litigation_packet',
+      'legal_extract_dispute_focus',
+      'legal_generate_argument_or_opinion',
       'legal_case_strategy',
       'legal_search_statute',
       'legal_search_case',
+    ]));
+  });
+
+  it('routes dispute-focus extraction from trial materials through chat and voice', () => {
+    const focusRoute = routeToolsForTurn(
+      '根据起诉状、证据和庭审笔录总结争议焦点，整理待证事实和质证意见',
+      DECLARATIONS,
+    );
+    const opinionRoute = routeToolsForTurn(
+      '语音记录一下，按刚才材料生成代理词、庭审提纲和法律意见书',
+      DECLARATIONS,
+    );
+
+    expect(focusRoute.categories).toContain('legal');
+    expect(focusRoute.toolNames).toEqual(expect.arrayContaining([
+      'legal_extract_dispute_focus',
+      'legal_generate_argument_or_opinion',
+      'legal_generate_litigation_packet',
+    ]));
+
+    expect(opinionRoute.categories).toContain('legal');
+    expect(opinionRoute.toolNames).toEqual(expect.arrayContaining([
+      'legal_extract_dispute_focus',
+      'legal_generate_argument_or_opinion',
+      'legal_case_strategy',
     ]));
   });
 

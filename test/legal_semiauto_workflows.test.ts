@@ -69,6 +69,59 @@ describe('semi-automated legal workflows', () => {
     expect(output).toMatch(/律师|人工|确认/);
   });
 
+  it('extracts dispute focuses from complaint, evidence, and trial notes', async () => {
+    const registry = createLegalRegistry();
+
+    const output = await registry.execute('legal_extract_dispute_focus', {
+      caseName: 'Trial Focus Case',
+      role: 'defendant',
+      caseType: '买卖合同纠纷',
+      complaint: '原告称双方合同成立，被告拖欠货款并应承担违约金。',
+      evidence: '合同、发货单、签收单、质量异议函、聊天记录。',
+      transcript: '庭审中双方争议付款条件是否成就、质量异议是否成立、违约金是否过高。',
+    });
+
+    expect(output).toContain('Trial Focus Case');
+    expect(output).not.toMatch(/底层三段论|三段论|大前提|小前提|涵摄/);
+    expect(output).toMatch(/争议焦点|待证事实|质证|抗辩/);
+    expect(output).toMatch(/已有证据|待补证据|外部检索关键词/);
+    expect(output).toMatch(/律师|复核|确认/);
+  });
+
+  it('generates argument and legal-opinion drafts as lawyer-reviewed work products', async () => {
+    const registry = createLegalRegistry();
+
+    const argument = await registry.execute('legal_generate_argument_or_opinion', {
+      caseName: 'Argument Draft Case',
+      role: 'plaintiff',
+      documentType: '代理词',
+      caseType: '买卖合同纠纷',
+      facts: '双方签订买卖合同后，原告完成供货，被告以质量问题拒付剩余货款。',
+      issues: ['付款条件是否成就', '质量异议抗辩是否成立', '违约金是否需要调整'],
+      evidence: '合同、订单、发货单、签收单、发票、银行流水。',
+      opponentArguments: '被告主张货物存在质量问题，拒绝支付剩余货款。',
+      objective: '请求支持货款和违约金。',
+    });
+    const opinion = await registry.execute('legal_generate_argument_or_opinion', {
+      caseName: 'Opinion Draft Case',
+      role: 'defendant',
+      documentType: '法律意见书',
+      caseType: '买卖合同纠纷',
+      facts: '客户收到起诉状后，需要评估质量异议抗辩、违约金调整和和解空间。',
+      evidence: '验收异议函、退货沟通记录、检测报告。',
+      opponentArguments: '原告主张已按约供货并要求支付全额货款。',
+      objective: '形成应诉和谈判意见。',
+    });
+
+    for (const output of [argument, opinion]) {
+      expect(output).not.toMatch(/底层三段论|三段论|大前提|小前提|涵摄/);
+      expect(output).toMatch(/争议焦点|法律分析|证据评价|复核清单/);
+      expect(output).toMatch(/待检索|待核验|待补证|律师/);
+    }
+    expect(argument).toMatch(/代理词|结论请求/);
+    expect(opinion).toMatch(/法律意见书|风险提示|处理建议/);
+  });
+
   it('builds external research plans around authorized browser sessions', async () => {
     const registry = createLegalRegistry();
 
