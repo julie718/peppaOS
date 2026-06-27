@@ -327,7 +327,7 @@ export function getAdapterRegistry(options: AdapterRegistryOptions = {}): Adapte
       label: 'Browser and Web Work',
       category: 'web',
       status: 'ready',
-      actions: ['browser_open_task', 'web_search', 'url_fetch'],
+      actions: ['browser_open_task', 'web_search', 'url_fetch', 'web_login_site_presets', 'web_login_profile_save_from_preset', 'web_login_profile_list', 'web_login_run', 'url_fetch_logged_in'],
       surfaces: ['browser', 'web search', 'URL fetch'],
       requiresConfirmation: true,
       safety: 'Opening and reading is allowed when tools permit; posts, purchases, submissions, and account actions require confirmation.',

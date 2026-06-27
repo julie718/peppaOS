@@ -155,6 +155,7 @@ export class ToolRegistry {
     // Wrap with timeouts to prevent hanging. Vision/CAD extraction needs more room than simple tools.
     const timeoutMs =
       name === 'computer_use' ? 180_000 :
+      name.startsWith('web_login_') || name === 'url_fetch_logged_in' ? 180_000 :
       /^(ocr_|floorplan_extract_geometry|cad_generate_dxf)$/i.test(name) ? 90_000 :
       30_000;
     let timedOut = false;

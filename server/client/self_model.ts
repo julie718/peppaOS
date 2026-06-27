@@ -376,7 +376,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     id: 'external.browser',
     label: 'Browser and web work adapter',
     kind: 'external_app',
-    actions: ['browser_open_task', 'web_search', 'url_fetch'],
+    actions: ['browser_open_task', 'web_search', 'url_fetch', 'web_login_site_presets', 'web_login_profile_save_from_preset', 'web_login_profile_list', 'web_login_run', 'url_fetch_logged_in'],
     notes: 'Lumi can research with web tools and open a browser task after confirmation. Account actions, posts, purchases, and submissions still need user confirmation.',
     requiresConfirmation: true,
     stateKeys: ['permissions', 'tools'],

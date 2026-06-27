@@ -23,7 +23,7 @@ const FALLBACK_EXTERNAL_APP_ADAPTERS: ExternalAppAdapter[] = [
     id: 'browser',
     label: 'Browser and web work',
     status: 'ready',
-    actions: ['browser_open_task', 'web_search', 'url_fetch'],
+    actions: ['browser_open_task', 'web_search', 'url_fetch', 'web_login_site_presets', 'web_login_profile_save_from_preset', 'web_login_profile_list', 'web_login_run', 'url_fetch_logged_in'],
     safety: 'Opening a URL is allowed; account actions, purchases, posts, and submissions still need user confirmation.',
     notes: 'Use this adapter for research, opening project pages, and continuing work in the default browser.',
   },

@@ -105,7 +105,7 @@ export function classifyAction(toolName: string, args: Record<string, any> = {})
   if (name === 'desktop_system_info' || name === 'desktop_list_files' || name === 'desktop_path_info' || name === 'desktop_active_window' || name === 'desktop_running_processes') return 'observe';
   if (name.includes('wechat') || name.includes('feishu') || name.includes('wecom') || name.includes('message')) return 'messaging';
   if (name === 'computer_use' || name.startsWith('desktop_') || name.includes('mouse') || name.includes('keyboard') || name.includes('screenshot')) return 'desktop_control';
-  if (name.includes('external_app') || name.includes('cad_') || name.includes('browser_open')) return 'external_app';
+  if (name.includes('external_app') || name.includes('web_login') || name.includes('logged_in') || name.includes('cad_') || name.includes('browser_open')) return 'external_app';
   if (name === 'authority_research') return 'network';
   if (name === 'authority_research_save') return 'local_write';
   if (name.includes('write') || name.includes('create_') || name.includes('save') || name.includes('edit') || name.includes('file_ops')) return 'local_write';

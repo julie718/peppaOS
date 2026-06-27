@@ -117,6 +117,10 @@ async function urlFetchHandler(args: Record<string, any>): Promise<string> {
     });
     clearTimeout(timeout);
 
+    if (response.status === 401 || response.status === 403) {
+      return `URL fetch requires authentication (${response.status}). Ask the user to authorize a web login profile, then use web_login_run and url_fetch_logged_in for this site.`;
+    }
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
@@ -134,6 +138,10 @@ async function urlFetchHandler(args: Record<string, any>): Promise<string> {
     // Collapse whitespace
     text = text.replace(/\s+/g, ' ').trim();
 
+    if (looksLikeLoginWall(text)) {
+      return 'This page appears to require login or interactive verification. Ask the user to authorize a web login profile, then use web_login_run and url_fetch_logged_in.';
+    }
+
     if (text.length > maxChars) {
       text = text.slice(0, maxChars) + `\n\n[Truncated at ${maxChars} characters]`;
     }
@@ -145,6 +153,17 @@ async function urlFetchHandler(args: Record<string, any>): Promise<string> {
     }
     return `URL fetch failed: ${err.message}`;
   }
+}
+
+function looksLikeLoginWall(text: string): boolean {
+  const sample = text.slice(0, 4000).toLowerCase();
+  const loginTerms = [
+    'sign in', 'log in', 'login required', 'please login', 'please sign in',
+    '验证码', '登录', '请登录', '账号密码', '扫码登录', '安全验证',
+  ];
+  return loginTerms.some(term => sample.includes(term.toLowerCase()))
+    && !sample.includes('article')
+    && text.length < 8000;
 }
 
 export function registerWebOpsTools(registry: ToolRegistry): void {
