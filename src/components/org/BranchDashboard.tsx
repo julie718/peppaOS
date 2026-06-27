@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   ArrowRight,
   BookOpen,
+  Bot,
   Building2,
   Clock,
   Package,
@@ -21,8 +22,18 @@ interface DashboardStats {
   memberCount: number;
   kbArticleCount: number;
   templateCount: number;
+  installedAgentCount: number;
   syncStatus: 'connected' | 'offline' | 'syncing';
   lastSync: string | null;
+}
+
+interface InstalledTeamAgent {
+  id: string;
+  name: string;
+  category: string;
+  isFrozen?: boolean;
+  installedTemplateVersion?: number;
+  knowledgeDomains?: string[];
 }
 
 export function BranchDashboard() {
@@ -34,9 +45,11 @@ export function BranchDashboard() {
     memberCount: 0,
     kbArticleCount: 0,
     templateCount: 0,
+    installedAgentCount: 0,
     syncStatus: 'connected',
     lastSync: null,
   });
+  const [installedAgents, setInstalledAgents] = useState<InstalledTeamAgent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -66,26 +79,40 @@ export function BranchDashboard() {
       }
 
       const partialErrors: string[] = [];
-      const [members, articles, templates] = await Promise.all([
+      const [members, articles, templates, agents] = await Promise.all([
         orgId ? readArray(`/api/org/org/${orgId}/members`).catch(err => { partialErrors.push(err.message); return []; }) : Promise.resolve([]),
         readArray('/api/org/kb/articles?status=published').catch(err => { partialErrors.push(err.message); return []; }),
         readArray('/api/org/templates?status=published').catch(err => { partialErrors.push(err.message); return []; }),
+        readArray('/api/agents').catch(err => { partialErrors.push(err.message); return []; }),
       ]);
+      const installedTemplateAgents = agents
+        .filter((agent: any) => agent?.installedTemplateId && agent.status !== 'terminated')
+        .map((agent: any) => ({
+          id: String(agent.id),
+          name: String(agent.name || ui('未命名助手', 'Untitled assistant')),
+          category: String(agent.category || 'general'),
+          isFrozen: Boolean(agent.isFrozen),
+          installedTemplateVersion: Number(agent.installedTemplateVersion) || undefined,
+          knowledgeDomains: Array.isArray(agent.knowledgeDomains) ? agent.knowledgeDomains.map(String) : [],
+        }));
 
       if (partialErrors.length > 0) {
         setError(ui('部分组织数据加载失败，请刷新重试。', 'Some organization data failed to load. Try refreshing.'));
       }
+      setInstalledAgents(installedTemplateAgents);
 
       setStats({
         memberCount: members.length,
         kbArticleCount: articles.length,
         templateCount: templates.length,
+        installedAgentCount: installedTemplateAgents.length,
         syncStatus: status.connected ? 'connected' : 'offline',
         lastSync: new Date().toISOString(),
       });
     } catch (err: any) {
       setError(err?.message || ui('组织工作台加载失败', 'Failed to load organization workspace'));
       setStats(prev => ({ ...prev, syncStatus: 'offline' }));
+      setInstalledAgents([]);
     } finally {
       setLoading(false);
     }
@@ -93,6 +120,12 @@ export function BranchDashboard() {
 
   useEffect(() => {
     loadStats();
+  }, [loadStats]);
+
+  useEffect(() => {
+    const refresh = () => void loadStats();
+    window.addEventListener('lumi:agents-changed', refresh);
+    return () => window.removeEventListener('lumi:agents-changed', refresh);
   }, [loadStats]);
 
   const cards = useMemo(() => [
@@ -109,12 +142,30 @@ export function BranchDashboard() {
       tone: 'text-blue-300 bg-blue-500/10 border-blue-400/20',
     },
     {
-      label: t.orgTemplates || ui('模板', 'Templates'),
+      label: t.orgTemplates || ui('智能体模板', 'Agent Templates'),
       value: stats.templateCount,
       icon: <Package size={18} />,
       tone: 'text-violet-300 bg-violet-500/10 border-violet-400/20',
     },
-  ], [stats.kbArticleCount, stats.memberCount, stats.templateCount, t.orgKB, t.orgMembers, t.orgTemplates, ui]);
+    {
+      label: ui('团队助手', 'Team Agents'),
+      value: stats.installedAgentCount,
+      icon: <Bot size={18} />,
+      tone: 'text-cyan-300 bg-cyan-500/10 border-cyan-400/20',
+    },
+  ], [stats.installedAgentCount, stats.kbArticleCount, stats.memberCount, stats.templateCount, t.orgKB, t.orgMembers, t.orgTemplates, ui]);
+
+  const openTeamAgent = (agentId?: string) => {
+    if (agentId) {
+      try { window.sessionStorage.setItem('lumi:team:selected-agent-id', agentId); } catch {}
+    }
+    window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'team', agentId } }));
+    if (agentId) {
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('lumi:team:select-agent', { detail: { agentId } }));
+      }, 80);
+    }
+  };
 
   return (
     <div className="h-full overflow-y-auto p-6 text-white">
@@ -137,8 +188,8 @@ export function BranchDashboard() {
               </div>
               <p className="max-w-2xl text-sm leading-6 text-white/60">
                 {ui(
-                  '集中查看组织成员、知识库、模板市场和工作状态。这里保留所有组织能力，只把入口和反馈整理得更清楚。',
-                  'Review members, knowledge, templates, and workspace health in one place. All organization capabilities remain available with clearer entry points and feedback.',
+                  '集中查看组织成员、知识库、可安装的团队子 agent 和工作状态。这里保留所有组织能力，只把入口和反馈整理得更清楚。',
+                  'Review members, knowledge, installable team sub-agents, and workspace health in one place. All organization capabilities remain available with clearer entry points and feedback.',
                 )}
               </p>
             </div>
@@ -173,8 +224,8 @@ export function BranchDashboard() {
           </div>
         )}
 
-        <section className="grid gap-3 md:grid-cols-3">
-          {loading ? [1, 2, 3].map(item => (
+        <section className="grid gap-3 md:grid-cols-4">
+          {loading ? [1, 2, 3, 4].map(item => (
             <div key={item} className="h-28 animate-pulse rounded-lg border border-white/10 bg-white/[0.04]" />
           )) : cards.map((card, index) => (
             <motion.div
@@ -193,6 +244,71 @@ export function BranchDashboard() {
           ))}
         </section>
 
+        <section className="rounded-lg border border-cyan-400/15 bg-cyan-500/[0.04] p-5">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-cyan-100">
+                <Bot size={17} />
+                {ui('已安装到 Lumi 团队的工作助手', 'Work assistants installed to Lumi Team')}
+              </h2>
+              <p className="mt-1 text-xs leading-5 text-cyan-100/55">
+                {ui('从组织智能体模板市场安装的子 agent 会显示在这里；它们属于 Lumi 团队，可被聊天、语音和多步任务调度。', 'Sub-agents installed from the organization agent template market appear here; they belong to Lumi Team and can be routed from chat, voice, and multi-step work.')}
+              </p>
+            </div>
+            <button
+              onClick={() => openTeamAgent()}
+              className="inline-flex items-center gap-2 rounded-lg border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-xs font-medium text-cyan-100 transition hover:bg-cyan-400/20"
+            >
+              <ArrowRight size={14} />
+              {ui('打开 Lumi 团队', 'Open Lumi Team')}
+            </button>
+          </div>
+
+          {loading ? (
+            <div className="grid gap-3 md:grid-cols-3">
+              {[1, 2, 3].map(item => <div key={item} className="h-24 animate-pulse rounded-lg border border-white/10 bg-white/[0.04]" />)}
+            </div>
+          ) : installedAgents.length === 0 ? (
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'org', sub: 'templates' } }))}
+              className="flex w-full items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-4 text-left transition hover:border-cyan-300/25 hover:bg-white/[0.07]"
+            >
+              <span>
+                <span className="block text-sm font-medium text-white">{ui('还没有安装组织子 agent', 'No organization sub-agent installed yet')}</span>
+                <span className="mt-1 block text-xs text-white/50">{ui('去智能体模板市场安装一个，比如合同审查师、类案分析师或诉讼策略师。', 'Install one from the agent template market, such as Contract Review, Case Analysis, or Litigation Strategy.')}</span>
+              </span>
+              <ArrowRight size={15} className="text-cyan-200/70" />
+            </button>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-3">
+              {installedAgents.slice(0, 6).map(agent => (
+                <button
+                  key={agent.id}
+                  onClick={() => openTeamAgent(agent.id)}
+                  className="rounded-lg border border-white/10 bg-white/[0.04] p-4 text-left transition hover:border-cyan-300/25 hover:bg-white/[0.07]"
+                >
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-cyan-300/15 bg-cyan-500/10 text-cyan-200">
+                      <Bot size={16} />
+                    </span>
+                    <span className={`rounded-full px-2 py-1 text-[11px] ${agent.isFrozen ? 'bg-white/5 text-white/40' : 'bg-emerald-500/10 text-emerald-200'}`}>
+                      {agent.isFrozen ? ui('已暂停', 'Paused') : ui('可调度', 'Ready')}
+                    </span>
+                  </div>
+                  <h3 className="truncate text-sm font-medium text-white">{agent.name}</h3>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <span className="rounded-md bg-white/5 px-2 py-1 text-[11px] text-white/45">{agent.category}</span>
+                    {agent.installedTemplateVersion && <span className="rounded-md bg-white/5 px-2 py-1 text-[11px] text-white/45">v{agent.installedTemplateVersion}</span>}
+                    {agent.knowledgeDomains?.slice(0, 2).map(domain => (
+                      <span key={domain} className="rounded-md bg-cyan-500/10 px-2 py-1 text-[11px] text-cyan-100/55">{domain}</span>
+                    ))}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+
         <section className="grid gap-3 md:grid-cols-2">
           <QuickAction
             icon={<BookOpen size={18} />}
@@ -202,8 +318,8 @@ export function BranchDashboard() {
           />
           <QuickAction
             icon={<Package size={18} />}
-            label={ui('模板市场', 'Template Marketplace')}
-            desc={ui('审核、发布、安装组织内共享的智能体模板。', 'Review, publish, and install organization agent templates.')}
+            label={ui('智能体模板市场', 'Agent Template Marketplace')}
+            desc={ui('审核、发布组织模板，并把需要的子 agent 安装到 Lumi 团队。', 'Review and publish organization templates, then install needed sub-agents into Lumi Team.')}
             onClick={() => window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'org', sub: 'templates' } }))}
           />
           <QuickAction

@@ -42,7 +42,7 @@ export function TemplateReviewQueue() {
     try {
       const res = await fetch('/api/org/templates?status=pending_review', { credentials: 'include' });
       const data = await res.json().catch(() => []);
-      if (!res.ok) throw new Error((data as any).error || ui(`审核队列加载失败（${res.status}）`, `Failed to load review queue (${res.status})`));
+      if (!res.ok) throw new Error((data as any).error || ui(`智能体审核队列加载失败（${res.status}）`, `Failed to load agent review queue (${res.status})`));
       setQueue(Array.isArray(data) ? data : []);
     } catch (err: any) {
       setFeedback({ type: 'error', text: err.message || String(err) });
@@ -108,8 +108,8 @@ export function TemplateReviewQueue() {
       setFeedback({
         type: 'success',
         text: action === 'approve'
-          ? (t.templateApprovedPublished || ui('模板已通过并发布到市场', 'Template approved and published to Marketplace'))
-          : (t.templateRejected || ui('模板已拒绝', 'Template rejected')),
+          ? (t.templateApprovedPublished || ui('智能体模板已通过并发布', 'Agent template approved and published'))
+          : (t.templateRejected || ui('智能体模板已拒绝', 'Agent template rejected')),
       });
     } catch (err: any) {
       setFeedback({ type: 'error', text: err.message || String(err) });
@@ -127,9 +127,9 @@ export function TemplateReviewQueue() {
               <ClipboardCheck size={22} />
             </span>
             <div>
-              <h2 className="text-xl font-semibold text-white">{t.templateReviewQueue || ui('模板审核队列', 'Template Review Queue')}</h2>
+              <h2 className="text-xl font-semibold text-white">{t.templateReviewQueue || ui('智能体模板审核', 'Agent Template Review')}</h2>
               <p className="mt-1 text-sm text-white/50">
-                {ui(`${queue.length} 个模板等待审核`, `${queue.length} template(s) pending review`)}
+                {ui(`${queue.length} 个智能体模板等待审核`, `${queue.length} agent template(s) pending review`)}
               </p>
             </div>
           </div>
@@ -144,7 +144,7 @@ export function TemplateReviewQueue() {
         ) : queue.length === 0 ? (
           <div className="flex h-64 flex-col items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] text-center text-sm text-white/45">
             <CheckCircle size={34} className="text-emerald-300/60" />
-            <span>{t.allTemplatesReviewed || ui('所有模板都已审核完成', 'All templates have been reviewed.')}</span>
+            <span>{t.allTemplatesReviewed || ui('所有智能体模板都已审核完成', 'All agent templates have been reviewed.')}</span>
           </div>
         ) : (
           <div className="flex flex-col gap-3">

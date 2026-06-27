@@ -68,16 +68,16 @@ export function TemplateCreator() {
           <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
             <CheckCircle size={48} className="mx-auto text-emerald-300" />
           </motion.div>
-          <h3 className="mt-4 text-xl font-semibold text-white">{t.templateSubmitted || ui('模板已提交', 'Template Submitted')}</h3>
+          <h3 className="mt-4 text-xl font-semibold text-white">{t.templateSubmitted || ui('智能体模板已提交', 'Agent Template Submitted')}</h3>
           <p className="mt-2 text-sm leading-6 text-white/50">
-            {t.templatePendingReview || ui('模板已进入审核队列，管理员通过后会自动发布到市场。', 'Your template is pending admin review. Once approved, it will be published to Marketplace.')}
+            {t.templatePendingReview || ui('智能体模板已进入审核，通过后团队成员可安装到 Lumi 团队。', 'Your agent template is pending review. Once approved, members can install it into Lumi Team.')}
           </p>
           <button
             onClick={goBack}
             className="mt-5 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10 hover:text-white"
           >
             <ArrowLeft size={16} />
-            {t.backToMarketplace || ui('返回模板市场', 'Back to Marketplace')}
+            {t.backToMarketplace || ui('返回智能体模板', 'Back to Agent Templates')}
           </button>
         </div>
       </div>
@@ -100,7 +100,7 @@ export function TemplateCreator() {
               <Package size={22} />
             </span>
             <div className="min-w-0">
-              <h2 className="text-xl font-semibold text-white">{t.submitTemplate || ui('提交模板', 'Submit Template')}</h2>
+              <h2 className="text-xl font-semibold text-white">{t.submitTemplate || ui('提交智能体模板', 'Submit Agent Template')}</h2>
               <p className="mt-1 text-sm text-white/50">
                 {t.templateDesc || ui('把成熟的智能体配置提交给组织审核，通过后其他成员可以安装使用。', 'Submit a mature agent configuration for organization review so other members can install it.')}
               </p>

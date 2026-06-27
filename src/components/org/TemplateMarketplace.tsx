@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   AlertCircle,
+  Bot,
   CheckCircle,
   Clock,
   Download,
@@ -28,7 +29,8 @@ interface Template {
   createdAt: string;
 }
 
-type Feedback = { type: 'success' | 'error'; text: string };
+type InstalledAgent = { id: string; name: string };
+type Feedback = { type: 'success' | 'error'; text: string; agentId?: string };
 
 export function TemplateMarketplace() {
   const t = useT();
@@ -42,6 +44,27 @@ export function TemplateMarketplace() {
   const [selected, setSelected] = useState<Template | null>(null);
   const [installing, setInstalling] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [installedAgentsByTemplate, setInstalledAgentsByTemplate] = useState<Record<string, InstalledAgent>>({});
+
+  const loadInstalledAgents = useCallback(async () => {
+    try {
+      const res = await fetch('/api/agents', { credentials: 'include' });
+      const data = await res.json().catch(() => []);
+      if (!res.ok) return;
+      const agents = Array.isArray(data) ? data : data.agents || [];
+      const installed: Record<string, InstalledAgent> = {};
+      for (const agent of agents) {
+        if (!agent?.installedTemplateId || !agent?.id || agent.status === 'terminated') continue;
+        installed[String(agent.installedTemplateId)] = {
+          id: String(agent.id),
+          name: String(agent.name || ui('团队智能体', 'Team agent')),
+        };
+      }
+      setInstalledAgentsByTemplate(installed);
+    } catch {
+      // Team state is a convenience; failing to read it should not block templates.
+    }
+  }, [ui]);
 
   const loadTemplates = useCallback(async () => {
     setLoading(true);
@@ -61,18 +84,23 @@ export function TemplateMarketplace() {
 
   useEffect(() => {
     void loadTemplates();
-  }, [loadTemplates]);
+    void loadInstalledAgents();
+  }, [loadInstalledAgents, loadTemplates]);
 
   useEffect(() => {
     if (!socket) return;
     const refresh = () => void loadTemplates();
     socket.on('template:published', refresh);
     socket.on('template:status', refresh);
+    socket.on('agent:created', loadInstalledAgents);
+    socket.on('agent:removed', loadInstalledAgents);
     return () => {
       socket.off('template:published', refresh);
       socket.off('template:status', refresh);
+      socket.off('agent:created', loadInstalledAgents);
+      socket.off('agent:removed', loadInstalledAgents);
     };
-  }, [loadTemplates, socket]);
+  }, [loadInstalledAgents, loadTemplates, socket]);
 
   const categories = useMemo(() => [...new Set(templates.map(item => item.category).filter(Boolean))], [templates]);
 
@@ -89,6 +117,12 @@ export function TemplateMarketplace() {
   }, [category, search, templates]);
 
   const handleInstall = async (templateId: string) => {
+    const installed = installedAgentsByTemplate[templateId];
+    if (installed) {
+      goToTeamAgent(installed.id);
+      return;
+    }
+
     setInstalling(templateId);
     setFeedback(null);
     try {
@@ -100,18 +134,39 @@ export function TemplateMarketplace() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || ui(`模板安装失败（${res.status}）`, `Template install failed (${res.status})`));
       void loadTemplates();
-      window.dispatchEvent(new CustomEvent('lumi:agents-changed', { detail: { agent: data.agent } }));
+      void loadInstalledAgents();
+      const agentId = data.agent?.id ? String(data.agent.id) : '';
+      if (agentId) {
+        setInstalledAgentsByTemplate(prev => ({
+          ...prev,
+          [templateId]: { id: agentId, name: String(data.agent?.name || data.template?.name || selected?.name || ui('团队智能体', 'Team agent')) },
+        }));
+      }
+      window.dispatchEvent(new CustomEvent('lumi:agents-changed', { detail: { agent: data.agent, agentId } }));
       const agentName = data.agent?.name || data.template?.name || selected?.name || ui('智能体', 'Agent');
       setFeedback({
         type: 'success',
         text: data.alreadyInstalled
-          ? ui(`已安装过，正在使用现有智能体：${agentName}`, `Already installed. Using existing agent: ${agentName}`)
-          : ui(`模板已安装：${agentName}`, `Template installed: ${agentName}`),
+          ? ui(`已安装过，团队里已有：${agentName}`, `Already installed in Team: ${agentName}`)
+          : ui(`已安装到 Lumi 团队：${agentName}`, `Installed to Lumi Team: ${agentName}`),
+        agentId,
       });
     } catch (err: any) {
       setFeedback({ type: 'error', text: err.message || String(err) });
     } finally {
       setInstalling(null);
+    }
+  };
+
+  const goToTeamAgent = (agentId?: string) => {
+    if (agentId) {
+      try { window.sessionStorage.setItem('lumi:team:selected-agent-id', agentId); } catch {}
+    }
+    window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'team', agentId } }));
+    if (agentId) {
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('lumi:team:select-agent', { detail: { agentId } }));
+      }, 80);
     }
   };
 
@@ -125,9 +180,9 @@ export function TemplateMarketplace() {
                 <Package size={22} />
               </span>
               <div>
-                <h2 className="text-xl font-semibold text-white">{t.templateMarketplace || ui('模板市场', 'Template Marketplace')}</h2>
+                <h2 className="text-xl font-semibold text-white">{t.templateMarketplace || ui('智能体模板市场', 'Agent Template Marketplace')}</h2>
                 <p className="mt-1 text-sm text-white/50">
-                  {t.templateMarketplaceDesc || ui('发现、安装和复用组织内发布的智能体模板。', 'Discover, install, and reuse published organization agent templates.')}
+                  {t.templateMarketplaceDesc || ui('把组织审核通过的子 agent 安装到 Lumi 团队。', 'Install organization-approved sub-agents into Lumi Team.')}
                 </p>
               </div>
             </div>
@@ -136,12 +191,12 @@ export function TemplateMarketplace() {
               className="inline-flex items-center gap-2 rounded-lg border border-violet-400/20 bg-violet-500/15 px-3 py-2 text-sm font-medium text-violet-100 transition hover:bg-violet-500/25"
             >
               <Send size={15} />
-              {t.submitTemplate || ui('提交模板', 'Submit Template')}
+              {t.submitTemplate || ui('提交智能体模板', 'Submit Agent Template')}
             </button>
           </div>
         </section>
 
-        {feedback && <FeedbackBanner feedback={feedback} />}
+        {feedback && <FeedbackBanner feedback={feedback} goToTeamLabel={ui('去团队查看', 'View in Team')} onGoToTeam={goToTeamAgent} />}
 
         <section className="grid gap-3 md:grid-cols-[1fr_220px]">
           <div className="relative">
@@ -174,7 +229,9 @@ export function TemplateMarketplace() {
           </div>
         ) : (
           <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {filtered.map(template => (
+            {filtered.map(template => {
+              const installed = installedAgentsByTemplate[template.id];
+              return (
               <motion.button
                 key={template.id}
                 initial={{ opacity: 0, y: 8 }}
@@ -186,7 +243,9 @@ export function TemplateMarketplace() {
                   <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-sm text-white/75">
                     {template.icon || 'Bot'}
                   </span>
-                  <span className="rounded-md bg-violet-500/10 px-2 py-1 text-xs text-violet-200">v{template.version}</span>
+                  <span className={`rounded-md px-2 py-1 text-xs ${installed ? 'bg-emerald-500/10 text-emerald-200' : 'bg-violet-500/10 text-violet-200'}`}>
+                    {installed ? ui('已在团队', 'In Team') : `v${template.version}`}
+                  </span>
                 </div>
                 <h3 className="truncate text-sm font-medium text-white">{template.name}</h3>
                 <p className="mt-2 line-clamp-2 text-xs leading-5 text-white/45">{template.description}</p>
@@ -199,9 +258,16 @@ export function TemplateMarketplace() {
                     <Download size={10} />
                     {template.downloadCount || 0}
                   </span>
+                  {installed && (
+                    <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-1 text-emerald-200">
+                      <Bot size={10} />
+                      {installed.name}
+                    </span>
+                  )}
                 </div>
               </motion.button>
-            ))}
+              );
+            })}
           </section>
         )}
 
@@ -254,14 +320,27 @@ export function TemplateMarketplace() {
                   </span>
                 </div>
 
+                {(() => {
+                  const installed = installedAgentsByTemplate[selected.id];
+                  return (
                 <button
-                  onClick={() => handleInstall(selected.id)}
+                  onClick={() => installed ? goToTeamAgent(installed.id) : handleInstall(selected.id)}
                   disabled={installing === selected.id}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-violet-400/20 bg-violet-500/15 px-4 py-3 text-sm font-medium text-violet-100 transition hover:bg-violet-500/25 disabled:opacity-50"
+                  className={`inline-flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition disabled:opacity-50 ${
+                    installed
+                      ? 'border-emerald-400/20 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25'
+                      : 'border-violet-400/20 bg-violet-500/15 text-violet-100 hover:bg-violet-500/25'
+                  }`}
                 >
-                  {installing === selected.id ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-                  {installing === selected.id ? (t.installingTemplate || ui('安装中...', 'Installing...')) : (t.installTemplate || ui('安装模板', 'Install Template'))}
+                  {installing === selected.id ? <Loader2 size={16} className="animate-spin" /> : installed ? <Bot size={16} /> : <Download size={16} />}
+                  {installing === selected.id
+                    ? (t.installingTemplate || ui('安装中...', 'Installing...'))
+                    : installed
+                      ? ui('查看团队智能体', 'View Team Agent')
+                      : ui('安装为团队智能体', 'Install as Team Agent')}
                 </button>
+                  );
+                })()}
               </motion.div>
             </motion.div>
           )}
@@ -271,15 +350,26 @@ export function TemplateMarketplace() {
   );
 }
 
-function FeedbackBanner({ feedback }: { feedback: Feedback }) {
+function FeedbackBanner({ feedback, goToTeamLabel, onGoToTeam }: { feedback: Feedback; goToTeamLabel: string; onGoToTeam: (agentId?: string) => void }) {
   return (
-    <div className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm ${
+    <div className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm ${
       feedback.type === 'success'
         ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
         : 'border-red-500/20 bg-red-500/10 text-red-200'
     }`}>
-      {feedback.type === 'success' ? <CheckCircle size={16} className="mt-0.5 shrink-0" /> : <AlertCircle size={16} className="mt-0.5 shrink-0" />}
-      <span>{feedback.text}</span>
+      <span className="flex min-w-0 items-start gap-2">
+        {feedback.type === 'success' ? <CheckCircle size={16} className="mt-0.5 shrink-0" /> : <AlertCircle size={16} className="mt-0.5 shrink-0" />}
+        <span>{feedback.text}</span>
+      </span>
+      {feedback.type === 'success' && (
+        <button
+          onClick={() => onGoToTeam(feedback.agentId)}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1.5 text-xs font-medium text-emerald-100 transition hover:bg-emerald-400/20"
+        >
+          <Bot size={13} />
+          {goToTeamLabel}
+        </button>
+      )}
     </div>
   );
 }

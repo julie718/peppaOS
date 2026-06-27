@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Users, Bot, ExternalLink, Trash2, Power, PowerOff, Loader2, RefreshCw, CheckCircle2, AlertTriangle, Clock3, Info, X, ShieldCheck, Terminal, Tags, Activity } from 'lucide-react';
+import { Users, Bot, ExternalLink, Trash2, Power, PowerOff, Loader2, RefreshCw, CheckCircle2, AlertTriangle, Clock3, Info, X, ShieldCheck, Terminal, Tags, Activity, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSocket } from '@/hooks/useSocket';
 import { apiFetch } from '@/services/apiClient';
+import { useApp } from '../contexts/AppContext';
 
 type ExternalCatalogSkill = {
   id: string;
@@ -27,6 +28,7 @@ type ExternalCatalogSkill = {
 
 export function TeamHub({ t }: { t?: any }) {
   const socket = useSocket();
+  const { workDomain, switchDomain } = useApp();
   const [agents, setAgents] = useState<any[]>([]);
   const [externalCatalog, setExternalCatalog] = useState<ExternalCatalogSkill[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,6 +42,7 @@ export function TeamHub({ t }: { t?: any }) {
   const [connecting, setConnecting] = useState(false);
   const [addingExternalSkillId, setAddingExternalSkillId] = useState<string | null>(null);
   const [testingIds, setTestingIds] = useState<string[]>([]);
+  const [submittingTemplateIds, setSubmittingTemplateIds] = useState<string[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const loadAgentsFailedText = t?.loadAgentsFailed || 'Failed to load agents';
   const isZh = t?.langCode !== 'en';
@@ -93,10 +96,40 @@ export function TeamHub({ t }: { t?: any }) {
   }, [socket, fetchAgents, fetchExternalCatalog]);
 
   useEffect(() => {
-    const handleAgentsChanged = () => { fetchAgents(); fetchExternalCatalog(); };
+    const handleAgentsChanged = (event: Event) => {
+      const detail = (event as CustomEvent).detail || {};
+      if (detail.agentId) setSelectedAgentId(String(detail.agentId));
+      if (detail.agent?.id) setSelectedAgentId(String(detail.agent.id));
+      fetchAgents();
+      fetchExternalCatalog();
+    };
     window.addEventListener('lumi:agents-changed', handleAgentsChanged);
     return () => window.removeEventListener('lumi:agents-changed', handleAgentsChanged);
   }, [fetchAgents, fetchExternalCatalog]);
+
+  useEffect(() => {
+    const selectFromStorage = () => {
+      try {
+        const pending = window.sessionStorage.getItem('lumi:team:selected-agent-id');
+        if (pending) {
+          setSelectedAgentId(pending);
+          window.sessionStorage.removeItem('lumi:team:selected-agent-id');
+        }
+      } catch {}
+    };
+    const handleSelect = (event: Event) => {
+      const agentId = (event as CustomEvent).detail?.agentId;
+      if (agentId) setSelectedAgentId(String(agentId));
+      fetchAgents();
+    };
+    selectFromStorage();
+    window.addEventListener('lumi:team:select-agent', handleSelect);
+    window.addEventListener('focus', selectFromStorage);
+    return () => {
+      window.removeEventListener('lumi:team:select-agent', handleSelect);
+      window.removeEventListener('focus', selectFromStorage);
+    };
+  }, [fetchAgents]);
 
   const handleConnectExternal = async () => {
     if (!connectName.trim() || !connectCommand.trim()) return;
@@ -191,12 +224,98 @@ export function TeamHub({ t }: { t?: any }) {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const buildOrgTemplateConfig = (agent: any) => {
+    const config = parseConfig(agent);
+    const skillTags = listFrom(agent.skillTags).length > 0 ? listFrom(agent.skillTags) : listFrom(config.skillTags);
+    const knowledgeDomains = listFrom(agent.knowledgeDomains).length > 0 ? listFrom(agent.knowledgeDomains) : listFrom(config.knowledgeDomains);
+    const description = agentDescription(agent);
+    const templateConfig: Record<string, any> = {
+      ...config,
+      name: agent.name,
+      description,
+      category: agent.category || config.category || 'general',
+      personalityId: agent.personalityId || config.personalityId || 'lumi',
+      modelPreference: agent.modelPreference || config.modelPreference || '',
+      memoryScope: agent.memoryScope || config.memoryScope || 'shared',
+      autonomyLevel: agent.autonomyLevel || config.autonomyLevel || 'reactive',
+      executionMode: agent.executionMode || config.executionMode || '',
+      territory: agent.territory || config.territory || 'open',
+      skillTags,
+      knowledgeDomains,
+      allowCrossPollination: agent.allowCrossPollination ?? config.allowCrossPollination ?? true,
+      initialPrompt: config.initialPrompt || config.systemPrompt || description,
+      runtime: 'internal',
+    };
+    delete templateConfig.domain;
+    delete templateConfig.orgId;
+    delete templateConfig.installedTemplateId;
+    delete templateConfig.installedTemplateVersion;
+    delete templateConfig.externalCommand;
+    delete templateConfig.runtimeConfig;
+    return templateConfig;
+  };
+
+  const handleSubmitAgentTemplate = async (agent: any) => {
+    if (agent.runtime === 'external') {
+      toast.error(ui('外部 CLI 桥接 agent 不直接提交为组织模板，请先做成内部 agent 配置。', 'External CLI bridge agents cannot be submitted as organization templates directly.'));
+      return;
+    }
+    if (agent.installedTemplateId) {
+      toast.info(ui('这个 agent 已经来自组织模板，不需要重复提交。', 'This agent already came from an organization template.'));
+      return;
+    }
+
+    setSubmittingTemplateIds(prev => prev.includes(agent.id) ? prev : [...prev, agent.id]);
+    try {
+      if (workDomain !== 'work') {
+        const switched = await switchDomain('work');
+        if (!switched.success) {
+          throw new Error(switched.message || ui('请先加入组织或切换到工作域，再提交审核。', 'Join an organization or switch to Work before submitting.'));
+        }
+      }
+
+      const description = agentDescription(agent);
+      const templateRes = await apiFetch('/api/org/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: agent.name || ui('未命名团队智能体', 'Untitled team agent'),
+          description,
+          category: agent.category || 'general',
+          icon: 'Bot',
+          config: buildOrgTemplateConfig(agent),
+        }),
+      });
+      const template = await templateRes.json().catch(() => ({}));
+      if (!templateRes.ok) throw new Error(template.error || ui(`智能体模板创建失败（${templateRes.status}）`, `Agent template create failed (${templateRes.status})`));
+      const templateId = template.id || template.template?.id;
+      if (!templateId) throw new Error(ui('智能体模板创建成功，但没有返回模板 ID。', 'Agent template created without a template ID.'));
+
+      const submitRes = await apiFetch(`/api/org/templates/${templateId}/submit`, { method: 'POST' });
+      const submitted = await submitRes.json().catch(() => ({}));
+      if (!submitRes.ok) throw new Error(submitted.error || ui(`提交审核失败（${submitRes.status}）`, `Submit for review failed (${submitRes.status})`));
+
+      toast.success(ui('已提交到组织智能体审核队列', 'Submitted to organization agent review'));
+      window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'org', sub: 'review' } }));
+    } catch (err: any) {
+      toast.error(err.message || ui('提交审核失败', 'Submit for review failed'));
+    } finally {
+      setSubmittingTemplateIds(prev => prev.filter(id => id !== agent.id));
+    }
+  };
+
+  const handleDelete = async (id: string, name?: string) => {
+    const ok = window.confirm(ui(
+      `确认移除「${name || id}」？它的记忆、会话记录也会一起删除。`,
+      `Remove "${name || id}"? Its memories and conversations will also be deleted.`,
+    ));
+    if (!ok) return;
     try {
       const res = await fetch(`/api/agents/${id}`, { method: 'DELETE', credentials: 'include' });
       if (res.ok) {
         setAgents(prev => prev.filter(a => a.id !== id));
         setSelectedAgentId(current => current === id ? null : current);
+        window.dispatchEvent(new CustomEvent('lumi:agents-changed', { detail: { removedAgentId: id } }));
         toast.success(t?.agentRemoved || 'Agent removed');
       } else {
         const err = await res.json().catch(() => ({}));
@@ -255,14 +374,22 @@ export function TeamHub({ t }: { t?: any }) {
     return date.toLocaleString(isZh ? 'zh-CN' : 'en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
   };
 
-  const parseConfig = (agent: any) => {
+  const parseObjectValue = (value: unknown) => {
+    if (!value) return {};
+    if (typeof value === 'object') return value as Record<string, any>;
+    if (typeof value !== 'string') return {};
     try {
-      const parsed = typeof agent?.config === 'string' ? JSON.parse(agent.config) : agent?.config;
+      const parsed = JSON.parse(value);
       return parsed && typeof parsed === 'object' ? parsed : {};
     } catch {
       return {};
     }
   };
+
+  const parseConfig = (agent: any) => ({
+    ...parseObjectValue(agent?.data),
+    ...parseObjectValue(agent?.config),
+  });
 
   const parseRuntimeConfig = (agent: any) => {
     try {
@@ -530,7 +657,7 @@ export function TeamHub({ t }: { t?: any }) {
                             {agent.isFrozen ? <Power size={14} /> : <PowerOff size={14} />}
                           </button>
                           <button
-                            onClick={(event) => { event.stopPropagation(); handleDelete(agent.id); }}
+                            onClick={(event) => { event.stopPropagation(); void handleDelete(agent.id, agent.name); }}
                             className="rounded-lg p-1.5 text-white/30 transition-all hover:bg-red-500/10 hover:text-red-400"
                             title={t?.remove || 'Remove'}
                           >
@@ -552,7 +679,21 @@ export function TeamHub({ t }: { t?: any }) {
                           ))}
                         </div>
                       )}
-                      <div className="text-[11px] font-bold text-white/28">{ui('点击查看介绍与调度信息', 'Click for profile and routing details')}</div>
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.06] pt-3">
+                        <span className="text-[11px] font-bold text-white/28">
+                          {agent.installedTemplateId ? ui('来自组织模板', 'From org template') : ui('可提交为组织模板', 'Can submit as org template')}
+                        </span>
+                        {!agent.installedTemplateId && (
+                          <button
+                            onClick={(event) => { event.stopPropagation(); void handleSubmitAgentTemplate(agent); }}
+                            disabled={submittingTemplateIds.includes(agent.id)}
+                            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-violet-300/15 bg-violet-500/10 px-3 text-xs font-bold text-violet-100/80 transition hover:bg-violet-500/18 disabled:opacity-45"
+                          >
+                            {submittingTemplateIds.includes(agent.id) ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+                            {ui('提交审核', 'Submit')}
+                          </button>
+                        )}
+                      </div>
                     </motion.div>
                   ))}
                 </AnimatePresence>
@@ -610,7 +751,7 @@ export function TeamHub({ t }: { t?: any }) {
                             <RefreshCw size={14} className={testingIds.includes(agent.id) ? 'animate-spin' : ''} />
                           </button>
                           <button
-                            onClick={(event) => { event.stopPropagation(); handleDelete(agent.id); }}
+                            onClick={(event) => { event.stopPropagation(); void handleDelete(agent.id, agent.name); }}
                             className="rounded-lg p-1.5 text-white/30 transition-all hover:bg-red-500/10 hover:text-red-400"
                             title={t?.remove || 'Remove'}
                           >
@@ -711,6 +852,11 @@ export function TeamHub({ t }: { t?: any }) {
                             <span className="rounded-full border border-white/[0.08] bg-white/[0.04] px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-white/45">
                               {isExternal ? ui('外部', 'External') : ui('内部', 'Internal')}
                             </span>
+                            {selectedAgent.installedTemplateId && (
+                              <span className="rounded-full border border-emerald-300/15 bg-emerald-500/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-emerald-200/70">
+                                {ui('组织安装', 'Org installed')}
+                              </span>
+                            )}
                             <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-bold ${meta.className}`}>
                               {meta.icon}
                               {meta.label}
@@ -823,6 +969,16 @@ export function TeamHub({ t }: { t?: any }) {
                             {ui('测试连接', 'Test Connection')}
                           </button>
                         )}
+                        {!isExternal && !selectedAgent.installedTemplateId && (
+                          <button
+                            onClick={() => void handleSubmitAgentTemplate(selectedAgent)}
+                            disabled={submittingTemplateIds.includes(selectedAgent.id)}
+                            className="lumi-button h-9 border-violet-400/15 bg-violet-500/10 px-3 text-xs text-violet-100/80 hover:bg-violet-500/15 disabled:opacity-45"
+                          >
+                            {submittingTemplateIds.includes(selectedAgent.id) ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                            {ui('提交到组织审核', 'Submit to Org Review')}
+                          </button>
+                        )}
                         <button
                           onClick={() => handleToggle(selectedAgent)}
                           className="lumi-button h-9 px-3 text-xs"
@@ -831,7 +987,7 @@ export function TeamHub({ t }: { t?: any }) {
                           {selectedAgent.isFrozen ? ui('启用', 'Activate') : ui('暂停', 'Pause')}
                         </button>
                         <button
-                          onClick={() => handleDelete(selectedAgent.id)}
+                          onClick={() => void handleDelete(selectedAgent.id, selectedAgent.name)}
                           className="lumi-button h-9 border-red-400/15 bg-red-500/10 px-3 text-xs text-red-200/70 hover:bg-red-500/15"
                         >
                           <Trash2 size={13} />
