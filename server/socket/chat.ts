@@ -27,7 +27,8 @@ import { processInput, handleLLMFailure, extractSentiment, CognitiveContext } fr
 import { matchQuickCommand } from "../cognition/quick_commands";
 import { checkLLMAccess, recordUsage, estimateTokens } from "../subscription/proxy";
 import { recordTokenUsage } from "../llm/token_tracker";
-import { runOrchestratedTask, shouldDistillSkill, buildSkillDescription } from "../agents/orchestrator";
+import { runOrchestratedTask, shouldDistillSkill, buildSkillDescription, classifyComplexity } from "../agents/orchestrator";
+import { buildDelegationAck, shouldDelegateWorkInBackground } from "../agents/background_delegation";
 import { runNLChainer, shouldChainTask } from "../agents/nl_chainer";
 import { autoInstallForTask } from "../agents/auto_installer";
 import { adjustMusicPlayback, getMusicFailureMessage, isMusicAdjustmentRequest, isMusicPlaybackRequest, searchAndPlay } from "../music/search_play";
@@ -780,6 +781,26 @@ export function registerChatHandler(
         shouldChainTask(text) &&
         workSurfaceRoute.artifactFirst &&
         !workSurfaceRoute.directDesktop;
+      const availableWorkerAgents = (() => {
+        try {
+          return (readDB().agents || []).filter((agent: any) => (
+            agent
+            && agent.id
+            && agent.id !== conversationAgentId
+            && agent.status !== 'offline'
+            && agent.status !== 'terminated'
+          ));
+        } catch {
+          return [];
+        }
+      })();
+      const backgroundComplexity = classifyComplexity(text, {
+        userId: uid,
+        personalityId,
+        domain: resolvedDomain,
+        orgId: resolvedOrgId,
+        desktopRelay,
+      });
 
       if (cognition.directToolExecuted && cognition.responseText) {
         // Path A: Lumi handled this directly — no LLM needed
@@ -806,6 +827,187 @@ export function registerChatHandler(
           console.warn('[Music Intent] Failed:', musicErr.message);
           responseText = getMusicFailureMessage(musicErr?.message);
           socket.emit('music:error', { message: responseText });
+        }
+      }
+
+      if (!responseText) {
+        const delegationDecision = shouldDelegateWorkInBackground({
+          text,
+          source: eventSource,
+          category: cognition.intent.category,
+          complexity: backgroundComplexity,
+          allowToolUse: allowToolUseForTurn,
+          clientActionOnly: clientActionOnlyTurn,
+          selfRepair: selfRepairTurn,
+          sanctuary: isSanctuary,
+          directDesktop: workSurfaceRoute.directDesktop,
+          prefersSequentialWorkflow,
+          availableAgentCount: availableWorkerAgents.length,
+        });
+
+        if (delegationDecision.shouldDelegate) {
+          const backgroundTaskId = `bg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+          const workerNames = availableWorkerAgents.map((agent: any) => String(agent.name || agent.id)).slice(0, 3);
+          responseText = buildDelegationAck(workerNames, backgroundTaskId);
+          llmWasCalled = false;
+
+          emitAgent("agent:delegation", {
+            taskId: backgroundTaskId,
+            reason: delegationDecision.reason,
+            complexity: backgroundComplexity,
+            workers: availableWorkerAgents.slice(0, 6).map((agent: any) => ({
+              id: agent.id,
+              name: agent.name,
+              category: agent.category,
+            })),
+          });
+          pushNotification(uid, {
+            type: 'background_delegation',
+            title: 'Lumi 后台子 agent',
+            message: `已将任务交给后台子 agent：${text.slice(0, 60)}`,
+          });
+
+          setTimeout(() => {
+            const backgroundToolRecords: ToolExecutionRecord[] = [];
+            const emitBackground = (event: string, payload: Record<string, any> = {}) => {
+              socket.emit(event, {
+                ...payload,
+                source: 'background_delegation',
+                requestId: backgroundTaskId,
+                taskId: backgroundTaskId,
+              });
+            };
+            const persistBackgroundResult = (content: string, toolCalls?: ToolExecutionRecord[]) => {
+              try {
+                if (conversationId) {
+                  addMessage({
+                    userId: uid,
+                    agentId: conversationAgentId,
+                    conversationId,
+                    role: 'assistant',
+                    content,
+                    personality: personality.id,
+                    domain: resolvedDomain,
+                    orgId: resolvedOrgId,
+                    toolCalls: toolCalls?.length ? toolCalls : undefined,
+                  });
+                  socket.emit('chat:conversation_updated', { conversationId, agentId: conversationAgentId, source: 'background_delegation' });
+                }
+                const db = readDB();
+                db.interactions.push({
+                  id: `bg-${interactionId}`,
+                  userId: uid,
+                  agentId: agentId || '',
+                  conversationId: conversationId || '',
+                  content: `Background delegated task: ${storedUserContent}`,
+                  response: content,
+                  role: 'agent',
+                  personality: personality.id,
+                  timestamp: new Date().toISOString(),
+                  mode: 'background_delegation',
+                  cognitiveIntent: cognition.intent.category,
+                  llmWasCalled: true,
+                  domain: resolvedDomain,
+                  orgId: resolvedOrgId,
+                } as any);
+                writeDB(db);
+              } catch (persistErr: any) {
+                console.warn('[BackgroundDelegation] Persist failed:', persistErr?.message || persistErr);
+              }
+            };
+
+            (async () => {
+              try {
+                emitBackground("agent:status", {
+                  status: "thinking",
+                  agentName: "Lumi Orchestrator",
+                  phase: 'background',
+                  detail: `后台子 agent 正在处理 ${backgroundTaskId}`,
+                });
+                const orchResult = await runOrchestratedTask(
+                  text,
+                  { userId: uid, personalityId, domain: resolvedDomain, orgId: resolvedOrgId, desktopRelay },
+                  { provider: activeProvider as any, model: activeModel },
+                  llmGetters,
+                  (message) => emitBackground("agent:chunk", { text: message, agentName: "Lumi Orchestrator" }),
+                  (record, meta) => {
+                    backgroundToolRecords.push({
+                      id: record.id,
+                      name: record.name,
+                      arguments: record.arguments || {},
+                      result: record.result || '',
+                      error: record.error,
+                    });
+                    const payload: Record<string, any> = {
+                      correlationId: record.id,
+                      toolCallId: record.id,
+                      name: record.name,
+                      arguments: record.arguments,
+                      args: record.arguments,
+                      subTaskId: meta.subTaskId,
+                      workerAgentId: meta.agentId,
+                      workerAgentName: meta.agentName,
+                    };
+                    if (record.result !== undefined) payload.result = formatToolResultForUi(record.result);
+                    if (record.error !== undefined) payload.error = record.error;
+                    emitBackground("agent:tool_call", payload);
+                    emitBackground("agent:tool", payload);
+                  },
+                );
+
+                if (!orchResult) {
+                  throw new Error('No worker agent accepted the delegated task.');
+                }
+
+                let finalText = orchResult.responseText || '后台子 agent 已完成任务，但没有返回详细文本。';
+                const guarded = guardCompletionClaims({
+                  task: text,
+                  response: finalText,
+                  toolCalls: backgroundToolRecords,
+                  source: 'background_delegation',
+                });
+                if (guarded.blocked) finalText = guarded.text;
+
+                const completionText = `后台子 agent 完成了：${text.slice(0, 80)}\n\n${finalText}`;
+                persistBackgroundResult(completionText, backgroundToolRecords);
+                emitBackground("agent:response", { text: completionText, agentName: personality.name });
+                emitBackground("agent:proactive", {
+                  type: 'background_result',
+                  message: completionText.slice(0, 1200),
+                  agentName: personality.name,
+                  timestamp: new Date().toISOString(),
+                });
+                emitBackground("agent:status", { status: "idle", agentName: personality.name, phase: 'background' });
+                pushNotification(uid, {
+                  type: 'background_result',
+                  title: '后台子 agent 完成',
+                  message: completionText.slice(0, 180),
+                });
+
+                if (shouldDistillSkill(text) && orchResult.workflowResult.totalAgentsUsed >= 2) {
+                  const skillDesc = buildSkillDescription(text, orchResult.workflowResult);
+                  emitBackground("agent:proactive", {
+                    type: 'distill_hint',
+                    message: '这类后台多 agent 工作可以沉淀成自动技能，需要我继续做技能化吗？',
+                    skillDescription: skillDesc,
+                    timestamp: new Date().toISOString(),
+                  });
+                }
+              } catch (bgErr: any) {
+                const errorText = `后台子 agent 处理受阻：${bgErr?.message || String(bgErr)}`;
+                persistBackgroundResult(errorText, backgroundToolRecords);
+                emitBackground("agent:response", { text: errorText, agentName: personality.name });
+                emitBackground("agent:status", { status: "idle", agentName: personality.name, phase: 'background' });
+                pushNotification(uid, {
+                  type: 'background_error',
+                  title: '后台子 agent 受阻',
+                  message: errorText.slice(0, 180),
+                });
+              }
+            })().catch((err) => {
+              console.error('[BackgroundDelegation] Unhandled error:', err);
+            });
+          }, 30);
         }
       }
 
