@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import fs from 'fs';
+import path from 'path';
 import { makeApp } from './helpers';
 import { ToolRegistry } from '../server/tools/registry';
 import { getWebLoginSitePreset, listWebLoginSitePresets } from '../server/web_login/legal_presets';
@@ -40,6 +42,9 @@ describe('semi-automated legal workflows', () => {
     });
 
     expect(output).toContain('Sales Contract Case');
+    expect(output).toMatch(/底层三段论|大前提/);
+    expect(output).toMatch(/小前提/);
+    expect(output).toMatch(/涵摄|结论/);
     expect(output).toMatch(/起诉状|要素式诉状|诉讼文书包/);
     expect(output).toMatch(/证据目录|证明目的/);
     expect(output).toMatch(/律师|人工|确认/);
@@ -59,6 +64,7 @@ describe('semi-automated legal workflows', () => {
     });
 
     expect(output).toContain('Defense Contract Case');
+    expect(output).toMatch(/底层三段论|大前提/);
     expect(output).toMatch(/答辩状|质证意见/);
     expect(output).toMatch(/程序抗辩|时效|主体资格/);
     expect(output).toMatch(/提交|签字|盖章|发送/);
@@ -96,6 +102,7 @@ describe('semi-automated legal workflows', () => {
 
     expect(output).toContain('web_login_profile_save_from_preset');
     expect(output).toContain('web_login_run');
+    expect(output).toMatch(/三段论检索框架|大前提/);
     expect(output).toContain('"profileId":"court-online-service"');
     expect(output).toContain('people-court-case-library');
     expect(output).toContain('china-judgments-online');
@@ -105,6 +112,15 @@ describe('semi-automated legal workflows', () => {
     expect(output).toContain('national-enterprise-credit');
     expect(output).toContain('court-online-service');
     expect(output).toMatch(/来源登记表|来源.*登记/);
+  });
+
+  it('keeps triad reasoning as underlying logic rather than a standalone UI tab', () => {
+    const legalHubSource = fs.readFileSync(path.join(process.cwd(), 'src/components/org/LegalHub.tsx'), 'utf-8');
+
+    expect(legalHubSource).not.toContain("id: 'triad'");
+    expect(legalHubSource).not.toContain('LegalTriadView');
+    expect(legalHubSource).toContain('legal_generate_litigation_packet');
+    expect(legalHubSource).toContain('legal_external_research_plan');
   });
 });
 

@@ -24,7 +24,7 @@ import {
   type LegalCaseStage,
 } from '../../lib/legalCaseStore';
 
-type LegalView = 'workspace' | 'packet' | 'triad' | 'external-research' | 'bid' | 'case-search' | 'asset-trace' | 'contract-review' | 'strategy' | 'verify' | 'import';
+type LegalView = 'workspace' | 'packet' | 'external-research' | 'bid' | 'case-search' | 'asset-trace' | 'contract-review' | 'strategy' | 'verify' | 'import';
 
 interface NavItem {
   id: LegalView;
@@ -113,7 +113,6 @@ export function LegalHub() {
   const navItems: NavItem[] = useMemo(() => [
     { id: 'workspace', label: ui('案件工作台', 'Case Workspace'), icon: <FolderOpen size={16} /> },
     { id: 'packet', label: ui('文书包', 'Packet'), icon: <ClipboardList size={16} /> },
-    { id: 'triad', label: ui('三段论', 'Triad'), icon: <Gavel size={16} /> },
     { id: 'external-research', label: ui('外部检索', 'Research'), icon: <Search size={16} /> },
     { id: 'bid', label: t.legalBidWorkbench, icon: <FileText size={16} /> },
     { id: 'case-search', label: t.legalCaseSearch, icon: <Search size={16} /> },
@@ -319,9 +318,8 @@ export function LegalHub() {
             refreshing={orgCasesLoading}
             ui={ui}
           />
-        );
+      );
       case 'packet': return <LegalPacketView caseFile={activeCase} onAddMaterial={addMaterial} />;
-      case 'triad': return <LegalTriadView caseFile={activeCase} onAddMaterial={addMaterial} />;
       case 'external-research': return <LegalExternalResearchView caseFile={activeCase} onAddMaterial={addMaterial} />;
       case 'bid': return <LegalBidWorkbench onSwitchView={setView} />;
       case 'case-search': return <LegalCaseSearch />;
@@ -974,87 +972,6 @@ function LegalPacketView({
       )}
       result={result}
       emptyText={ui('半自动文书包会显示在这里。', 'The packet will appear here.')}
-      archiveLabel={ui('归档到案件', 'Archive to Case')}
-      onArchive={result ? archive : undefined}
-    />
-  );
-}
-
-function LegalTriadView({
-  caseFile,
-  onAddMaterial,
-}: {
-  caseFile?: LegalCaseFile | null;
-  onAddMaterial?: (type: LegalCaseMaterial['type'], title: string, content?: string, source?: LegalCaseMaterial['source']) => void;
-}) {
-  const t = useT();
-  const isZh = t.langCode !== 'en';
-  const ui = (zh: string, en: string) => (isZh ? zh : en);
-  const defaultFacts = useMemo(() => legalCaseDraftContext(caseFile), [caseFile]);
-  const [issue, setIssue] = useState(caseFile?.cause || '');
-  const [facts, setFacts] = useState(defaultFacts);
-  const [evidence, setEvidence] = useState('');
-  const [result, setResult] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    setIssue(caseFile?.cause || '');
-    setFacts(defaultFacts);
-    setResult('');
-  }, [caseFile?.cause, defaultFacts]);
-
-  const analyze = async () => {
-    if (!facts.trim() || loading) return;
-    setLoading(true);
-    setResult('');
-    try {
-      const message = [
-        '请使用 legal_triad_analysis 工具进行法律三段论分析。',
-        `争议焦点/法律问题：${issue || caseFile?.cause || '待确认'}`,
-        `我方身份：${caseFile?.stage || '待确认'}`,
-        `案件事实：\n${facts}`,
-        `证据材料：\n${evidence}`,
-      ].join('\n\n');
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, stream: false }),
-        credentials: 'include',
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || ui('三段论分析失败', 'Triad analysis failed'));
-      setResult(data.text || data.response || data.reply || data.message || JSON.stringify(data));
-    } catch (err: any) {
-      setResult(`Error: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const archive = () => {
-    if (!result || !onAddMaterial) return;
-    onAddMaterial('note', `${caseFile?.title || caseFile?.caseNumber || ui('案件', 'Case')} 三段论分析`, result, 'tool');
-  };
-
-  return (
-    <LegalTwoPaneTool
-      icon={<Gavel size={22} />}
-      accent="emerald"
-      title={ui('三段论法律分析', 'Legal Triad Analysis')}
-      desc={ui('按大前提、小前提、结论整理法律适用，并保留法条、类案和证据复核点。', 'Structure legal application into rule, facts/evidence, and conclusion with review checkpoints.')}
-      left={(
-        <>
-          <input value={issue} onChange={event => setIssue(event.target.value)} placeholder={ui('争议焦点或法律问题', 'Issue or legal question')} className="lumi-field h-10 w-full rounded-lg" />
-          <textarea value={facts} onChange={event => setFacts(event.target.value)} placeholder={ui('案件事实...', 'Facts...')} className="mt-3 min-h-[300px] w-full resize-none rounded-lg border border-white/10 bg-black/20 px-3 py-3 text-sm leading-6 text-white outline-none placeholder:text-white/35 focus:border-emerald-400/35" />
-          <textarea value={evidence} onChange={event => setEvidence(event.target.value)} placeholder={ui('证据材料、质证点、待补材料...', 'Evidence, objections, gaps...')} className="mt-3 min-h-[120px] w-full resize-none rounded-lg border border-white/10 bg-black/20 px-3 py-3 text-sm leading-6 text-white outline-none placeholder:text-white/35 focus:border-emerald-400/35" />
-          <button onClick={analyze} disabled={loading || !facts.trim()} className="mt-3 inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-400/20 bg-emerald-500/15 px-4 py-2.5 text-sm font-medium text-emerald-100 transition hover:bg-emerald-500/25 disabled:opacity-50">
-            {loading ? <Loader2 size={16} className="animate-spin" /> : <Gavel size={16} />}
-            {loading ? ui('分析中...', 'Analyzing...') : ui('生成三段论', 'Generate Triad')}
-          </button>
-        </>
-      )}
-      result={result}
-      emptyText={ui('三段论分析结果会显示在这里。', 'Triad analysis will appear here.')}
       archiveLabel={ui('归档到案件', 'Archive to Case')}
       onArchive={result ? archive : undefined}
     />
