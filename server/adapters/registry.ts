@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { getGateConfig } from '../autonomy/safety_gate';
 import { mcpManager } from '../mcp/client';
 
@@ -109,6 +111,7 @@ export function getAdapterRegistry(options: AdapterRegistryOptions = {}): Adapte
   const state = options.clientState || null;
   const gate = getGateConfig();
   const skillStats = getSkillStats();
+  const externalToolbox = getExternalToolboxStatus();
   const stateAgeSeconds = getStateAgeSeconds(state);
   const hasState = Boolean(state);
   const staleState = stateAgeSeconds != null && stateAgeSeconds > 120;
@@ -361,11 +364,26 @@ export function getAdapterRegistry(options: AdapterRegistryOptions = {}): Adapte
       label: 'CAD Drafting and Floorplan Handoff',
       category: 'cad_bim',
       status: 'draft_only',
-      actions: ['floorplan_extract_geometry', 'ocr_image_file', 'cad_generate_dxf'],
+      actions: ['floorplan_extract_geometry', 'ocr_image_file', 'cad_generate_dxf', 'mcp_cad-drafting_cad_renovation_folder_workflow'],
       surfaces: ['runtime logs', 'CAD handoff files', 'desktop CAD apps'],
       requiresConfirmation: true,
       safety: 'Generated DXF/IFC/BIM drafts are not production drawings until dimensions and standards are reviewed.',
       notes: 'Current stable path is file generation plus optional confirmed app opening. Direct AutoCAD/Revit UI control is possible later through computer-use and adapters.',
+    },
+    {
+      id: 'cad_bim.local_toolchain',
+      label: 'Local CAD and Renovation Software Toolbox',
+      category: 'cad_bim',
+      status: externalToolbox.hasCadInstallers ? 'available' : 'requires_setup',
+      actions: ['mcp_cad-drafting_cad_renovation_folder_workflow', 'cad_generate_dxf', 'floorplan_extract_geometry', 'desktop_open', 'external_app_list_adapters', 'computer_use'],
+      surfaces: ['LibreCAD', 'Sweet Home 3D', 'FreeCAD', 'Blender', externalToolbox.installersDir],
+      requiresConfirmation: true,
+      setup: externalToolbox.hasCadInstallers
+        ? [`Install the selected package from ${externalToolbox.installersDir} before Lumi claims direct app control.`, 'Prefer explicit MCP/plugin adapters over raw mouse control.']
+        : [`Download or install verified CAD/interior-design tools into ${externalToolbox.installersDir}.`],
+      diagnostics: externalToolbox.diagnostics,
+      safety: 'Installers and source candidates are staged only. Opening, installing, plugin activation, and UI control all need user confirmation.',
+      notes: 'Current staged toolchain covers 2D DXF editing, interior layout, scriptable CAD/BIM, and 3D rendering handoff.',
     },
     {
       id: 'cad_bim.ifc_revit',
@@ -388,6 +406,22 @@ export function getAdapterRegistry(options: AdapterRegistryOptions = {}): Adapte
       requiresConfirmation: true,
       setup: skillStats.connected > 0 ? [] : ['Connect a specific AI app, MCP server, browser account, or file workflow before delegating real work.'],
       notes: 'Lumi can research and draft adapters. Installing or running third-party code requires confirmation.',
+    },
+    {
+      id: 'ai.nano_banana',
+      label: 'Nano Banana / Gemini Image Web Adapter',
+      category: 'ai',
+      status: 'requires_setup',
+      actions: ['browser_open_task', 'web_login_profile_save_from_preset', 'web_login_run', 'capability_research', 'generate_image'],
+      surfaces: ['Google AI Studio', 'Gemini app', 'Gemini API image generation docs'],
+      requiresConfirmation: true,
+      setup: ['Use official Google AI Studio or Gemini pages.', 'Configure a browser login profile or Gemini API key before real API work.', 'Do not install unofficial Nano Banana wrapper clients without review.'],
+      diagnostics: [
+        `catalog=${externalToolbox.catalogExists ? 'present' : 'missing'}`,
+        'localInstaller=not_applicable',
+      ],
+      safety: 'Image generation can create or edit visual assets, but account actions, paid API use, uploads of private client material, and publishing need confirmation.',
+      notes: 'Nano Banana is best treated as a web/API capability for room restyling, material previews, and image-editing workflows, not as a local CAD program.',
     },
     {
       id: 'collaboration.lap',
@@ -466,6 +500,63 @@ function getStateAgeSeconds(state: Record<string, any> | null): number | null {
   const updatedAt = Number(state?.updatedAt || 0);
   if (!updatedAt) return null;
   return Math.max(0, Math.round((Date.now() - updatedAt) / 1000));
+}
+
+interface ExternalToolboxStatus {
+  root: string;
+  installersDir: string;
+  catalogExists: boolean;
+  hasCadInstallers: boolean;
+  diagnostics: string[];
+}
+
+function getExternalToolboxStatus(): ExternalToolboxStatus {
+  const root = process.env.LUMI_EXTERNAL_TOOLS_DIR || (process.platform === 'win32' ? 'D:\\LumiTools' : path.join(process.cwd(), 'external-tools'));
+  const installersDir = path.join(root, 'installers');
+  const catalogPath = path.join(root, 'catalog', 'lumi_external_tools_catalog.md');
+  const hasLibreCad = hasFileMatching(installersDir, ['librecad']);
+  const hasSweetHome = hasFileMatching(installersDir, ['sweet home 3d']);
+  const hasSweetHomeMcp = hasFileMatching(installersDir, ['sh3d-mcp-plugin']);
+  const hasFreeCad = hasFileMatching(installersDir, ['freecad']);
+  const hasBlender = hasFileMatching(installersDir, ['blender']);
+  return {
+    root,
+    installersDir,
+    catalogExists: safeExists(catalogPath),
+    hasCadInstallers: hasLibreCad || hasSweetHome || hasSweetHomeMcp || hasFreeCad || hasBlender,
+    diagnostics: [
+      `toolboxRoot=${root}`,
+      `catalog=${safeExists(catalogPath) ? 'present' : 'missing'}`,
+      `LibreCAD=${hasLibreCad ? 'staged' : 'missing'}`,
+      `SweetHome3D=${hasSweetHome ? 'staged' : 'missing'}`,
+      `SweetHome3D_MCP=${hasSweetHomeMcp ? 'staged' : 'missing'}`,
+      `FreeCAD=${hasFreeCad ? 'staged' : 'missing'}`,
+      `Blender=${hasBlender ? 'staged' : 'missing'}`,
+    ],
+  };
+}
+
+function safeExists(target: string): boolean {
+  try {
+    return fs.existsSync(target);
+  } catch {
+    return false;
+  }
+}
+
+function hasFileMatching(dir: string, needles: string[]): boolean {
+  try {
+    if (!fs.existsSync(dir)) return false;
+    const normalizedNeedles = needles.map(item => item.toLowerCase());
+    return fs.readdirSync(dir, { withFileTypes: true })
+      .filter(entry => entry.isFile())
+      .some(entry => {
+        const name = entry.name.toLowerCase();
+        return normalizedNeedles.every(needle => name.includes(needle));
+      });
+  } catch {
+    return false;
+  }
 }
 
 function getSkillStats(): SkillStats {
