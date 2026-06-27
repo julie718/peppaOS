@@ -71,7 +71,6 @@ const TOOL_GROUPS: Record<string, string[]> = {
     'legal_draft_contract',
     'legal_case_strategy',
     'legal_generate_litigation_packet',
-    'legal_triad_analysis',
     'legal_external_research_plan',
     'legal_verify_citation',
     'legal_import_judgment',

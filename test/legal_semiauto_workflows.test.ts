@@ -42,9 +42,7 @@ describe('semi-automated legal workflows', () => {
     });
 
     expect(output).toContain('Sales Contract Case');
-    expect(output).toMatch(/底层三段论|大前提/);
-    expect(output).toMatch(/小前提/);
-    expect(output).toMatch(/涵摄|结论/);
+    expect(output).not.toMatch(/底层三段论|三段论|大前提|小前提|涵摄/);
     expect(output).toMatch(/起诉状|要素式诉状|诉讼文书包/);
     expect(output).toMatch(/证据目录|证明目的/);
     expect(output).toMatch(/律师|人工|确认/);
@@ -64,30 +62,11 @@ describe('semi-automated legal workflows', () => {
     });
 
     expect(output).toContain('Defense Contract Case');
-    expect(output).toMatch(/底层三段论|大前提/);
+    expect(output).not.toMatch(/底层三段论|三段论|大前提|小前提|涵摄/);
     expect(output).toMatch(/答辩状|质证意见/);
     expect(output).toMatch(/程序抗辩|时效|主体资格/);
     expect(output).toMatch(/提交|签字|盖章|发送/);
     expect(output).toMatch(/律师|人工|确认/);
-  });
-
-  it('structures legal analysis as triad reasoning with review checkpoints', async () => {
-    const registry = createLegalRegistry();
-
-    const output = await registry.execute('legal_triad_analysis', {
-      issue: '民法典合同编项下货款支付与违约责任',
-      role: 'plaintiff',
-      facts: 'Alpha 按合同交付货物，Beta 签收后未在约定期限内支付货款。',
-      evidence: '合同、签收单、发票、银行流水、催款函。',
-      orgId: 'test-legal-semi-auto',
-    });
-
-    expect(output).toMatch(/大前提/);
-    expect(output).toMatch(/小前提/);
-    expect(output).toMatch(/结论|涵摄/);
-    expect(output).toMatch(/法律|法条/);
-    expect(output).toMatch(/证据|举证|质证/);
-    expect(output).toMatch(/律师.*复核|复核.*律师/);
   });
 
   it('builds external research plans around authorized browser sessions', async () => {
@@ -102,7 +81,7 @@ describe('semi-automated legal workflows', () => {
 
     expect(output).toContain('web_login_profile_save_from_preset');
     expect(output).toContain('web_login_run');
-    expect(output).toMatch(/三段论检索框架|大前提/);
+    expect(output).not.toMatch(/底层三段论|三段论检索框架|大前提|小前提|涵摄/);
     expect(output).toContain('"profileId":"court-online-service"');
     expect(output).toContain('people-court-case-library');
     expect(output).toContain('china-judgments-online');
@@ -115,12 +94,16 @@ describe('semi-automated legal workflows', () => {
   });
 
   it('keeps triad reasoning as underlying logic rather than a standalone UI tab', () => {
+    const registry = createLegalRegistry();
     const legalHubSource = fs.readFileSync(path.join(process.cwd(), 'src/components/org/LegalHub.tsx'), 'utf-8');
+    const toolRouterSource = fs.readFileSync(path.join(process.cwd(), 'server/cognition/tool_router.ts'), 'utf-8');
 
     expect(legalHubSource).not.toContain("id: 'triad'");
     expect(legalHubSource).not.toContain('LegalTriadView');
     expect(legalHubSource).toContain('legal_generate_litigation_packet');
     expect(legalHubSource).toContain('legal_external_research_plan');
+    expect(registry.get('legal_triad_analysis')).toBeUndefined();
+    expect(toolRouterSource).not.toContain('legal_triad_analysis');
   });
 });
 
