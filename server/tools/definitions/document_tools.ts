@@ -7,6 +7,8 @@ import { execSync } from 'child_process';
 import { createRequire } from 'module';
 import { ToolRegistry } from '../registry';
 import { ingestDocument } from '../../agents/rag';
+import { extractPptxText } from '../../knowledge/pptx';
+import { extractRtfText } from '../../knowledge/rtf';
 
 const OUTPUT_DIR = path.join(process.cwd(), 'lumi_output');
 const require = createRequire(import.meta.url);
@@ -119,6 +121,9 @@ async function extractDocumentText(args: Record<string, any>): Promise<string> {
         return `[${n}]\n${csv}`;
     }).join('\n\n');
       break;
+    case '.pptx':
+      text = await extractPptxText(filePath);
+      break;
     case '.pdf':
       text = await parsePdfText(filePath);
       break;
@@ -127,8 +132,11 @@ async function extractDocumentText(args: Record<string, any>): Promise<string> {
     case '.csv':
       text = fs.readFileSync(filePath, 'utf-8');
       break;
+    case '.rtf':
+      text = extractRtfText(fs.readFileSync(filePath, 'utf-8'));
+      break;
     default:
-      throw new Error(`Unsupported format: ${ext}. Supported: .docx, .xlsx, .xls, .pdf, .txt, .md, .csv`);
+      throw new Error(`Unsupported format: ${ext}. Supported: .docx, .xlsx, .xls, .pptx, .pdf, .rtf, .txt, .md, .csv`);
   }
 
   return text;
@@ -551,7 +559,7 @@ export function registerDocumentTools(registry: ToolRegistry): void {
 
   registry.register({
     name: 'extract_document_text',
-    description: 'Auto-detect document format and extract text. Supports .docx, .xlsx, .pdf, .txt, .md, .csv. Use this when you need to read any document without knowing its format in advance.',
+    description: 'Auto-detect document format and extract text. Supports .docx, .xlsx, .pptx, .pdf, .rtf, .txt, .md, .csv. Use this when you need to read any document without knowing its format in advance.',
     parameters: {
       type: 'object',
       properties: {
@@ -566,7 +574,7 @@ export function registerDocumentTools(registry: ToolRegistry): void {
 
   registry.register({
     name: 'ingest_document_to_rag',
-    description: 'Read a document (.docx, .pdf, .xlsx, .txt, .md) and ingest it into an agent\'s RAG knowledge base. The document is chunked and stored as searchable memories scoped to the specified agent.',
+    description: 'Read a document (.docx, .pdf, .xlsx, .pptx, .rtf, .txt, .md) and ingest it into an agent\'s RAG knowledge base. The document is chunked and stored as searchable memories scoped to the specified agent.',
     parameters: {
       type: 'object',
       properties: {

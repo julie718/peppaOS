@@ -1,11 +1,11 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { readDB, writeDB } from "../../db_layer";
 import { getOrCreateActiveConversation, getActiveConversation, getMessages, addMessage } from "../conversation/manager";
-import { getKey } from "../config/keys";
 import { makeLLMCall, NormalizedMessage } from "../llm/providers";
 import { getUserPreferredLLMConfig } from "../llm/user_preferences";
 import { executeExternalAgent, validateExternalCommand } from "../agents/external_runtime";
 import { requireAuth, resolveDomain, type AuthUser } from "../middleware/auth";
+import { isAudioTranscriptionUnavailable, transcribeAudioFile } from "../stt/file_transcription";
 
 const asyncHandler = (fn: (req: Request, res: Response, next?: NextFunction) => Promise<any>) =>
   (req: Request, res: Response, next: NextFunction) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -296,12 +296,24 @@ export function mountAgentRoutes(
     const { audio, fileName } = req.body || {};
     if (!audio) return res.status(400).json({ error: "Audio data is required" });
     try {
-      const dgKey = process.env.DEEPGRAM_API_KEY || getKey('DEEPGRAM_API_KEY');
-      if (dgKey) { const buffer = Buffer.from(audio, 'base64'); const dgRes = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&language=zh&punctuate=true', { method: 'POST', headers: { 'Authorization': `Token ${dgKey}`, 'Content-Type': fileName?.endsWith('.wav') ? 'audio/wav' : fileName?.endsWith('.ogg') ? 'audio/ogg' : fileName?.endsWith('.m4a') ? 'audio/mp4' : fileName?.endsWith('.webm') ? 'audio/webm' : 'audio/mp3' }, body: buffer }); if (dgRes.ok) { const data = await dgRes.json() as any; return res.json({ text: data?.results?.channels?.[0]?.alternatives?.[0]?.transcript || '' }); } }
-      const qwenKey = process.env.DASHSCOPE_API_KEY || getKey('DASHSCOPE_API_KEY');
-      if (qwenKey) { const buffer = Buffer.from(audio, 'base64'); const form = new FormData(); form.append('model', 'sensevoice-v1'); form.append('file', new Blob([buffer]), fileName || 'audio.mp3'); const qwRes = await fetch('https://dashscope.aliyuncs.com/api/v1/services/audio/asr/transcription', { method: 'POST', headers: { 'Authorization': `Bearer ${qwenKey}` }, body: form }); if (qwRes.ok) { const data = await qwRes.json() as any; return res.json({ text: data?.output?.sentence?.text || '' }); } }
-      res.json({ text: '', note: 'No STT provider configured' });
-    } catch (err: any) { res.json({ text: '', error: err.message }); }
+      const result = await transcribeAudioFile(Buffer.from(audio, 'base64'), {
+        fileName: fileName || 'audio.mp3',
+        language: 'zh',
+      });
+      res.json({
+        text: result.text,
+        provider: result.provider,
+        model: result.model,
+        warnings: result.warnings,
+      });
+    } catch (err: any) {
+      res.json({
+        text: '',
+        ...(isAudioTranscriptionUnavailable(err)
+          ? { note: err.message }
+          : { error: err?.message || String(err) }),
+      });
+    }
   }));
 
   router.post("/pets/generate", asyncHandler(async (req, res) => {

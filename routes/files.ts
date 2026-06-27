@@ -20,6 +20,9 @@ import { getDataPath, getDataRoot } from '../server/config/data_path';
 import * as OrgKB from '../server/org/kb';
 import { analyzeScreen } from '../server/llm/adapter';
 import { getUserPreferredVision, type VisionProvider } from '../server/llm/vision_preferences';
+import { AUDIO_FILE_EXTS, isAudioTranscriptionUnavailable, transcribeAudioFile } from '../server/stt/file_transcription';
+import { extractPptxText } from '../server/knowledge/pptx';
+import { extractRtfText } from '../server/knowledge/rtf';
 
 const PERSONAL_KNOWLEDGE_DIR = getDataPath('knowledge');
 fs.mkdirSync(PERSONAL_KNOWLEDGE_DIR, { recursive: true });
@@ -65,7 +68,7 @@ const MAX_UPLOAD_FILES = Math.max(20, Number(process.env.KNOWLEDGE_UPLOAD_MAX_FI
 const upload = multer({ dest: tmpDir, limits: { fileSize: 500 * 1024 * 1024, files: MAX_UPLOAD_FILES } });
 
 type KnowledgeStatus = 'ready' | 'indexing' | 'indexed' | 'partial' | 'unsupported' | 'failed';
-type ExtractionMethod = 'text' | 'docx' | 'spreadsheet' | 'pdf' | 'image-vision' | 'image-metadata' | 'unsupported';
+type ExtractionMethod = 'text' | 'rtf' | 'docx' | 'spreadsheet' | 'presentation' | 'pdf' | 'image-vision' | 'image-metadata' | 'audio-transcript' | 'unsupported';
 
 interface KnowledgeExtractionResult {
   content: string | null;
@@ -73,7 +76,7 @@ interface KnowledgeExtractionResult {
   status: Extract<KnowledgeStatus, 'indexed' | 'partial' | 'unsupported' | 'failed'>;
   warning?: string;
   error?: string;
-  provider?: VisionProvider;
+  provider?: VisionProvider | string;
   model?: string;
 }
 
@@ -120,6 +123,8 @@ interface KnowledgeEntry {
   extractionMethod?: ExtractionMethod;
   extractionWarning?: string;
   extractionError?: string;
+  extractionProvider?: string;
+  extractionModel?: string;
   contentChars?: number;
   updatedAt: string;
   createdAt: string;
@@ -190,8 +195,10 @@ function sanitizeKnowledgeFilename(value: string, fallback = 'untitled'): string
 }
 
 const TEXT_KNOWLEDGE_EXTS = /\.(txt|md|json|csv|log|xml|yaml|yml|ts|tsx|js|jsx|py|html|css|env|toml|ini|cfg)$/i;
-const EXTRACTABLE_KNOWLEDGE_EXTS = /\.(docx|xlsx|xls|pdf)$/i;
+const RTF_KNOWLEDGE_EXTS = /\.rtf$/i;
+const EXTRACTABLE_KNOWLEDGE_EXTS = /\.(docx|xlsx|xls|pptx|pdf)$/i;
 const IMAGE_KNOWLEDGE_EXTS = /\.(png|jpe?g|webp|gif|bmp|tiff?)$/i;
+const AUDIO_KNOWLEDGE_EXTS = AUDIO_FILE_EXTS;
 const GENERATED_FILE_EXTS = /\.(docx?|pptx?|xlsx?|pdf|txt|md|csv|json|png|jpe?g|webp|gif|svg|html|dxf|dwg)$/i;
 
 const DOWNLOAD_MIME_TYPES: Record<string, string> = {
@@ -199,6 +206,7 @@ const DOWNLOAD_MIME_TYPES: Record<string, string> = {
   '.md': 'text/markdown',
   '.json': 'application/json',
   '.csv': 'text/csv',
+  '.rtf': 'application/rtf',
   '.log': 'text/plain',
   '.xml': 'application/xml',
   '.html': 'text/html',
@@ -220,6 +228,16 @@ const DOWNLOAD_MIME_TYPES: Record<string, string> = {
   '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   '.xls': 'application/vnd.ms-excel',
   '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.mp3': 'audio/mpeg',
+  '.mpeg': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.m4a': 'audio/mp4',
+  '.ogg': 'audio/ogg',
+  '.oga': 'audio/ogg',
+  '.flac': 'audio/flac',
+  '.aac': 'audio/aac',
+  '.wma': 'audio/x-ms-wma',
+  '.webm': 'audio/webm',
   '.dxf': 'application/dxf',
   '.dwg': 'application/octet-stream',
 };
@@ -410,11 +428,57 @@ async function extractPdfText(filePath: string): Promise<string> {
   }
 }
 
+async function extractAudioKnowledge(filePath: string): Promise<KnowledgeExtractionResult> {
+  const displayName = repairFilename(path.basename(filePath));
+  try {
+    const result = await transcribeAudioFile(fs.readFileSync(filePath), {
+      fileName: displayName,
+      language: 'zh',
+    });
+    const transcript = result.text.trim();
+    if (!transcript) {
+      return {
+        content: null,
+        method: 'audio-transcript',
+        status: 'failed',
+        error: 'No speech was transcribed from this audio file.',
+      };
+    }
+    return {
+      content: [
+        `[Audio File] ${displayName}`,
+        `Transcription provider: ${result.provider}/${result.model}`,
+        '',
+        'Transcript:',
+        transcript,
+      ].join('\n'),
+      method: 'audio-transcript',
+      status: 'indexed',
+      provider: result.provider,
+      model: result.model,
+      warning: result.warnings?.length ? `Fallbacks used before success: ${result.warnings.join('; ')}` : undefined,
+    };
+  } catch (err: any) {
+    const message = err?.message || String(err);
+    return {
+      content: null,
+      method: 'audio-transcript',
+      status: 'failed',
+      error: isAudioTranscriptionUnavailable(err)
+        ? 'No audio transcription provider is configured. Configure OpenAI Whisper, Deepgram, DashScope SenseVoice, Doubao Speech, or local Whisper, then retry.'
+        : message,
+    };
+  }
+}
+
 async function extractKnowledgeFileContent(filePath: string, userId = 'anonymous'): Promise<KnowledgeExtractionResult> {
   const extName = path.extname(filePath);
   try {
     if (TEXT_KNOWLEDGE_EXTS.test(extName)) {
       return { content: fs.readFileSync(filePath, 'utf-8'), method: 'text', status: 'indexed' };
+    }
+    if (RTF_KNOWLEDGE_EXTS.test(extName)) {
+      return { content: extractRtfText(fs.readFileSync(filePath, 'utf-8')), method: 'rtf', status: 'indexed' };
     }
     if (/\.docx$/i.test(extName)) {
       const mammoth = await import('mammoth');
@@ -429,8 +493,14 @@ async function extractKnowledgeFileContent(filePath: string, userId = 'anonymous
       }).join('\n\n');
       return { content, method: 'spreadsheet', status: 'indexed' };
     }
+    if (/\.pptx$/i.test(extName)) {
+      return { content: await extractPptxText(filePath), method: 'presentation', status: 'indexed' };
+    }
     if (/\.pdf$/i.test(extName)) {
       return { content: await extractPdfText(filePath), method: 'pdf', status: 'indexed' };
+    }
+    if (AUDIO_KNOWLEDGE_EXTS.test(extName)) {
+      return await extractAudioKnowledge(filePath);
     }
     if (IMAGE_KNOWLEDGE_EXTS.test(extName)) {
       return await extractImageKnowledge(filePath, userId);
@@ -550,6 +620,8 @@ function buildEntry(filename: string, source: 'upload' | 'generated' | 'ingested
     extractionMethod: meta?.extractionMethod,
     extractionWarning: meta?.extractionWarning || undefined,
     extractionError: meta?.extractionError || undefined,
+    extractionProvider: meta?.extractionProvider || undefined,
+    extractionModel: meta?.extractionModel || undefined,
     contentChars: meta?.contentChars || undefined,
     updatedAt: st.mtime.toISOString(),
     createdAt: st.birthtime.toISOString(),
@@ -672,12 +744,14 @@ router.post('/files/upload', requireAuth, upload.array('files', MAX_UPLOAD_FILES
         });
       }
 
+      const isImageUpload = IMAGE_KNOWLEDGE_EXTS.test(ext) || file.mimetype?.startsWith('image/');
+      const isAudioUpload = AUDIO_KNOWLEDGE_EXTS.test(ext) || file.mimetype?.startsWith('audio/');
       const entry: any = {
         id: finalName,
         name: repairFilename(finalName),
         displayName: repairFilename(finalName),
         type: 'file',
-        kind: IMAGE_KNOWLEDGE_EXTS.test(ext) || file.mimetype?.startsWith('image/') ? 'image' : 'file',
+        kind: isImageUpload ? 'image' : isAudioUpload ? 'audio' : 'file',
         mimeType: file.mimetype || '',
         size: formatSize(file.size),
         rawSize: file.size,
@@ -692,14 +766,18 @@ router.post('/files/upload', requireAuth, upload.array('files', MAX_UPLOAD_FILES
       };
       let extractedContent: string | null = null;
 
-      // Extract supported document/image content so Lumi can retrieve it later.
-      if (TEXT_KNOWLEDGE_EXTS.test(ext) || EXTRACTABLE_KNOWLEDGE_EXTS.test(ext) || IMAGE_KNOWLEDGE_EXTS.test(ext)) {
-        extraction = await extractKnowledgeFileContent(dest, userId);
+      // Extract supported document/media content so Lumi can retrieve it later.
+      if (TEXT_KNOWLEDGE_EXTS.test(ext) || RTF_KNOWLEDGE_EXTS.test(ext) || EXTRACTABLE_KNOWLEDGE_EXTS.test(ext) || IMAGE_KNOWLEDGE_EXTS.test(ext) || AUDIO_KNOWLEDGE_EXTS.test(ext) || isAudioUpload) {
+        extraction = isAudioUpload && !AUDIO_KNOWLEDGE_EXTS.test(ext)
+          ? await extractAudioKnowledge(dest)
+          : await extractKnowledgeFileContent(dest, userId);
         extractedContent = extraction.content;
         entry.extractionStatus = extraction.status;
         entry.extractionMethod = extraction.method;
         entry.extractionWarning = extraction.warning;
         entry.extractionError = extraction.error;
+        entry.extractionProvider = extraction.provider;
+        entry.extractionModel = extraction.model;
         if (extractedContent) {
           entry.content = extractedContent.slice(0, 50000); // cap at 50KB for chat context
           entry.preview = extractedContent.slice(0, 1000);
@@ -991,6 +1069,8 @@ router.get('/files/info/:id', (req: Request, res: Response) => {
       extractionMethod: meta?.extractionMethod,
       extractionWarning: meta?.extractionWarning || undefined,
       extractionError: meta?.extractionError || undefined,
+      extractionProvider: meta?.extractionProvider || undefined,
+      extractionModel: meta?.extractionModel || undefined,
       contentChars: meta?.contentChars || undefined,
       updatedAt: st.mtime.toISOString(),
       createdAt: meta?.createdAt || st.birthtime.toISOString(),

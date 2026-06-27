@@ -1,5 +1,6 @@
 import { STTResult } from '../types';
 import { getKey } from '../../config/keys';
+import path from 'path';
 
 function getApiKey(): string {
   // Doubao Speech uses AppID:AccessToken, Ark LLM key is separate
@@ -9,14 +10,27 @@ function getApiKey(): string {
   return raw.slice(colonIdx + 1).trim();
 }
 
+interface AudioFileOptions {
+  fileName?: string;
+  mimeType?: string;
+}
+
+function safeFileName(fileName?: string): string {
+  const safe = path.basename(String(fileName || '').trim());
+  return safe || 'audio.webm';
+}
+
 export async function transcribe(
   audioBuffer: Buffer,
   language: string = 'zh',
+  options: AudioFileOptions = {},
 ): Promise<STTResult> {
   const apiKey = getApiKey();
 
+  const fileName = safeFileName(options.fileName);
+  const mimeType = options.mimeType || 'audio/webm';
   const form = new FormData();
-  form.append('file', new Blob([audioBuffer], { type: 'audio/webm' }), 'audio.webm');
+  form.append('file', new Blob([audioBuffer as any], { type: mimeType }), fileName);
   form.append('model', 'doubao-stt-1.0');
   form.append('language', language);
 

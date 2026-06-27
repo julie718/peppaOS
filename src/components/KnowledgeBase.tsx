@@ -540,11 +540,12 @@ export function KnowledgeBase({ t, isOpen, onClose, domain = 'personal' }: Knowl
                     const partial = knowledgeStatus === 'partial';
                     const failed = knowledgeStatus === 'failed';
                     const unsupported = knowledgeStatus === 'unsupported';
+                    const audioTranscript = f.extractionMethod === 'audio-transcript';
                     const needsReview = failed || unsupported;
                     const statusLabel = unsupported
                       ? (isZh ? '不支持' : 'unsupported')
                       : failed
-                      ? (isZh ? '需检查' : 'needs review')
+                      ? (audioTranscript ? (isZh ? '转写失败' : 'transcribe failed') : (isZh ? '需检查' : 'needs review'))
                       : partial
                         ? (isZh ? '部分吸收' : 'partial')
                         : absorbed
@@ -599,7 +600,13 @@ export function KnowledgeBase({ t, isOpen, onClose, domain = 'personal' }: Knowl
                           }}
                           className="shrink-0 rounded-lg border border-amber-400/20 bg-amber-400/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-100 transition-colors hover:bg-amber-400/16 disabled:pointer-events-none disabled:opacity-60"
                         >
-                          {ingesting ? (t.loading || (isZh ? '读取中' : 'Loading')) : partial ? (isZh ? '重读' : 'Re-read') : (t.kbIngest || (isZh ? '吸收' : 'Absorb'))}
+                          {ingesting
+                            ? (t.loading || (isZh ? '读取中' : 'Loading'))
+                            : audioTranscript && failed
+                              ? (isZh ? '重试转写' : 'Retry')
+                              : partial
+                                ? (isZh ? '重读' : 'Re-read')
+                                : (t.kbIngest || (isZh ? '吸收' : 'Absorb'))}
                         </button>
                       )}
                       <ChevronRight size={12} className="text-white/20 shrink-0 group-hover:text-white/40 transition-colors" />

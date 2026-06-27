@@ -33,6 +33,8 @@ export interface FileEntry {
   extractionMethod?: string;
   extractionWarning?: string;
   extractionError?: string;
+  extractionProvider?: string;
+  extractionModel?: string;
   contentChars?: number;
   updatedAt?: string;
   createdAt?: string;

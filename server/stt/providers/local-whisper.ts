@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPT_PATH = path.join(__dirname, '..', 'local_whisper.py');
+const SAFE_AUDIO_EXTS = new Set(['.mp3', '.mpeg', '.wav', '.m4a', '.ogg', '.oga', '.flac', '.aac', '.wma', '.webm']);
 
 let pythonPath: string | null = null;
 let checkedPython = false;
@@ -39,7 +40,16 @@ export function isLocalWhisperAvailable(): boolean {
   return findPython() !== null && fs.existsSync(SCRIPT_PATH);
 }
 
-export async function transcribe(audioBuffer: Buffer, language: string = 'zh'): Promise<STTResult> {
+interface LocalWhisperOptions {
+  fileName?: string;
+}
+
+function safeAudioExt(fileName?: string): string {
+  const ext = path.extname(String(fileName || '')).toLowerCase();
+  return SAFE_AUDIO_EXTS.has(ext) ? ext : '.wav';
+}
+
+export async function transcribe(audioBuffer: Buffer, language: string = 'zh', options: LocalWhisperOptions = {}): Promise<STTResult> {
   const python = findPython();
   if (!python) throw new Error('Python not found. Local STT requires Python 3.10+.');
 
@@ -47,13 +57,12 @@ export async function transcribe(audioBuffer: Buffer, language: string = 'zh'): 
     throw new Error(`Local whisper script not found at ${SCRIPT_PATH}`);
   }
 
-  // Write audio to temp WAV file
   const tmpDir = os.tmpdir();
-  const wavPath = path.join(tmpDir, `lumi_stt_${Date.now()}.wav`);
-  fs.writeFileSync(wavPath, audioBuffer);
+  const audioPath = path.join(tmpDir, `lumi_stt_${Date.now()}_${Math.random().toString(36).slice(2)}${safeAudioExt(options.fileName)}`);
+  fs.writeFileSync(audioPath, audioBuffer);
 
   try {
-    const stdout = execFileSync(python, [SCRIPT_PATH, wavPath], {
+    const stdout = execFileSync(python, [SCRIPT_PATH, audioPath, language || 'zh'], {
       encoding: 'utf-8',
       timeout: 30000, // 30s for first run (model download), 2s for subsequent
       maxBuffer: 1024 * 1024,
@@ -63,7 +72,6 @@ export async function transcribe(audioBuffer: Buffer, language: string = 'zh'): 
     const text = stdout.trim();
     return { text, isFinal: true };
   } finally {
-    // Clean up temp file
-    try { fs.unlinkSync(wavPath); } catch {}
+    try { fs.unlinkSync(audioPath); } catch {}
   }
 }

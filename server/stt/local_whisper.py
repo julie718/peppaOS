@@ -1,5 +1,5 @@
 # local_whisper.py — faster-whisper STT for LumiOS
-# Usage: python local_whisper.py <wav_file_path>
+# Usage: python local_whisper.py <audio_file_path> [language]
 # Output: transcribed text to stdout
 #
 # First run auto-installs faster-whisper if not present.
@@ -25,9 +25,10 @@ def main():
         print("Usage: python local_whisper.py <wav_file>", file=sys.stderr)
         sys.exit(1)
 
-    wav_path = sys.argv[1]
-    if not os.path.exists(wav_path):
-        print(f"File not found: {wav_path}", file=sys.stderr)
+    audio_path = sys.argv[1]
+    language = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else "zh"
+    if not os.path.exists(audio_path):
+        print(f"File not found: {audio_path}", file=sys.stderr)
         sys.exit(1)
 
     WhisperModel = ensure_deps()
@@ -43,7 +44,7 @@ def main():
     print(f"[local_whisper] Loading model '{MODEL}' from {model_dir}...", file=sys.stderr)
     model = WhisperModel(MODEL, device="cpu", compute_type="int8", download_root=model_dir)
 
-    segments, info = model.transcribe(wav_path, language="zh", beam_size=5)
+    segments, info = model.transcribe(audio_path, language=language, beam_size=5)
     detected = info.language
     print(f"[local_whisper] Detected language: {detected} (prob {info.language_probability:.3f})", file=sys.stderr)
 

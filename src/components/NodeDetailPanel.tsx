@@ -18,6 +18,8 @@ interface FileEntry {
   extractionMethod?: string;
   extractionWarning?: string;
   extractionError?: string;
+  extractionProvider?: string;
+  extractionModel?: string;
   contentChars?: number;
   updatedAt?: string;
   createdAt?: string;
@@ -262,11 +264,14 @@ export function NodeDetailPanel({
                       </span>
                     </div>
                   )}
-                  {(node.fileData.extractionMethod || node.fileData.extractionWarning || node.fileData.extractionError) && (
+                  {(node.fileData.extractionMethod || node.fileData.extractionWarning || node.fileData.extractionError || node.fileData.extractionProvider || node.fileData.extractionModel) && (
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-white/45 uppercase tracking-widest">Extraction</label>
                       <div className="rounded-xl border border-white/[0.06] bg-white/[0.04] p-3 text-xs leading-5 text-white/58">
                         {node.fileData.extractionMethod && <p>Method: {node.fileData.extractionMethod}</p>}
+                        {(node.fileData.extractionProvider || node.fileData.extractionModel) && (
+                          <p>Provider: {[node.fileData.extractionProvider, node.fileData.extractionModel].filter(Boolean).join(' / ')}</p>
+                        )}
                         {node.fileData.contentChars ? <p>Indexed text: {node.fileData.contentChars.toLocaleString()} chars</p> : null}
                         {node.fileData.extractionWarning && <p className="text-amber-200/75">{node.fileData.extractionWarning}</p>}
                         {node.fileData.extractionError && <p className="text-red-200/75">{node.fileData.extractionError}</p>}
