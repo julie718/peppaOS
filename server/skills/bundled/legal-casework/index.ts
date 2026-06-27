@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { runLegalCaseFolderWorkflow } from './folder_workflow';
 
 function ok(data: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
@@ -21,7 +22,7 @@ function formatDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-const server = new McpServer({ name: 'legal-casework', version: '1.0.0' }, { capabilities: { tools: {} } });
+const server = new McpServer({ name: 'legal-casework', version: '1.1.0' }, { capabilities: { tools: {} } });
 
 server.registerTool('legal_case_intake', {
   description: 'Turn raw case facts into a lawyer-facing intake brief: parties, stage, issues, evidence gaps, risk points, and next actions. This is legal work support, not final legal advice.',
@@ -135,6 +136,24 @@ server.registerTool('legal_document_outline', {
     sourceFacts: args.facts || '',
     requestedRelief: args.requestedRelief || '',
   });
+});
+
+server.registerTool('legal_case_folder_workflow', {
+  description: 'Read a local case folder, extract text from mixed legal materials, identify case signals, build authorized Faxin/China Judgments search plans, and draft lawyer-facing work papers such as engagement points, power of attorney, agency statement outline, and evidence catalogue. External legal sites require user-authorized login and manual captcha/2FA completion.',
+  inputSchema: {
+    folderPath: z.string().describe('Local folder path containing case materials, e.g. Desktop\\某案件材料'),
+    caseName: z.string().optional().describe('Case name or short matter title'),
+    matterType: z.string().optional().describe('Matter type or cause of action, e.g. sales contract dispute'),
+    stage: z.string().optional().describe('Current stage: intake, filing, hearing, appeal, enforcement, arbitration'),
+    clientRole: z.string().optional().describe('Client role, e.g. plaintiff, defendant, applicant, respondent'),
+    objective: z.string().optional().describe('Target output, e.g. organize retainer package, draft agency statement, build evidence catalogue'),
+    outputDir: z.string().optional().describe('Optional output folder. Defaults to Lumi legal work papers under the case folder.'),
+    writeFiles: z.boolean().optional().describe('Whether to write draft markdown files to disk. If false, only previews are returned.'),
+    maxFiles: z.number().int().min(1).max(300).optional().describe('Maximum number of files to scan. Default 80.'),
+    maxChars: z.number().int().min(10000).max(800000).optional().describe('Maximum extracted corpus size. Default 180000.'),
+  },
+}, async (args: any) => {
+  return ok(await runLegalCaseFolderWorkflow(args));
 });
 
 const transport = new StdioServerTransport();

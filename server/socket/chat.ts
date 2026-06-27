@@ -12,6 +12,7 @@ import { runWithTools } from "../llm/adapter";
 import { getOperationModeConfig, parseStoredOperationMode } from "../cognition/operation_modes";
 import { hasClientActionOnlyIntent, isDiagnosticOrRepairRequest, shouldAllowToolUseForTurn, shouldExposeAgentWork } from "../cognition/tool_intent";
 import { resolveWorkSurfaceRoute } from "../cognition/work_surface";
+import { formatToolRouteForPrompt, mergeToolPolicyWithRoute, routeToolsForTurn } from "../cognition/tool_router";
 import { formatClientSelfPrompt } from "../client/self_model";
 import { queryMemories, queryMemoriesVector, addMemory, addReminder, extractMemories } from "../memory";
 import { loadEmotionalState, saveEmotionalState, updateEmotionalState, updateEmotionalStateWithHIM, loadHIMState, saveHIMState, generateContextualGreeting, vectorMemoryBias } from "../personality/state";
@@ -513,16 +514,31 @@ export function registerChatHandler(
             maxIterations: 8,
           }
         : null;
-      const routedToolPolicy = isSanctuary
+      const baseRoutedToolPolicy = isSanctuary
         ? { allowedTools: [], requireConfirmation: [], forbiddenTools: ['*'], maxIterations: 0 }
         : selfRepairToolPolicy
           ? selfRepairToolPolicy
           : clientActionToolPolicy
             ? clientActionToolPolicy
             : (workSurfaceRoute.toolPolicy || opModeConfig?.toolPolicy);
+      const toolRoute = allowToolUseForTurn && !clientActionOnlyTurn && !selfRepairTurn && !isSanctuary
+        ? routeToolsForTurn(text, toolRegistry.getToolDeclarations())
+        : null;
+      const routedToolPolicy = toolRoute && baseRoutedToolPolicy
+        ? mergeToolPolicyWithRoute(baseRoutedToolPolicy, toolRoute)
+        : baseRoutedToolPolicy;
       const exposeAgentWork = shouldExposeAgentWork(text);
       effectiveSystemPrompt += '\n\n' + formatClientSelfPrompt(uid);
-      console.log('[ChatHandler] tool gate:', allowToolUseForTurn ? 'enabled' : 'chat-only', 'operationMode:', operationMode, 'clientActionOnly:', clientActionOnlyTurn, 'selfRepair:', selfRepairTurn);
+      console.log('[ChatHandler] tool gate:', allowToolUseForTurn ? 'enabled' : 'chat-only', 'operationMode:', operationMode, 'clientActionOnly:', clientActionOnlyTurn, 'selfRepair:', selfRepairTurn, 'route:', toolRoute ? `${toolRoute.toolNames.length}/${toolRoute.totalAvailable} ${toolRoute.categories.join(',') || 'fallback'}` : 'none');
+      if (toolRoute) {
+        socket.emit('agent:tool_route', {
+          categories: toolRoute.categories,
+          reasons: toolRoute.reasons,
+          toolNames: toolRoute.toolNames,
+          totalAvailable: toolRoute.totalAvailable,
+          truncated: toolRoute.truncated,
+        });
+      }
       if (clientActionOnlyTurn) {
         effectiveSystemPrompt += '\n\n## Client Mode Control\nThe user is asking Lumi to change a client mode or open a client-native surface. You may only use client_get_state and client_action. Do not use file, terminal, desktop mouse/keyboard, web, team, or external-app tools. Music is a playback/atmosphere capability, not a top-level work mode: open the music center or mood layer without switching client mode. For meeting/autonomous mode, use the client action confirmation flow when required.';
       } else if (selfRepairTurn) {
@@ -534,6 +550,9 @@ export function registerChatHandler(
       }
       if (workSurfaceRoute.promptOverlay) {
         effectiveSystemPrompt += '\n\n' + workSurfaceRoute.promptOverlay;
+      }
+      if (toolRoute) {
+        effectiveSystemPrompt += '\n\n' + formatToolRouteForPrompt(toolRoute);
       }
       const visionRoutingOverlay = operationMode !== 'meeting' ? buildVisionRoutingOverlay(uid, text) : '';
       if (visionRoutingOverlay) {

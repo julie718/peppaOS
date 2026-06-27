@@ -7,6 +7,7 @@
 import { NormalizedMessage, makeLLMCall } from '../llm/providers';
 import { toolRegistry } from '../tools/registry';
 import { ToolExecutionRecord, ToolContext } from '../tools/types';
+import { routeToolsForTurn } from '../cognition/tool_router';
 
 export interface ChainerPlan {
   goal: string;
@@ -280,10 +281,14 @@ export async function runNLChainer(
 ): Promise<ChainerResult> {
   const allTools = toolRegistry.getToolDeclarations();
   const domainHints = getDomainHints(userTask);
+  const routed = routeToolsForTurn(userTask, allTools);
 
-  // Filter tools: if domain hints are available, prioritize those tools
+  // Filter tools: prefer the shared skill/tool router, then fall back to older domain hints.
   let availableDecls = allTools;
-  if (domainHints) {
+  if (routed.categories.length > 0 && routed.toolNames.length > 0) {
+    const routedNames = new Set(routed.toolNames);
+    availableDecls = allTools.filter(t => routedNames.has(t.function.name));
+  } else if (domainHints) {
     const hintSet = new Set(domainHints);
     const filtered = allTools.filter(t => hintSet.has(t.function.name));
     if (filtered.length > 0) {
