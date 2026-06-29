@@ -72,8 +72,8 @@ export async function initDatabase(): Promise<void> {
       if (err) { reject(err); return; }
       db!.run('PRAGMA foreign_keys = ON', async (err) => {
         if (err) { reject(err); return; }
-        await migrateSchema();
         await createTables();
+        await migrateSchema();
         await loadMemoryDB();
         resolve();
       });
@@ -82,7 +82,12 @@ export async function initDatabase(): Promise<void> {
 }
 
 function onAlter(err: Error | null) {
-  if (err && !err.message.includes('duplicate column name')) {
+  if (
+    err &&
+    !err.message.includes('duplicate column name') &&
+    !err.message.includes('already exists') &&
+    !err.message.includes('no such table')
+  ) {
     console.warn('[DB] Schema migration error:', err.message);
   }
 }
@@ -90,6 +95,7 @@ function onAlter(err: Error | null) {
 // Add missing columns to existing tables (safe on old DB)
 function migrateSchema(): Promise<void> {
   return new Promise((resolve) => {
+    db!.serialize(() => {
     // Add 'phone' column to users if it doesn't exist (old DB lacks it)
     db!.run("ALTER TABLE users ADD COLUMN phone TEXT DEFAULT ''", onAlter);
     // Add 'status' column to agents if it doesn't exist
@@ -217,7 +223,8 @@ function migrateSchema(): Promise<void> {
     db!.run(`CREATE INDEX IF NOT EXISTS idx_conversations_org ON conversations(orgId, userId)`, onAlter);
     db!.run(`CREATE INDEX IF NOT EXISTS idx_canvas_sessions_user_domain ON canvas_sessions(userId, domain)`, onAlter);
     db!.run(`CREATE INDEX IF NOT EXISTS idx_canvas_sessions_org ON canvas_sessions(orgId, userId)`, onAlter);
-    resolve();
+      db!.run('SELECT 1', () => resolve());
+    });
   });
 }
 

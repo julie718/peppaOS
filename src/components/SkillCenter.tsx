@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, ShoppingBag, Cpu, Download, Trash2, Power, PowerOff, RefreshCw, Star, Wrench, CheckCircle, Globe, Search, Zap, Tag, Upload, Palette, Terminal, Monitor, Film, Key, ExternalLink, Github, AlertTriangle, X, ShieldCheck, Info, Mail, QrCode, Link, Image, FileText, CloudSun, Languages, Calculator, StickyNote, Timer, TrendingUp, Music, GraduationCap, BriefcaseBusiness, Stethoscope } from 'lucide-react';
 import { Button } from './ui/button';
@@ -332,20 +332,49 @@ interface ExternalResult {
 export type SkillCenterTab = 'featured' | 'marketplace' | 'installed' | 'mcp' | 'generate';
 type SortKey = 'downloads' | 'rating' | 'newest';
 
-const FEATURED_SKILLS = [
-  { id: 'legal-casework', name: 'Legal Casework', zhName: '法律案件工作包', icon: 'FileText', iconColor: 'from-blue-500 to-cyan-500', desc: 'Lawyer-facing casework pack. Scan local case folders, plan authorized legal research, draft work papers, outline documents, and keep clear review boundaries.', zhDesc: '面向律师办案流程的案件辅助能力，支持读取本地案件文件夹、规划授权法律检索、生成工作底稿、文书提纲和案件分析。', prompt: '读取这个案件文件夹，整理检索计划、委托手续草稿、代理词框架和证据目录' },
-  { id: 'cad-drafting', name: 'CAD Drafting Pack', zhName: 'CAD 制图包', icon: 'Monitor', iconColor: 'from-cyan-500 to-sky-500', desc: 'CAD drafting workflow pack. Reads renovation folders, creates editable DXF bases/layout drafts, proposal notes, materials CSV, and drawing QA checklists.', zhDesc: '读取装修资料文件夹，生成可编辑 DXF 底图/布置草图、方案文档、材料清单和图纸检查项。', prompt: '读取这个装修草稿文件夹，生成 DXF 底图、平面布置、水电点位建议和装修方案' },
-  { id: 'messaging-ops', name: 'Feishu WeChat Ops', zhName: '飞书/微信协作包', icon: 'Mail', iconColor: 'from-emerald-500 to-teal-500', desc: 'Remote collaboration pack for Feishu, WeChat, and WeCom. Triage requests, draft replies, handle file intake, and guide setup.', zhDesc: '飞书、微信和企业微信消息分诊、文件接收、回复草稿与远程协作。', prompt: '帮我把这条飞书消息分诊，判断要查资料还是要回复' },
-  { id: 'finance-office', name: 'Finance & Tax Office', zhName: '财税办公包', icon: 'Calculator', iconColor: 'from-amber-500 to-orange-500', desc: 'Business finance and tax pack. Expense summaries, cash-flow forecasts, invoice VAT checks, AR/AP aging, e-commerce tax workpapers, and management report outlines.', zhDesc: '费用汇总、现金流预测、发票 VAT 复核、应收应付账龄、电商税务底稿和经营报告提纲。', prompt: '帮我把这些平台结算、发票和账款记录整理成电商税务底稿、VAT 复核和账龄风险' },
-  { id: 'ecommerce-ops', name: 'E-commerce Ops', zhName: '电商运营包', icon: 'ShoppingBag', iconColor: 'from-lime-500 to-emerald-500', desc: 'E-commerce operations pack. Product listing optimization, order profit analysis, inventory restock, settlement reconciliation, campaign ROI, and after-sales risk.', zhDesc: '商品标题与卖点优化、订单利润分析、库存补货、平台结算复核、广告 ROI 和售后风险分析。', prompt: '帮我分析这些 SKU 的利润、广告 ROI、退款售后和库存补货优先级' },
-  { id: 'education-teacher', name: 'Teacher Copilot', zhName: '教师教培包', icon: 'GraduationCap', iconColor: 'from-sky-500 to-blue-500', desc: 'Teacher and tutoring pack. Lesson plans, rubrics, quiz outlines, learning profiles, and parent communication drafts.', zhDesc: '备课教案、评分量规、测验提纲、学生学习支持画像和家长沟通草稿。', prompt: '帮我为这节课生成教案、测验提纲、评分量规和家长沟通草稿' },
-  { id: 'executive-ops', name: 'Executive Ops', zhName: '企业负责人经营包', icon: 'BriefcaseBusiness', iconColor: 'from-emerald-500 to-teal-500', desc: 'Executive operations pack. KPI briefs, meeting actions, OKR planning, decision memos, team risk reviews, and cash runway scenarios.', zhDesc: '经营 KPI 简报、会议行动项、OKR 规划、决策备忘录、团队风险和现金跑道场景。', prompt: '帮我把这份周报整理成经营简报、行动项、风险和下周决策清单' },
-  { id: 'medical-admin', name: 'Medical Admin', zhName: '医疗文书与随访包', icon: 'Stethoscope', iconColor: 'from-red-500 to-rose-500', desc: 'Medical documentation and follow-up pack. Clinical note structuring, visit prep, patient instruction drafts, follow-up plans, and research checklists.', zhDesc: '病历结构化、就诊准备、患者说明草稿、随访计划和医学资料检索清单，不替代医生诊疗。', prompt: '帮我把这些问诊记录整理成 SOAP 病历草稿、缺失信息清单和随访计划' },
-  { id: 'hr-recruiting', name: 'HR Recruiting', zhName: 'HR 招聘包', icon: 'Search', iconColor: 'from-indigo-500 to-sky-500', desc: 'HR and recruiting pack. Job descriptions, resume screening summaries, interview plans, candidate comparisons, and onboarding checklists.', zhDesc: '岗位 JD、简历匹配摘要、结构化面试、候选人对比和入职清单。', prompt: '帮我为这个岗位生成 JD、面试计划、简历筛选标准和入职清单' },
-  { id: 'sales-customer-ops', name: 'Sales & Customer Ops', zhName: '销售客服包', icon: 'Mail', iconColor: 'from-teal-500 to-cyan-500', desc: 'Sales and customer operations pack. Lead scoring, follow-up drafts, objection handling, customer health reviews, and support ticket triage.', zhDesc: '线索评分、销售跟进、异议处理、客户健康度和客服工单分诊。', prompt: '帮我把这些客户记录整理成线索评分、跟进话术、异议处理和客户风险清单' },
-  { id: 'restaurant-store-ops', name: 'Restaurant & Store Ops', zhName: '餐饮门店包', icon: 'ShoppingBag', iconColor: 'from-orange-500 to-amber-500', desc: 'Restaurant and local store operations pack. Menu margin, waste, shift planning, review summaries, and promotion ROI.', zhDesc: '菜单毛利、报损损耗、门店排班、点评主题和促销 ROI 复盘。', prompt: '帮我分析这些菜品毛利、报损、排班压力、点评问题和促销 ROI' },
-  { id: 'design-studio-pack', name: 'Design Studio Pack', zhName: '设计工作室包', icon: 'Palette', iconColor: 'from-fuchsia-500 to-rose-500', desc: 'Design workflow pack. Creative briefs, brand directions, UI review checklists, and production handoff planning.', zhDesc: '创意简报、视觉方向、UI/品牌审查和生产交付计划。', prompt: '帮我为这个品牌做三个视觉方向和设计审查清单' },
-  { id: 'neteasemusic', name: 'Netease Cloud Music', zhName: '网易云音乐', icon: 'Music', iconColor: 'from-rose-500 to-pink-500', desc: 'Music companion pack. Search songs, lyrics, playback control, playlist context, and mood-aware listening workflows.', zhDesc: '歌曲搜索、歌词、播放控制、歌单语境和情绪化音乐推荐。', prompt: '根据我现在聊天的状态，放一首合适的歌并打开氛围层' },
+interface ProfessionProfile {
+  profession: string;
+  confidence?: number;
+  evidence?: string[];
+  knowledgeDomains?: string[];
+}
+
+interface SkillRecommendation {
+  skill: MarketplaceSkill;
+  score: number;
+  reasons: string[];
+}
+
+const PROFESSION_RECOMMENDATION_MAP: Record<string, string[]> = {
+  teacher: ['skill-education-teacher', 'skill-pdftools', 'skill-translator', 'skill-notes'],
+  doctor: ['skill-medical-admin', 'skill-pdftools', 'skill-fetcher'],
+  lawyer: ['skill-legal-casework', 'skill-pdftools', 'skill-web-scraper'],
+  designer: ['skill-design-studio-pack', 'skill-image', 'skill-video-editor'],
+  engineer: ['skill-code-sandbox', 'skill-deep-crawler', 'skill-fetcher'],
+  executive: ['skill-executive-ops', 'skill-finance-office', 'skill-sales-customer-ops'],
+  founder: ['skill-executive-ops', 'skill-finance-office', 'skill-ecommerce-ops'],
+  owner: ['skill-executive-ops', 'skill-finance-office', 'skill-sales-customer-ops'],
+  manager: ['skill-executive-ops', 'skill-hr-recruiting', 'skill-sales-customer-ops'],
+  ecommerce: ['skill-ecommerce-ops', 'skill-finance-office', 'skill-sales-customer-ops'],
+  finance: ['skill-finance-office', 'skill-executive-ops'],
+  accountant: ['skill-finance-office', 'skill-pdftools'],
+  recruiter: ['skill-hr-recruiting', 'skill-pdftools'],
+  sales: ['skill-sales-customer-ops', 'skill-executive-ops'],
+  restaurant: ['skill-restaurant-store-ops', 'skill-finance-office'],
+};
+
+const WORK_RECOMMENDATION_RULES: Array<{ skillIds: string[]; zh: string; en: string; pattern: RegExp }> = [
+  { skillIds: ['skill-executive-ops'], zh: '经营/管理', en: 'management work', pattern: /企业负责人|老板|创始人|CEO|总经理|管理|经营|KPI|OKR|会议纪要|决策|现金跑道|runway|executive|founder|manager|decision/i },
+  { skillIds: ['skill-ecommerce-ops', 'skill-finance-office'], zh: '电商/平台经营', en: 'e-commerce work', pattern: /电商|店铺|SKU|库存|平台结算|淘宝|抖店|小红书|shopify|ecommerce|marketplace|listing|settlement/i },
+  { skillIds: ['skill-finance-office'], zh: '财务/税务', en: 'finance or tax work', pattern: /财务|财税|税务|发票|现金流|预算|应收|应付|账龄|invoice|cashflow|tax|vat|receivable|payable/i },
+  { skillIds: ['skill-education-teacher'], zh: '教学/教培', en: 'teaching work', pattern: /老师|教师|教培|教学|教案|备课|作业|评分|学生|家长|teacher|lesson|student|rubric/i },
+  { skillIds: ['skill-medical-admin'], zh: '医疗文书/随访', en: 'medical documentation work', pattern: /医生|医疗|病历|问诊|随访|患者|检查报告|clinical|medical|patient|follow.?up/i },
+  { skillIds: ['skill-hr-recruiting'], zh: '招聘/人事', en: 'HR or recruiting work', pattern: /HR|人事|招聘|简历|面试|候选人|入职|recruit|resume|candidate|interview|onboarding/i },
+  { skillIds: ['skill-sales-customer-ops'], zh: '销售/客服', en: 'sales or support work', pattern: /销售|客服|客户|线索|跟进|异议|工单|续费|lead|sales|customer|support|objection/i },
+  { skillIds: ['skill-restaurant-store-ops'], zh: '餐饮/门店', en: 'restaurant or store work', pattern: /餐饮|门店|咖啡店|菜单|毛利|报损|排班|点评|促销|restaurant|cafe|store|menu|waste|shift/i },
+  { skillIds: ['skill-legal-casework'], zh: '法律/案件', en: 'legal work', pattern: /法律|律师|案件|合同|起诉|答辩|court|legal|lawsuit|contract/i },
+  { skillIds: ['skill-design-studio-pack'], zh: '设计/品牌', en: 'design work', pattern: /设计|品牌|logo|海报|视觉|UI|UX|design|brand|poster/i },
+  { skillIds: ['skill-cad-drafting'], zh: 'CAD/装修图纸', en: 'CAD or drafting work', pattern: /CAD|DXF|图纸|平面图|施工图|装修|floor plan|drafting/i },
 ];
 
 export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang: 'en' | 'zh'; initialTab?: SkillCenterTab }) {
@@ -372,6 +401,9 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
   const [savedKeys, setSavedKeys] = useState<Record<string, boolean>>({});
   const [keyInputs, setKeyInputs] = useState<Record<string, string>>({});
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [professionProfiles, setProfessionProfiles] = useState<ProfessionProfile[]>([]);
+  const [workSignalText, setWorkSignalText] = useState('');
+  const [recommendationError, setRecommendationError] = useState('');
   const socket = useSocket();
 
   const [translationReady, setTranslationReady] = useState(false);
@@ -448,7 +480,36 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
     } catch {}
   }, []);
 
-  useEffect(() => { fetchMarketplace(); fetchInstalled(); fetchCategories(); fetchSavedKeys(); }, [fetchMarketplace, fetchInstalled, fetchCategories, fetchSavedKeys]);
+  const fetchRecommendationSignals = useCallback(async () => {
+    setRecommendationError('');
+    try {
+      const [profileRes, interactionsRes] = await Promise.allSettled([
+        apiFetch('/api/explore/profession'),
+        apiFetch('/api/interactions?limit=80'),
+      ]);
+
+      if (profileRes.status === 'fulfilled' && profileRes.value.ok) {
+        const data = await profileRes.value.json().catch(() => ({}));
+        setProfessionProfiles(Array.isArray(data.profiles) ? data.profiles : []);
+      }
+
+      if (interactionsRes.status === 'fulfilled' && interactionsRes.value.ok) {
+        const data = await interactionsRes.value.json().catch(() => []);
+        const items = Array.isArray(data) ? data : [];
+        const text = items
+          .flatMap((item: any) => [item?.content, item?.message, item?.prompt, item?.response, item?.summary, item?.title, item?.description])
+          .filter(Boolean)
+          .map(value => (typeof value === 'string' ? value : JSON.stringify(value)))
+          .join('\n')
+          .slice(0, 50000);
+        setWorkSignalText(text);
+      }
+    } catch (err: any) {
+      setRecommendationError(err?.message || 'Recommendation signals failed to load');
+    }
+  }, []);
+
+  useEffect(() => { fetchMarketplace(); fetchInstalled(); fetchCategories(); fetchSavedKeys(); fetchRecommendationSignals(); }, [fetchMarketplace, fetchInstalled, fetchCategories, fetchSavedKeys, fetchRecommendationSignals]);
 
   // Debounced external search
   useEffect(() => {
@@ -641,9 +702,76 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
   // Filter & sort. External-runtime agents live in Team, not the Skill Hall.
   const skillHallMarketSkills = marketSkills.filter(s => s.runtime !== 'external');
   const skillHallCategories = categories.filter(cat => skillHallMarketSkills.some(s => s.category === cat));
-  const isExternalFeaturedSkill = useCallback((skill: typeof FEATURED_SKILLS[number]) => (
-    marketSkills.some(s => s.id === `skill-${skill.id}` && s.runtime === 'external')
-  ), [marketSkills]);
+  const installedSkillRows = useMemo(() => (
+    installedSkills
+      .map(skill => ({
+        skill,
+        marketSkill: skillHallMarketSkills.find(marketSkill => findInstalledSkillForMarket(marketSkill, [skill])),
+      }))
+      .sort((a, b) => Number(b.skill.connected) - Number(a.skill.connected) || Number(b.skill.enabled) - Number(a.skill.enabled) || a.skill.name.localeCompare(b.skill.name))
+  ), [installedSkills, skillHallMarketSkills]);
+  const matchedWorkSignals = useMemo(() => (
+    WORK_RECOMMENDATION_RULES
+      .filter(rule => rule.pattern.test(workSignalText))
+      .slice(0, 6)
+  ), [workSignalText]);
+  const recommendedSkills = useMemo<SkillRecommendation[]>(() => {
+    const byId = new Map<string, MarketplaceSkill>();
+    for (const skill of skillHallMarketSkills) byId.set(skill.id, skill);
+    const scored = new Map<string, { skill: MarketplaceSkill; score: number; reasons: string[] }>();
+    const add = (skillId: string, score: number, reason: string) => {
+      const skill = byId.get(skillId);
+      if (!skill) return;
+      const existing = scored.get(skillId);
+      if (existing) {
+        existing.score += score;
+        if (!existing.reasons.includes(reason)) existing.reasons.push(reason);
+      } else {
+        scored.set(skillId, { skill, score, reasons: [reason] });
+      }
+    };
+
+    for (const profile of professionProfiles) {
+      const profession = String(profile.profession || '').toLowerCase();
+      const confidence = Math.max(0.25, Math.min(1, Number(profile.confidence || 0.45)));
+      const skillIds = PROFESSION_RECOMMENDATION_MAP[profession] || [];
+      for (const skillId of skillIds) {
+        add(
+          skillId,
+          55 * confidence,
+          lang === 'zh'
+            ? `Work profile: ${profile.profession} ${Math.round(confidence * 100)}%`
+            : `Work profile: ${profile.profession} ${Math.round(confidence * 100)}%`,
+        );
+      }
+    }
+
+    for (const rule of WORK_RECOMMENDATION_RULES) {
+      const matcher = new RegExp(rule.pattern.source, 'gi');
+      const matches = workSignalText.match(matcher)?.length || 0;
+      if (!matches) continue;
+      for (const skillId of rule.skillIds) {
+        add(
+          skillId,
+          Math.min(70, 24 + matches * 6),
+          lang === 'zh' ? `Recent chats: ${rule.zh}` : `Recent chats: ${rule.en}`,
+        );
+      }
+    }
+
+    for (const { marketSkill, skill } of installedSkillRows) {
+      if (!marketSkill) continue;
+      add(
+        marketSkill.id,
+        skill.connected ? 18 : 10,
+        lang === 'zh' ? 'Already installed locally' : 'Already installed locally',
+      );
+    }
+
+    return Array.from(scored.values())
+      .sort((a, b) => b.score - a.score || b.skill.downloads - a.skill.downloads)
+      .slice(0, 8);
+  }, [installedSkillRows, lang, professionProfiles, skillHallMarketSkills, workSignalText]);
   const filteredMarket = skillHallMarketSkills.filter(s => {
     if (search && !s.name.toLowerCase().includes(search.toLowerCase()) && !s.description.toLowerCase().includes(search.toLowerCase())) return false;
     if (activeCategory && s.category !== activeCategory) return false;
@@ -657,7 +785,7 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
   });
 
   const tabs: { id: SkillCenterTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'featured', label: t.featuredTab || 'Featured', icon: <Sparkles size={14} /> },
+    { id: 'featured', label: t.recommendedTab || (lang === 'zh' ? '\u63a8\u8350' : 'Recommended'), icon: <Sparkles size={14} /> },
     { id: 'marketplace', label: t.marketplaceTab || 'Marketplace', icon: <ShoppingBag size={14} /> },
     { id: 'installed', label: t.installedTab || 'Installed', icon: <Cpu size={14} /> },
     { id: 'mcp', label: t.mcp || 'MCP', icon: <Github size={14} /> },
@@ -675,20 +803,28 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
     (!!skill.healthStatus && ['crashed', 'failed', 'restarting'].includes(skill.healthStatus)) ||
     (skill.enabled && !skill.connected);
   const shouldOfferRepair = (skill: InstalledSkill) => hasSkillRuntimeIssue(skill);
-  const getFeaturedSkill = useCallback((skill: typeof FEATURED_SKILLS[number]): MarketplaceSkill => (
-    skillHallMarketSkills.find(s => s.id === `skill-${skill.id}`) || {
-      id: `skill-${skill.id}`,
-      name: lang === 'zh' ? skill.zhName : skill.name,
-      description: lang === 'zh' ? skill.zhDesc : skill.desc,
-      author: 'Lumi Official',
-      downloads: 0,
-      rating: 0,
-      category: 'Featured',
-      icon: skill.icon,
-      installSource: 'bundled' as const,
-      installed: false,
-    }
-  ), [lang, skillHallMarketSkills]);
+  const recommendationCopy = {
+    title: lang === 'zh' ? '\u57fa\u4e8e\u4f60\u7684\u5de5\u4f5c\u63a8\u8350' : 'Recommended for your work',
+    subtitle: lang === 'zh'
+      ? 'Lumi \u4f1a\u53c2\u8003\u804c\u4e1a\u753b\u50cf\u3001\u6700\u8fd1\u804a\u5929\u548c\u5df2\u5b89\u88c5 Skill\uff1b\u7ee7\u7eed\u548c Lumi \u804a\u5de5\u4f5c\uff0c\u63a8\u8350\u4f1a\u8d8a\u6765\u8d8a\u51c6\u3002'
+      : 'Lumi uses the work profile, recent chats, and installed skills. Keep talking about work and this gets sharper.',
+    profile: lang === 'zh' ? '\u5de5\u4f5c\u753b\u50cf' : 'Work profile',
+    signals: lang === 'zh' ? '\u804a\u5929\u4fe1\u53f7' : 'Chat signals',
+    recommendations: lang === 'zh' ? '\u63a8\u8350\u5b89\u88c5' : 'Recommended installs',
+    installed: lang === 'zh' ? '\u5df2\u5b89\u88c5 Skill / MCP \u670d\u52a1' : 'Installed Skills / MCP services',
+    installedHint: lang === 'zh'
+      ? '\u8fd9\u91cc\u7684\u5df2\u5b89\u88c5\u662f\u672c\u5730 Skill \u5305\uff1b\u5927\u591a\u6570 Skill \u4f1a\u901a\u8fc7\u672c\u5730 MCP server \u66b4\u9732\u5de5\u5177\u7ed9 Lumi \u8c03\u7528\u3002'
+      : 'Installed means local Skill packages. Most skills expose tools to Lumi through a local MCP server.',
+    noSignals: lang === 'zh'
+      ? '\u6682\u65f6\u8fd8\u6ca1\u6709\u8db3\u591f\u7684\u804c\u4e1a\u6216\u5de5\u4f5c\u4fe1\u53f7\uff0c\u63a8\u8350\u4f1a\u5148\u4fdd\u6301\u4fdd\u5b88\u3002'
+      : 'Not enough work signals yet, so recommendations stay conservative.',
+    noRecommendations: lang === 'zh'
+      ? '\u8fd8\u6ca1\u6709\u660e\u786e\u63a8\u8350\u3002\u548c Lumi \u804a\u4e00\u804a\u4f60\u7684\u804c\u4e1a\u3001\u5e38\u505a\u7684\u4efb\u52a1\u6216\u5de5\u4f5c\u6d41\u7a0b\u540e\uff0c\u8fd9\u91cc\u4f1a\u81ea\u52a8\u53d8\u5f97\u6709\u7528\u3002'
+      : 'No strong recommendations yet. Talk with Lumi about your profession, recurring tasks, or workflows and this will populate automatically.',
+    noInstalled: lang === 'zh' ? '\u8fd8\u6ca1\u6709\u5df2\u5b89\u88c5\u7684 Skill\u3002' : 'No installed skills yet.',
+    refresh: lang === 'zh' ? '\u5237\u65b0\u63a8\u8350' : 'Refresh recommendations',
+  };
+  const hasRecommendationSignals = professionProfiles.length > 0 || matchedWorkSignals.length > 0 || workSignalText.trim().length > 0;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -703,7 +839,7 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
         <div className="flex items-center gap-2">
           <span className="text-xs text-white/45 font-mono">{sortedMarket.length} {t.available || 'available'}</span>
           <button
-            onClick={() => { setLoadError(''); fetchMarketplace(); fetchInstalled(); fetchCategories(); }}
+            onClick={() => { setLoadError(''); fetchMarketplace(); fetchInstalled(); fetchCategories(); fetchRecommendationSignals(); }}
             className="lumi-icon-button h-8 w-8"
             title={t.refresh || 'Refresh'}
           >
@@ -723,7 +859,7 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
             {lang === 'zh' ? `技能大厅加载异常：${loadError}` : `Skill Center load issue: ${loadError}`}
           </span>
           <button
-            onClick={() => { setLoadError(''); fetchMarketplace(); fetchInstalled(); fetchCategories(); }}
+            onClick={() => { setLoadError(''); fetchMarketplace(); fetchInstalled(); fetchCategories(); fetchRecommendationSignals(); }}
             className="rounded-lg bg-amber-300/10 px-3 py-1.5 font-semibold text-amber-200 hover:bg-amber-300/18"
           >
             {lang === 'zh' ? '重试' : 'Retry'}
@@ -756,103 +892,206 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
       <AnimatePresence>
         {activeTab === 'featured' && (
           <motion.div key="featured" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }} className="space-y-6">
-            <div className="grid grid-cols-1 gap-4">
-              {/* Hero cards: first 2 skills */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {FEATURED_SKILLS.slice(0, 2).filter(skill => !isExternalFeaturedSkill(skill)).map((skill, idx) => {
-                  const featuredSkill = getFeaturedSkill(skill);
-                  const availability = getDisplayAvailability(featuredSkill, installedSkills, savedKeys, lang);
-                  const isInstalled = featuredSkill.installed || !!availability.installedSkill;
-                  const isInstalling = installing === `skill-${skill.id}`;
+            <div className="lumi-panel p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={18} className="text-celestial-saturn" />
+                    <h4 className="text-sm font-black uppercase tracking-normal text-white/85">{recommendationCopy.title}</h4>
+                  </div>
+                  <p className="mt-2 max-w-2xl text-xs leading-relaxed text-white/45">{recommendationCopy.subtitle}</p>
+                </div>
+                <button
+                  onClick={fetchRecommendationSignals}
+                  className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] px-3 text-xs font-bold text-white/55 transition-colors hover:bg-white/[0.08] hover:text-white/80"
+                >
+                  <RefreshCw size={13} />
+                  {recommendationCopy.refresh}
+                </button>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {professionProfiles.slice(0, 4).map(profile => {
+                  const confidence = Number(profile.confidence || 0);
                   return (
-                    <motion.div
-                      key={skill.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      onClick={() => {
-                        setDetailSkill(featuredSkill);
-                      }}
-                      className={`relative overflow-hidden rounded-3xl border border-white/10 p-8 group cursor-pointer ${
-                        idx === 0 ? 'bg-gradient-to-br from-purple-500/10 via-transparent to-pink-500/5' : 'bg-gradient-to-br from-amber-500/10 via-transparent to-yellow-500/5'
-                      }`}
-                    >
-                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.03),transparent_70%)]" />
-                      <div className="relative z-10 space-y-5">
-                        <div className="flex items-center gap-4">
-                          <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${skill.iconColor} flex items-center justify-center shadow-2xl`}>
-                            {ICON_COMPONENTS[skill.icon] || <Zap size={24} className="text-white" />}
+                    <span key={profile.profession} className="rounded-full border border-celestial-saturn/20 bg-celestial-saturn/10 px-3 py-1 text-[12px] font-bold text-celestial-saturn/90">
+                      {recommendationCopy.profile}: {profile.profession}{confidence ? ` ${Math.round(confidence * 100)}%` : ''}
+                    </span>
+                  );
+                })}
+                {matchedWorkSignals.map(signal => (
+                  <span key={signal.en} className="rounded-full border border-cyan-300/15 bg-cyan-300/8 px-3 py-1 text-[12px] font-bold text-cyan-100/70">
+                    {recommendationCopy.signals}: {lang === 'zh' ? signal.zh : signal.en}
+                  </span>
+                ))}
+                {!hasRecommendationSignals && (
+                  <span className="rounded-full border border-white/8 bg-white/[0.04] px-3 py-1 text-[12px] font-bold text-white/45">
+                    {recommendationCopy.noSignals}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {recommendationError && (
+              <div className="flex items-center gap-2 rounded-2xl border border-amber-400/15 bg-amber-500/10 px-4 py-3 text-xs text-amber-100/75">
+                <AlertTriangle size={14} className="text-amber-300" />
+                {recommendationError}
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3 px-1">
+                <div className="flex items-center gap-2">
+                  <Star size={15} className="text-celestial-saturn" />
+                  <h4 className="text-xs font-black uppercase tracking-widest text-white/65">{recommendationCopy.recommendations}</h4>
+                </div>
+                <span className="text-[12px] font-mono text-white/35">{recommendedSkills.length}</span>
+              </div>
+
+              {recommendedSkills.length === 0 ? (
+                <div className="lumi-panel p-8 text-center">
+                  <p className="text-sm text-white/45">{recommendationCopy.noRecommendations}</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {recommendedSkills.map(({ skill, reasons }) => {
+                    const availability = getDisplayAvailability(skill, installedSkills, savedKeys, lang);
+                    const isInstalled = skill.installed || !!availability.installedSkill;
+                    const isInstalling = installing === skill.id;
+                    return (
+                      <motion.div
+                        key={skill.id}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        onClick={() => setDetailSkill(skill)}
+                        className="lumi-panel cursor-pointer p-5 transition-all hover:border-white/15 hover:bg-white/[0.06]"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <div className={`w-10 h-10 rounded-xl border flex shrink-0 items-center justify-center ${ICON_CLASSES[skill.icon] || 'bg-white/5 text-white/55 border-white/10'}`}>
+                              {ICON_COMPONENTS[skill.icon] || <Zap size={18} />}
+                            </div>
+                            <div className="min-w-0">
+                              <h5 className="truncate text-sm font-bold text-white/88">{skill.name}</h5>
+                              <span className="text-xs font-mono text-white/45">{skill.category} &middot; {skill.toolCount || 1} {t.toolsCount || 'tools'}</span>
+                            </div>
                           </div>
-                          <div>
-                            <h3 className="text-lg font-black text-white tracking-tight">{skill.name}</h3>
-                            <span className="text-xs text-white/55 font-mono uppercase tracking-widest">{t.flagshipSkill || 'Flagship Skill'}</span>
-                          </div>
+                          {isInstalled && (
+                            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-green-500/10 px-2 py-1 text-[12px] font-bold text-green-300">
+                              <CheckCircle size={10} /> {getInstallActionText(skill, true, lang, t)}
+                            </span>
+                          )}
                         </div>
-                        <p className="text-sm text-white/50 leading-relaxed">{skill.desc}</p>
-                        <SkillStatusCallout availability={availability} />
-                        <div className="flex items-center gap-3">
+
+                        <p className="mt-3 line-clamp-2 text-xs leading-relaxed text-white/50">{skill.description}</p>
+                        <div className="mt-3">
+                          <SkillStatusCallout availability={availability} compact />
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {reasons.slice(0, 3).map(reason => (
+                            <span key={reason} className="rounded-full border border-white/8 bg-white/[0.04] px-2 py-0.5 text-[11px] font-semibold text-white/45">
+                              {reason}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="mt-4 flex justify-end">
                           <Button
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (!isInstalled) handleInstall(featuredSkill);
+                              if (!isInstalled) handleInstall(skill);
                             }}
                             disabled={isInstalled || isInstalling}
-                            className={`text-xs font-bold px-5 py-2.5 h-auto rounded-xl transition-all ${
-                              isInstalled ? 'bg-green-500/20 text-green-400' : 'bg-white text-black hover:scale-105'
+                            className={`h-auto rounded-xl px-3 py-2 text-xs font-bold transition-all ${
+                              isInstalled ? 'bg-green-500/20 text-green-300' : 'bg-white/10 text-white/70 hover:bg-white/18'
                             }`}
                           >
-                            {isInstalled ? <><CheckCircle size={14} className="mr-1" /> {getInstallActionText(featuredSkill, true, lang, t)}</> : isInstalling ? <><RefreshCw size={14} className="mr-1 animate-spin" /> {t.installingStatus || 'Installing...'}</> : <>{isExternalRuntimeSkill(featuredSkill) ? <ExternalLink size={14} className="mr-1" /> : <Download size={14} className="mr-1" />} {getInstallActionText(featuredSkill, false, lang, t)}</>}
+                            {isInstalled ? <><CheckCircle size={12} /> {getInstallActionText(skill, true, lang, t)}</> : isInstalling ? <><RefreshCw size={12} className="animate-spin" /> {t.installingStatus || 'Installing...'}</> : <><Download size={12} /> {getInstallActionText(skill, false, lang, t)}</>}
                           </Button>
-                          <span className="text-xs text-white/45 font-mono">{t.tryPrompt || 'Try: '}"{skill.prompt.slice(0, 40)}..."</span>
                         </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex flex-col gap-1 px-1 sm:flex-row sm:items-end sm:justify-between">
+                <div className="flex items-center gap-2">
+                  <Cpu size={15} className="text-cyan-200" />
+                  <h4 className="text-xs font-black uppercase tracking-widest text-white/65">{recommendationCopy.installed}</h4>
+                </div>
+                <p className="max-w-2xl text-[12px] leading-relaxed text-white/35">{recommendationCopy.installedHint}</p>
               </div>
 
-              {/* Remaining 4 skills in a 2x2 grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {FEATURED_SKILLS.slice(2).filter(skill => !isExternalFeaturedSkill(skill)).map(skill => {
-                  const featuredSkill = getFeaturedSkill(skill);
-                  const availability = getDisplayAvailability(featuredSkill, installedSkills, savedKeys, lang);
-                  const isInstalled = featuredSkill.installed || !!availability.installedSkill;
-                  const isInstalling = installing === `skill-${skill.id}`;
-                  return (
-                    <motion.div
-                      key={skill.id}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      onClick={() => {
-                        setDetailSkill(featuredSkill);
-                      }}
-                      className="lumi-panel flex cursor-pointer items-center gap-4 p-5 transition-all hover:border-white/15 hover:bg-white/[0.06]"
-                    >
-                      <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${skill.iconColor} flex items-center justify-center shrink-0`}>
-                        {ICON_COMPONENTS[skill.icon] || <Zap size={18} className="text-white" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-bold text-white/80 text-sm">{skill.name}</h4>
-                        <p className="text-xs text-white/55 leading-relaxed line-clamp-1">{skill.prompt}</p>
-                        <div className="mt-2">
+              {installedSkillRows.length === 0 ? (
+                <div className="lumi-panel p-8 text-center">
+                  <p className="text-sm text-white/45">{recommendationCopy.noInstalled}</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {installedSkillRows.map(({ skill, marketSkill }) => {
+                    const availability = getInstalledSkillAvailability(skill, lang);
+                    return (
+                      <motion.div
+                        key={skill.name}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        onClick={() => setDetailSkill(skill)}
+                        className="lumi-panel cursor-pointer p-5 transition-all hover:border-white/15 hover:bg-white/[0.06]"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <div className={`w-10 h-10 rounded-xl border flex shrink-0 items-center justify-center ${marketSkill ? (ICON_CLASSES[marketSkill.icon] || 'bg-white/5 text-white/55 border-white/10') : 'border-cyan-300/15 bg-cyan-300/8 text-cyan-100/70'}`}>
+                              {marketSkill ? (ICON_COMPONENTS[marketSkill.icon] || <Zap size={18} />) : <Cpu size={18} />}
+                            </div>
+                            <div className="min-w-0">
+                              <h5 className="truncate text-sm font-bold text-white/88">{marketSkill?.name || skill.name}</h5>
+                              <span className="text-xs font-mono text-white/45">{skill.toolCount} {t.toolsCount || 'tools'} &middot; {skill.source}</span>
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1">
+                            {shouldOfferRepair(skill) && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleRepair(skill.name); }}
+                                disabled={repairing === skill.name}
+                                className="rounded-lg p-2 text-amber-300 transition-colors hover:bg-amber-500/10 disabled:opacity-40"
+                                title={lang === 'zh' ? '\u4fee\u590d' : 'Repair'}
+                              >
+                                <RefreshCw size={13} className={repairing === skill.name ? 'animate-spin' : ''} />
+                              </button>
+                            )}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleToggle(skill.name, !skill.enabled); }}
+                              disabled={skill.broken || repairing === skill.name}
+                              className={`rounded-lg p-2 transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${skill.enabled ? 'text-green-400 hover:bg-green-500/10' : 'text-white/45 hover:bg-white/5'}`}
+                              title={skill.enabled ? (t.skillDisableBtn || 'Disable') : (t.skillEnableBtn || 'Enable')}
+                            >
+                              {skill.enabled ? <Power size={13} /> : <PowerOff size={13} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        <p className="mt-3 line-clamp-2 text-xs leading-relaxed text-white/50">{marketSkill?.description || skill.description}</p>
+                        <div className="mt-3">
                           <SkillStatusCallout availability={availability} compact />
                         </div>
-                      </div>
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (!isInstalled) handleInstall(featuredSkill);
-                        }}
-                        disabled={isInstalled || isInstalling}
-                        className={`text-xs font-bold px-3 py-1.5 h-auto rounded-lg shrink-0 transition-all ${
-                          isInstalled ? 'bg-green-500/20 text-green-400' : 'bg-white/10 text-white/60 hover:bg-white/20'
-                        }`}
-                      >
-                        {isInstalled ? <><CheckCircle size={12} /> {getInstallActionText(featuredSkill, true, lang, t)}</> : isInstalling ? <><RefreshCw size={12} className="animate-spin" /> {t.installingStatus || 'Installing...'}</> : <>{isExternalRuntimeSkill(featuredSkill) ? <ExternalLink size={12} /> : <Download size={12} />} {getInstallActionText(featuredSkill, false, lang, t)}</>}
-                      </Button>
-                    </motion.div>
-                  );
-                })}
-              </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {skill.connected && (
+                            <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[11px] font-bold text-green-300">{t.connected || 'Connected'}</span>
+                          )}
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${skill.enabled ? 'bg-green-500/10 text-green-300' : 'bg-white/5 text-white/45'}`}>
+                            {skill.enabled ? (t.enabled || 'Enabled') : (t.disabled || 'Disabled')}
+                          </span>
+                          {marketSkill && (
+                            <span className="rounded-full bg-white/[0.04] px-2 py-0.5 text-[11px] font-bold text-white/40">{marketSkill.category}</span>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </motion.div>
         )}
