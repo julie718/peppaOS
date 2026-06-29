@@ -47,6 +47,9 @@ const SKILL_KEYWORD_MAP: Array<{ keywords: RegExp[]; skillId: string; category: 
   { keywords: [/老师|教师|教培|教学|教案|备课|课堂|作业|批改|评分|试卷|题库|测验|学生画像|家长沟通|lesson|teacher|education|tutor|rubric|quiz|student|parent.message/i], skillId: 'skill-education-teacher', category: 'Education' },
   { keywords: [/企业负责人|老板|创始人|CEO|总经理|管理层|经营会|经营简报|周报|月报|KPI|OKR|会议纪要|行动项|决策备忘录|团队风险|现金跑道|runway|executive|founder|manager|leadership|decision.memo|meeting.action/i], skillId: 'skill-executive-ops', category: 'Management' },
   { keywords: [/医生|医疗|临床|病历|SOAP|问诊|就诊|随访|出院|医嘱|患者|护理|检查报告|medical|clinical|patient|follow.?up|discharge|visit.prep/i], skillId: 'skill-medical-admin', category: 'Healthcare' },
+  { keywords: [/HR|人事|招聘|简历|面试|候选人|入职|岗位JD|胜任力|人才|recruit|resume|candidate|interview|onboarding|job.description/i], skillId: 'skill-hr-recruiting', category: 'HR' },
+  { keywords: [/销售|客服|客户成功|私域|线索|跟进|异议|工单|客诉|续费|流失|客户健康|lead|sales|customer.success|support.ticket|objection|follow.?up/i], skillId: 'skill-sales-customer-ops', category: 'Sales' },
+  { keywords: [/餐饮|门店|咖啡店|奶茶店|饭店|菜单|菜品|毛利|报损|损耗|排班|点评|团购|促销|restaurant|cafe|store|menu|waste|shift|promotion/i], skillId: 'skill-restaurant-store-ops', category: 'Retail' },
   { keywords: [/电商|店铺|网店|淘宝|天猫|京东|拼多多|抖店|小红书|亚马逊|shopify|sku|spu|商品标题|商品文案|详情页|库存|补货|日销|动销|平台结算|结算单|退款率|售后|差评|投诉|广告费|投流|ROI|ROAS|ecommerce|commerce|marketplace|listing|inventory|settlement|campaign|refund|return/i], skillId: 'skill-ecommerce-ops', category: 'Ecommerce' },
   { keywords: [/财务|财税|税务|税期|报税|纳税|增值税|进项|销项|税负|所得税|报销|发票|现金流|收支|预算|应收|应付|账龄|账款|费用|利润|营收|finance|tax|vat|expense|invoice|cashflow|reimbursement|aging|receivable|payable/i], skillId: 'skill-finance-office', category: 'Finance' },
 ];

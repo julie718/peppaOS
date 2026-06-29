@@ -61,6 +61,18 @@ const BUILTIN_ZH_TRANSLATIONS: Record<string, TranslationEntry> = {
     displayName: '医疗文书与随访包',
     description: '病历结构化、就诊准备、患者说明草稿、随访计划和医学资料检索清单等医疗文书辅助能力，不替代医生诊疗。',
   },
+  'skill-hr-recruiting': {
+    displayName: 'HR 招聘包',
+    description: '岗位 JD、简历匹配摘要、结构化面试、候选人对比和入职清单等招聘与人事工作流能力。',
+  },
+  'skill-sales-customer-ops': {
+    displayName: '销售客服包',
+    description: '线索评分、销售跟进、异议处理、客户健康度和客服工单分诊等销售与客户运营能力。',
+  },
+  'skill-restaurant-store-ops': {
+    displayName: '餐饮门店包',
+    description: '菜单毛利、报损损耗、门店排班、点评主题和促销 ROI 复盘等餐饮与本地门店运营能力。',
+  },
   'skill-hermes': {
     displayName: 'Hermes 助手',
     description: '研究、写作和编码等通用智能体能力，可作为 Lumi 的团队成员接入。',
@@ -159,6 +171,9 @@ const CATEGORY_ZH: Record<string, string> = {
   Education: '教育',
   Management: '管理',
   Healthcare: '医疗',
+  HR: '人事招聘',
+  Sales: '销售客服',
+  Retail: '零售门店',
   Assistant: '助手',
   Media: '媒体',
   Legal: '法律',
