@@ -42,8 +42,12 @@ const BUILTIN_ZH_TRANSLATIONS: Record<string, TranslationEntry> = {
     description: '把网页 URL 转换成干净可读的内容，方便 Lumi 阅读、摘要和引用。',
   },
   'skill-finance-office': {
-    displayName: '财务办公包',
-    description: '费用汇总、现金流预测、报销检查和经营报告提纲等财务办公能力。',
+    displayName: '财税办公包',
+    description: '费用汇总、现金流预测、发票 VAT 复核、应收应付账龄、电商税务底稿和经营报告提纲等财税办公能力。',
+  },
+  'skill-ecommerce-ops': {
+    displayName: '电商运营包',
+    description: '商品标题与卖点优化、订单利润分析、库存补货、平台结算复核、广告 ROI 和售后风险分析等电商运营能力。',
   },
   'skill-hermes': {
     displayName: 'Hermes 助手',
@@ -139,6 +143,7 @@ const CATEGORY_ZH: Record<string, string> = {
   Design: '设计',
   System: '系统',
   Finance: '财务',
+  Ecommerce: '电商',
   Assistant: '助手',
   Media: '媒体',
   Legal: '法律',

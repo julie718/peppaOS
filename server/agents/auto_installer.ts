@@ -44,7 +44,8 @@ const SKILL_KEYWORD_MAP: Array<{ keywords: RegExp[]; skillId: string; category: 
   { keywords: [/设计|品牌|logo|海报|视觉|UI|UX|设计系统|design|brand|poster|layout|creative brief|视觉方向/i], skillId: 'skill-design-studio-pack', category: 'Design' },
   { keywords: [/CAD|cad|DXF|dxf|图纸|平面图|施工图|草图|户型|装修|空间规划|drawing|drafting|floor plan/i], skillId: 'skill-cad-drafting', category: 'Architecture' },
   { keywords: [/飞书|微信|企业微信|远程访问|远程消息|绑定码|回消息|消息回复|feishu|wechat|wecom|lark/i], skillId: 'skill-messaging-ops', category: 'Messaging' },
-  { keywords: [/财务|报销|发票|现金流|收支|预算|应收|应付|费用|利润|营收|finance|expense|invoice|cashflow|reimbursement/i], skillId: 'skill-finance-office', category: 'Finance' },
+  { keywords: [/电商|店铺|网店|淘宝|天猫|京东|拼多多|抖店|小红书|亚马逊|shopify|sku|spu|商品标题|商品文案|详情页|库存|补货|日销|动销|平台结算|结算单|退款率|售后|差评|投诉|广告费|投流|ROI|ROAS|ecommerce|commerce|marketplace|listing|inventory|settlement|campaign|refund|return/i], skillId: 'skill-ecommerce-ops', category: 'Ecommerce' },
+  { keywords: [/财务|财税|税务|税期|报税|纳税|增值税|进项|销项|税负|所得税|报销|发票|现金流|收支|预算|应收|应付|账龄|账款|费用|利润|营收|finance|tax|vat|expense|invoice|cashflow|reimbursement|aging|receivable|payable/i], skillId: 'skill-finance-office', category: 'Finance' },
 ];
 
 function getInstalledNames(): Set<string> {
