@@ -2,9 +2,8 @@
 #
 # 启动:
 #   docker compose up -d
-#   → http://localhost:3000
-#
-# 停止旧的 luvsicos 容器后再跑这个，避免端口冲突。
+#   → http://qweasd.top:3000  (HTTP 直连)
+#   → https://qweasd.top      (HTTPS via Caddy)
 
 services:
   mayos:
@@ -33,5 +32,17 @@ services:
       - mayos_data:/app/data
     restart: unless-stopped
 
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    restart: unless-stopped
+
 volumes:
   mayos_data:
+  caddy_data:

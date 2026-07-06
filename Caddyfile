@@ -1,0 +1,3 @@
+qweasd.top {
+    reverse_proxy mayos:3000
+}
