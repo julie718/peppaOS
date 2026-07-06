@@ -151,7 +151,11 @@ export function PersonalityEvolution({ personalityId = 'peppa' }: Props) {
   const fetchEvolutionData = useCallback(() => {
     fetch(`/api/personality/${personalityId}/evolution`)
       .then(r => r.json())
-      .then(d => { setData(d); setSelectedStep(d.history?.length > 0 ? 0 : null); })
+      .then(d => {
+        if (d.error) { toast.error(d.error); return; }
+        setData(d);
+        setSelectedStep(d.history?.length > 0 ? 0 : null);
+      })
       .catch(() => toast.error(t.failedToLoadEvolution || 'Failed to load evolution data'))
       .finally(() => setLoading(false));
   }, [personalityId]);
@@ -240,7 +244,7 @@ export function PersonalityEvolution({ personalityId = 'peppa' }: Props) {
     );
   }
 
-  const hasHistory = data && data.history.length > 0;
+  const hasHistory = data && data.history && data.history.length > 0;
   const evolutionSteps = data?.history || [];
   const selected = selectedStep !== null && selectedStep !== undefined ? evolutionSteps[selectedStep] : null;
   const selectedAudit = selected?.auditId ? data?.audit?.find(a => a.id === selected.auditId) : null;
