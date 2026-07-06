@@ -45,6 +45,16 @@ export async function setupStatic(app: express.Express, __filename: string, __di
     const distPath = candidates.find((candidate) => fs.existsSync(candidate)) || candidates[candidates.length - 1];
     app.use(express.static(distPath));
     app.use("/api/*", (_req, res) => { res.status(404).json({ error: "API route not found" }); });
-    app.get("*", (_req, res) => { res.sendFile(path.join(distPath, defaultFile)); });
+    app.get("*", (req, res) => {
+      const ua = (req.headers['user-agent'] || '').toLowerCase();
+      const isMobile = /iphone|ipad|android|mobile/.test(ua) && !/tablet/.test(ua);
+      const file = isMobile ? 'index.minimal.html' : defaultFile;
+      const fullPath = path.join(distPath, file);
+      if (fs.existsSync(fullPath)) {
+        res.sendFile(fullPath);
+      } else {
+        res.sendFile(path.join(distPath, defaultFile));
+      }
+    });
   }
 }
