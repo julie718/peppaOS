@@ -1,55 +1,37 @@
-# Peppa Docker Compose
+# MayOS Docker Compose
 #
-# Personal:
-#   docker compose --profile personal up -d
+# 启动:
+#   docker compose up -d
 #   → http://localhost:3000
 #
-# Org (company server):
-#   docker compose --profile org up -d
-#   → http://localhost:3001
-#
-# Both:
-#   docker compose --profile personal --profile org up -d
+# 停止旧的 luvsicos 容器后再跑这个，避免端口冲突。
 
 services:
-  peppa-personal:
-    profiles: [personal]
+  mayos:
     build: .
-    container_name: peppa-personal
+    container_name: mayos
     ports:
       - "3000:3000"
     environment:
-      LUMI_ROLE: personal
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      PORT: 3000
+      HOST: 0.0.0.0
+      NODE_ENV: production
+      # LLM
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-      QWEN_API_KEY: ${QWEN_API_KEY:-}
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
-    volumes:
-      - lumi_personal_data:/app/data
-    restart: unless-stopped
-
-  peppa-org:
-    profiles: [org]
-    build: .
-    container_name: peppa-org
-    ports:
-      - "3001:3000"
-    environment:
-      LUMI_ROLE: org
+      # STT
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+      # TTS
+      DOUBAO_SPEECH_KEY: ${DOUBAO_SPEECH_KEY:-}
+      # Auth
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-      QWEN_API_KEY: ${QWEN_API_KEY:-}
-      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      PEPPA_PASSWORD: ${PEPPA_PASSWORD:-peppa_2026}
     volumes:
-      - lumi_org_data:/app/data
+      - mayos_data:/app/data
     restart: unless-stopped
 
 volumes:
-  lumi_personal_data:
-  lumi_org_data:
+  mayos_data:

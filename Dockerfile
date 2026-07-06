@@ -1,6 +1,6 @@
-# Peppa — unified Docker image for personal + org deployments
-# Build:  docker build -t lumios .
-# Run:    docker run -p 3000:3000 -e JWT_SECRET=xxx -e LUMI_ROLE=personal lumios
+# MayOS — single-container Docker image
+# Build:  docker build -t mayos .
+# Run:    docker run -p 3000:3000 -e JWT_SECRET=xxx mayos
 
 # ── Build stage ──────────────────────────────────────────────────────────
 FROM node:22-slim AS build
@@ -11,10 +11,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev || npm install
+RUN npm ci || npm install
 
 COPY . .
-RUN npm run build && npm run build:server
+RUN npm run build:frontends && npm run build:server
 
 # ── Runtime stage ────────────────────────────────────────────────────────
 FROM node:22-slim
