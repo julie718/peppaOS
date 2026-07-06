@@ -666,6 +666,9 @@ DDNS 已有的前提下，从"部署到 NAS"到"外网 HTTPS 可用"的路径很
 | 2026-07-06 晚上 | 全项目 lumi→peppa 重命名（三轮、300+文件、1600+行）+ 唤醒词加"佩奇" + 文件重命名 + DB 重命名 + TypeScript 编译零错误验证 |
 | 2026-07-06 深夜 | 安装 GitHub CLI（gh），推送代码到 julie718/peppaOS（4次提交），获取 workflow token 权限 |
 | 2026-07-06 深夜 | 修复人格演化页 `data.history.length` 崩溃：改名后服务器未重启导致 API 404，前端未处理异常响应 |
+| 2026-07-06 凌晨 | NAS Docker 部署完成：停旧容器 luvsicos → clone → docker compose up → qweasd.top:3000 可用 |
+| 2026-07-06 凌晨 | Caddy HTTPS 部署：NAS 80/443 被飞牛占用改用 4043，运营商封 80 改用自签名证书，macOS 端验证通过 |
+| 2026-07-06 凌晨 | 讨论极简手机版方案：Siri 风格界面 + 相机拍照识别 + GPS 位置感知
 
 ---
 
@@ -828,3 +831,170 @@ const hasHistory = data && data.history.length > 0;
 ```
 
 已提交并推送至 GitHub。
+
+---
+
+## 十六、飞牛 NAS Docker 部署 (2026-07-06 深夜)
+
+### 目标
+
+将 MayOS 从 MacBook 开发环境迁移到飞牛 NAS，通过 Docker 运行，局域网 + DDNS 外网可访问。
+
+### NAS 环境
+
+| 项目 | 值 |
+|------|-----|
+| 主机名 | ray |
+| 架构 | x86_64 |
+| Docker Compose | v2.40.3 |
+| 域名 | qweasd.top |
+| SSH 端口 | 4041 |
+| 公网 IP | 61.137.129.194 |
+
+### 部署步骤
+
+**1. 停掉旧容器，释放 3000 端口**
+
+```bash
+docker stop luvsicos && docker rm luvsicos
+```
+
+**2. 克隆项目**
+
+```bash
+git clone https://github.com/julie718/peppaOS.git mayos
+cd mayos
+```
+
+**3. 创建 .env 文件**
+
+写入 DEEPSEEK_API_KEY、DEEPGRAM_API_KEY、DOUBAO_SPEECH_KEY、DASHSCOPE_API_KEY、JWT_SECRET、PEPPA_PASSWORD 等环境变量。
+
+**4. 构建镜像并启动**
+
+```bash
+docker compose up -d --build
+```
+
+- 构建时间：约 3 分钟（npm ci + vite build:frontends + esbuild server）
+- 镜像大小：约 3GB
+- 服务端口：3000
+- 健康检查：`GET /api/health`，每 30 秒一次
+
+**5. 验证**
+
+```bash
+docker compose ps
+# STATUS: Up (healthy)
+
+curl http://qweasd.top:3000
+# 返回 MayOS 登录页面 HTML
+```
+
+### Docker 配置
+
+**Dockerfile** 改为多前端构建（`build:frontends`），同时托管桌面版、网页版、移动版。
+
+**docker-compose.yml** 精简为单容器（personal 模式），补齐所有 API Key 环境变量。
+
+### NAS 上的其他容器
+
+| 容器 | 端口 | 用途 | 状态 |
+|------|------|------|------|
+| mayos | 3000 | ✅ 当前 | 新增 |
+| hermes | 8000 | AI agent | 保留 |
+| homeassistant | 8123 | 智能家居 | 保留 |
+| luvsicos | 3000 | 旧 MayOS/LumiOS | 已删除 |
+
+### 额外修复
+
+飞牛 NAS 自带 nginx 占用 80 和 443 端口。国内运营商封锁 80 端口的入站连接，导致 Let's Encrypt HTTP 验证失败。
+
+解决方案：**Caddy 自签名证书**
+
+---
+
+## 十七、HTTPS 接入 (2026-07-06 凌晨)
+
+### 问题
+
+| 问题 | 原因 |
+|------|------|
+| 飞牛 NAS 的 80 和 443 已被自带 nginx 占用 | 飞牛管理界面 |
+| 运营商封锁 80 端口入站连接 | 中国大陆政策 |
+| Let's Encrypt 证书验证失败 | 两种验证方式均走不通 |
+
+### 方案
+
+Caddy 绑定 4043 端口，用 `tls internal` 生成自签名证书。
+
+**Caddyfile：**
+
+```
+{
+    http_port 4080
+    https_port 4043
+}
+
+qweasd.top:4043 {
+    tls internal
+    reverse_proxy mayos:3000
+}
+```
+
+**docker-compose.yml** caddy 部分：
+
+```yaml
+caddy:
+  image: caddy:2-alpine
+  container_name: caddy
+  ports:
+    - "4043:4043"
+  volumes:
+    - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    - caddy_data:/data
+  restart: unless-stopped
+```
+
+### 验证
+
+- MacBook 浏览器：`https://qweasd.top:4043` ✅
+- 自签名证书 → 浏览器提示"不安全" → 手动信任即可
+- HTTPS + iOS Safari → 麦克风权限可用 ✅
+
+### 当前访问入口
+
+| URL | 协议 | 用途 |
+|------|------|------|
+| `https://qweasd.top:4043` | HTTPS | 移动端（支持麦克风） |
+| `http://qweasd.top:3000` | HTTP | 电脑端调试 |
+
+---
+
+## 十八、移动端下一步规划
+
+### 当前状态
+
+现有手机版 UI（`MobilePlatform.tsx`）基本是桌面端的缩小版，Tab 导航、工厂、Agent 列表等组件在手机上几乎用不到。体验笨重。
+
+### 设计方向：Siri 风格极简界面
+
+参考 iOS 的 Siri — 全屏对话，没有多余按钮。
+
+```
+打开 → 未登录：登录框
+     → 登录后：全屏对话气泡 + 底部三个按钮
+                    📷 相机    🎤 语音   ⌨️ 文字
+```
+
+### 计划新增能力
+
+| 功能 | 实现方式 | 难度 |
+|------|----------|------|
+| 拍照识别 | `getUserMedia` 拍照 → 视觉模型识别 | 🟢 低（后端已支持） |
+| GPS 定位 | `navigator.geolocation` | 🟡 中（后端需新增） |
+| 视频流分析 | `getUserMedia` 视频流截帧 | 🟡 中 |
+
+### 设备间同步
+
+对话数据按用户 ID 存储在 NAS SQLite 数据库，同一账号在所有设备上自动同步，无需额外开发。
