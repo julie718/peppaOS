@@ -664,6 +664,8 @@ DDNS 已有的前提下，从"部署到 NAS"到"外网 HTTPS 可用"的路径很
 | 2026-07-06 下午 | 修复认证：auth 中间件支持 Authorization 头，恢复音色修改功能 |
 | 2026-07-06 傍晚 | 制定 NAS 部署与多终端接入路线图 |
 | 2026-07-06 晚上 | 全项目 lumi→peppa 重命名（三轮、300+文件、1600+行）+ 唤醒词加"佩奇" + 文件重命名 + DB 重命名 + TypeScript 编译零错误验证 |
+| 2026-07-06 深夜 | 安装 GitHub CLI（gh），推送代码到 julie718/peppaOS（4次提交），获取 workflow token 权限 |
+| 2026-07-06 深夜 | 修复人格演化页 `data.history.length` 崩溃：改名后服务器未重启导致 API 404，前端未处理异常响应 |
 
 ---
 
@@ -735,3 +737,94 @@ DDNS 已有的前提下，从"部署到 NAS"到"外网 HTTPS 可用"的路径很
 
 - 浏览器 localStorage key 全部变了（`peppa_auth_token` 替代 `lumi_auth_token`），需重新登录
 - DB 文件已重命名，重启服务器正常读取
+
+---
+
+## 十四、GitHub 推送 (2026-07-06 深夜)
+
+### 背景
+
+之前代码一直在 MacBook 本地，远程仓库地址是旧的 `--May-OS`。改名完成后需要推到新的 `peppaOS` 仓库。
+
+### 操作步骤
+
+1. **更换 remote** — `origin` 从 `julie718/--May-OS` 改为 `julie718/peppaOS`
+2. **安装 GitHub CLI** — MacBook 没装 Homebrew，直接从 GitHub Release 下载 arm64 二进制到 `~/bin/gh`
+3. **登录认证** — `gh auth login`，走 device flow，浏览器输入验证码
+4. **遇到障碍** — token 缺 `workflow` 权限，GitHub 拒绝推送 `.github/workflows/ci.yml`
+5. **修复** — `gh auth refresh -s workflow` 补权
+6. **推送** — 347 文件、3330 增 2195 删，成功推到 main 分支
+
+### 仓库信息
+
+| 项目 | 值 |
+|------|-----|
+| 地址 | https://github.com/julie718/peppaOS |
+| 分支 | main |
+| 提交数 | 3（品牌备份 + 全项目重命名 + ci.yml 补推） |
+| GitHub CLI | `~/bin/gh`，PATH 已配置到 `~/.zshrc` |
+
+---
+
+## 十五、人格演化页崩溃修复 (2026-07-06 深夜)
+
+### 现象
+
+底部 Docker 栏点击「人格设定」，页面显示"信号中断"，控制台报错：
+
+```
+undefined is not an object (evaluating 'data.history.length')
+```
+
+### 根因
+
+两层问题叠加：
+
+**1. 运行时问题：服务器未重启**
+
+改名脚本把 `personalities.json` 的 `"id": "lumi"` → `"id": "peppa"`。但服务器一直没重启，内存中 `personalityRegistry` 还是旧数据。前端请求 `/api/personality/peppa/evolution` 时，注册表找不到 `peppa`，返回 404 `{"error":"Personality not found"}`。
+
+→ **解决**：重启服务器（`kill` + launcher 自动重启）
+
+**2. 代码问题：前端未处理 API 异常响应**
+
+`PersonalityEvolution.tsx:152-155`：
+
+```typescript
+fetch(`/api/personality/${personalityId}/evolution`)
+    .then(r => r.json())
+    .then(d => { setData(d); ... })  // ← 404 时 d = {error:"..."}
+    .catch(...)                        // ← fetch 404 不抛异常，catch 不到
+```
+
+404 的 `{error: "Personality not found"}` 被 `setData` 设置成了组件状态。然后第 243 行：
+
+```typescript
+const hasHistory = data && data.history.length > 0;
+//                    ^^^^        ^^^^^^^^^^^^
+//                   data 存在    history 是 undefined → TypeError
+```
+
+### 修复
+
+**文件**：`src/components/PersonalityEvolution.tsx`
+
+**修 1**（第 153-156 行）：增加 API 错误响应拦截
+
+```diff
+- .then(d => { setData(d); setSelectedStep(d.history?.length > 0 ? 0 : null); })
++ .then(d => {
++   if (d.error) { toast.error(d.error); return; }
++   setData(d);
++   setSelectedStep(d.history?.length > 0 ? 0 : null);
++ })
+```
+
+**修 2**（第 243 行）：增加 history 空值保护
+
+```diff
+- const hasHistory = data && data.history.length > 0;
++ const hasHistory = data && data.history && data.history.length > 0;
+```
+
+已提交并推送至 GitHub。
