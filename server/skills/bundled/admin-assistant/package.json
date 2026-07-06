@@ -1,12 +1,12 @@
 {
-  "name": "lumi-skill-admin-assistant",
+  "name": "peppa-skill-admin-assistant",
   "version": "1.0.0",
   "description": "Administrative and executive assistant pack for schedules, meetings, reimbursements, purchasing requests, notices, and document filing.",
   "type": "module",
   "main": "index.ts",
   "scripts": { "start": "npx tsx index.ts" },
   "dependencies": { "@modelcontextprotocol/sdk": "^1.0.0", "zod": "^3.22.0" },
-  "lumi": {
+  "peppa": {
     "displayName": "Admin Assistant",
     "category": "Administration",
     "icon": "StickyNote",

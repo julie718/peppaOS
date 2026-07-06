@@ -5,15 +5,15 @@ import { getUserPreferredLLMConfig } from '../../llm/user_preferences';
 function requireDreamGetters(context: any) {
   const getters = context?.llmGetters || {};
   if (!getters.getDeepSeek || !getters.getGemini) {
-    throw new Error('Sleep cycle requires Lumi LLM services to be available.');
+    throw new Error('Sleep cycle requires Peppa LLM services to be available.');
   }
   return getters;
 }
 
 export function registerSleepTools(registry: ToolRegistry): void {
   registry.register({
-    name: 'lumi_sleep_status',
-    description: 'Read Lumi sleep/dream memory-maintenance status: last sleep cycle, dream count, last dream summary, and last report.',
+    name: 'peppa_sleep_status',
+    description: 'Read Peppa sleep/dream memory-maintenance status: last sleep cycle, dream count, last dream summary, and last report.',
     parameters: {
       type: 'object',
       properties: {},
@@ -25,16 +25,16 @@ export function registerSleepTools(registry: ToolRegistry): void {
   });
 
   registry.register({
-    name: 'lumi_sleep_cycle',
+    name: 'peppa_sleep_cycle',
     description: [
-      'Let Lumi rest and dream: run a safe internal memory consolidation pass.',
+      'Let Peppa rest and dream: run a safe internal memory consolidation pass.',
       'This organizes recent memories, marks uncertainty, creates a growth/dream memory, and reduces confusion without deleting original memories or mutating core identity.',
-      'Use when the user asks Lumi to sleep, dream, rest, process memories, become less confused, or quietly整理记忆.',
+      'Use when the user asks Peppa to sleep, dream, rest, process memories, become less confused, or quietly整理记忆.',
     ].join(' '),
     parameters: {
       type: 'object',
       properties: {
-        force: { type: 'boolean', description: 'Run even if idle/night/cooldown gates would normally skip. Use only when the user explicitly asks Lumi to sleep/dream now.' },
+        force: { type: 'boolean', description: 'Run even if idle/night/cooldown gates would normally skip. Use only when the user explicitly asks Peppa to sleep/dream now.' },
         reason: { type: 'string', description: 'Short reason for auditability.' },
         domain: { type: 'string', description: 'Memory domain, default personal.' },
         orgId: { type: 'string', description: 'Organization id for organization-scoped dreams.' },

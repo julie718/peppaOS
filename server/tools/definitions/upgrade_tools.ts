@@ -143,9 +143,9 @@ async function selfUpgradeHandler(args: Record<string, any>): Promise<string> {
 export function registerUpgradeTools(registry: ToolRegistry): void {
   registry.register({
     name: 'self_upgrade',
-    description: `Apply code changes to Lumi's own source files. Accepts a batch of file edits, runs tsc --noEmit to verify, git-commits as backup, and triggers a server restart.
+    description: `Apply code changes to Peppa's own source files. Accepts a batch of file edits, runs tsc --noEmit to verify, git-commits as backup, and triggers a server restart.
 
-Use this to evolve any part of Lumi: memory, personality, tools, UI, MCP skills, etc.
+Use this to evolve any part of Peppa: memory, personality, tools, UI, MCP skills, etc.
 
 After restart, the launcher watchdog picks up the new code. If the server crashes on restart, the launcher auto-rolls back to the previous git commit.
 

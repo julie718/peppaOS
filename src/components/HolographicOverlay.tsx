@@ -139,7 +139,7 @@ export function HolographicOverlay({ socket }: { socket: any }) {
                     >
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-xs font-black uppercase tracking-[0.3em] text-white/55">
-                          Lumi Holographic
+                          Peppa Holographic
                         </span>
                         <button
                           onClick={() => dismiss(item._id)}

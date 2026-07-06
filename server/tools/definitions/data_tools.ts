@@ -38,7 +38,7 @@ async function databaseQueryHandler(args: Record<string, any>): Promise<string> 
 export function registerDataOpsTools(registry: ToolRegistry): void {
   registry.register({
     name: 'database_query',
-    description: 'Run a read-only SQL query (SELECT or PRAGMA only) against the local LumiAI database.',
+    description: 'Run a read-only SQL query (SELECT or PRAGMA only) against the local MayOS database.',
     parameters: {
       type: 'object',
       properties: {

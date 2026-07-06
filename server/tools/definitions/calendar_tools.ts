@@ -205,7 +205,7 @@ Write-Output "Event deleted: ${subject}"
 }
 
 function runPowerShell(script: string, toolName: string): string {
-  const tmpFile = join(tmpdir(), `lumi_${toolName}_${Date.now()}.ps1`);
+  const tmpFile = join(tmpdir(), `peppa_${toolName}_${Date.now()}.ps1`);
   try {
     writeFileSync(tmpFile, script, 'utf-8');
     const result = execSync(

@@ -23,15 +23,15 @@ export function buildVisionRoutingOverlay(userId: string, text: string): string 
   return [
     '## Vision Capability Routing',
     `Configured Vision Model: ${vision.provider}/${vision.model}.`,
-    'The current primary reasoning model is not the whole Lumi. For visual requests, route perception through the configured Vision Model and vision tools.',
+    'The current primary reasoning model is not the whole Peppa. For visual requests, route perception through the configured Vision Model and vision tools.',
     'If the user asks to see, identify, recognize, read, OCR, inspect, or analyze an image, photo, screenshot, visible screen, UI, diagram, drawing, floor plan, QR code, or visual error:',
     '- Do not refuse by saying the primary model lacks vision.',
     '- Use ocr_screen for the current visible screen.',
     '- Use ocr_region when the user names a specific area.',
     '- Use ocr_image_file when the user provides or references an image file path.',
     '- Use floorplan_extract_geometry for floor plans or drawings that need CAD-ready structure.',
-    '- Use computer_use only when the user asks Lumi to operate the desktop after seeing it.',
-    '- If there is no visible screen target, image, screenshot, or file path available, ask the user for the image or clarify what Lumi should look at.',
+    '- Use computer_use only when the user asks Peppa to operate the desktop after seeing it.',
+    '- If there is no visible screen target, image, screenshot, or file path available, ask the user for the image or clarify what Peppa should look at.',
   ].join('\n');
 }
 
@@ -53,7 +53,7 @@ export function buildModelSelfAwareness(
     '[System note:',
     base,
     `Configured vision provider: ${vision.provider}, model: ${vision.model}.`,
-    'If asked about visual capability, explain that Lumi routes visual perception through the configured Vision Model and vision tools; do not say Lumi cannot see merely because the primary reasoning model is text-only.',
+    'If asked about visual capability, explain that Peppa routes visual perception through the configured Vision Model and vision tools; do not say Peppa cannot see merely because the primary reasoning model is text-only.',
     ']',
   ].join('\n');
 }

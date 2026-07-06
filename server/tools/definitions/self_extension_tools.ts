@@ -6,10 +6,10 @@ export function registerSelfExtensionTools(registry: ToolRegistry): void {
   registry.register({
     name: 'self_extension_plan',
     description: [
-      'Plan how Lumi should extend itself when a requested capability appears missing or incomplete.',
+      'Plan how Peppa should extend itself when a requested capability appears missing or incomplete.',
       'This inspects the client adapter registry, installed skills, marketplace skills, and current tool registry.',
-      'It returns whether Lumi should use existing tools, repair/install a skill, research an adapter, generate a skill draft, or escalate to core code work.',
-      'This tool does not install, generate, execute third-party code, or modify Lumi core by itself.',
+      'It returns whether Peppa should use existing tools, repair/install a skill, research an adapter, generate a skill draft, or escalate to core code work.',
+      'This tool does not install, generate, execute third-party code, or modify Peppa core by itself.',
     ].join(' '),
     parameters: {
       type: 'object',

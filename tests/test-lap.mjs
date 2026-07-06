@@ -1,5 +1,5 @@
 /**
- * LAP Protocol Test — simulates two Lumi agents performing:
+ * LAP Protocol Test — simulates two Peppa agents performing:
  * 1. Handshake
  * 2. Task delegation
  * 3. Context sharing
@@ -61,7 +61,7 @@ async function main() {
   const fakePeer = {
     agentId: 'agent_bob_001',
     userId: 'user_bob',
-    name: "Bob 的 Lumi",
+    name: "Bob 的 Peppa",
     capabilities: ['chat', 'code', 'search'],
     publicKey: 'ed25519:abc123def456',
   };

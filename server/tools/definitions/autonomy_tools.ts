@@ -34,7 +34,7 @@ function pickGatePatch(args: Record<string, any>): Partial<SafetyGateConfig> {
 export function registerAutonomyTools(registry: ToolRegistry): void {
   registry.register({
     name: 'autonomy_get_policy',
-    description: 'Read Lumi autonomous work safety policy: always-online, auto processing, external app automation, idle gate, time window, and budget.',
+    description: 'Read Peppa autonomous work safety policy: always-online, auto processing, external app automation, idle gate, time window, and budget.',
     parameters: {
       type: 'object',
       properties: {},
@@ -47,11 +47,11 @@ export function registerAutonomyTools(registry: ToolRegistry): void {
 
   registry.register({
     name: 'autonomy_update_policy',
-    description: 'Update Lumi autonomous work safety policy after explicit user confirmation. Use when the user agrees to a background workflow, 24-hour work window, or external app automation.',
+    description: 'Update Peppa autonomous work safety policy after explicit user confirmation. Use when the user agrees to a background workflow, 24-hour work window, or external app automation.',
     parameters: {
       type: 'object',
       properties: {
-        alwaysOnline: { type: 'boolean', description: 'Keep Lumi ready while the client/server is running.' },
+        alwaysOnline: { type: 'boolean', description: 'Keep Peppa ready while the client/server is running.' },
         autoProcessEnabled: { type: 'boolean', description: 'Allow queued confirmed workflows to run in the background.' },
         externalAppAutomationEnabled: { type: 'boolean', description: 'Allow opening/controlling external apps from adapters or autonomous work.' },
         messagingSendRequiresConfirmation: { type: 'boolean', description: 'Require confirmation before sending messages. Keep true unless an approved integration exists.' },
@@ -85,7 +85,7 @@ export function registerAutonomyTools(registry: ToolRegistry): void {
 
   registry.register({
     name: 'autonomy_list_workflows',
-    description: 'List confirmed autonomous workflows for this user. Lumi may only auto-generate background tasks from enabled workflows.',
+    description: 'List confirmed autonomous workflows for this user. Peppa may only auto-generate background tasks from enabled workflows.',
     parameters: {
       type: 'object',
       properties: {
@@ -104,14 +104,14 @@ export function registerAutonomyTools(registry: ToolRegistry): void {
 
   registry.register({
     name: 'autonomy_register_workflow',
-    description: 'Register or update a user-confirmed background workflow. Use only after the user clearly agrees what Lumi may do automatically.',
+    description: 'Register or update a user-confirmed background workflow. Use only after the user clearly agrees what Peppa may do automatically.',
     parameters: {
       type: 'object',
       properties: {
         id: { type: 'string', description: 'Existing workflow id when updating.' },
         title: { type: 'string', description: 'Short workflow title.' },
-        description: { type: 'string', description: 'What Lumi should accomplish.' },
-        trigger: { type: 'string', description: 'When Lumi may consider this workflow, e.g. every workday morning, when a meeting ends, when a CAD request appears.' },
+        description: { type: 'string', description: 'What Peppa should accomplish.' },
+        trigger: { type: 'string', description: 'When Peppa may consider this workflow, e.g. every workday morning, when a meeting ends, when a CAD request appears.' },
         allowedModes: {
           type: 'array',
           description: 'Allowed execution modes: analysis, desktop, terminal.',
@@ -140,7 +140,7 @@ export function registerAutonomyTools(registry: ToolRegistry): void {
       return JSON.stringify({
         workflow,
         reason: args.reason || '',
-        note: 'Workflow registered. Lumi can only auto-generate background tasks from enabled confirmed workflows and still obeys the autonomy policy gate.',
+        note: 'Workflow registered. Peppa can only auto-generate background tasks from enabled confirmed workflows and still obeys the autonomy policy gate.',
       }, null, 2);
     },
     permission: 'user',

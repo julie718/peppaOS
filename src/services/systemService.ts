@@ -34,7 +34,7 @@ class SystemService {
 
   constructor() {
     this.isTauri = typeof window !== 'undefined' && (!!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI_IPC__ || !!(window as any).__TAURI__);
-    this.isElectron = typeof window !== 'undefined' && (!!(window as any).lumiElectron || navigator.userAgent.toLowerCase().includes('electron'));
+    this.isElectron = typeof window !== 'undefined' && (!!(window as any).peppaElectron || navigator.userAgent.toLowerCase().includes('electron'));
   }
 
   /**
@@ -51,8 +51,8 @@ class SystemService {
       }
     }
 
-    if (this.isElectron && (window as any).lumiElectron) {
-      return await (window as any).lumiElectron.runCommand(command);
+    if (this.isElectron && (window as any).peppaElectron) {
+      return await (window as any).peppaElectron.runCommand(command);
     }
 
     // Web: no shell access
@@ -69,12 +69,12 @@ class SystemService {
         return await invoke<number>('get_system_volume');
       } catch { /* fallback */ }
     }
-    return parseFloat(localStorage.getItem('lumi_volume') || '50');
+    return parseFloat(localStorage.getItem('peppa_volume') || '50');
   }
 
   async setVolume(level: number): Promise<void> {
-    localStorage.setItem('lumi_volume', String(level));
-    document.documentElement.style.setProperty('--lumi-volume', String(level));
+    localStorage.setItem('peppa_volume', String(level));
+    document.documentElement.style.setProperty('--peppa-volume', String(level));
     if (this.isTauri) {
       try {
         const { invoke } = await import('@tauri-apps/api/core');
@@ -90,11 +90,11 @@ class SystemService {
         return await invoke<number>('get_screen_brightness');
       } catch { /* fallback */ }
     }
-    return parseFloat(localStorage.getItem('lumi_brightness') || '85');
+    return parseFloat(localStorage.getItem('peppa_brightness') || '85');
   }
 
   async setBrightness(level: number): Promise<void> {
-    localStorage.setItem('lumi_brightness', String(level));
+    localStorage.setItem('peppa_brightness', String(level));
     if (this.isTauri) {
       try {
         const { invoke } = await import('@tauri-apps/api/core');
@@ -108,9 +108,9 @@ class SystemService {
    */
   async setWallpaperMode(enabled: boolean): Promise<void> {
     if (enabled) {
-      document.documentElement.classList.add('lumi-wallpaper-mode');
+      document.documentElement.classList.add('peppa-wallpaper-mode');
     } else {
-      document.documentElement.classList.remove('lumi-wallpaper-mode');
+      document.documentElement.classList.remove('peppa-wallpaper-mode');
     }
 
     if (this.isTauri) {

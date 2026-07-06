@@ -234,7 +234,7 @@ function text(data: any, isError = false): { content: Array<{ type: 'text'; text
 // ── MCP Server ───────────────────────────────────────────────────────────────
 
 const server = new McpServer({
-  name: 'lumi-melody',
+  name: 'peppa-melody',
   version: '1.0.1',
 });
 
@@ -611,6 +611,6 @@ server.registerTool('music_perform', {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('[Lumi Melody] Ready — 5 music tools loaded');
+  console.error('[Peppa Melody] Ready — 5 music tools loaded');
 }
 main().catch(console.error);

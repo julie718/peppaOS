@@ -11,7 +11,7 @@ export function apiUrl(path: string): string {
 function withAuthHeaders(headers?: HeadersInit): HeadersInit {
   const next = new Headers(headers);
   try {
-    const token = localStorage.getItem('lumi_auth_token');
+    const token = localStorage.getItem('peppa_auth_token');
     if (token && !next.has('Authorization')) {
       next.set('Authorization', `Bearer ${token}`);
     }
@@ -51,5 +51,5 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
 
   throw lastError instanceof Error
     ? lastError
-    : new Error('Unable to reach the Lumi local server');
+    : new Error('Unable to reach the Peppa local server');
 }

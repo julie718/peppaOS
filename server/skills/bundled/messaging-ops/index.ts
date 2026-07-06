@@ -63,7 +63,7 @@ server.registerTool('draft_remote_reply', {
 }));
 
 server.registerTool('feishu_wechat_setup_guide', {
-  description: 'Explain the setup steps for Feishu, WeCom, or WeChat remote access to Lumi.',
+  description: 'Explain the setup steps for Feishu, WeCom, or WeChat remote access to Peppa.',
   inputSchema: {
     platform: z.enum(['feishu', 'wecom', 'wechat']).describe('Platform to configure'),
     publicBaseUrl: z.string().optional().describe('Public callback base URL, if already known'),
@@ -81,12 +81,12 @@ server.registerTool('feishu_wechat_setup_guide', {
     endpoints: endpoints[platform],
     steps: [
       'Create or open the platform app/bot in the provider console.',
-      'Copy credentials into Lumi Settings -> Messaging/Remote Access.',
+      'Copy credentials into Peppa Settings -> Messaging/Remote Access.',
       'Set the callback/event URL shown above.',
-      'Generate a binding code in Lumi and send/bind it from the remote chat.',
+      'Generate a binding code in Peppa and send/bind it from the remote chat.',
       'Test with a low-risk message before using organization data or files.',
     ],
-    boundary: 'Remote messages enter the same local Lumi. Multi-user routing should be explicit before team-wide deployment.',
+    boundary: 'Remote messages enter the same local Peppa. Multi-user routing should be explicit before team-wide deployment.',
   });
 });
 

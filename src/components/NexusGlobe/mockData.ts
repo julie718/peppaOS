@@ -1,7 +1,7 @@
 // Demo node/connection data for the Nexus Globe
 // Replace with real P2P data from socket/API when networking layer is built.
 
-export interface LumiNode {
+export interface PeppaNode {
   id: string;
   lat: number;
   lng: number;
@@ -10,7 +10,7 @@ export interface LumiNode {
   active: boolean;
 }
 
-export interface LumiConnection {
+export interface PeppaConnection {
   from: string;
   to: string;
   bandwidth: number;
@@ -52,7 +52,7 @@ function angularDist(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return Math.acos(Math.sin(a1) * Math.sin(a2) + Math.cos(a1) * Math.cos(a2) * Math.cos(dLon));
 }
 
-export function generateDemoNodes(): LumiNode[] {
+export function generateDemoNodes(): PeppaNode[] {
   return CITY_DATA.map(([name, lat, lng], i) => ({
     id: `node_${name}`,
     lat,
@@ -63,8 +63,8 @@ export function generateDemoNodes(): LumiNode[] {
   }));
 }
 
-export function generateDemoConnections(nodes: LumiNode[]): LumiConnection[] {
-  const connections: LumiConnection[] = [];
+export function generateDemoConnections(nodes: PeppaNode[]): PeppaConnection[] {
+  const connections: PeppaConnection[] = [];
   const used = new Set<string>();
 
   for (const a of nodes) {

@@ -56,7 +56,7 @@ export function runHealthAudit(userId: string): HealthReport {
       detail: `${memCount} memories stored`,
     });
     if (memCount === 0) {
-      recommendations.push('Lumi 还没开始构建你的记忆画像 — 多聊几天就会越来越懂你');
+      recommendations.push('Peppa 还没开始构建你的记忆画像 — 多聊几天就会越来越懂你');
     }
   } catch {
     checks.push({ name: 'Memory System', status: 'error', detail: 'Database read failed' });
@@ -80,7 +80,7 @@ export function runHealthAudit(userId: string): HealthReport {
 
   // 5. Personality evolution
   try {
-    const personality = personalityRegistry.get('lumi');
+    const personality = personalityRegistry.get('peppa');
     if (personality) {
       const history = (personality as any).evolutionHistory;
       const evoCount = history?.length || 0;
@@ -93,7 +93,7 @@ export function runHealthAudit(userId: string): HealthReport {
           : 'No evolution yet — personality is still at factory settings',
       });
       if (evoCount === 0) {
-        recommendations.push('Lumi 的人格还没开始演化 — 多互动就会自动调整风格');
+        recommendations.push('Peppa 的人格还没开始演化 — 多互动就会自动调整风格');
       }
     }
   } catch {
@@ -121,9 +121,9 @@ export function runHealthAudit(userId: string): HealthReport {
   // Evolution insight
   let evolutionInsight: string | undefined;
   if (overallStatus === 'healthy' && installed.length >= 3) {
-    evolutionInsight = 'Lumi 系统健康，核心能力就绪。自然语言办公、自动工作流、人格演化均在运行中。';
+    evolutionInsight = 'Peppa 系统健康，核心能力就绪。自然语言办公、自动工作流、人格演化均在运行中。';
   } else if (warns > 0) {
-    evolutionInsight = `系统有 ${warns} 项待优化。继续使用 Lumi，它会自动学习和适应你的习惯。`;
+    evolutionInsight = `系统有 ${warns} 项待优化。继续使用 Peppa，它会自动学习和适应你的习惯。`;
   }
 
   return {

@@ -86,20 +86,20 @@ export function PersonalityEditor({ t }: { t?: any }) {
           setConfig(data[0]);
         }
       })
-      .catch(() => toast.error(t?.failedToLoadPersonalities || ui('Lumi 配置加载失败', 'Failed to load Lumi config')))
+      .catch(() => toast.error(t?.failedToLoadPersonalities || ui('Peppa 配置加载失败', 'Failed to load Peppa config')))
       .finally(() => setLoading(false));
   }, []);
 
   if (loading) {
     return (
       <div className="animate-in fade-in space-y-8 duration-500">
-        <div className="lumi-panel flex items-center gap-3 p-5">
+        <div className="peppa-panel flex items-center gap-3 p-5">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-celestial-saturn/20 bg-celestial-saturn/10 text-celestial-saturn">
             <User size={20} />
           </span>
-          <h3 className="text-xl font-black uppercase tracking-[0.08em] text-white/90">{t?.lumiCore || ui('Lumi 人格核心配置', 'Lumi Core Config')}</h3>
+          <h3 className="text-xl font-black uppercase tracking-[0.08em] text-white/90">{t?.lumiCore || ui('Peppa 人格核心配置', 'Peppa Core Config')}</h3>
         </div>
-        <p className="lumi-panel p-5 text-sm text-white/40">{t?.loadingPersonalities || ui('加载中...', 'Loading...')}</p>
+        <p className="peppa-panel p-5 text-sm text-white/40">{t?.loadingPersonalities || ui('加载中...', 'Loading...')}</p>
       </div>
     );
   }
@@ -107,13 +107,13 @@ export function PersonalityEditor({ t }: { t?: any }) {
   if (!config) {
     return (
       <div className="animate-in fade-in space-y-8 duration-500">
-        <div className="lumi-panel flex items-center gap-3 p-5">
+        <div className="peppa-panel flex items-center gap-3 p-5">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-celestial-saturn/20 bg-celestial-saturn/10 text-celestial-saturn">
             <User size={20} />
           </span>
-          <h3 className="text-xl font-black uppercase tracking-[0.08em] text-white/90">{t?.lumiCore || ui('Lumi 人格核心配置', 'Lumi Core Config')}</h3>
+          <h3 className="text-xl font-black uppercase tracking-[0.08em] text-white/90">{t?.lumiCore || ui('Peppa 人格核心配置', 'Peppa Core Config')}</h3>
         </div>
-        <p className="lumi-panel p-5 text-sm text-white/40">{t?.noPersonalitiesDefined || ui('未找到配置。', 'No configuration found.')}</p>
+        <p className="peppa-panel p-5 text-sm text-white/40">{t?.noPersonalitiesDefined || ui('未找到配置。', 'No configuration found.')}</p>
       </div>
     );
   }
@@ -121,7 +121,7 @@ export function PersonalityEditor({ t }: { t?: any }) {
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 space-y-6 duration-500">
       {/* Tab bar */}
-      <div className="lumi-panel flex items-center gap-1 p-1">
+      <div className="peppa-panel flex items-center gap-1 p-1">
         {[
           { id: 'personality' as const, label: t?.lumiCore || ui('人格核心', 'Personality'), icon: <User size={14} /> },
           { id: 'contacts' as const, label: t?.contacts || ui('联系人', 'Contacts'), icon: <Users size={14} /> },
@@ -143,16 +143,16 @@ export function PersonalityEditor({ t }: { t?: any }) {
         <ContactsPanel />
       ) : (
         <>
-      <div className="lumi-panel flex items-center gap-3 p-5">
+      <div className="peppa-panel flex items-center gap-3 p-5">
         <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-celestial-saturn/20 bg-celestial-saturn/10 text-celestial-saturn">
           <User size={20} />
         </span>
-        <h3 className="text-xl font-black uppercase tracking-[0.08em] text-white/90">{t?.lumiCore || ui('Lumi 人格核心配置', 'Lumi Core Config')}</h3>
+        <h3 className="text-xl font-black uppercase tracking-[0.08em] text-white/90">{t?.lumiCore || ui('Peppa 人格核心配置', 'Peppa Core Config')}</h3>
         <span className="text-xs font-mono text-white/45 bg-white/5 px-2 py-0.5 rounded-full">v{config.version}</span>
       </div>
 
       <p className="text-sm text-white/40 max-w-xl">
-        {t?.lumiCoreDesc || ui('Lumi 的人格核心会从互动中通过 Hebbian 学习自然成长。这个视图展示当前配置；变化会自动发生，不需要手动硬改。', 'Lumi\'s core personality evolves organically through Hebbian learning from interactions. This view shows the current configuration — changes happen automatically, not through manual editing.')}
+        {t?.lumiCoreDesc || ui('Peppa 的人格核心会从互动中通过 Hebbian 学习自然成长。这个视图展示当前配置；变化会自动发生，不需要手动硬改。', 'Peppa\'s core personality evolves organically through Hebbian learning from interactions. This view shows the current configuration — changes happen automatically, not through manual editing.')}
       </p>
 
       <div className="space-y-4">
@@ -187,7 +187,7 @@ export function PersonalityEditor({ t }: { t?: any }) {
               <ReadonlyField label={ui('沟通模式', 'Communication Patterns')} value={(config.growthState.communicationPatterns || []).join('; ') || ui('无', 'none')} />
             </div>
           ) : (
-            <p className="text-white/45 text-xs">{ui('还没有本地成长状态。Lumi 会从已确认的互动模式中逐步建立。', 'No local growth state yet. Lumi will build this from confirmed interaction patterns.')}</p>
+            <p className="text-white/45 text-xs">{ui('还没有本地成长状态。Peppa 会从已确认的互动模式中逐步建立。', 'No local growth state yet. Peppa will build this from confirmed interaction patterns.')}</p>
           )}
         </Section>
 
@@ -297,7 +297,7 @@ function Section({ title, section, expanded, onToggle, children }: {
 }) {
   const open = expanded[section] !== false;
   return (
-    <div className="lumi-panel space-y-3 p-4">
+    <div className="peppa-panel space-y-3 p-4">
       <button onClick={() => onToggle(section)} className="flex w-full items-center gap-2 text-left text-xs font-black uppercase tracking-widest text-white/55 hover:text-white/85">
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         {title}
@@ -315,7 +315,7 @@ function ReadonlyField({ label, value, mono }: {
   return (
     <div className="space-y-1">
       <label className="text-xs font-black uppercase text-white/55">{label}</label>
-      <div className={`lumi-panel w-full rounded-xl px-3 py-2 text-sm text-white/65 ${mono ? 'font-mono' : ''}`}>
+      <div className={`peppa-panel w-full rounded-xl px-3 py-2 text-sm text-white/65 ${mono ? 'font-mono' : ''}`}>
         {value || <span className="text-white/45">—</span>}
       </div>
     </div>

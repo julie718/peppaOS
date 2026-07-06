@@ -107,7 +107,7 @@ export function SubscriptionPanel({ t }: { t: any }) {
     <div className="h-full flex flex-col bg-zinc-950/60 text-white overflow-y-auto">
       <div className="flex items-center gap-3 px-6 py-4 border-b border-white/5">
         <Crown size={18} className="text-celestial-saturn" />
-        <h2 className="text-sm font-bold text-white/90">Lumi Subscription</h2>
+        <h2 className="text-sm font-bold text-white/90">Peppa Subscription</h2>
         <div className="flex-1" />
         <div className="flex gap-1 bg-white/5 rounded-lg p-0.5">
           {(['status', 'plans'] as const).map(t => (

@@ -47,7 +47,7 @@ async function createPptHandler(args: Record<string, any>): Promise<string> {
   bc('mcp:activity', { device: 'xiaozhi', action: 'create_ppt', status: 'started', title, slidesCount: slides.length });
 
   // Download images if URLs provided
-  const tmpDir = path.join(os.tmpdir(), `lumi_ppt_imgs`);
+  const tmpDir = path.join(os.tmpdir(), `peppa_ppt_imgs`);
   if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
   const imagePaths: (string | null)[] = [];
   for (const imgUrl of images) {
@@ -147,7 +147,7 @@ async function createPptHandler(args: Record<string, any>): Promise<string> {
     // Accent underline
     `AddShape $cover 1 80 345 100 5 $Accent "" 0 0 $false`,
     // Subtitle
-    `AddTextBox $cover 80 365 800 60 '${esc(slides.length + ' chapters · Lumi AI')}' 16 $TextDim $false 0`,
+    `AddTextBox $cover 80 365 800 60 '${esc(slides.length + ' chapters · Peppa AI')}' 16 $TextDim $false 0`,
     // Bottom accent bar
     `AddShape $cover 1 0 534 $W 6 $Accent2 "" 0 0 $false`,
     // Remove default slide
@@ -288,10 +288,10 @@ async function createPptHandler(args: Record<string, any>): Promise<string> {
     `AddShape $end 1 0 0 $W 6 $Accent "" 0 0 $false`,
     // Center card
     `AddShape $end 1 160 150 640 260 $Surface "" 0 0 $false`,
-    `AddTextBox $end 200 170 560 70 'Created with Lumi AI' 28 $Text $true 1`,
+    `AddTextBox $end 200 170 560 70 'Created with Peppa AI' 28 $Text $true 1`,
     `AddShape $end 1 350 240 260 4 $Accent "" 0 0 $false`,
     `AddTextBox $end 200 260 560 50 '${esc(title)}' 16 $TextDim $false 1`,
-    `AddTextBox $end 200 480 560 40 'lumi-os.ai' 13 $Accent $false 1`,
+    `AddTextBox $end 200 480 560 40 'peppa-os.ai' 13 $Accent $false 1`,
   );
 
   // Save & cleanup
@@ -305,7 +305,7 @@ async function createPptHandler(args: Record<string, any>): Promise<string> {
     `Write-Output $out`,
   );
 
-  const tmpFile = path.join(os.tmpdir(), `lumi_ppt_${Date.now()}.ps1`);
+  const tmpFile = path.join(os.tmpdir(), `peppa_ppt_${Date.now()}.ps1`);
   fs.writeFileSync(tmpFile, '﻿' + psLines.join('\n'), 'utf-8');
 
   const { execSync } = await import('child_process');

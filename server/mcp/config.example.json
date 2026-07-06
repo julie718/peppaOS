@@ -10,19 +10,19 @@
       "enabled": true,
       "source": "external",
       "transport": "stdio",
-      "description": "Filesystem access for the Lumi workspace."
+      "description": "Filesystem access for the Peppa workspace."
     },
     "sqlite": {
       "command": "npx",
       "args": [
         "-y",
         "@modelcontextprotocol/server-sqlite",
-        "data/lumi.db"
+        "data/peppa.db"
       ],
       "enabled": false,
       "source": "external",
       "transport": "stdio",
-      "description": "SQLite access for the local Lumi database."
+      "description": "SQLite access for the local Peppa database."
     },
     "git": {
       "command": "npx",

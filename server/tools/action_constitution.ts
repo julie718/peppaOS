@@ -29,7 +29,7 @@ export function getActionConstitutionPolicy(): ActionConstitutionPolicy {
       'Messaging send/post/submit/purchase/payment actions require confirmation.',
       'Destructive commands are forbidden unless implemented as an explicitly confirmed safe tool.',
       'Autonomous background work cannot use external app automation unless the autonomy gate enables it.',
-      'Lumi should prefer explicit client actions and adapters over raw mouse/keyboard control.',
+      'Peppa should prefer explicit client actions and adapters over raw mouse/keyboard control.',
     ],
   };
 }

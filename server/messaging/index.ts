@@ -1,5 +1,5 @@
 /**
- * Lumi Messaging — Unified messaging layer.
+ * Peppa Messaging — Unified messaging layer.
  * Supports: Feishu, Telegram, WeChat, Web Chat
  */
 export type {

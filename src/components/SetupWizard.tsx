@@ -19,12 +19,12 @@ export function SetupWizard({ onFinish }: Props) {
   const [step, setStep] = useState<Step>('detect');
   const [ollamaStatus, setOllamaStatus] = useState<'checking' | 'available' | 'not-found'>('checking');
   const [ollamaUrl, setOllamaUrl] = useState(() => {
-    try { return localStorage.getItem('lumi_ollama_url') || 'http://localhost:11434'; } catch { return 'http://localhost:11434'; }
+    try { return localStorage.getItem('peppa_ollama_url') || 'http://localhost:11434'; } catch { return 'http://localhost:11434'; }
   });
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [lmstudioStatus, setLmstudioStatus] = useState<'checking' | 'available' | 'not-found'>('checking');
   const [lmstudioUrl, setLmstudioUrl] = useState(() => {
-    try { return localStorage.getItem('lumi_lmstudio_url') || 'http://localhost:1234'; } catch { return 'http://localhost:1234'; }
+    try { return localStorage.getItem('peppa_lmstudio_url') || 'http://localhost:1234'; } catch { return 'http://localhost:1234'; }
   });
   const [lmstudioModels, setLmstudioModels] = useState<string[]>([]);
   const [apiKey, setApiKey] = useState('');
@@ -74,7 +74,7 @@ export function SetupWizard({ onFinish }: Props) {
 
   const handleOllamaUrlChange = (url: string) => {
     setOllamaUrl(url);
-    localStorage.setItem('lumi_ollama_url', url);
+    localStorage.setItem('peppa_ollama_url', url);
     fetch('/api/ollama/config', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -85,7 +85,7 @@ export function SetupWizard({ onFinish }: Props) {
 
   const handleLmstudioUrlChange = (url: string) => {
     setLmstudioUrl(url);
-    localStorage.setItem('lumi_lmstudio_url', url);
+    localStorage.setItem('peppa_lmstudio_url', url);
     fetch('/api/lmstudio/config', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -124,7 +124,7 @@ export function SetupWizard({ onFinish }: Props) {
     fetch('/api/voice/synthesize', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: 'Hello. Your Lumi OS is ready.', voiceId: 'default' }),
+      body: JSON.stringify({ text: 'Hello. Your Peppa OS is ready.', voiceId: 'default' }),
     }).then(r => {
       setVoiceStatus(r.ok ? 'ok' : 'failed');
     }).catch(() => {
@@ -163,7 +163,7 @@ export function SetupWizard({ onFinish }: Props) {
               {localAIReady
                 ? ui('已检测到本地大模型。日常对话会更快、更私密，也不会产生云端费用。', 'Local LLM detected. Your conversations will be fast, private, and free.')
                 : (localAINotDetected
-                  ? ui('未发现本地模型。你仍然可以填写云端 API Key 使用 Lumi，或安装本地 AI 运行时。', 'No local model found. You can still use Lumi with a cloud API key, or install a local AI runtime.')
+                  ? ui('未发现本地模型。你仍然可以填写云端 API Key 使用 Peppa，或安装本地 AI 运行时。', 'No local model found. You can still use Peppa with a cloud API key, or install a local AI runtime.')
                   : '')
               }
             </p>
@@ -240,7 +240,7 @@ export function SetupWizard({ onFinish }: Props) {
                 onClick={() => setStep(localAIReady ? 'voice-test' : 'api-setup')}
                 className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-2xl text-white font-semibold transition-all"
               >
-                {localAIReady ? ui('开始使用 Lumi', 'Start Using Lumi') : ui('设置云端 API Key', 'Set Up Cloud API Key')}
+                {localAIReady ? ui('开始使用 Peppa', 'Start Using Peppa') : ui('设置云端 API Key', 'Set Up Cloud API Key')}
                 <ArrowRight size={18} />
               </button>
             )}
@@ -258,7 +258,7 @@ export function SetupWizard({ onFinish }: Props) {
             <CheckCircle size={64} className="mx-auto text-green-400" />
             <h2 className="text-2xl font-bold text-white">{ui('已经准备好了', "You're All Set")}</h2>
             <p className="text-white/40 text-sm">
-              {ui('Lumi 会用你的本地模型处理日常对话。复杂任务可自动切换到云端模型。', 'Lumi will use your local model for everyday conversations. For complex tasks, it will automatically fall back to the cloud.')}
+              {ui('Peppa 会用你的本地模型处理日常对话。复杂任务可自动切换到云端模型。', 'Peppa will use your local model for everyday conversations. For complex tasks, it will automatically fall back to the cloud.')}
             </p>
             <button onClick={() => setStep('voice-test')} className="w-full px-6 py-4 bg-green-600 hover:bg-green-500 rounded-2xl text-white font-semibold transition-colors">
               {ui('测试语音', 'Test Voice')} <Volume2 size={18} className="inline ml-2" />
@@ -331,7 +331,7 @@ export function SetupWizard({ onFinish }: Props) {
               className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-2xl text-white font-semibold transition-all"
             >
               <Sparkles size={18} />
-              {ui('启动 Lumi', 'Launch Lumi')}
+              {ui('启动 Peppa', 'Launch Peppa')}
             </button>
           </div>
         )}
@@ -342,7 +342,7 @@ export function SetupWizard({ onFinish }: Props) {
             <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 200 }}>
               <Sparkles size={64} className="mx-auto text-celestial-saturn" />
             </motion.div>
-            <h2 className="text-2xl font-bold text-white">{ui('Lumi 已准备好', 'Lumi is Ready')}</h2>
+            <h2 className="text-2xl font-bold text-white">{ui('Peppa 已准备好', 'Peppa is Ready')}</h2>
             <p className="text-white/40 text-sm">{ui('你的个人 AI 已经在线。开始对话吧，它会和你一起学习、成长。', 'Your personal AI is live. Start talking and it will learn and grow with you.')}</p>
           </div>
         )}

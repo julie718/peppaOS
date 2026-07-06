@@ -32,7 +32,7 @@ const CATEGORIES: AdapterCategory[] = [
 export function registerAdapterTools(registry: ToolRegistry): void {
   registry.register({
     name: 'adapter_registry_list',
-    description: 'List Lumi client capability adapters: windows, modes, tools, skills, music, meeting, organization, runtime logs, knowledge, settings, permissions, desktop control, CAD/BIM, external apps, and collaboration.',
+    description: 'List Peppa client capability adapters: windows, modes, tools, skills, music, meeting, organization, runtime logs, knowledge, settings, permissions, desktop control, CAD/BIM, external apps, and collaboration.',
     parameters: {
       type: 'object',
       properties: {
@@ -73,7 +73,7 @@ export function registerAdapterTools(registry: ToolRegistry): void {
 
   registry.register({
     name: 'adapter_health_check',
-    description: 'Check Lumi adapter readiness and return blockers, setup needs, degraded areas, and safe next actions. Use this when Lumi needs to understand whether a capability can really be used.',
+    description: 'Check Peppa adapter readiness and return blockers, setup needs, degraded areas, and safe next actions. Use this when Peppa needs to understand whether a capability can really be used.',
     parameters: {
       type: 'object',
       properties: {

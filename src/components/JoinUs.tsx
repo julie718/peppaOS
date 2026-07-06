@@ -317,7 +317,7 @@ export function JoinUs({ t }: { t: any }) {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="architect@lumi.ai"
+                  placeholder="architect@peppa.ai"
                   className="bg-white/5 border-white/10 py-6 rounded-xl"
                 />
               </div>

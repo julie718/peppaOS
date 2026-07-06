@@ -159,7 +159,7 @@ type ClientRuntimeSnapshot = {
 
 declare global {
   interface Window {
-    lumiElectron?: {
+    peppaElectron?: {
       getSystemInfo: () => Promise<{ platform: string; hostname: string; freeMemory: number }>;
       runCommand: (command: string) => Promise<{ success: boolean; output: string }>;
     };
@@ -298,7 +298,7 @@ function ControlCenter({ isOpen, onClose, t, brightness, setBrightness, volume, 
   setLang: (l: 'en' | 'zh') => void;
   toggleWindow: (id: string) => void;
 }) {
-  const { selectedVoiceId, unreadCount } = useApp();
+  const { selectedVoiceId, selectedVoiceProvider, unreadCount } = useApp();
 
   if (!isOpen) return null;
 
@@ -409,7 +409,7 @@ function ControlCenter({ isOpen, onClose, t, brightness, setBrightness, volume, 
         </div>
       </div>
       <div className="mt-6 pt-6 border-t border-white/5 flex items-center justify-between font-sans">
-        <span className="text-xs font-bold text-white/45 tracking-widest uppercase">{t.desktopVersion || 'Lumi OS v3.0.0'}</span>
+        <span className="text-xs font-bold text-white/45 tracking-widest uppercase">{t.desktopVersion || 'Peppa OS v3.0.0'}</span>
         <button onClick={onClose} className="text-xs font-black text-celestial-saturn hover:underline uppercase tracking-widest">{t.closeNexus || 'Close Nexus'}</button>
       </div>
     </motion.div>
@@ -489,10 +489,10 @@ function SensorPrimer({ isOpen, onContinue, t }: { isOpen: boolean; onContinue: 
                 {t.sensorPermissionIntro || 'Sensor permissions'}
               </div>
               <h2 className="mt-2 text-2xl font-black tracking-normal text-white">
-                {t.sensorPrimerTitle || 'Enable Lumi desktop awareness'}
+                {t.sensorPrimerTitle || 'Enable Peppa desktop awareness'}
               </h2>
               <p className="mt-3 text-sm leading-7 text-white/56">
-                {t.sensorPrimerDesc || 'Lumi uses local camera and microphone signals for presence, voice, and biometric features. The feature stays part of the desktop experience; this notice explains what will request permission first.'}
+                {t.sensorPrimerDesc || 'Peppa uses local camera and microphone signals for presence, voice, and biometric features. The feature stays part of the desktop experience; this notice explains what will request permission first.'}
               </p>
             </div>
           </div>
@@ -645,7 +645,7 @@ function Spotlight({ isOpen, onClose, onSelect, apps, t }: { isOpen: boolean; on
           <Search size={24} className="text-white/40" />
           <input 
             autoFocus
-            placeholder={t.searchNeuralHub || "Search Lumi Neural Hub..."}
+            placeholder={t.searchNeuralHub || "Search Peppa Neural Hub..."}
             className="flex-1 bg-transparent border-none outline-none text-xl font-bold text-white placeholder:text-white/45"
             value={query}
             onChange={e => setQuery(e.target.value)}
@@ -688,19 +688,19 @@ function ExecutionWorkQueue({ t }: { t: any }) {
   const isZh = t?.langCode !== 'en';
   return (
     <div className="h-full overflow-y-auto custom-scrollbar p-8">
-      <section className="lumi-surface min-h-full rounded-3xl bg-black/20 p-5">
+      <section className="peppa-surface min-h-full rounded-3xl bg-black/20 p-5">
       <div className="mb-5 flex items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-lg font-black uppercase tracking-widest text-white/85">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-celestial-saturn/20 bg-celestial-saturn/10 text-celestial-saturn">
               <Calendar size={18} />
             </span>
-            {isZh ? 'Lumi 学习与吸收' : 'Lumi Learning & Absorption'}
+            {isZh ? 'Peppa 学习与吸收' : 'Peppa Learning & Absorption'}
           </div>
           <p className="mt-1 max-w-2xl text-sm leading-relaxed text-white/42">
             {isZh
-              ? '这里是 Lumi 自己创建、执行和沉淀知识的学习流：她会从上下文、资料和记忆里持续吸收新东西。'
-              : 'This is Lumi’s own learning stream: she creates plans, executes them, and absorbs reusable knowledge from context, files, and memory.'}
+              ? '这里是 Peppa 自己创建、执行和沉淀知识的学习流：她会从上下文、资料和记忆里持续吸收新东西。'
+              : 'This is Peppa’s own learning stream: she creates plans, executes them, and absorbs reusable knowledge from context, files, and memory.'}
           </p>
         </div>
       </div>
@@ -727,7 +727,7 @@ function DailyPlans({ t, embedded = false, onOpenQueue }: { t: any; embedded?: b
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || 'Failed to load plans');
       setPlans((d.plans || [])
-        .filter((p: any) => (p.source === 'lumi' || p.source === 'auto') && p.status !== 'done' && p.status !== 'completed' && p.status !== 'cancelled')
+        .filter((p: any) => (p.source === 'peppa' || p.source === 'auto') && p.status !== 'done' && p.status !== 'completed' && p.status !== 'cancelled')
         .slice(0, 8));
     } catch (err: any) {
       toast.error(err?.message || (t.planLoadFailed || 'Failed to load plans'));
@@ -773,14 +773,14 @@ function DailyPlans({ t, embedded = false, onOpenQueue }: { t: any; embedded?: b
 
   return (
     <GlassCard
-      className={`lumi-panel ${embedded ? 'h-full' : 'cursor-pointer hover:bg-white/[0.05]'} space-y-3 rounded-2xl bg-black/20 p-5 transition-colors`}
+      className={`peppa-panel ${embedded ? 'h-full' : 'cursor-pointer hover:bg-white/[0.05]'} space-y-3 rounded-2xl bg-black/20 p-5 transition-colors`}
       onClick={onOpenQueue}
     >
       <div className="flex items-center justify-between">
         <div>
           <span className="text-[12px] font-black uppercase tracking-widest text-white/65 flex items-center gap-2">
             <Calendar size={12} className="text-celestial-saturn" />
-            {embedded ? (isZh ? 'Lumi 学习计划' : 'Lumi Learning Plans') : (isZh ? 'Lumi 学习流' : 'Lumi Learning')}
+            {embedded ? (isZh ? 'Peppa 学习计划' : 'Peppa Learning Plans') : (isZh ? 'Peppa 学习流' : 'Peppa Learning')}
           </span>
           {!embedded && (
             <p className="mt-1 text-[11px] text-white/30">
@@ -794,7 +794,7 @@ function DailyPlans({ t, embedded = false, onOpenQueue }: { t: any; embedded?: b
           {onOpenQueue && (
             <button
               onClick={(e) => { e.stopPropagation(); onOpenQueue(); }}
-              className="lumi-button h-7 px-2 text-[10px]"
+              className="peppa-button h-7 px-2 text-[10px]"
             >
               {isZh ? '队列' : 'Queue'}
             </button>
@@ -806,7 +806,7 @@ function DailyPlans({ t, embedded = false, onOpenQueue }: { t: any; embedded?: b
         <div className="text-white/30 text-xs py-2">{isZh ? '加载中...' : 'Loading...'}</div>
       ) : plans.length === 0 ? (
         <div className="rounded-xl border border-white/5 bg-white/[0.02] px-3 py-3 text-xs text-white/30">
-          {isZh ? 'Lumi 还没有生成学习计划。进入自主模式并开启自动处理后，她会按最近上下文持续创建。' : 'Lumi has not generated learning plans yet. In autonomous mode with auto processing enabled, she will keep creating them from recent context.'}
+          {isZh ? 'Peppa 还没有生成学习计划。进入自主模式并开启自动处理后，她会按最近上下文持续创建。' : 'Peppa has not generated learning plans yet. In autonomous mode with auto processing enabled, she will keep creating them from recent context.'}
         </div>
       ) : (
         <div className="space-y-2">
@@ -887,7 +887,7 @@ export function DesktopUI({
   const personalScale = useTransform(cameraZ, [0, -1000], [1, 0.4]);
   const personalOpacity = useTransform(cameraZ, [0, -400], [1, 0]);
   const { isTauri } = usePlatform();
-  const { selectedVoiceId, unreadCount, notifications, addNotification, orgConnection, workDomain, switchDomain, operationMode, setOperationMode, aiConfig } = useApp();
+  const { selectedVoiceId, selectedVoiceProvider, unreadCount, notifications, addNotification, orgConnection, workDomain, switchDomain, operationMode, setOperationMode, aiConfig } = useApp();
 
   const [openWindows, setOpenWindows] = useState<string[]>(activeTab !== 'home' && activeTab !== 'knowledge' ? [activeTab] : []);
   const [minimizedWindows, setMinimizedWindows] = useState<string[]>([]);
@@ -899,7 +899,7 @@ export function DesktopUI({
   const [sanctuaryOpen, setSanctuaryOpen] = useState(false);
   const [sanctuaryAgent, setSanctuaryAgent] = useState<any>(null);
   const [petReaction, setPetReaction] = useState<{ animation: string; until: number } | null>(null);
-  const [activePersonality, setActivePersonality] = useState('lumi');
+  const [activePersonality, setActivePersonality] = useState('peppa');
   const petReactionTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const triggerPetReaction = (animation: string, ms: number = 1500) => {
@@ -911,13 +911,13 @@ export function DesktopUI({
   const [memoryLabOpen, setMemoryLabOpen] = useState(false);
   const [equippedAccessories, setEquippedAccessories] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem('lumi_accessories');
+      const saved = localStorage.getItem('peppa_accessories');
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
   const [selectedPet, setSelectedPet] = useState<PetConfig | null>(() => {
     try {
-      const saved = localStorage.getItem('lumi_selected_pet');
+      const saved = localStorage.getItem('peppa_selected_pet');
       if (saved) {
         const parsed = JSON.parse(saved);
         return resolvePetPreference(parsed);
@@ -930,11 +930,11 @@ export function DesktopUI({
   const petPrefsSavingRef = useRef(false);
   const savePetPrefsToServer = useCallback(async (pet: PetConfig | null, accessories: string[]) => {
     const storedPet = serializePetPreference(pet);
-    localStorage.setItem('lumi_accessories', JSON.stringify(accessories));
+    localStorage.setItem('peppa_accessories', JSON.stringify(accessories));
     if (storedPet) {
-      localStorage.setItem('lumi_selected_pet', JSON.stringify(storedPet));
+      localStorage.setItem('peppa_selected_pet', JSON.stringify(storedPet));
     } else {
-      localStorage.removeItem('lumi_selected_pet');
+      localStorage.removeItem('peppa_selected_pet');
     }
     petPrefsSavingRef.current = true;
     try {
@@ -981,8 +981,8 @@ export function DesktopUI({
   const wallpaperWasEnabledBeforeAutomationRef = useRef(false);
   const wallpaperWorkPromptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [wallpaperWorkPromptVisible, setWallpaperWorkPromptVisible] = useState(false);
-  const [wallpaper, setWallpaper] = useState<string>(() => localStorage.getItem('lumi_wallpaper_type') || 'celestial');
-  const [wallpaperUrl, setWallpaperUrl] = useState<string>(() => localStorage.getItem('lumi_wallpaper_url') || '');
+  const [wallpaper, setWallpaper] = useState<string>(() => localStorage.getItem('peppa_wallpaper_type') || 'celestial');
+  const [wallpaperUrl, setWallpaperUrl] = useState<string>(() => localStorage.getItem('peppa_wallpaper_url') || '');
   const wallpaperInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -1020,8 +1020,8 @@ export function DesktopUI({
       const url = reader.result as string;
       setWallpaperUrl(url);
       setWallpaper('custom');
-      localStorage.setItem('lumi_wallpaper_type', 'custom');
-      localStorage.setItem('lumi_wallpaper_url', url);
+      localStorage.setItem('peppa_wallpaper_type', 'custom');
+      localStorage.setItem('peppa_wallpaper_url', url);
     };
     reader.readAsDataURL(file);
   };
@@ -1047,13 +1047,13 @@ export function DesktopUI({
 
   const [isTrainingOpen, setIsTrainingOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => {
-    return localStorage.getItem('lumi_onboarding_seen') !== 'true';
+    return localStorage.getItem('peppa_onboarding_seen') !== 'true';
   });
   const [sensorPrimerSeen, setSensorPrimerSeen] = useState(() => {
-    return localStorage.getItem('lumi_sensor_primer_seen') === 'true';
+    return localStorage.getItem('peppa_sensor_primer_seen') === 'true';
   });
   const finishSensorPrimer = useCallback(() => {
-    localStorage.setItem('lumi_sensor_primer_seen', 'true');
+    localStorage.setItem('peppa_sensor_primer_seen', 'true');
     setSensorPrimerSeen(true);
   }, []);
   const [mcpActivities, setMcpActivities] = useState<Array<{
@@ -1070,13 +1070,13 @@ export function DesktopUI({
   const backgroundTaskStatusRef = useRef<Map<string, string>>(new Map());
   const [meetingNotesOpen, setMeetingNotesOpen] = useState(false);
   const [meetingStartedAt, setMeetingStartedAt] = useState<number | null>(() => {
-    const saved = localStorage.getItem('lumi_meeting_started_at');
+    const saved = localStorage.getItem('peppa_meeting_started_at');
     return saved ? Number(saved) || null : null;
   });
   const [meetingNotes, setMeetingNotes] = useState<MeetingNote[]>(() => {
-    try { return JSON.parse(localStorage.getItem('lumi_meeting_notes') || '[]'); } catch { return []; }
+    try { return JSON.parse(localStorage.getItem('peppa_meeting_notes') || '[]'); } catch { return []; }
   });
-  const [meetingReport, setMeetingReport] = useState<string>(() => localStorage.getItem('lumi_meeting_report') || '');
+  const [meetingReport, setMeetingReport] = useState<string>(() => localStorage.getItem('peppa_meeting_report') || '');
   const [meetingReportGenerating, setMeetingReportGenerating] = useState(false);
   const [legalMeetingCaseTitle, setLegalMeetingCaseTitle] = useState(() => getLegalCaseLabel(getLegalConsultationCase()));
   const meetingModeRef = useRef(operationMode === 'meeting');
@@ -1088,16 +1088,16 @@ export function DesktopUI({
   }, [operationMode]);
 
   const persistMeetingNotes = useCallback((notes: MeetingNote[]) => {
-    localStorage.setItem('lumi_meeting_notes', JSON.stringify(notes.slice(-300)));
+    localStorage.setItem('peppa_meeting_notes', JSON.stringify(notes.slice(-300)));
   }, []);
 
   const resetMeetingCapture = useCallback((startedAt = Date.now()) => {
     setMeetingNotes([]);
     setMeetingReport('');
     setMeetingStartedAt(startedAt);
-    localStorage.setItem('lumi_meeting_notes', '[]');
-    localStorage.removeItem('lumi_meeting_report');
-    localStorage.setItem('lumi_meeting_started_at', String(startedAt));
+    localStorage.setItem('peppa_meeting_notes', '[]');
+    localStorage.removeItem('peppa_meeting_report');
+    localStorage.setItem('peppa_meeting_started_at', String(startedAt));
     lastMeetingTranscriptRef.current = { text: '', at: 0 };
   }, []);
 
@@ -1109,10 +1109,10 @@ export function DesktopUI({
     if (lastMeetingTranscriptRef.current.text === clean && now - lastMeetingTranscriptRef.current.at < 4000) return;
     lastMeetingTranscriptRef.current = { text: clean, at: now };
     setMeetingReport('');
-    localStorage.removeItem('lumi_meeting_report');
+    localStorage.removeItem('peppa_meeting_report');
     setMeetingStartedAt(prev => {
       if (prev) return prev;
-      localStorage.setItem('lumi_meeting_started_at', String(now));
+      localStorage.setItem('peppa_meeting_started_at', String(now));
       return now;
     });
     setMeetingNotes(prev => {
@@ -1168,8 +1168,8 @@ export function DesktopUI({
   const meetingStartAttemptRef = useRef(0);
 
   const startStandardVoiceCall = useCallback(() => {
-    void startCall(selectedVoiceId, activePersonality, activePersonality, getVoiceScopeOptions());
-  }, [activePersonality, getVoiceScopeOptions, selectedVoiceId, startCall]);
+    void startCall(selectedVoiceId, activePersonality, activePersonality, { ...getVoiceScopeOptions(), voiceProvider: selectedVoiceProvider });
+  }, [activePersonality, getVoiceScopeOptions, selectedVoiceId, selectedVoiceProvider, startCall]);
 
   const stopMeetingAudio = useCallback(() => {
     meetingVoiceActiveRef.current = false;
@@ -1189,7 +1189,7 @@ export function DesktopUI({
     setMeetingStartedAt(prev => {
       if (prev) return prev;
       const now = Date.now();
-      localStorage.setItem('lumi_meeting_started_at', String(now));
+      localStorage.setItem('peppa_meeting_started_at', String(now));
       return now;
     });
 
@@ -1198,9 +1198,9 @@ export function DesktopUI({
       if (now - meetingStartAttemptRef.current < 3000) return;
       meetingStartAttemptRef.current = now;
       meetingVoiceActiveRef.current = true;
-      void startCall(selectedVoiceId, activePersonality, activePersonality, { ...getVoiceScopeOptions(), transcriptionOnly: true });
+      void startCall(selectedVoiceId, activePersonality, activePersonality, { ...getVoiceScopeOptions(), transcriptionOnly: true, voiceProvider: selectedVoiceProvider });
     }
-  }, [activePersonality, callState, endCall, getVoiceScopeOptions, operationMode, selectedVoiceId, startCall]);
+  }, [activePersonality, callState, endCall, getVoiceScopeOptions, operationMode, selectedVoiceId, selectedVoiceProvider, startCall]);
   // Spacebar push-to-talk: track whether this call was started by spacebar
   const isSpacebarRecording = useRef(false);
   const callStateRef = useRef(callState);
@@ -1209,22 +1209,22 @@ export function DesktopUI({
   useEffect(() => { runtimeLogOpenRef.current = openWindows.includes('runtime-log'); }, [openWindows]);
   // Wake word detection — server-side Qwen ASR (DASHSCOPE_API_KEY), falls back to Picovoice
   // Default off — user must explicitly enable in Settings to avoid continuous ASR charges
-  const [wakeEnabled, setWakeEnabled] = useState(() => localStorage.getItem('lumi_wake_word_enabled') === 'true');
+  const [wakeEnabled, setWakeEnabled] = useState(() => localStorage.getItem('peppa_wake_word_enabled') === 'true');
   useEffect(() => {
     const syncWakeSetting = () => {
-      setWakeEnabled(localStorage.getItem('lumi_wake_word_enabled') === 'true');
+      setWakeEnabled(localStorage.getItem('peppa_wake_word_enabled') === 'true');
     };
     const onSettingChanged = (event: Event) => {
       const detail = (event as CustomEvent).detail;
-      if (detail?.key === 'lumi_wake_word_enabled') setWakeEnabled(detail.value === true || detail.value === 'true');
+      if (detail?.key === 'peppa_wake_word_enabled') setWakeEnabled(detail.value === true || detail.value === 'true');
     };
     const onStorage = (event: StorageEvent) => {
-      if (event.key === 'lumi_wake_word_enabled') syncWakeSetting();
+      if (event.key === 'peppa_wake_word_enabled') syncWakeSetting();
     };
-    window.addEventListener('lumi:setting-changed', onSettingChanged);
+    window.addEventListener('peppa:setting-changed', onSettingChanged);
     window.addEventListener('storage', onStorage);
     return () => {
-      window.removeEventListener('lumi:setting-changed', onSettingChanged);
+      window.removeEventListener('peppa:setting-changed', onSettingChanged);
       window.removeEventListener('storage', onStorage);
     };
   }, []);
@@ -1299,9 +1299,9 @@ export function DesktopUI({
       try {
         const { invoke } = await import('@tauri-apps/api/core');
         const status: any = await invoke('get_runtime_resilience_status');
-        const saved = localStorage.getItem('lumi_close_to_background');
+        const saved = localStorage.getItem('peppa_close_to_background');
         if (status?.started_in_background) {
-          localStorage.setItem('lumi_close_to_background', 'true');
+          localStorage.setItem('peppa_close_to_background', 'true');
           await invoke('set_close_to_background', { enabled: true });
         } else if (saved === 'true' || saved === 'false') {
           await invoke('set_close_to_background', { enabled: saved === 'true' });
@@ -1315,10 +1315,10 @@ export function DesktopUI({
     socket,
     startCallRef,
     enabled: wakeEnabled,
-    keyword: 'Lumi',
+    keyword: 'Peppa',
     voiceId: selectedVoiceId,
-    personalityId: 'lumi',
-    agentId: 'lumi',
+    personalityId: 'peppa',
+    agentId: 'peppa',
     startCallOptions: voiceScopeOptions,
     onDetection: () => sounds.playWakeChime(),
     canAcceptWake: ownerVoiceGateOpen,
@@ -1347,7 +1347,7 @@ export function DesktopUI({
       const idleS = data.idle_seconds ?? (data.idle_ms / 1000);
       const wasAway = lastIdleRef.current > IDLE_AWAY_S;
       const isBack = idleS < RETURN_S;
-      const allowProactiveGreeting = localStorage.getItem('lumi_allow_proactive_voice') === 'true';
+      const allowProactiveGreeting = localStorage.getItem('peppa_allow_proactive_voice') === 'true';
       if (wasAway && isBack && !greetedRef.current && allowProactiveGreeting) {
         greetedRef.current = true;
         // LLM-generated personalized greeting — server generates, TTS speaks
@@ -1373,12 +1373,12 @@ export function DesktopUI({
   const buildMeetingMarkdown = useCallback(() => {
     const started = meetingStartedAt ? new Date(meetingStartedAt) : new Date();
     const lines = [
-      `# Lumi Meeting Notes`,
+      `# Peppa Meeting Notes`,
       '',
       `Started: ${started.toLocaleString()}`,
       ...(legalMeetingCaseTitle ? [`Case: ${legalMeetingCaseTitle}`] : []),
       '',
-      ...(meetingReport ? ['## Lumi Report', '', meetingReport, ''] : []),
+      ...(meetingReport ? ['## Peppa Report', '', meetingReport, ''] : []),
       '## Transcript',
       '',
       ...meetingNotes.map(note => `- [${formatMeetingTime(note.time)}] ${note.text}`),
@@ -1396,7 +1396,7 @@ export function DesktopUI({
       .map(note => `- [${formatMeetingTime(note.time)}] ${note.text}`);
     if (legalCase) {
       return [
-        lang === 'zh' ? '# Lumi 律所会谈纪要' : '# Lumi Legal Consultation Memo',
+        lang === 'zh' ? '# Peppa 律所会谈纪要' : '# Peppa Legal Consultation Memo',
         '',
         `${lang === 'zh' ? '案件' : 'Case'}: ${getLegalCaseLabel(legalCase)}`,
         `${lang === 'zh' ? '开始时间' : 'Started'}: ${started}`,
@@ -1425,7 +1425,7 @@ export function DesktopUI({
       ].join('\n');
     }
     return [
-      lang === 'zh' ? '# Lumi 会议报告' : '# Lumi Meeting Report',
+      lang === 'zh' ? '# Peppa 会议报告' : '# Peppa Meeting Report',
       '',
       `${lang === 'zh' ? '开始时间' : 'Started'}: ${started}`,
       `${lang === 'zh' ? '记录条数' : 'Transcript items'}: ${meetingNotes.length}`,
@@ -1447,7 +1447,7 @@ export function DesktopUI({
     if (meetingNotes.length === 0) {
       const fallback = buildFallbackMeetingReport();
       setMeetingReport(fallback);
-      localStorage.setItem('lumi_meeting_report', fallback);
+      localStorage.setItem('peppa_meeting_report', fallback);
       toast.info(lang === 'zh' ? '会议没有收录到转写，已生成空会议报告' : 'No transcript captured; generated an empty meeting report');
       return fallback;
     }
@@ -1483,13 +1483,13 @@ export function DesktopUI({
       if (!res.ok) throw new Error(data.error || 'Failed to analyze meeting');
       const report = String(data.report || '').trim() || buildFallbackMeetingReport();
       setMeetingReport(report);
-      localStorage.setItem('lumi_meeting_report', report);
-      toast.success(lang === 'zh' ? 'Lumi 已整理会议报告' : 'Lumi generated the meeting report');
+      localStorage.setItem('peppa_meeting_report', report);
+      toast.success(lang === 'zh' ? 'Peppa 已整理会议报告' : 'Peppa generated the meeting report');
       return report;
     } catch (err: any) {
       const fallback = buildFallbackMeetingReport();
       setMeetingReport(fallback);
-      localStorage.setItem('lumi_meeting_report', fallback);
+      localStorage.setItem('peppa_meeting_report', fallback);
       toast.error(err?.message || (lang === 'zh' ? '会议分析失败，已生成基础报告' : 'Meeting analysis failed; generated a basic report'));
       return fallback;
     } finally {
@@ -1512,7 +1512,7 @@ export function DesktopUI({
       const content = [
         `# 当事人会谈 ${started.toLocaleString()}`,
         '',
-        '## Lumi 会谈整理',
+        '## Peppa 会谈整理',
         '',
         report,
         '',
@@ -1541,7 +1541,7 @@ export function DesktopUI({
         lastLegalMeetingArchiveRef.current = archiveKey;
         clearLegalConsultationCaseId();
         setLegalMeetingCaseTitle('');
-        window.dispatchEvent(new CustomEvent('lumi:org-legal-cases-changed'));
+        window.dispatchEvent(new CustomEvent('peppa:org-legal-cases-changed'));
         toast.success(lang === 'zh' ? '会谈已归档到组织案件' : 'Consultation archived to organization case');
         return;
       } catch (err: any) {
@@ -1604,7 +1604,7 @@ export function DesktopUI({
     const anchor = document.createElement('a');
     const stamp = new Date(meetingStartedAt || Date.now()).toISOString().replace(/[:.]/g, '-');
     anchor.href = url;
-    anchor.download = `lumi-meeting-${stamp}.md`;
+    anchor.download = `peppa-meeting-${stamp}.md`;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
@@ -1617,9 +1617,9 @@ export function DesktopUI({
     setMeetingNotes([]);
     setMeetingReport('');
     setMeetingStartedAt(now);
-    localStorage.setItem('lumi_meeting_notes', '[]');
-    localStorage.removeItem('lumi_meeting_report');
-    localStorage.setItem('lumi_meeting_started_at', String(now));
+    localStorage.setItem('peppa_meeting_notes', '[]');
+    localStorage.removeItem('peppa_meeting_report');
+    localStorage.setItem('peppa_meeting_started_at', String(now));
     lastMeetingTranscriptRef.current = { text: '', at: 0 };
     lastLegalMeetingArchiveRef.current = '';
     toast.success(lang === 'zh' ? '会议笔记已清空' : 'Meeting notes cleared');
@@ -1651,8 +1651,8 @@ export function DesktopUI({
 
   useEffect(() => {
     const handler = () => openMeetingMode();
-    window.addEventListener('lumi:request-meeting-mode', handler);
-    return () => window.removeEventListener('lumi:request-meeting-mode', handler);
+    window.addEventListener('peppa:request-meeting-mode', handler);
+    return () => window.removeEventListener('peppa:request-meeting-mode', handler);
   }, [openMeetingMode]);
 
   // Listen for org navigation events
@@ -1673,15 +1673,15 @@ export function DesktopUI({
         setActiveTab(detail.tab);
       }
     };
-    window.addEventListener('lumi:navigate', handler);
-    return () => window.removeEventListener('lumi:navigate', handler);
+    window.addEventListener('peppa:navigate', handler);
+    return () => window.removeEventListener('peppa:navigate', handler);
   }, [setActiveTab]);
 
   // Listen for Memory Avatar Lab open request from AgentGenerator
   useEffect(() => {
     const handler = () => openMemoryAvatar();
-    window.addEventListener('lumi:open-memory-lab', handler);
-    return () => window.removeEventListener('lumi:open-memory-lab', handler);
+    window.addEventListener('peppa:open-memory-lab', handler);
+    return () => window.removeEventListener('peppa:open-memory-lab', handler);
   }, []);
 
   // Restore real system volume/brightness on mount
@@ -1779,9 +1779,9 @@ export function DesktopUI({
       });
       if (!enabled) wallpaperWasEnabledBeforeAutomationRef.current = false;
     };
-    window.addEventListener('lumi:set-wallpaper-mode', handler);
+    window.addEventListener('peppa:set-wallpaper-mode', handler);
     return () => {
-      window.removeEventListener('lumi:set-wallpaper-mode', handler);
+      window.removeEventListener('peppa:set-wallpaper-mode', handler);
       if (wallpaperAutomationTimerRef.current) {
         clearTimeout(wallpaperAutomationTimerRef.current);
         wallpaperAutomationTimerRef.current = null;
@@ -1857,9 +1857,9 @@ export function DesktopUI({
           id: `thinking-${Date.now()}`,
           type: isBackground ? 'background' : 'thinking',
           text: isBackground
-            ? (t.workflowBackgroundStep || 'Lumi is handling this in the background')
+            ? (t.workflowBackgroundStep || 'Peppa is handling this in the background')
             : (t.workflowAnalyzing || 'Analyzing your request...'),
-          detail: data.detail || (data.agentName && data.agentName !== 'Lumi' ? data.agentName : undefined),
+          detail: data.detail || (data.agentName && data.agentName !== 'Peppa' ? data.agentName : undefined),
           time: Date.now(),
         }]);
       } else if (data.status === 'idle') {
@@ -1969,7 +1969,7 @@ export function DesktopUI({
 
     const onProactive = (data: { type?: string; taskId: string; message: string; timestamp: string }) => {
       const taskId = data.type || data.taskId || data.taskId;
-      if (taskId === 'greeting' && localStorage.getItem('lumi_allow_proactive_voice') !== 'true') return;
+      if (taskId === 'greeting' && localStorage.getItem('peppa_allow_proactive_voice') !== 'true') return;
       // Always add to notification center so user can find it later
       addNotification({
         type: taskId === 'daily_summary' || taskId === 'evening_wrapup' ? 'success' :
@@ -1978,7 +1978,7 @@ export function DesktopUI({
                taskId === 'evening_wrapup' ? 'Evening Wrap-up' :
                taskId === 'reminder_check' ? 'Reminder' :
                taskId === 'memory_decay' ? 'Memory' :
-               taskId === 'behavioral_analysis' ? 'Insight' : 'Lumi',
+               taskId === 'behavioral_analysis' ? 'Insight' : 'Peppa',
         message: data.message,
       });
       // Trigger pet reaction
@@ -2061,15 +2061,15 @@ export function DesktopUI({
           const resolved = resolvePetPreference(pet);
           if (resolved) {
             setSelectedPet(resolved);
-            localStorage.setItem('lumi_selected_pet', JSON.stringify(serializePetPreference(resolved)));
+            localStorage.setItem('peppa_selected_pet', JSON.stringify(serializePetPreference(resolved)));
           }
         } else {
           setSelectedPet(null);
-          localStorage.removeItem('lumi_selected_pet');
+          localStorage.removeItem('peppa_selected_pet');
         }
         if (accessories) {
           setEquippedAccessories(accessories);
-          localStorage.setItem('lumi_accessories', JSON.stringify(accessories));
+          localStorage.setItem('peppa_accessories', JSON.stringify(accessories));
         }
         toast.info(lang === 'zh' ? '桌面形象已从另一设备同步' : 'Desktop avatar synced from another device');
       }
@@ -2082,7 +2082,7 @@ export function DesktopUI({
       toast.info(msg, { duration: 5000 });
     };
     const onAgentNotification = (data: { type: string; level: string; message: string }) => {
-      addNotification({ type: data.level === 'critical' ? 'warning' : data.level === 'warning' ? 'warning' : 'info', title: data.type || 'Lumi', message: data.message });
+      addNotification({ type: data.level === 'critical' ? 'warning' : data.level === 'warning' ? 'warning' : 'info', title: data.type || 'Peppa', message: data.message });
       if (data.level === 'critical') {
         toast.error(data.message, { duration: 10000 });
       } else if (data.level === 'warning') {
@@ -2167,12 +2167,12 @@ export function DesktopUI({
             const resolved = resolvePetPreference(data.pet);
             if (resolved) {
               setSelectedPet(resolved);
-              localStorage.setItem('lumi_selected_pet', JSON.stringify(serializePetPreference(resolved)));
+              localStorage.setItem('peppa_selected_pet', JSON.stringify(serializePetPreference(resolved)));
             }
           }
           if (data.accessories?.length > 0) {
             setEquippedAccessories(data.accessories);
-            localStorage.setItem('lumi_accessories', JSON.stringify(data.accessories));
+            localStorage.setItem('peppa_accessories', JSON.stringify(data.accessories));
           }
         }
       } catch {}
@@ -2208,10 +2208,10 @@ export function DesktopUI({
         const cs = callStateRef.current;
         if (cs === 'speaking') {
           interrupt();
-          startCall(selectedVoiceId, 'lumi', 'lumi', getVoiceScopeOptions());
+          startCall(selectedVoiceId, 'peppa', 'peppa', { ...getVoiceScopeOptions(), voiceProvider: selectedVoiceProvider });
           isSpacebarRecording.current = true;
         } else if (cs === 'idle') {
-          startCall(selectedVoiceId, 'lumi', 'lumi', getVoiceScopeOptions());
+          startCall(selectedVoiceId, 'peppa', 'peppa', { ...getVoiceScopeOptions(), voiceProvider: selectedVoiceProvider });
           isSpacebarRecording.current = true;
         }
       }
@@ -2230,7 +2230,7 @@ export function DesktopUI({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [endCall, getVoiceScopeOptions, interrupt, isControlCenterOpen, isSearchOpen, isWallpaperMode, selectedVoiceId, startCall, toggleWallpaperMode]);
+  }, [endCall, getVoiceScopeOptions, interrupt, isControlCenterOpen, isSearchOpen, isWallpaperMode, selectedVoiceId, selectedVoiceProvider, startCall, toggleWallpaperMode]);
 
   const [bootVisible, setBootVisible] = useState(true);
 
@@ -2438,7 +2438,7 @@ export function DesktopUI({
 
       try {
         if (action === 'refresh_client_state') {
-          window.dispatchEvent(new CustomEvent('lumi:client-state-refresh'));
+          window.dispatchEvent(new CustomEvent('peppa:client-state-refresh'));
           respond({ ok: true, action, mode: operationMode, activeTab, openWindows });
           return;
         }
@@ -2475,7 +2475,7 @@ export function DesktopUI({
               return;
             }
           }
-          window.dispatchEvent(new CustomEvent('lumi:music-layer', { detail: { visible: action === 'show_music_layer' } }));
+          window.dispatchEvent(new CustomEvent('peppa:music-layer', { detail: { visible: action === 'show_music_layer' } }));
           respond({ ok: true, action, mode: operationMode });
           return;
         }
@@ -2580,8 +2580,8 @@ export function DesktopUI({
       }
     };
 
-    window.addEventListener('lumi:client-action', handler);
-    return () => window.removeEventListener('lumi:client-action', handler);
+    window.addEventListener('peppa:client-action', handler);
+    return () => window.removeEventListener('peppa:client-action', handler);
   }, [
     activeTab,
     applyWallpaperMode,
@@ -2675,10 +2675,10 @@ export function DesktopUI({
     };
     sendState();
     const interval = setInterval(sendState, 10000);
-    window.addEventListener('lumi:client-state-refresh', sendState);
+    window.addEventListener('peppa:client-state-refresh', sendState);
     return () => {
       clearInterval(interval);
-      window.removeEventListener('lumi:client-state-refresh', sendState);
+      window.removeEventListener('peppa:client-state-refresh', sendState);
     };
   }, [
     activeTab,
@@ -2723,8 +2723,8 @@ export function DesktopUI({
       case 'reset_wallpaper':
         setWallpaper('celestial');
         setWallpaperUrl('');
-        localStorage.removeItem('lumi_wallpaper_type');
-        localStorage.removeItem('lumi_wallpaper_url');
+        localStorage.removeItem('peppa_wallpaper_type');
+        localStorage.removeItem('peppa_wallpaper_url');
         break;
       case 'display_settings':
         toggleWindow('settings');
@@ -2830,7 +2830,7 @@ export function DesktopUI({
       id: 'chat' as const,
       label: t.modeChat || (lang === 'zh' ? '聊天' : 'Chat'),
       title: t.modeChatTitle || (lang === 'zh' ? '聊天模式' : 'Chat mode'),
-      description: t.modeChatDesc || (lang === 'zh' ? '默认安静交流；明确给出工作指令时，Lumi 会先说明行动方式再调用能力。' : 'Quiet conversation by default. With a clear work command, Lumi explains the route before acting.'),
+      description: t.modeChatDesc || (lang === 'zh' ? '默认安静交流；明确给出工作指令时，Peppa 会先说明行动方式再调用能力。' : 'Quiet conversation by default. With a clear work command, Peppa explains the route before acting.'),
       hint: t.modeChatHint || (lang === 'zh' ? '安静交流' : 'Quiet chat'),
       icon: <MessageSquare size={16} />,
     },
@@ -2846,7 +2846,7 @@ export function DesktopUI({
       id: 'autonomous' as const,
       label: t.modeAutonomy || t.modeAutoExecute || (lang === 'zh' ? '自主' : 'Autonomy'),
       title: t.modeAutonomyTitle || t.modeAutoExecuteTitle || (lang === 'zh' ? '自主模式' : 'Autonomy mode'),
-      description: t.modeAutonomyDesc || t.modeAutoExecuteDesc || (lang === 'zh' ? '适合多步任务；Lumi 会先给行动指南，再用运行日志、桌面控制、命令、工具和团队推进，并展示进度。' : 'For multi-step work. Lumi gives an action guide, then uses run logs, desktop control, commands, tools, and teams with visible progress.'),
+      description: t.modeAutonomyDesc || t.modeAutoExecuteDesc || (lang === 'zh' ? '适合多步任务；Peppa 会先给行动指南，再用运行日志、桌面控制、命令、工具和团队推进，并展示进度。' : 'For multi-step work. Peppa gives an action guide, then uses run logs, desktop control, commands, tools, and teams with visible progress.'),
       hint: t.modeAutonomyHint || t.modeAutoExecuteHint || (lang === 'zh' ? '自主推进' : 'Visible autonomous work'),
       icon: <Zap size={16} />,
     },
@@ -3060,7 +3060,7 @@ export function DesktopUI({
                <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-celestial-mars to-celestial-saturn flex items-center justify-center p-1 group-hover:rotate-12 transition-transform shadow-lg shadow-celestial-saturn/20">
                  <Rocket size={14} className="text-white" />
                </div>
-               <span className="text-xs font-black tracking-widest uppercase text-white/60">{t.lumiOS || 'Lumi OS'}</span>
+               <span className="text-xs font-black tracking-widest uppercase text-white/60">{t.peppaOS || 'Peppa OS'}</span>
             </button>
             <div className="h-4 w-px bg-white/10" />
             <div className="flex items-center gap-2">
@@ -3420,7 +3420,7 @@ export function DesktopUI({
               </div>
               {wakeEnabled && wakeWord.isListening && callState === 'idle' && (
                 <div className="mt-2 text-xs text-white/45 uppercase tracking-[0.25em] font-mono">
-                  {lang === 'zh' ? '正在监听 "Lumi"' : 'Listening for "Lumi"'}
+                  {lang === 'zh' ? '正在监听 "Peppa"' : 'Listening for "Peppa"'}
                 </div>
               )}
               {wakeEnabled && wakeWord.error && (
@@ -3451,7 +3451,7 @@ export function DesktopUI({
               >
                  <div className="flex flex-col items-center gap-1 group">
                    <span className="text-xs font-black tracking-[0.4em] text-white/40 uppercase group-hover:text-celestial-saturn transition-colors">
-                     {callState === 'idle' ? (t.lumiNeuralCore || 'Lumi Neural Core') : `${callState.toUpperCase()} ${t.sessionActive || 'SESSION'}`}
+                     {callState === 'idle' ? (t.lumiNeuralCore || 'Peppa Neural Core') : `${callState.toUpperCase()} ${t.sessionActive || 'SESSION'}`}
                    </span>
                    <div className="flex gap-1">
                      {callState !== 'idle' ? (
@@ -3574,7 +3574,7 @@ export function DesktopUI({
         </div>
       </div>
 
-      {/* MCP Live Activity — xiaozhi ⇄ Lumi */}
+      {/* MCP Live Activity — xiaozhi ⇄ Peppa */}
       <AnimatePresence>
         {showMcpPanel && mcpActivities.length > 0 && (
           <motion.div
@@ -3586,7 +3586,7 @@ export function DesktopUI({
             <GlassCard className="p-4 rounded-2xl border-white/10 bg-black/70 backdrop-blur-2xl space-y-2">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                <span className="text-[12px] font-black text-white/40 uppercase tracking-widest">{t.liveDeviceLabel || 'Live'} · xiaozhi ⇄ Lumi</span>
+                <span className="text-[12px] font-black text-white/40 uppercase tracking-widest">{t.liveDeviceLabel || 'Live'} · xiaozhi ⇄ Peppa</span>
               </div>
               <div className="space-y-1 max-h-48 overflow-y-auto custom-scrollbar">
                 {mcpActivities.slice(0, 5).map((act) => (
@@ -3684,13 +3684,13 @@ export function DesktopUI({
               <div className="mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 custom-scrollbar">
                 {meetingReportGenerating && (
                   <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-xs font-bold text-cyan-200">
-                    {lang === 'zh' ? 'Lumi 正在整理会议报告...' : 'Lumi is preparing the meeting report...'}
+                    {lang === 'zh' ? 'Peppa 正在整理会议报告...' : 'Peppa is preparing the meeting report...'}
                   </div>
                 )}
                 {meetingReport && !meetingReportGenerating && (
                   <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3">
                     <div className="text-[10px] font-black uppercase tracking-widest text-cyan-300/80">
-                      {lang === 'zh' ? 'Lumi 会议报告' : 'Lumi Report'}
+                      {lang === 'zh' ? 'Peppa 会议报告' : 'Peppa Report'}
                     </div>
                     <pre className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-white/75 font-sans">{meetingReport}</pre>
                   </div>
@@ -3811,7 +3811,7 @@ export function DesktopUI({
                   {t.wallpaperWorkPromptTitle || (lang === 'zh' ? '进入原生桌面协作' : 'Native desktop handoff')}
                 </div>
                 <div className="mt-0.5 truncate text-xs font-medium text-white/55">
-                  {t.wallpaperWorkPromptDesc || (lang === 'zh' ? 'Lumi 已开始工作，可以直接转入壁纸模式。' : 'Lumi has started working and can move into wallpaper mode.')}
+                  {t.wallpaperWorkPromptDesc || (lang === 'zh' ? 'Peppa 已开始工作，可以直接转入壁纸模式。' : 'Peppa has started working and can move into wallpaper mode.')}
                 </div>
               </div>
               <button
@@ -3842,14 +3842,14 @@ export function DesktopUI({
           isOpen={showOnboarding && sensorPrimerSeen}
           onFinish={() => {
             setShowOnboarding(false);
-            localStorage.setItem('lumi_onboarding_seen', 'true');
+            localStorage.setItem('peppa_onboarding_seen', 'true');
           }}
           t={t}
         />
         <VoiceTrainingDialog 
           isOpen={isTrainingOpen} 
           onClose={() => setIsTrainingOpen(false)} 
-          onSuccess={() => window.dispatchEvent(new CustomEvent('lumi:voice-updated'))}
+          onSuccess={() => window.dispatchEvent(new CustomEvent('peppa:voice-updated'))}
         />
         <AnimatePresence>
           {openWindows.map(windowId => {
@@ -4189,7 +4189,7 @@ function SoundPanel({ t, onOpenAvatarStudio }: { t?: any; onOpenAvatarStudio?: (
     {
       id: 'select',
       label: t?.voiceFlowSelect || 'Enable',
-      desc: t?.voiceFlowSelectDesc || 'Choose Lumi voice',
+      desc: t?.voiceFlowSelectDesc || 'Choose Peppa voice',
       active: false,
       done: Boolean(selectedVoiceId),
     },

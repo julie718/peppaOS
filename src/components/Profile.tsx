@@ -83,7 +83,7 @@ export function Profile({ t }: { t: any }) {
           </h3>
           <div className="space-y-4">
             <div className="p-6 bg-gradient-to-br from-celestial-saturn/20 to-transparent rounded-3xl border border-celestial-saturn/20 text-center space-y-2">
-              <div className="text-xs text-white/40 uppercase tracking-widest font-bold">{t.credits || 'Lumi Credits'}</div>
+              <div className="text-xs text-white/40 uppercase tracking-widest font-bold">{t.credits || 'Peppa Credits'}</div>
               <div className="text-4xl font-bold text-celestial-saturn flex items-center justify-center gap-2">
                 <Zap size={32} fill="currentColor" />
                 {user.balance || 0}

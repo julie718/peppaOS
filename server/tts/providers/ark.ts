@@ -35,16 +35,20 @@ export async function synthesizeSpeech(
 ): Promise<TTSResult> {
   const { appId, token } = getCredentials();
 
+  // Translate non-Doubao voice IDs (e.g. CosyVoice names) to Doubao equivalents
+  const validVoiceIds = PRESET_VOICES.map(v => v.voiceId);
+  const mappedVoiceId = validVoiceIds.includes(voiceId) ? voiceId : 'BV001_streaming';
+
   const body: Record<string, any> = {
     app: { appid: appId, cluster: 'volcano_tts' },
-    user: { uid: 'lumi_user' },
+    user: { uid: 'peppa_user' },
     audio: {
-      voice_type: voiceId,
+      voice_type: mappedVoiceId,
       encoding: 'mp3',
       rate: 24000,
     },
     request: {
-      reqid: `lumi_${Date.now()}`,
+      reqid: `peppa_${Date.now()}`,
       text,
       text_type: 'plain',
       operation: 'query',

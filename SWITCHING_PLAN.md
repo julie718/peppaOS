@@ -1,4 +1,4 @@
-# 🧠 Lumi Local ↔ Cloud Switching Plan
+# 🧠 Peppa Local ↔ Cloud Switching Plan
 ## *The Art of Knowing Where to Think*
 
 ---
@@ -14,7 +14,7 @@ Your nervous system doesn't think with just one brain. It has:
 | **Cortex** | Local forebrain | ~50ms | Reason, plan, create |
 | **Global mind** | Cloud / tribe | ~500ms | Collective memory, culture, wisdom |
 
-**Lumi's architecture mirrors this.** Local models are your spinal cord and cerebellum — fast, private, always-on. Cloud models are your connection to the global mind — vast, wise, evolving.
+**Peppa's architecture mirrors this.** Local models are your spinal cord and cerebellum — fast, private, always-on. Cloud models are your connection to the global mind — vast, wise, evolving.
 
 The switching system is *metacognition* — the brain deciding *which brain to use*.
 

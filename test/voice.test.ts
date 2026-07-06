@@ -2,6 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { makeApp, JWT_SECRET, COOKIE_OPTS } from './helpers';
 import voiceRoutes from '../routes/voice';
 import { mountAuthRoutes } from '../server/routes/auth';
+import { resolveVoiceTtsProvider } from '../server/tts/adapter';
+import { getActiveSTTProvider } from '../server/stt/adapter';
 
 let url: string;
 let cleanup: () => void;
@@ -78,6 +80,26 @@ describe('Voice API', () => {
       signal: AbortSignal.timeout(5000),
     });
     expect(res.status).toBe(400);
+  });
+
+  it('resolves the voice provider from a selected voice when one is provided', async () => {
+    const provider = resolveVoiceTtsProvider({ provider: 'cosyvoice', voiceId: 'longxiaochun_v3' });
+    expect(provider).toBe('cosyvoice');
+  });
+
+  it('prefers Deepgram over Qwen for auto STT when both are available', async () => {
+    const previousQwen = process.env.DASHSCOPE_API_KEY;
+    const previousDeepgram = process.env.DEEPGRAM_API_KEY;
+    process.env.DASHSCOPE_API_KEY = 'qwen-test-key';
+    process.env.DEEPGRAM_API_KEY = 'deepgram-test-key';
+    try {
+      expect(getActiveSTTProvider()).toBe('deepgram');
+    } finally {
+      if (previousQwen === undefined) delete process.env.DASHSCOPE_API_KEY;
+      else process.env.DASHSCOPE_API_KEY = previousQwen;
+      if (previousDeepgram === undefined) delete process.env.DEEPGRAM_API_KEY;
+      else process.env.DEEPGRAM_API_KEY = previousDeepgram;
+    }
   });
 
   it('verifies enrolled voiceprints on the server', async () => {

@@ -39,7 +39,7 @@ export interface MusicAtmosphere {
   track: MusicTrack;
   mood: string;
   weather?: string;
-  lumiReason?: string;
+  peppaReason?: string;
   audioUrl?: string;
   nativePlayback?: boolean;
   queue?: MusicQueueItem[];
@@ -57,7 +57,7 @@ export interface MusicPlayerState {
   volume: number;
   mood: string;
   weather?: string;
-  lumiReason?: string;
+  peppaReason?: string;
   lyrics: MusicLyricLine[];
   trackKey?: string | null;
   scene: MusicScene | null;
@@ -76,7 +76,7 @@ const DEFAULT_MUSIC_PLAYER_STATE: MusicPlayerState = {
   volume: 70,
   mood: 'peaceful',
   weather: undefined,
-  lumiReason: undefined,
+  peppaReason: undefined,
   lyrics: [],
   trackKey: null,
   scene: null,
@@ -389,7 +389,7 @@ function bindMusicSocket(socket: any) {
       trackKey,
       mood: data.mood,
       weather: data.weather,
-      lumiReason: data.lumiReason,
+      peppaReason: data.peppaReason,
       lyrics: data.lyrics || [],
       scene: data.scene || null,
       queue,
@@ -519,8 +519,8 @@ export function useMusicPlayer() {
       const visible = Boolean((event as CustomEvent<{ visible?: boolean }>).detail?.visible);
       setMusicVisible(visible);
     };
-    window.addEventListener('lumi:music-layer', handler);
-    return () => window.removeEventListener('lumi:music-layer', handler);
+    window.addEventListener('peppa:music-layer', handler);
+    return () => window.removeEventListener('peppa:music-layer', handler);
   }, []);
 
   useEffect(() => {
@@ -528,8 +528,8 @@ export function useMusicPlayer() {
       const detail = (event as CustomEvent<{ active?: boolean; reason?: string; level?: number }>).detail || {};
       setMusicDucking(detail.reason || 'voice', Boolean(detail.active), detail.level);
     };
-    window.addEventListener('lumi:music-ducking', handler);
-    return () => window.removeEventListener('lumi:music-ducking', handler);
+    window.addEventListener('peppa:music-ducking', handler);
+    return () => window.removeEventListener('peppa:music-ducking', handler);
   }, []);
 
   useEffect(() => {

@@ -81,7 +81,7 @@ const CHAT_ATTACHMENT_ACCEPT = [
 
 const GENERATED_FILE_EXTS = 'docx|pptx|xlsx|xls|pdf|txt|md|csv|json|png|jpe?g|webp|gif|svg|html|dxf|dwg';
 const WINDOWS_GENERATED_FILE_RE = new RegExp(`[A-Za-z]:\\\\[^\\n\\r"'<>|]+?\\.(?:${GENERATED_FILE_EXTS})\\b`, 'gi');
-const LUMI_OUTPUT_FILE_RE = new RegExp(`/lumi_output/[^\\s\\])"'<>]+?\\.(?:${GENERATED_FILE_EXTS})\\b`, 'gi');
+const PEPPA_OUTPUT_FILE_RE = new RegExp(`/peppa_output/[^\\s\\])"'<>]+?\\.(?:${GENERATED_FILE_EXTS})\\b`, 'gi');
 
 function generatedFileKind(fileName: string): GeneratedFileLink['kind'] {
   const lower = fileName.toLowerCase();
@@ -95,7 +95,7 @@ function generatedFileKind(fileName: string): GeneratedFileLink['kind'] {
 }
 
 function buildGeneratedFileUrl(filePath: string): string {
-  if (filePath.startsWith('/lumi_output/')) return filePath;
+  if (filePath.startsWith('/peppa_output/')) return filePath;
   return `/api/files/generated?path=${encodeURIComponent(filePath)}`;
 }
 
@@ -103,7 +103,7 @@ function extractGeneratedFiles(text: string): GeneratedFileLink[] {
   const seen = new Set<string>();
   const candidates = [
     ...(text.match(WINDOWS_GENERATED_FILE_RE) || []),
-    ...(text.match(LUMI_OUTPUT_FILE_RE) || []),
+    ...(text.match(PEPPA_OUTPUT_FILE_RE) || []),
   ];
 
   return candidates
@@ -132,16 +132,15 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
   const isZh = t?.langCode !== 'en';
   const ui = (zh: string, en: string) => isZh ? zh : en;
   const { platform, isElectron } = usePlatform();
-  const { aiConfig, orgConnection, workDomain } = useApp();
+  const { aiConfig, orgConnection, workDomain, selectedVoiceId, setSelectedVoiceId, selectedVoiceProvider } = useApp();
   const isWorkChat = workDomain === 'work' && Boolean(orgConnection?.connected && orgConnection?.orgId);
   const activeDomain = isWorkChat ? 'work' : 'personal';
   const activeOrgId = isWorkChat ? orgConnection?.orgId : undefined;
-  const activeDomainLabel = isWorkChat ? ui('公司域 Lumi', 'Company Lumi') : ui('个人 Lumi', 'Personal Lumi');
+  const activeDomainLabel = isWorkChat ? ui('公司域 Peppa', 'Company Peppa') : ui('个人 Peppa', 'Personal Peppa');
   const activeDomainDetail = isWorkChat
     ? ui('当前消息、附件、记忆和工具调用进入组织工作域。', 'Messages, attachments, memories, and tools are scoped to the organization.')
     : ui('当前消息只进入个人域，不写入组织知识和组织记忆。', 'Messages stay in your personal domain and do not write to organization knowledge or memory.');
   const socket = socketService.connect();
-  const [selectedVoiceId, setSelectedVoiceId] = useState<string | undefined>();
   const [voices, setVoices] = useState<any[]>([]);
   const [showVoicePicker, setShowVoicePicker] = useState(false);
   const [showWeChatSettings, setShowWeChatSettings] = useState(false);
@@ -161,7 +160,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
   const hasDesktop = installedSkillNames.some((n: string) => ['desktop', 'commander'].some(k => n.includes(k)));
 
   const quickSuggestions = [
-    { id: 'chat', label: t.suggestChat || ui('随便聊聊', 'Just Chat'), prompt: ui('你好 Lumi，今天有什么有趣的发现吗？', 'Hi Lumi, any interesting discoveries today?'), show: true },
+    { id: 'chat', label: t.suggestChat || ui('随便聊聊', 'Just Chat'), prompt: ui('你好 Peppa，今天有什么有趣的发现吗？', 'Hi Peppa, any interesting discoveries today?'), show: true },
     { id: 'creative', label: t.suggestCreative || ui('生成一张图片', 'Generate Image'), prompt: ui('帮我生成一张星空下的赛博朋克城市图片', 'Generate an image of a cyberpunk city under a starry sky'), show: hasCreativeSkill },
     { id: 'fetch', label: t.suggestFetch || ui('总结网页内容', 'Summarize Webpage'), prompt: ui('帮我抓取这篇文章的内容并总结要点', 'Fetch this article and summarize the key points'), show: hasFetcher },
     { id: 'desktop', label: t.suggestDesktop || ui('桌面整理', 'Organize Desktop'), prompt: ui('帮我把桌面上的文件按日期整理一下', 'Organize the desktop files by date'), show: hasDesktop },
@@ -191,7 +190,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
       const all = [...data.cloned, ...data.premade];
       setVoices(all);
       if (all.length > 0 && !selectedVoiceId) {
-        setSelectedVoiceId(all[0].voiceId);
+        setSelectedVoiceId(all[0].voiceId, all[0].provider);
       }
     }).catch(err => toast.error(t.failedToLoadVoices || 'Failed to load voices'));
   }, [selectedVoiceId]);
@@ -230,7 +229,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
   const { speak, stop, pause, resume, isSpeaking, isPaused } = useTTS();
   const recognition = useRef<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const agentNameRef = useRef<string>('Lumi');
+  const agentNameRef = useRef<string>('Peppa');
   const seenToolEventIds = useRef<Set<string>>(new Set());
   const seenWorkflowToolEvents = useRef<Set<string>>(new Set());
   const backgroundTaskStatusRef = useRef<Map<string, string>>(new Map());
@@ -295,10 +294,10 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     return () => window.removeEventListener('keydown', onKey);
   }, [showVoicePicker, showWeChatSettings]);
 
-  const agentName = agent?.name || (t.lumiEssence || 'Lumi Essence');
+  const agentName = agent?.name || (t.lumiEssence || 'Peppa Essence');
   const agentCategory = agent?.category || (t.friend || 'friend');
-  const agentId = agent?.id || 'lumi';
-  const toolFailureHint = t.toolFailureHint || 'Check permission, adjust the request, or ask Lumi to retry.';
+  const agentId = agent?.id || 'peppa';
+  const toolFailureHint = t.toolFailureHint || 'Check permission, adjust the request, or ask Peppa to retry.';
   const scopedConversationUrl = useCallback((path: string) => {
     const separator = path.includes('?') ? '&' : '?';
     return `${path}${separator}domain=${encodeURIComponent(activeDomain)}&agentId=${encodeURIComponent(agentId)}`;
@@ -311,7 +310,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     return `${path}${separator}domain=${encodeURIComponent(activeDomain)}${orgScope}`;
   }, [activeDomain, activeOrgId]);
   const requestMeetingMode = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('lumi:request-meeting-mode'));
+    window.dispatchEvent(new CustomEvent('peppa:request-meeting-mode'));
   }, []);
 
   const isFounder = agentId === 'founder' || agentCategory === 'founder' || agentName.includes('Founder') || agentName.includes('创始人');
@@ -415,7 +414,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
   const normalizePersistedMessages = useCallback((rawMessages: any[]) => {
     const normalized: any[] = [];
     const userName = user?.displayName || user?.username || (t.chatUserFallback || 'User');
-    const agentDisplayName = agentNameRef.current || 'Lumi';
+    const agentDisplayName = agentNameRef.current || 'Peppa';
 
     const pushMessage = (message: any) => {
       if (!message.text || !String(message.text).trim()) return;
@@ -548,7 +547,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
 
     const onProactive = (data: { message: string; timestamp: string; requestId?: string; source?: string; type?: string; taskId?: string }) => {
       const proactiveType = data.type || data.taskId;
-      if (proactiveType === 'greeting' && localStorage.getItem('lumi_allow_proactive_voice') !== 'true') return;
+      if (proactiveType === 'greeting' && localStorage.getItem('peppa_allow_proactive_voice') !== 'true') return;
       if ((data.requestId || data.source) && !isCurrentChatEvent(data)) return;
       setMessages(prev => {
         if (prev.some(m => m.text === data.message && m.type === 'agent')) return prev;
@@ -777,7 +776,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
         return [...prev, {
           id: `err-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           text,
-          userName: agentNameRef.current || 'Lumi',
+          userName: agentNameRef.current || 'Peppa',
           timestamp: new Date().toISOString(),
           type: 'agent',
           source: 'error',
@@ -998,7 +997,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
       text: outgoingText,
       attachments: outgoingAttachments,
       history: buildChatHistoryPayload(messages),
-      personalityId: 'lumi',
+      personalityId: 'peppa',
       category: agentCategory,
       agentId,
       domain: activeDomain,
@@ -1039,7 +1038,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     }, 5000) : null;
   };
 
-  // When prefillMessage comes from notification center, show it as a Lumi message
+  // When prefillMessage comes from notification center, show it as a Peppa message
   const sentRef = useRef<string>('');
   useEffect(() => {
     if (prefillMessage && prefillMessage !== sentRef.current) {
@@ -1212,7 +1211,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
               <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
                 <div>
                   <h3 className="text-sm font-bold text-white">{ui('个人微信连接', 'Personal WeChat')}</h3>
-                  <p className="mt-1 text-xs text-white/40">{ui('扫码后，Lumi 可以通过你的个人微信接收消息。', 'After scanning, Lumi can receive messages through your personal WeChat.')}</p>
+                  <p className="mt-1 text-xs text-white/40">{ui('扫码后，Peppa 可以通过你的个人微信接收消息。', 'After scanning, Peppa can receive messages through your personal WeChat.')}</p>
                 </div>
                 <button
                   type="button"
@@ -1263,7 +1262,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                     <button
                       key={v.voiceId}
                       onClick={() => {
-                        setSelectedVoiceId(v.voiceId);
+                        setSelectedVoiceId(v.voiceId, v.provider);
                         setShowVoicePicker(false);
                       }}
                       className={`w-full text-left p-2 rounded-xl text-xs font-bold uppercase transition-all ${
@@ -1281,7 +1280,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
           <VoiceCallButton
             callState={callState}
             audioLevel={audioLevel}
-            onStart={() => startCall(selectedVoiceId, 'lumi', agentId, { domain: activeDomain, orgId: activeOrgId })}
+            onStart={() => startCall(selectedVoiceId, 'peppa', agentId, { domain: activeDomain, orgId: activeOrgId, voiceProvider: selectedVoiceProvider })}
             onEnd={endCall}
             hasVoice={voices.length > 0}
           />

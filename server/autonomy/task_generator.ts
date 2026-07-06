@@ -5,7 +5,7 @@
 import { isAutonomousWorkAllowed } from './safety_gate';
 import { enqueue } from './task_queue';
 import { listEnabledAutonomousWorkflows } from './workflows';
-import { createPlan, updatePlan, type LumiPlan } from './planner';
+import { createPlan, updatePlan, type PeppaPlan } from './planner';
 import { readDB } from '../../db_layer';
 import { makeLLMCall, NormalizedMessage } from '../llm/providers';
 import { getRecentActivity } from '../context/activity_stream';
@@ -27,28 +27,28 @@ type GeneratedAutonomousTask = {
   workflowId?: string;
 };
 
-function toPlanPriority(priority: number): LumiPlan['priority'] {
+function toPlanPriority(priority: number): PeppaPlan['priority'] {
   if (priority >= 9) return 'critical';
   if (priority >= 7) return 'high';
   if (priority <= 3) return 'low';
   return 'medium';
 }
 
-function createLearningPlanForTask(task: GeneratedAutonomousTask, workflowTitle: string): LumiPlan {
+function createLearningPlanForTask(task: GeneratedAutonomousTask, workflowTitle: string): PeppaPlan {
   return createPlan(
     task.title.slice(0, 120),
     [
       task.description.slice(0, 700),
       `来源工作流：${workflowTitle}`,
     ].join('\n\n'),
-    'lumi',
+    'peppa',
     toPlanPriority(Math.max(1, Math.min(10, task.priority || 5))),
     [
       { title: '识别可吸收的新知识', description: '从最近上下文、记忆、资料或知识缺口中确认本轮学习目标。' },
       { title: '执行学习与整理', description: '完成分析、归纳、对照和必要的知识结构化。' },
       { title: '沉淀结果', description: '输出可复用摘要、索引、记忆线索或下一步学习建议。' },
     ],
-    ['lumi-learning', 'autonomous', task.workflowId || 'workflow'],
+    ['peppa-learning', 'autonomous', task.workflowId || 'workflow'],
   );
 }
 
@@ -147,7 +147,7 @@ export async function generateAutonomousTasks(
 
   if (contextParts.length === 0) return 0;
 
-  const prompt = `你是 Lumi 的后台自主学习与任务规划器。根据用户当前的上下文，建议 1-3 个你可以自主完成的小任务。
+  const prompt = `你是 Peppa 的后台自主学习与任务规划器。根据用户当前的上下文，建议 1-3 个你可以自主完成的小任务。
 
 要求：
 - 只能基于下面“已确认且启用的自动工作流”生成任务
@@ -233,7 +233,7 @@ ${contextParts.join('\n')}
       } else {
         updatePlan(plan.id, {
           status: 'cancelled',
-          result: 'Autonomous queue is full, so this Lumi learning plan was not started.',
+          result: 'Autonomous queue is full, so this Peppa learning plan was not started.',
         });
       }
     }

@@ -1,9 +1,9 @@
 {
-  "name": "lumi-skill-video-editor",
+  "name": "peppa-skill-video-editor",
   "version": "1.0.0",
   "description": "Video & audio editing suite — trim, merge, crop, rotate, effects, overlays, audio extraction. Powered by moviepy + yt-dlp.",
   "type": "module",
-  "lumi": {
+  "peppa": {
     "displayName": "Video Forge",
     "category": "Creative",
     "icon": "Film",

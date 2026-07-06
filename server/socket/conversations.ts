@@ -2,7 +2,7 @@ import { Socket } from "socket.io";
 import jwt from "jsonwebtoken";
 import { readDB } from "../../db_layer";
 
-const JWT_SECRET = process.env.JWT_SECRET || 'lumiOS_default_jwt_secret_2026_local';
+const JWT_SECRET = process.env.JWT_SECRET || 'peppaOS_default_jwt_secret_2026_local';
 
 function getOrgIdFromSocket(socket: Socket): string | undefined {
   try {
@@ -107,7 +107,7 @@ export function registerConversationHandlers(socket: Socket, getUserId: (s: Sock
           messages.push({ id: i.id + '_t_' + tc.name, type: 'tool', name: tc.name, args: tc.args || tc.arguments || {}, status: 'done', timestamp: i.timestamp });
         }
         if (i.response) {
-          messages.push({ id: i.id + '_r', type: 'lumi', content: i.response, timestamp: i.timestamp });
+          messages.push({ id: i.id + '_r', type: 'peppa', content: i.response, timestamp: i.timestamp });
         }
       }
       socket.emit("chat:messages", { conversationId: data.conversationId, messages });

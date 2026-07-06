@@ -85,7 +85,7 @@ export function mountMarketplaceRoutes(
       {
         id: "sherlock",
         name: "Sherlock",
-        author: "Lumi Community",
+        author: "Peppa Community",
         version: "1.0.0",
         description: "A hyper-analytical detective personality. Notices patterns others miss and asks probing questions.",
         downloadCount: 3842,
@@ -95,7 +95,7 @@ export function mountMarketplaceRoutes(
       {
         id: "sage",
         name: "Sage",
-        author: "Lumi Labs",
+        author: "Peppa Labs",
         version: "2.1.0",
         description: "A wise mentor personality. Draws from philosophy, history, and literature to provide thoughtful guidance.",
         downloadCount: 5190,
@@ -105,7 +105,7 @@ export function mountMarketplaceRoutes(
       {
         id: "hacker",
         name: "H4CK3R",
-        author: "Lumi Community",
+        author: "Peppa Community",
         version: "1.3.0",
         description: "Cybersecurity specialist. Thinks in exploits and defenses. Great for CTF challenges and security audits.",
         downloadCount: 7234,
@@ -115,7 +115,7 @@ export function mountMarketplaceRoutes(
       {
         id: "poet",
         name: "Poet",
-        author: "Lumi Community",
+        author: "Peppa Community",
         version: "1.0.0",
         description: "Creative writing companion. Crafts beautiful prose, poetry, and storytelling with lyrical flair.",
         downloadCount: 2156,
@@ -125,7 +125,7 @@ export function mountMarketplaceRoutes(
       {
         id: "architect",
         name: "Architect",
-        author: "Lumi Labs",
+        author: "Peppa Labs",
         version: "1.5.0",
         description: "Software architecture specialist. Designs systems, evaluates trade-offs, and writes clean abstractions.",
         downloadCount: 4678,
@@ -143,7 +143,7 @@ export function mountMarketplaceRoutes(
       if (!skillId || !skillName) return res.status(400).json({ error: "skillId and skillName required" });
       const scope = marketplaceAgentScope(req.user);
 
-      // Bundled skills: copy from bundled directory into ~/lumi_skills/
+      // Bundled skills: copy from bundled directory into ~/peppa_skills/
       if (installSource === 'bundled' && reqInstallPath) {
         const bundledSkill = getSkillById(skillId, undefined, scope);
 
@@ -254,7 +254,7 @@ export function mountMarketplaceRoutes(
         return;
       }
 
-      // npm package install — e.g. "lumi-skill-nanobanana" from npm registry
+      // npm package install — e.g. "peppa-skill-nanobanana" from npm registry
       if (installSource === 'npm' && req.body.npmPackage) {
         const npmPkg = req.body.npmPackage;
         io.emit('skill:installing', { skillId, name: npmPkg, stage: 'downloading' });
@@ -395,7 +395,7 @@ export function mountMarketplaceRoutes(
   // Discover skills from npm registry
   router.get("/marketplace/discover/npm", async (req, res) => {
     try {
-      const q = req.query.q || 'lumi-skill';
+      const q = req.query.q || 'peppa-skill';
       const searchNpm = async (text: string) => {
         const params = new URLSearchParams({ text, size: '20' });
         const resp = await fetch(`https://registry.npmjs.org/-/v1/search?${params}`, {
@@ -405,9 +405,9 @@ export function mountMarketplaceRoutes(
         return resp.json() as Promise<any>;
       };
 
-      const primary = await searchNpm(`${String(q)} keywords:lumi-skill`);
+      const primary = await searchNpm(`${String(q)} keywords:peppa-skill`);
       let objects = primary.objects || [];
-      if (objects.length === 0 && String(q).trim() !== 'lumi-skill') {
+      if (objects.length === 0 && String(q).trim() !== 'peppa-skill') {
         const fallback = await searchNpm(String(q));
         objects = fallback.objects || [];
       }
@@ -433,12 +433,12 @@ export function mountMarketplaceRoutes(
   // Discover skills from GitHub topics
   router.get("/marketplace/discover/github", async (req, res) => {
     try {
-      const topic = req.query.topic || 'lumi-skill';
+      const topic = req.query.topic || 'peppa-skill';
       const url = `https://api.github.com/search/repositories?q=topic:${encodeURIComponent(String(topic))}&sort=stars&per_page=20`;
       const resp = await fetch(url, {
         headers: {
           'Accept': 'application/vnd.github.v3+json',
-          'User-Agent': 'LumiOS/2.0',
+          'User-Agent': 'Peppa/2.0',
         },
       });
       if (!resp.ok) throw new Error(`GitHub API returned ${resp.status}`);

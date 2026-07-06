@@ -124,8 +124,8 @@ export function BranchDashboard() {
 
   useEffect(() => {
     const refresh = () => void loadStats();
-    window.addEventListener('lumi:agents-changed', refresh);
-    return () => window.removeEventListener('lumi:agents-changed', refresh);
+    window.addEventListener('peppa:agents-changed', refresh);
+    return () => window.removeEventListener('peppa:agents-changed', refresh);
   }, [loadStats]);
 
   const cards = useMemo(() => [
@@ -157,12 +157,12 @@ export function BranchDashboard() {
 
   const openTeamAgent = (agentId?: string) => {
     if (agentId) {
-      try { window.sessionStorage.setItem('lumi:team:selected-agent-id', agentId); } catch {}
+      try { window.sessionStorage.setItem('peppa:team:selected-agent-id', agentId); } catch {}
     }
-    window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'team', agentId } }));
+    window.dispatchEvent(new CustomEvent('peppa:navigate', { detail: { tab: 'team', agentId } }));
     if (agentId) {
       window.setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('lumi:team:select-agent', { detail: { agentId } }));
+        window.dispatchEvent(new CustomEvent('peppa:team:select-agent', { detail: { agentId } }));
       }, 80);
     }
   };
@@ -249,10 +249,10 @@ export function BranchDashboard() {
             <div>
               <h2 className="flex items-center gap-2 text-sm font-semibold text-cyan-100">
                 <Bot size={17} />
-                {ui('已安装到 Lumi 团队的工作助手', 'Work assistants installed to Lumi Team')}
+                {ui('已安装到 Peppa 团队的工作助手', 'Work assistants installed to Peppa Team')}
               </h2>
               <p className="mt-1 text-xs leading-5 text-cyan-100/55">
-                {ui('从组织智能体模板市场安装的子 agent 会显示在这里；它们属于 Lumi 团队，可被聊天、语音和多步任务调度。', 'Sub-agents installed from the organization agent template market appear here; they belong to Lumi Team and can be routed from chat, voice, and multi-step work.')}
+                {ui('从组织智能体模板市场安装的子 agent 会显示在这里；它们属于 Peppa 团队，可被聊天、语音和多步任务调度。', 'Sub-agents installed from the organization agent template market appear here; they belong to Peppa Team and can be routed from chat, voice, and multi-step work.')}
               </p>
             </div>
             <button
@@ -260,7 +260,7 @@ export function BranchDashboard() {
               className="inline-flex items-center gap-2 rounded-lg border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-xs font-medium text-cyan-100 transition hover:bg-cyan-400/20"
             >
               <ArrowRight size={14} />
-              {ui('打开 Lumi 团队', 'Open Lumi Team')}
+              {ui('打开 Peppa 团队', 'Open Peppa Team')}
             </button>
           </div>
 
@@ -270,7 +270,7 @@ export function BranchDashboard() {
             </div>
           ) : installedAgents.length === 0 ? (
             <button
-              onClick={() => window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'org', sub: 'templates' } }))}
+              onClick={() => window.dispatchEvent(new CustomEvent('peppa:navigate', { detail: { tab: 'org', sub: 'templates' } }))}
               className="flex w-full items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-4 text-left transition hover:border-cyan-300/25 hover:bg-white/[0.07]"
             >
               <span>
@@ -314,25 +314,25 @@ export function BranchDashboard() {
             icon={<BookOpen size={18} />}
             label={ui('进入组织知识库', 'Open Knowledge Base')}
             desc={ui('查看、检索和编辑组织资料，工作域上传的文件会同步到这里。', 'Browse, search, and edit organization knowledge. Work-domain uploads sync here.')}
-            onClick={() => window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'org', sub: 'kb' } }))}
+            onClick={() => window.dispatchEvent(new CustomEvent('peppa:navigate', { detail: { tab: 'org', sub: 'kb' } }))}
           />
           <QuickAction
             icon={<Package size={18} />}
             label={ui('智能体模板市场', 'Agent Template Marketplace')}
-            desc={ui('审核、发布组织模板，并把需要的子 agent 安装到 Lumi 团队。', 'Review and publish organization templates, then install needed sub-agents into Lumi Team.')}
-            onClick={() => window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'org', sub: 'templates' } }))}
+            desc={ui('审核、发布组织模板，并把需要的子 agent 安装到 Peppa 团队。', 'Review and publish organization templates, then install needed sub-agents into Peppa Team.')}
+            onClick={() => window.dispatchEvent(new CustomEvent('peppa:navigate', { detail: { tab: 'org', sub: 'templates' } }))}
           />
           <QuickAction
             icon={<Activity size={18} />}
-            label={ui('组织 Lumi', 'Organization Lumi')}
+            label={ui('组织 Peppa', 'Organization Peppa')}
             desc={ui('向组织知识、制度、项目和团队资料发起查询。', 'Ask organization-level questions about knowledge, policies, projects, and teams.')}
-            onClick={() => window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'org', sub: 'chat' } }))}
+            onClick={() => window.dispatchEvent(new CustomEvent('peppa:navigate', { detail: { tab: 'org', sub: 'chat' } }))}
           />
           <QuickAction
             icon={<ShieldCheck size={18} />}
             label={ui('成员与权限', 'Members and Access')}
             desc={ui('查看成员、角色和组织访问状态。', 'Review members, roles, and organization access state.')}
-            onClick={() => window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'org', sub: 'members' } }))}
+            onClick={() => window.dispatchEvent(new CustomEvent('peppa:navigate', { detail: { tab: 'org', sub: 'members' } }))}
           />
         </section>
 

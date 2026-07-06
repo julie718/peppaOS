@@ -463,27 +463,27 @@
     outline-offset: 2px;
   }
 
-  .lumi-surface {
+  .peppa-surface {
     @apply rounded-3xl border border-white/10 bg-black/30 backdrop-blur-2xl shadow-2xl;
   }
 
-  .lumi-panel {
+  .peppa-panel {
     @apply rounded-2xl border border-white/[0.08] bg-white/[0.04];
   }
 
-  .lumi-button {
+  .peppa-button {
     @apply inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] px-3 text-xs font-bold text-white/60 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-35;
   }
 
-  .lumi-button-primary {
+  .peppa-button-primary {
     @apply inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-celestial-saturn/25 bg-celestial-saturn/[0.12] px-3 text-xs font-black text-celestial-saturn transition-colors hover:bg-celestial-saturn/[0.18] disabled:cursor-not-allowed disabled:opacity-35;
   }
 
-  .lumi-icon-button {
+  .peppa-icon-button {
     @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-white/45 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-35;
   }
 
-  .lumi-field {
+  .peppa-field {
     @apply rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-white outline-none placeholder:text-white/25 focus:border-celestial-saturn/40;
   }
 }

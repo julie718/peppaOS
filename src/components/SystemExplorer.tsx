@@ -251,7 +251,7 @@ function buildReport(
       id: 'knowledge_files',
       label: ui(isZh, '知识库文件', 'Knowledge files'),
       status: 'ready',
-      detail: ui(isZh, '文件会进入 Lumi 知识库，并由知识库负责浏览、吸收和检索。', 'Files live in Lumi Knowledge Base, where they can be browsed, absorbed, and retrieved.'),
+      detail: ui(isZh, '文件会进入 Peppa 知识库，并由知识库负责浏览、吸收和检索。', 'Files live in Peppa Knowledge Base, where they can be browsed, absorbed, and retrieved.'),
     },
     {
       id: 'sensors',
@@ -281,19 +281,19 @@ function buildReport(
       id: 'cad',
       label: ui(isZh, 'CAD 制图', 'CAD drafting'),
       status: hasCad ? 'ready' : 'partial',
-      detail: hasCad ? ui(isZh, '已检测到 CAD 应用。Lumi 可以生成 DXF 草图供你检查。', 'CAD app detected. Lumi can generate DXF drafts for review.') : ui(isZh, '未检测到 CAD 应用；Lumi 仍可生成 DXF 草稿文件。', 'No CAD app detected; Lumi can still generate DXF draft files.'),
+      detail: hasCad ? ui(isZh, '已检测到 CAD 应用。Peppa 可以生成 DXF 草图供你检查。', 'CAD app detected. Peppa can generate DXF drafts for review.') : ui(isZh, '未检测到 CAD 应用；Peppa 仍可生成 DXF 草稿文件。', 'No CAD app detected; Peppa can still generate DXF draft files.'),
     },
     {
       id: 'external_ai',
       label: ui(isZh, '外部 AI 应用', 'External AI apps'),
       status: hasAiApps ? 'ready' : 'partial',
-      detail: hasAiApps ? ui(isZh, '已检测到本地 AI 应用。优先通过 MCP、文件或浏览器交接，再使用视觉控制。', 'Local AI app detected. Prefer MCP/file/browser handoff before visual control.') : ui(isZh, '未检测到本地 AI 应用；Lumi 仍可通过浏览器和 MCP 协同。', 'No local AI app detected; Lumi can still coordinate through browser and MCP.'),
+      detail: hasAiApps ? ui(isZh, '已检测到本地 AI 应用。优先通过 MCP、文件或浏览器交接，再使用视觉控制。', 'Local AI app detected. Prefer MCP/file/browser handoff before visual control.') : ui(isZh, '未检测到本地 AI 应用；Peppa 仍可通过浏览器和 MCP 协同。', 'No local AI app detected; Peppa can still coordinate through browser and MCP.'),
     },
     {
       id: 'music',
       label: ui(isZh, '音乐工作流', 'Music workflow'),
       status: hasMusic ? 'ready' : 'partial',
-      detail: hasMusic ? ui(isZh, '已检测到网易云/音乐应用。', 'NetEase/Cloud Music app detected.') : ui(isZh, '未检测到音乐应用；Lumi 音乐能力仍可使用已配置服务。', 'Music app not detected; Lumi music playback can still use configured services.'),
+      detail: hasMusic ? ui(isZh, '已检测到网易云/音乐应用。', 'NetEase/Cloud Music app detected.') : ui(isZh, '未检测到音乐应用；Peppa 音乐能力仍可使用已配置服务。', 'Music app not detected; Peppa music playback can still use configured services.'),
     },
   ];
 
@@ -355,7 +355,7 @@ function buildReport(
   });
   if (!hasOffice) suggestions.push({
     id: 'office',
-    text: ui(isZh, '如果希望 Lumi 操作 Office/WPS 工作流，请安装或连接你常用的文档套件。', 'Install or connect your preferred document suite if Lumi should operate Office/WPS workflows.'),
+    text: ui(isZh, '如果希望 Peppa 操作 Office/WPS 工作流，请安装或连接你常用的文档套件。', 'Install or connect your preferred document suite if Peppa should operate Office/WPS workflows.'),
     priority: 'low',
   });
 
@@ -474,7 +474,7 @@ export function SystemExplorer({ t, onSectionChange }: { t?: any; onSectionChang
 
   const copyReport = async () => {
     const lines = [
-      ui(isZh, '# Lumi 电脑适配报告', '# Lumi Computer Adaptation Report'),
+      ui(isZh, '# Peppa 电脑适配报告', '# Peppa Computer Adaptation Report'),
       '',
       `${ui(isZh, '状态', 'Status')}: ${report.status}`,
       `${ui(isZh, '分数', 'Score')}: ${report.readyCount}/${report.totalCount} ${ui(isZh, '就绪', 'ready')}`,
@@ -518,7 +518,7 @@ export function SystemExplorer({ t, onSectionChange }: { t?: any; onSectionChang
             </h3>
           </div>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/45">
-            {ui(isZh, 'Lumi 会检查这台电脑的运行环境、权限、常用应用、MCP 工具和工作区状态。这个页面不会索引全盘，也不会主动请求传感器权限。', "Lumi checks this computer's runtime, permissions, common apps, MCP tools, and workspace state. It does not index the full disk or request sensor access from this page.")}
+            {ui(isZh, 'Peppa 会检查这台电脑的运行环境、权限、常用应用、MCP 工具和工作区状态。这个页面不会索引全盘，也不会主动请求传感器权限。', "Peppa checks this computer's runtime, permissions, common apps, MCP tools, and workspace state. It does not index the full disk or request sensor access from this page.")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -550,10 +550,10 @@ export function SystemExplorer({ t, onSectionChange }: { t?: any; onSectionChang
           </div>
           <div className="text-sm leading-relaxed text-white/65 md:max-w-md">
             {report.status === 'ready'
-              ? ui(isZh, 'Lumi 已经比较了解这台电脑，可以更稳地调度大多数桌面工作流。', 'Lumi has a strong map of this computer and can route most desktop workflows safely.')
+              ? ui(isZh, 'Peppa 已经比较了解这台电脑，可以更稳地调度大多数桌面工作流。', 'Peppa has a strong map of this computer and can route most desktop workflows safely.')
               : report.status === 'partial'
-                ? ui(isZh, 'Lumi 可以在这里工作，但补齐少量权限或本地工具后会更顺手。', 'Lumi can work here, but a few permissions or local tools would make the client smoother.')
-                : ui(isZh, '这台电脑还需要完成几项设置，Lumi 才能真正适配。', 'Lumi needs a few setup steps before this computer feels fully adapted.')}
+                ? ui(isZh, 'Peppa 可以在这里工作，但补齐少量权限或本地工具后会更顺手。', 'Peppa can work here, but a few permissions or local tools would make the client smoother.')
+                : ui(isZh, '这台电脑还需要完成几项设置，Peppa 才能真正适配。', 'Peppa needs a few setup steps before this computer feels fully adapted.')}
           </div>
         </div>
       </section>
@@ -581,7 +581,7 @@ export function SystemExplorer({ t, onSectionChange }: { t?: any; onSectionChang
         />
         <InfoPanel
           icon={<Database size={17} />}
-          title={ui(isZh, 'Lumi 运行时', 'Lumi Runtime')}
+          title={ui(isZh, 'Peppa 运行时', 'Peppa Runtime')}
           rows={[
             [ui(isZh, '技能', 'Skills'), ui(isZh, `${ecosystem?.enabledSkillCount || 0}/${ecosystem?.skillCount || 0} 已启用`, `${ecosystem?.enabledSkillCount || 0}/${ecosystem?.skillCount || 0} enabled`)],
             [ui(isZh, '工具', 'Tools'), String(ecosystem?.toolCount || 0)],
@@ -713,7 +713,7 @@ export function SystemExplorer({ t, onSectionChange }: { t?: any; onSectionChang
           />
           <WorkflowTile
             title={ui(isZh, '生成技能', 'Generated skills')}
-            detail={(ecosystem?.enabledSkillCount || 0) > 0 ? ui(isZh, 'MCP 技能已启用，Lumi 可以看到。', 'MCP skills are enabled and visible to Lumi.') : ui(isZh, '依赖生成工具工作流前，请先启用 MCP 技能。', 'Enable MCP skills before relying on generated tool workflows.')}
+            detail={(ecosystem?.enabledSkillCount || 0) > 0 ? ui(isZh, 'MCP 技能已启用，Peppa 可以看到。', 'MCP skills are enabled and visible to Peppa.') : ui(isZh, '依赖生成工具工作流前，请先启用 MCP 技能。', 'Enable MCP skills before relying on generated tool workflows.')}
             ready={(ecosystem?.enabledSkillCount || 0) > 0}
           />
           <WorkflowTile
@@ -728,12 +728,12 @@ export function SystemExplorer({ t, onSectionChange }: { t?: any; onSectionChang
           />
           <WorkflowTile
             title={ui(isZh, '外部应用', 'External apps')}
-            detail={detectedAppGroups.some(group => group.id === 'wechat' || group.id === 'cad' || group.id === 'ai_apps') ? ui(isZh, '通讯/CAD/AI 应用交接已出现在适配地图中。', 'Messaging/CAD/AI app handoff is visible in the adapter map.') : ui(isZh, '即使未启用外部应用控制，Lumi 仍可先准备草稿和文件。', 'Lumi can still prepare drafts and files before external app control is enabled.')}
+            detail={detectedAppGroups.some(group => group.id === 'wechat' || group.id === 'cad' || group.id === 'ai_apps') ? ui(isZh, '通讯/CAD/AI 应用交接已出现在适配地图中。', 'Messaging/CAD/AI app handoff is visible in the adapter map.') : ui(isZh, '即使未启用外部应用控制，Peppa 仍可先准备草稿和文件。', 'Peppa can still prepare drafts and files before external app control is enabled.')}
             ready={detectedAppGroups.some(group => group.id === 'wechat' || group.id === 'cad' || group.id === 'ai_apps')}
           />
           <WorkflowTile
             title={ui(isZh, '音乐能力', 'Music playback')}
-            detail={detectedAppGroups.some(group => group.id === 'netease') ? ui(isZh, '已检测到音乐应用；Lumi 可以协同播放。', 'Music app detected; Lumi can coordinate playback.') : ui(isZh, '音乐能力仍可通过已配置的音乐服务工作。', 'Music playback can still work through configured music services.')}
+            detail={detectedAppGroups.some(group => group.id === 'netease') ? ui(isZh, '已检测到音乐应用；Peppa 可以协同播放。', 'Music app detected; Peppa can coordinate playback.') : ui(isZh, '音乐能力仍可通过已配置的音乐服务工作。', 'Music playback can still work through configured music services.')}
             ready={detectedAppGroups.some(group => group.id === 'netease')}
           />
         </div>
@@ -765,7 +765,7 @@ export function SystemExplorer({ t, onSectionChange }: { t?: any; onSectionChang
         ) : (
           <div className="flex gap-3 rounded-xl bg-emerald-300/8 px-3 py-2 text-sm text-emerald-100/70">
             <CheckCircle2 size={15} />
-            {ui(isZh, '这台电脑看起来已经适合运行 Lumi 桌面工作流。', 'This computer looks ready for Lumi desktop workflows.')}
+            {ui(isZh, '这台电脑看起来已经适合运行 Peppa 桌面工作流。', 'This computer looks ready for Peppa desktop workflows.')}
           </div>
         )}
       </section>

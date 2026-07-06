@@ -1,9 +1,9 @@
 {
-  "name": "lumi-skill-pixelle",
+  "name": "peppa-skill-pixelle",
   "version": "1.0.0",
   "description": "ComfyUI-powered AIGC studio — text-to-image, image-to-video, sound generation, and more. Convert any ComfyUI workflow into an AI tool.",
   "type": "module",
-  "lumi": {
+  "peppa": {
     "displayName": "Pixelle Studio",
     "category": "Creative",
     "icon": "Palette",

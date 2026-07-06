@@ -32,7 +32,7 @@ function migrateDataFromOldLocation() {
 }
 migrateDataFromOldLocation();
 
-const DB_PATH = getDataPath('lumi.db');
+const DB_PATH = getDataPath('peppa.db');
 
 let db: sqlite3.Database | null = null;
 let memoryDB: any = null;
@@ -111,7 +111,7 @@ function migrateSchema(): Promise<void> {
     // Add 'conversationId' column to interactions if it doesn't exist
     db!.run("ALTER TABLE interactions ADD COLUMN conversationId TEXT DEFAULT ''", onAlter);
     // Add agent framework columns
-    db!.run("ALTER TABLE agents ADD COLUMN personalityId TEXT DEFAULT 'lumi'", onAlter);
+    db!.run("ALTER TABLE agents ADD COLUMN personalityId TEXT DEFAULT 'peppa'", onAlter);
     db!.run("ALTER TABLE agents ADD COLUMN modelPreference TEXT DEFAULT ''", onAlter);
     db!.run("ALTER TABLE agents ADD COLUMN memoryScope TEXT DEFAULT 'shared'", onAlter);
     db!.run("ALTER TABLE agents ADD COLUMN autonomyLevel TEXT DEFAULT 'reactive'", onAlter);
@@ -249,7 +249,7 @@ function createTables(): Promise<void> {
         createdAt TEXT NOT NULL,
         userId TEXT,
         status TEXT DEFAULT 'active',
-        personalityId TEXT DEFAULT 'lumi',
+        personalityId TEXT DEFAULT 'peppa',
         modelPreference TEXT DEFAULT '',
         memoryScope TEXT DEFAULT 'shared',
         autonomyLevel TEXT DEFAULT 'reactive',
@@ -585,7 +585,7 @@ async function loadMemoryDB(): Promise<void> {
     ...a,
     ownerUid: a.userId || a.ownerUid,
     data: a.config || a.data || '{}',
-    personalityId: a.personalityId || 'lumi',
+    personalityId: a.personalityId || 'peppa',
     modelPreference: a.modelPreference || '',
     memoryScope: a.memoryScope || 'shared',
     autonomyLevel: a.autonomyLevel || 'reactive',
@@ -759,9 +759,9 @@ async function persistMemoryDB(): Promise<void> {
     },
     {
       name: 'agents',
-      createSQL: `CREATE TABLE _temp_agents (id TEXT PRIMARY KEY, name TEXT NOT NULL, category TEXT NOT NULL, config TEXT NOT NULL, createdAt TEXT NOT NULL, userId TEXT, status TEXT DEFAULT 'active', personalityId TEXT DEFAULT 'lumi', modelPreference TEXT DEFAULT '', memoryScope TEXT DEFAULT 'shared', autonomyLevel TEXT DEFAULT 'reactive', runtimeConfig TEXT DEFAULT '{}', runtime TEXT DEFAULT 'internal', externalCommand TEXT DEFAULT '', domain TEXT DEFAULT 'personal', orgId TEXT DEFAULT '')`,
+      createSQL: `CREATE TABLE _temp_agents (id TEXT PRIMARY KEY, name TEXT NOT NULL, category TEXT NOT NULL, config TEXT NOT NULL, createdAt TEXT NOT NULL, userId TEXT, status TEXT DEFAULT 'active', personalityId TEXT DEFAULT 'peppa', modelPreference TEXT DEFAULT '', memoryScope TEXT DEFAULT 'shared', autonomyLevel TEXT DEFAULT 'reactive', runtimeConfig TEXT DEFAULT '{}', runtime TEXT DEFAULT 'internal', externalCommand TEXT DEFAULT '', domain TEXT DEFAULT 'personal', orgId TEXT DEFAULT '')`,
       insertSQL: `INSERT INTO _temp_agents (id, name, category, config, createdAt, userId, status, personalityId, modelPreference, memoryScope, autonomyLevel, runtimeConfig, runtime, externalCommand, domain, orgId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      rows: () => memoryDB.agents.map((a: any) => [a.id, a.name, a.category, a.data || a.config || '{}', a.createdAt, a.ownerUid || a.userId || null, a.status || 'active', a.personalityId || 'lumi', a.modelPreference || '', a.memoryScope || 'shared', a.autonomyLevel || 'reactive', a.runtimeConfig || '{}', a.runtime || 'internal', a.externalCommand || '', a.domain || 'personal', a.orgId || '']),
+      rows: () => memoryDB.agents.map((a: any) => [a.id, a.name, a.category, a.data || a.config || '{}', a.createdAt, a.ownerUid || a.userId || null, a.status || 'active', a.personalityId || 'peppa', a.modelPreference || '', a.memoryScope || 'shared', a.autonomyLevel || 'reactive', a.runtimeConfig || '{}', a.runtime || 'internal', a.externalCommand || '', a.domain || 'personal', a.orgId || '']),
     },
     {
       name: 'interactions',

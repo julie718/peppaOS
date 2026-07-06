@@ -9,7 +9,7 @@ await build({
   outfile: 'dist-server/server.mjs',
   external: ['sqlite3', 'sharp', '@img/sharp-win32-x64', '@img/sharp-libvips-win32-x64', 'lightningcss', 'playwright-core'],
   banner: {
-    js: "import { createRequire as __lumiCreateRequire } from 'module'; const require = __lumiCreateRequire(import.meta.url);",
+    js: "import { createRequire as __peppaCreateRequire } from 'module'; const require = __peppaCreateRequire(import.meta.url);",
   },
 });
 
@@ -49,7 +49,7 @@ if (process.platform === 'win32') {
 }
 
 import('./server.mjs').catch(err => {
-  console.error('Failed to start Lumi OS server:', err);
+  console.error('Failed to start Peppa OS server:', err);
   process.exit(1);
 });
 `);

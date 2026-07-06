@@ -52,7 +52,7 @@ export function ToolPanel({ t }: { t?: any }) {
   ];
 
   return (
-    <div className="lumi-surface h-full flex flex-col text-white overflow-hidden">
+    <div className="peppa-surface h-full flex flex-col text-white overflow-hidden">
       <div className="flex items-center gap-3 border-b border-white/[0.08] px-5 py-4">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-amber-400/20 bg-amber-500/15">
           <Wrench size={20} className="text-amber-400" />
@@ -82,7 +82,7 @@ export function ToolPanel({ t }: { t?: any }) {
                   </span>
                 </div>
                 {section.items.length === 0 ? (
-                  <p className="lumi-panel px-4 py-3 text-xs italic text-white/40">{t?.noToolsInCategory || 'No tools in this category'}</p>
+                  <p className="peppa-panel px-4 py-3 text-xs italic text-white/40">{t?.noToolsInCategory || 'No tools in this category'}</p>
                 ) : (
                 <div className="space-y-1">
                   {section.items.map(tool => {

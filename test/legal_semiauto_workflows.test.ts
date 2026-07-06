@@ -155,7 +155,7 @@ describe('semi-automated legal workflows', () => {
   it('imports local legal materials into the organization knowledge base', async () => {
     const registry = createLegalRegistry();
     const KB = await import('../server/org/kb');
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lumi_legal_materials_'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'peppa_legal_materials_'));
 
     try {
       fs.writeFileSync(path.join(dir, '起诉状.txt'), [
@@ -251,7 +251,7 @@ describe('legal web login presets', () => {
       expect(preset).toBeTruthy();
       expect(preset?.loginUrl).toMatch(/^https:\/\//);
       expect(preset?.matchHosts.length).toBeGreaterThan(0);
-      expect(preset?.notes).toMatch(/Lumi/);
+      expect(preset?.notes).toMatch(/Peppa/);
       expect(preset?.notes).toMatch(/授权|登录|人工|验证码|限制/);
     }
   });

@@ -56,7 +56,7 @@ export function evaluateLAPContextFirewall(
     accepted: true,
     normalizedEntry: {
       ...entry,
-      origin: entry.origin || 'external_lumi',
+      origin: entry.origin || 'external_peppa',
       privacyClass,
       tags: entry.tags || [],
     },

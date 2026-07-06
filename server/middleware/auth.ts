@@ -26,7 +26,7 @@ declare global {
   }
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'lumiOS_default_jwt_secret_2026_local';
+const JWT_SECRET = process.env.JWT_SECRET || 'peppaOS_default_jwt_secret_2026_local';
 
 function extractToken(req: Request): string | null {
   let token = req.cookies?.token;

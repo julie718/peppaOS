@@ -3,7 +3,7 @@ import path from 'path';
 import { ToolRegistry } from '../registry';
 import { loadKeys } from '../../config/keys';
 
-const OUTPUT_DIR = path.join(process.cwd(), 'lumi_output');
+const OUTPUT_DIR = path.join(process.cwd(), 'peppa_output');
 
 function ensureOutputDir(): string {
   if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
@@ -237,7 +237,7 @@ export function registerImageTools(registry: ToolRegistry): void {
 
   registry.register({
     name: 'edit_image',
-    description: 'Edit an image: crop, resize, rotate, flip/flop, blur, sharpen, grayscale, negate, composite (overlay watermark/logo), or convert format. Saves result to lumi_output directory.',
+    description: 'Edit an image: crop, resize, rotate, flip/flop, blur, sharpen, grayscale, negate, composite (overlay watermark/logo), or convert format. Saves result to peppa_output directory.',
     parameters: {
       type: 'object',
       properties: {

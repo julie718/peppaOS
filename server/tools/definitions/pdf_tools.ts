@@ -5,7 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { ToolRegistry } from '../registry';
 
-const OUTPUT_DIR = path.join(process.cwd(), 'lumi_output');
+const OUTPUT_DIR = path.join(process.cwd(), 'peppa_output');
 
 function ensureOutputDir(): string {
   if (!fs.existsSync(OUTPUT_DIR)) {
@@ -408,7 +408,7 @@ export function registerPdfTools(registry: ToolRegistry): void {
 
   registry.register({
     name: 'create_pdf',
-    description: 'Create a new PDF document from text content with optional embedded images. Supports CJK characters. Embed images alongside text with positioning (x, y, width, height, page, fullBleed). Saves to lumi_output.',
+    description: 'Create a new PDF document from text content with optional embedded images. Supports CJK characters. Embed images alongside text with positioning (x, y, width, height, page, fullBleed). Saves to peppa_output.',
     parameters: {
       type: 'object',
       properties: {

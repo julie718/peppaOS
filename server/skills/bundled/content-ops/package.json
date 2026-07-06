@@ -1,12 +1,12 @@
 {
-  "name": "lumi-skill-content-ops",
+  "name": "peppa-skill-content-ops",
   "version": "1.0.0",
   "description": "New media and content operations pack for topic pipelines, short-video scripts, account reviews, comment insights, and content calendars.",
   "type": "module",
   "main": "index.ts",
   "scripts": { "start": "npx tsx index.ts" },
   "dependencies": { "@modelcontextprotocol/sdk": "^1.0.0", "zod": "^3.22.0" },
-  "lumi": {
+  "peppa": {
     "displayName": "Content Ops",
     "category": "Content",
     "icon": "Film",

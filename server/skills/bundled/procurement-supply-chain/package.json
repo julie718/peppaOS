@@ -1,12 +1,12 @@
 {
-  "name": "lumi-skill-procurement-supply-chain",
+  "name": "peppa-skill-procurement-supply-chain",
   "version": "1.0.0",
   "description": "Procurement and supply-chain pack for supplier comparison, purchase planning, delivery risk, inventory warnings, reconciliation, and contract review checklists.",
   "type": "module",
   "main": "index.ts",
   "scripts": { "start": "npx tsx index.ts" },
   "dependencies": { "@modelcontextprotocol/sdk": "^1.0.0", "zod": "^3.22.0" },
-  "lumi": {
+  "peppa": {
     "displayName": "Procurement Supply Chain",
     "category": "Procurement",
     "icon": "ShoppingBag",

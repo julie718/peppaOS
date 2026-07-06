@@ -84,6 +84,23 @@ describe('Auth API', () => {
     expect(body.user.username).toBe('testuser');
   });
 
+  it('accepts Authorization header token for protected auth routes', async () => {
+    const res = await fetch(`${url}/api/auth/change-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ currentPassword: 'testpass123', newPassword: 'newpass123' }),
+      signal: AbortSignal.timeout(5000),
+    });
+    const text = await res.text();
+    let body: any;
+    try { body = JSON.parse(text); } catch { body = text; }
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+  });
+
   it('/me fails without token', async () => {
     const { status } = await get('/auth/me');
     // Route returns 401 or 500 depending on token validation path

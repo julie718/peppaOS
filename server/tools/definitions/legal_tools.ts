@@ -333,7 +333,7 @@ function buildImportedMaterialContent(args: Record<string, any>, item: {
   articleType: LegalArticleType;
 }): string {
   const header = [
-    '# Lumi 法律材料入库记录',
+    '# Peppa 法律材料入库记录',
     `- 标题: ${item.title}`,
     `- 来源: ${item.source}`,
     `- 格式: ${item.format || 'text'}`,
@@ -415,7 +415,7 @@ function resolveLegalFolderPath(folderPath: string, folderName: string): string 
 }
 
 function legalOutputDirName(input: string): string {
-  return safeFileSegment(input || 'Lumi代理词草稿', 'Lumi代理词草稿');
+  return safeFileSegment(input || 'Peppa代理词草稿', 'Peppa代理词草稿');
 }
 
 function buildEvidencePurpose(name: string, text: string): string {
@@ -487,7 +487,7 @@ async function readLegalFolderMaterials(args: Record<string, any>): Promise<{
       skipped.push({
         path: file,
         reason: LEGAL_IMAGE_EXTENSIONS.has(ext)
-          ? '图片/扫描件需先用 ocr_image_file 识别，或在聊天中上传后让 Lumi OCR'
+          ? '图片/扫描件需先用 ocr_image_file 识别，或在聊天中上传后让 Peppa OCR'
           : `暂不支持该格式：${ext || '无扩展名'}`,
       });
       continue;
@@ -812,7 +812,7 @@ async function equityPenetrationHandler(args: Record<string, any>): Promise<stri
 可执行以下授权网页登录协作：
 1. web_login_profile_save_from_preset {"presetId":"qichacha"}
 2. web_login_run {"profileId":"qichacha","headless":false}
-3. 律师在网页内确认股东、对外投资、风险信息后，使用 legal_import_materials_to_kb 导入 Lumi 知识库。
+3. 律师在网页内确认股东、对外投资、风险信息后，使用 legal_import_materials_to_kb 导入 Peppa 知识库。
 
 边界：这不是平台数据接入；不自动抓取、不批量同步、不绕过验证码、付费墙、账号权限或频控。`;
   }
@@ -1018,7 +1018,7 @@ async function prepareFilingHandoffHandler(args: Record<string, any>): Promise<s
 
 ## 一、边界
 - 本单用于人民法院在线服务/地方在线诉讼服务平台的材料准备和人工提交交接。
-- Lumi 可以整理字段、命名文件、生成核对清单、打开授权网页登录会话；不自动点击提交、签名、缴费、确认送达、撤回或代替身份认证。
+- Peppa 可以整理字段、命名文件、生成核对清单、打开授权网页登录会话；不自动点击提交、签名、缴费、确认送达、撤回或代替身份认证。
 - 所有诉请、金额、管辖、案由、法条、证据页码和附件份数必须由律师复核。
 
 ## 二、案件概要
@@ -1066,7 +1066,7 @@ ${materialRows}
 - 是否存在诉讼时效、仲裁条款、重复起诉、主体资格或管辖风险。
 
 ## 八、告知模板
-材料已按半自动立案口径整理完毕，当前状态为“待律师登录法院平台人工核对并提交”。Lumi 未自动提交、未签名、未缴费、未确认送达；提交结果以法院平台回执为准。`;
+材料已按半自动立案口径整理完毕，当前状态为“待律师登录法院平台人工核对并提交”。Peppa 未自动提交、未签名、未缴费、未确认送达；提交结果以法院平台回执为准。`;
 }
 
 // ── legal_extract_dispute_focus ─────────────────────────────────────────
@@ -1475,7 +1475,7 @@ ${skippedLines}
 
   const outputDir = textArg(args, 'outputDir')
     ? path.resolve(expandLocalPath(textArg(args, 'outputDir')))
-    : path.join(read.folderPath, legalOutputDirName(textArg(args, 'outputDirName') || 'Lumi代理词草稿'));
+    : path.join(read.folderPath, legalOutputDirName(textArg(args, 'outputDirName') || 'Peppa代理词草稿'));
   const writeFiles = args.writeFiles !== false;
   const outputs: Array<{ name: string; path?: string; content: string }> = [
     { name: '00_文件夹读取报告.md', content: readReport },
@@ -1549,7 +1549,7 @@ async function importMaterialsToKbHandler(args: Record<string, any>, context?: a
   const defaultArticleType = normalizeMaterialArticleType(materialType || textArg(args, 'title'));
 
   if (!filePath && !folderPath && !content) {
-    return '请提供 filePath、folderPath 或 content。Lumi 可以导入本地案件材料、下载后的网页材料或直接粘贴文本。';
+    return '请提供 filePath、folderPath 或 content。Peppa 可以导入本地案件材料、下载后的网页材料或直接粘贴文本。';
   }
 
   const imported: Array<{ title: string; articleId: string; chunks: number; category: string }> = [];
@@ -1747,7 +1747,7 @@ ${browserSteps}
       signal: controller.signal,
       redirect: 'follow',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 LumiLegalIntake/1.0',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 MayOS-LegalIntake/1.0',
         'Accept': 'application/pdf,text/html,application/xhtml+xml,application/xml,text/plain,application/json,*/*',
         'Accept-Language': 'zh-CN,zh;q=0.9',
       },
@@ -1941,7 +1941,7 @@ ${rows}
 
 ## 统一口径
 - 只有配置官方 API 凭证并受合同授权的数据源，才称为“平台数据接入”。
-- 其他站点按“授权网页登录协作”处理：Lumi 可打开页面、组织检索词、辅助登记来源，但不绕过验证码、付费墙、账号权限、频控或下载限制。
+- 其他站点按“授权网页登录协作”处理：Peppa 可打开页面、组织检索词、辅助登记来源，但不绕过验证码、付费墙、账号权限、频控或下载限制。
 - 律师确认后的网页摘录、下载文件和本地材料，可以用 legal_import_materials_to_kb 导入组织知识库。`;
 }
 
@@ -1966,7 +1966,7 @@ async function externalResearchPlanHandler(args: Record<string, any>): Promise<s
   return `# 半自动外部检索行动单
 
 ## 一、检索边界
-- Lumi 不复制第三方平台数据，不绕过验证码、付费墙、账号权限或频控。
+- Peppa 不复制第三方平台数据，不绕过验证码、付费墙、账号权限或频控。
 - 只有已配置官方 API 凭证并受合同授权的数据源，才称为“平台数据接入”；未配置 API 的数据源按授权网页登录协作处理。
 - 使用 web_login_profile_save_from_preset 保存授权站点，再用 web_login_run 打开真实浏览器。
 - 律师在网页内确认检索结果后，将标题、链接、案号、法院、裁判日期、关键摘录和使用理由登记回案件；确认后的文件或摘录可由 legal_import_materials_to_kb 自动导入知识库。
@@ -2324,7 +2324,7 @@ export function registerLegalTools(registry: ToolRegistry): void {
         objective: { type: 'string', description: '办理目标或代理词立场' },
         claims: { type: 'string', description: '诉请、抗辩目标或结论请求' },
         opponentMaterials: { type: 'string', description: '对方主张、起诉状、答辩意见或代理意见摘要，可为空' },
-        outputDir: { type: 'string', description: '可选输出目录，默认在案件文件夹下创建 Lumi代理词草稿' },
+        outputDir: { type: 'string', description: '可选输出目录，默认在案件文件夹下创建 Peppa代理词草稿' },
         outputDirName: { type: 'string', description: '默认输出目录名称' },
         writeFiles: { type: 'boolean', description: '是否写入 Markdown 文件，默认 true；false 时只返回预览' },
         recursive: { type: 'boolean', description: '是否递归读取子目录，默认 true' },
@@ -2342,7 +2342,7 @@ export function registerLegalTools(registry: ToolRegistry): void {
 
   registry.register({
     name: 'legal_import_materials_to_kb',
-    description: '法律材料导入知识库 — Lumi 自主解析本地文件、案件文件夹或粘贴文本，导入组织知识库并建立法律标签。支持起诉状、证据、庭审笔录、合同、裁判文书、网页摘录、检索笔记等材料；外部网站材料需由律师确认来源和权限后再入库。',
+    description: '法律材料导入知识库 — Peppa 自主解析本地文件、案件文件夹或粘贴文本，导入组织知识库并建立法律标签。支持起诉状、证据、庭审笔录、合同、裁判文书、网页摘录、检索笔记等材料；外部网站材料需由律师确认来源和权限后再入库。',
     parameters: {
       type: 'object',
       properties: {

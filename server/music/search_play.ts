@@ -261,7 +261,7 @@ async function searchSongsByKeyword(keyword: string, limit = 20): Promise<any[]>
 
 function extractTarget(userText: string): string | null {
   let text = userText.replace(/[。！？,.!?\s]+/g, ' ').trim();
-  const prefixWords = /^(?:lumi|Lumi|露米)?\s*(?:请|帮我|给我|帮忙|麻烦|我想|我要)?\s*(?:放|播放|听|来一首|来点|点一首|播一首|打开音乐|音乐模式)\s*/u;
+  const prefixWords = /^(?:peppa|Peppa|露米)?\s*(?:请|帮我|给我|帮忙|麻烦|我想|我要)?\s*(?:放|播放|听|来一首|来点|点一首|播一首|打开音乐|音乐模式)\s*/u;
   const suffixWords = /\s*(?:的?歌|歌曲|音乐|歌单|专辑|吧|呀|呢|啊)$/u;
 
   for (let i = 0; i < 4; i += 1) {
@@ -374,7 +374,7 @@ async function pickAndPlay(
   } catch {}
 
   const moodReason = moodReasonMap[mood] || '根据你现在的状态';
-  const lumiReason = `${moodReason}，给你放一首《${trackInfo.name}》，希望你喜欢。`;
+  const peppaReason = `${moodReason}，给你放一首《${trackInfo.name}》，希望你喜欢。`;
 
   console.log(`[Music] Scene: ${scene.scene}, particles=${scene.particles}, nativePlayback=true`);
   emitMusicAtmosphere(socket, {
@@ -384,11 +384,11 @@ async function pickAndPlay(
     queue,
     queueIndex: 0,
     lyrics: lyricsData,
-    lumiReason,
+    peppaReason,
     scene,
   });
 
-  return { success: true, text: lumiReason };
+  return { success: true, text: peppaReason };
 }
 
 export async function adjustMusicPlayback(

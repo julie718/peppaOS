@@ -146,7 +146,7 @@ export function installTemplate(
     ...config,
     name: config.name || t.name,
     category: t.category,
-    personalityId: config.personalityId || 'lumi',
+    personalityId: config.personalityId || 'peppa',
     domain: 'work',
     orgId,
   };
@@ -213,7 +213,7 @@ export function installTemplate(
   return { template: t, agentConfig, agent, alreadyInstalled: false };
 }
 
-// ── Auto-check helper (called by admin + central Lumi) ───────────────────
+// ── Auto-check helper (called by admin + central Peppa) ───────────────────
 
 export function checkTemplateQuality(template: EDB.AgentTemplate): { passed: boolean; issues: string[] } {
   const issues: string[] = [];

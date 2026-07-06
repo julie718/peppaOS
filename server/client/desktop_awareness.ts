@@ -156,17 +156,17 @@ Add-Type @"
 using System;
 using System.Text;
 using System.Runtime.InteropServices;
-public class LumiForegroundWindow {
+public class PeppaForegroundWindow {
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
 }
 "@
-$handle = [LumiForegroundWindow]::GetForegroundWindow()
+$handle = [PeppaForegroundWindow]::GetForegroundWindow()
 $titleBuilder = New-Object System.Text.StringBuilder 512
-[LumiForegroundWindow]::GetWindowText($handle, $titleBuilder, $titleBuilder.Capacity) | Out-Null
+[PeppaForegroundWindow]::GetWindowText($handle, $titleBuilder, $titleBuilder.Capacity) | Out-Null
 [uint32]$processId = 0
-[LumiForegroundWindow]::GetWindowThreadProcessId($handle, [ref]$processId) | Out-Null
+[PeppaForegroundWindow]::GetWindowThreadProcessId($handle, [ref]$processId) | Out-Null
 $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
 [PSCustomObject]@{
   title = $titleBuilder.ToString()
@@ -265,7 +265,7 @@ export function formatDesktopAwarenessForPrompt(): string {
 
   return [
     '### Native Desktop And System Awareness',
-    'Treat the native desktop and operating system as shared territory that belongs to Lumi and the user. Keep a clear mental map of visible desktop items, foreground app, background processes, installed software, and system state instead of acting like a stateless web chat.',
+    'Treat the native desktop and operating system as shared territory that belongs to Peppa and the user. Keep a clear mental map of visible desktop items, foreground app, background processes, installed software, and system state instead of acting like a stateless web chat.',
     'This is a bounded recent snapshot, not omniscience. When the user asks what is on the screen, what is open, what is running, or asks for visual identification, use the desktop/screen/vision tools to refresh perception rather than saying the reasoning model cannot see.',
     'Observation boundary: reading current window, running processes, desktop listings, system info, screenshots, OCR, and vision analysis are perception. Changing files/apps/settings, keyboard/mouse control, shell commands, messaging, capture/recording, or destructive actions still follows confirmation and mode rules.',
     `- Snapshot age: ${formatAge(Date.now() - snapshot.capturedAt)}`,

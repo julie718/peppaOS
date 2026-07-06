@@ -47,7 +47,7 @@ export function JoinOrgPage() {
         await refreshUser();
         await switchDomain('work');
         setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'org' } }));
+          window.dispatchEvent(new CustomEvent('peppa:navigate', { detail: { tab: 'org' } }));
         }, 600);
       } else {
         setError(data.error || ui('加入组织失败', 'Failed to join'));
@@ -95,7 +95,7 @@ export function JoinOrgPage() {
               {ui('验证邀请码', 'Validate Code')} <ArrowRight size={16} className="ml-2" />
             </Button>
             <button
-              onClick={() => window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'org' } }))}
+              onClick={() => window.dispatchEvent(new CustomEvent('peppa:navigate', { detail: { tab: 'org' } }))}
               className="w-full text-center text-white/55 text-sm hover:text-white/50"
             >
               {ui('已经加入？返回组织工作区', 'Already joined? Return to the organization workspace.')}

@@ -84,14 +84,14 @@ export function RemoteMCPSettings({ t }: { t?: any }) {
       </div>
 
       <p className="text-sm text-white/40 max-w-xl">
-        {t.remoteMCPDesc || 'Configure remote devices (e.g. XiaoZhi, smart speakers) that connect to Lumi via MCP over WebSocket. Changes take effect on server restart.'}
+        {t.remoteMCPDesc || 'Configure remote devices (e.g. XiaoZhi, smart speakers) that connect to Peppa via MCP over WebSocket. Changes take effect on server restart.'}
       </p>
 
       {devices.length === 0 || (!editing && devices.length === 0) ? (
         <div className="p-10 bg-white/5 rounded-[2rem] border border-white/5 text-center">
           <Satellite size={32} className="text-white/45 mx-auto mb-4" />
           <p className="text-white/40 font-bold uppercase tracking-widest text-sm">{t.noRemoteDevices || 'No remote devices configured'}</p>
-          <p className="text-white/45 text-xs mt-2">{t.addRemoteDeviceHint || 'Add a device to let it call Lumi tools via MCP'}</p>
+          <p className="text-white/45 text-xs mt-2">{t.addRemoteDeviceHint || 'Add a device to let it call Peppa tools via MCP'}</p>
           <Button onClick={addRow} className="mt-6 bg-celestial-saturn text-black rounded-full px-6 py-3 font-bold text-sm hover:scale-105 transition-transform">
             <Plus size={16} className="mr-1" /> {t.addDevice || 'Add Device'}
           </Button>
@@ -177,7 +177,7 @@ export function RemoteMCPSettings({ t }: { t?: any }) {
           <h4 className="text-sm font-bold uppercase tracking-tight text-white">{t.howItWorks || 'How It Works'}</h4>
         </div>
         <p className="text-xs text-white/55 leading-relaxed">
-          {t.remoteMCPHowItWorks || 'Remote devices connect as MCP clients to Lumi\'s MCP server via WebSocket. Lumi initiates the WebSocket connection, the device sends an MCP initialize request, and Lumi responds as the server — exposing tools like lumi_chat, lumi_memory_search, and lumi_tool_execute that the device can invoke via voice or other input.'}
+          {t.remoteMCPHowItWorks || 'Remote devices connect as MCP clients to Peppa\'s MCP server via WebSocket. Peppa initiates the WebSocket connection, the device sends an MCP initialize request, and Peppa responds as the server — exposing tools like peppa_chat, peppa_memory_search, and peppa_tool_execute that the device can invoke via voice or other input.'}
         </p>
       </div>
     </div>

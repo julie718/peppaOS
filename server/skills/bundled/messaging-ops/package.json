@@ -1,12 +1,12 @@
 {
-  "name": "lumi-skill-messaging-ops",
+  "name": "peppa-skill-messaging-ops",
   "version": "1.0.0",
   "description": "Feishu and WeChat operations pack for remote request triage, reply drafting, file-intake handling, and setup guidance.",
   "type": "module",
   "main": "index.ts",
   "scripts": { "start": "npx tsx index.ts" },
   "dependencies": { "@modelcontextprotocol/sdk": "^1.0.0", "zod": "^3.22.0" },
-  "lumi": {
+  "peppa": {
     "displayName": "Feishu WeChat Ops",
     "category": "Messaging",
     "icon": "Mail",

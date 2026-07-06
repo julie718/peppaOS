@@ -1,4 +1,4 @@
-// Generate LumiOS product PDF — uses Edge headless print-to-PDF with Chinese support
+// Generate Peppa product PDF — uses Edge headless print-to-PDF with Chinese support
 import { execSync } from 'child_process';
 import { writeFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
@@ -57,7 +57,7 @@ const html = `<!DOCTYPE html>
 <div class="page cover">
   <div class="header-line"></div>
   <div style="margin-top: 40mm;">
-    <h1>LumiOS</h1>
+    <h1>Peppa</h1>
     <div class="sub">个人版 · 部署与服务方案</div>
     <div class="line"></div>
     <p class="tagline">不是聊天机器人，不是 SaaS 订阅。</p>
@@ -65,9 +65,9 @@ const html = `<!DOCTYPE html>
   </div>
   <div style="margin-top: 24mm;">
     <p>浙江灵序科技有限公司</p>
-    <p>2026年6月 · v2.8 · lumiai.asia</p>
+    <p>2026年6月 · v2.8 · mayos.asia</p>
   </div>
-  <div class="footer"><span>LumiOS v2.8</span><span>p.1</span></div>
+  <div class="footer"><span>Peppa v2.8</span><span>p.1</span></div>
 </div>
 
 <!-- Page 2: Positioning + Features -->
@@ -76,12 +76,12 @@ const html = `<!DOCTYPE html>
   <h1>产品定位</h1>
   <div class="h1-line"></div>
 
-  <h2>LumiOS 是什么</h2>
-  <p>LumiOS 是一个本地运行的、会记住你、会跟着你进化的私有 AI 人格。不是聊天机器人，不是 SaaS 订阅。它属于你——连同你的数据、你的记忆、你的 AI 人格一起。</p>
+  <h2>Peppa 是什么</h2>
+  <p>Peppa 是一个本地运行的、会记住你、会跟着你进化的私有 AI 人格。不是聊天机器人，不是 SaaS 订阅。它属于你——连同你的数据、你的记忆、你的 AI 人格一起。</p>
 
   <h2>与 ChatGPT / Kimi 的区别</h2>
   <table>
-    <tr><th></th><th>ChatGPT / Kimi</th><th>LumiOS</th></tr>
+    <tr><th></th><th>ChatGPT / Kimi</th><th>Peppa</th></tr>
     <tr><td style="font-weight:700;">数据归属</td><td>平台</td><td>你</td></tr>
     <tr><td style="font-weight:700;">运行位置</td><td>云端</td><td>你的电脑</td></tr>
     <tr><td style="font-weight:700;">记忆</td><td>上下文窗口</td><td>永久，三级分层</td></tr>
@@ -90,20 +90,20 @@ const html = `<!DOCTYPE html>
     <tr><td style="font-weight:700;">语音交互</td><td>基础</td><td>全双工，自由打断</td></tr>
     <tr><td style="font-weight:700;">付费方式</td><td>月租</td><td>一次部署，终身拥有</td></tr>
   </table>
-  <p>LumiOS 解决的不是"怎么对话"，而是"AI 为什么不是我的"。</p>
+  <p>Peppa 解决的不是"怎么对话"，而是"AI 为什么不是我的"。</p>
 
   <h2>核心功能</h2>
   <table>
     <tr><th>功能</th><th>说明</th></tr>
     <tr><td>AI 人格孵化</td><td>从对话中提取习惯、偏好、价值观。用得越久越像你</td></tr>
     <tr><td>三级记忆</td><td>情节记忆 → 语义记忆 → 程序记忆。自动衰减，自动提升</td></tr>
-    <tr><td>全双工语音</td><td>"Hey Lumi" 唤醒，随时打断，25 种音色，可克隆自己的声音</td></tr>
+    <tr><td>全双工语音</td><td>"Hey Peppa" 唤醒，随时打断，25 种音色，可克隆自己的声音</td></tr>
     <tr><td>混合推理</td><td>本地 7B 小模型 + 云端大模型，自动切换，感受不到</td></tr>
     <tr><td>MCP 技能生态</td><td>27+ 内置工具，社区持续贡献，GitHub 一键导入</td></tr>
-    <tr><td>7 天人格演化</td><td>Lumi 自己写成长日记，性格语气思维逐渐向你靠拢</td></tr>
+    <tr><td>7 天人格演化</td><td>Peppa 自己写成长日记，性格语气思维逐渐向你靠拢</td></tr>
   </table>
 
-  <div class="footer"><span>LumiOS v2.8</span><span>p.2</span></div>
+  <div class="footer"><span>Peppa v2.8</span><span>p.2</span></div>
 </div>
 
 <!-- Page 3: Feature Usage + Personas -->
@@ -116,32 +116,32 @@ const html = `<!DOCTYPE html>
     <div class="usage-card">
       <div class="icon">💬</div>
       <div class="title">语音对话</div>
-      <div class="desc">喊一声"Hey Lumi"，说完一句话它马上回应。打断它、追问它、让它重复——跟真人聊天一样。飞机上没网也能聊。</div>
+      <div class="desc">喊一声"Hey Peppa"，说完一句话它马上回应。打断它、追问它、让它重复——跟真人聊天一样。飞机上没网也能聊。</div>
     </div>
     <div class="usage-card">
       <div class="icon">📁</div>
       <div class="title">桌面自动化</div>
-      <div class="desc">"帮我把桌面上所有 PDF 合并成一个文件"——Lumi 直接操作你的电脑，打开文件、处理、保存。不用你动手。</div>
+      <div class="desc">"帮我把桌面上所有 PDF 合并成一个文件"——Peppa 直接操作你的电脑，打开文件、处理、保存。不用你动手。</div>
     </div>
     <div class="usage-card">
       <div class="icon">📄</div>
       <div class="title">文档处理</div>
-      <div class="desc">扔一份合同进去，说"帮我审一下违约条款有没有坑"。上传 PDF/Word/Excel，Lumi 阅读、分析、总结、翻译。</div>
+      <div class="desc">扔一份合同进去，说"帮我审一下违约条款有没有坑"。上传 PDF/Word/Excel，Peppa 阅读、分析、总结、翻译。</div>
     </div>
     <div class="usage-card">
       <div class="icon">🔍</div>
       <div class="title">知识管理</div>
-      <div class="desc">Ctrl+K 打开 Spotlight，搜你写过的任何东西。Lumi 记住你三个月前说过的话、五个月前存的文档。</div>
+      <div class="desc">Ctrl+K 打开 Spotlight，搜你写过的任何东西。Peppa 记住你三个月前说过的话、五个月前存的文档。</div>
     </div>
     <div class="usage-card">
       <div class="icon">🧠</div>
       <div class="title">人格成长</div>
-      <div class="desc">用了一周后，Lumi 知道你喜欢简洁的回答。用了三个月后，它知道你的工作习惯、项目进度、和谁在合作。</div>
+      <div class="desc">用了一周后，Peppa 知道你喜欢简洁的回答。用了三个月后，它知道你的工作习惯、项目进度、和谁在合作。</div>
     </div>
     <div class="usage-card">
       <div class="icon">🛠️</div>
       <div class="title">MCP 技能</div>
-      <div class="desc">查天气、生成二维码、发邮件、跑代码、翻译——这些 Lumi 都有内置工具。社区还在持续贡献新技能。</div>
+      <div class="desc">查天气、生成二维码、发邮件、跑代码、翻译——这些 Peppa 都有内置工具。社区还在持续贡献新技能。</div>
     </div>
   </div>
 
@@ -151,26 +151,26 @@ const html = `<!DOCTYPE html>
     <div class="usage-card">
       <div class="icon">🎨</div>
       <div class="title">技术创作者</div>
-      <div class="desc">独立开发者、设计师、视频创作者。每天跟工具打交道，内容生产是刚需，隐私是底线。Lumi 能接管重复劳动——审代码、改文案、出脚本、理素材——让你只做创作本身。</div>
+      <div class="desc">独立开发者、设计师、视频创作者。每天跟工具打交道，内容生产是刚需，隐私是底线。Peppa 能接管重复劳动——审代码、改文案、出脚本、理素材——让你只做创作本身。</div>
     </div>
     <div class="usage-card">
       <div class="icon">⚖️</div>
       <div class="title">知识工作者</div>
-      <div class="desc">律师、咨询师、研究者、医生。文档处理量大，知识管理是核心能力。合同审阅、文献总结、案例检索——这些 Lumi 都能做，而且数据不出你的电脑，客户隐私有保障。</div>
+      <div class="desc">律师、咨询师、研究者、医生。文档处理量大，知识管理是核心能力。合同审阅、文献总结、案例检索——这些 Peppa 都能做，而且数据不出你的电脑，客户隐私有保障。</div>
     </div>
     <div class="usage-card">
       <div class="icon">🚀</div>
       <div class="title">创业者 / 一人公司</div>
-      <div class="desc">一个人需要 AI 替代半个团队。写方案、回邮件、做报表、理客户——Lumi 帮你扛起运营、行政、助理三份工作，你专注做决策和增长。</div>
+      <div class="desc">一个人需要 AI 替代半个团队。写方案、回邮件、做报表、理客户——Peppa 帮你扛起运营、行政、助理三份工作，你专注做决策和增长。</div>
     </div>
     <div class="usage-card">
       <div class="icon">🔐</div>
       <div class="title">AI 深度用户</div>
-      <div class="desc">受够了云端 API 的隐私风险和订阅费。想要一个完全私有、真正懂自己的 AI。Lumi 给你永久记忆、人格演化、离线可用——这是任何 SaaS 都给不了的。</div>
+      <div class="desc">受够了云端 API 的隐私风险和订阅费。想要一个完全私有、真正懂自己的 AI。Peppa 给你永久记忆、人格演化、离线可用——这是任何 SaaS 都给不了的。</div>
     </div>
   </div>
 
-  <div class="footer"><span>LumiOS v2.8</span><span>p.3</span></div>
+  <div class="footer"><span>Peppa v2.8</span><span>p.3</span></div>
 </div>
 
 <!-- Page 4: Hardware -->
@@ -207,7 +207,7 @@ const html = `<!DOCTYPE html>
     <p>已有设备可直接使用。如需新购硬件，我们提供配置建议和采购渠道，不加价。</p>
   </div>
 
-  <div class="footer"><span>LumiOS v2.8</span><span>p.4</span></div>
+  <div class="footer"><span>Peppa v2.8</span><span>p.4</span></div>
 </div>
 
 <!-- Page 5: Services -->
@@ -233,16 +233,16 @@ const html = `<!DOCTYPE html>
   </ul>
 
   <h2>定制开发</h2>
-  <p>客户要的功能 = Lumi 产品路线图。不接私单，不做独立分支。需求评估通过后直接开发进主仓库——付费客户推动 Lumi 进化，所有用户受益。定制需求单独报价，按工时评估，有明确交付周期。</p>
+  <p>客户要的功能 = Peppa 产品路线图。不接私单，不做独立分支。需求评估通过后直接开发进主仓库——付费客户推动 Peppa 进化，所有用户受益。定制需求单独报价，按工时评估，有明确交付周期。</p>
 
   <h2>价值</h2>
   <table>
     <tr><td>ChatGPT Plus</td><td>¥1,700/年 × 3 年 = ¥5,100。数据全在 OpenAI，你只有使用权</td></tr>
-    <tr><td>LumiOS</td><td>部署 ¥8,000（一次性）+ 维护 ¥6,000/年（三年起签）。你拥有它，它记得你</td></tr>
+    <tr><td>Peppa</td><td>部署 ¥8,000（一次性）+ 维护 ¥6,000/年（三年起签）。你拥有它，它记得你</td></tr>
     <tr><td>你的数据</td><td>永远在你自己的电脑上，断网也能用</td></tr>
   </table>
 
-  <div class="footer"><span>LumiOS v2.8</span><span>p.5</span></div>
+  <div class="footer"><span>Peppa v2.8</span><span>p.5</span></div>
 </div>
 
 </body>
@@ -250,8 +250,8 @@ const html = `<!DOCTYPE html>
 
 // Write HTML to tmp, use Edge to print PDF
 const tmpDir = tmpdir();
-const htmlPath = path.join(tmpDir, 'lumios_product.html');
-const pdfPath = path.join(__dirname, '..', 'LumiOS_个人版_部署服务方案.pdf');
+const htmlPath = path.join(tmpDir, 'peppas_product.html');
+const pdfPath = path.join(__dirname, '..', 'Peppa_个人版_部署服务方案.pdf');
 
 writeFileSync(htmlPath, html, 'utf-8');
 console.log(`HTML written: ${htmlPath}`);

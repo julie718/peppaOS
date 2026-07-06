@@ -1,5 +1,5 @@
 /**
- * Profession agent templates — auto-installed when Lumi detects the user's trade.
+ * Profession agent templates — auto-installed when Peppa detects the user's trade.
  * Each template creates a domain-specialist agent with tailored tools and knowledge.
  */
 import { readDB, writeDB } from "../../db_layer";
@@ -230,7 +230,7 @@ export function installProfessionAgents(orgId?: string): number {
           initialPrompt: tmpl.initialPrompt,
           systemPrompt: tmpl.initialPrompt,
         },
-        personalityId: 'lumi',
+        personalityId: 'peppa',
         knowledgeDomains: tmpl.knowledgeDomains,
         memoryScope: 'shared',
         autonomyLevel: 'semi_autonomous',

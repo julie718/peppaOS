@@ -1,5 +1,5 @@
 /**
- * Branch Connection Manager — runs on each employee's LumiOS instance.
+ * Branch Connection Manager — runs on each employee's Peppa instance.
  *
  * Manages the branch↔company-server connection: domain switching,
  * work-domain data sync, KB cache, offline queue, and health checks.

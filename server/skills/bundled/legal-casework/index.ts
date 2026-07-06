@@ -147,7 +147,7 @@ server.registerTool('legal_case_folder_workflow', {
     stage: z.string().optional().describe('Current stage: intake, filing, hearing, appeal, enforcement, arbitration'),
     clientRole: z.string().optional().describe('Client role, e.g. plaintiff, defendant, applicant, respondent'),
     objective: z.string().optional().describe('Target output, e.g. organize retainer package, draft agency statement, build evidence catalogue'),
-    outputDir: z.string().optional().describe('Optional output folder. Defaults to Lumi legal work papers under the case folder.'),
+    outputDir: z.string().optional().describe('Optional output folder. Defaults to Peppa legal work papers under the case folder.'),
     writeFiles: z.boolean().optional().describe('Whether to write draft markdown files to disk. If false, only previews are returned.'),
     maxFiles: z.number().int().min(1).max(300).optional().describe('Maximum number of files to scan. Default 80.'),
     maxChars: z.number().int().min(10000).max(800000).optional().describe('Maximum extracted corpus size. Default 180000.'),

@@ -34,7 +34,7 @@ export function DesktopIntro({ t, onBack, onInitialize }: DesktopIntroProps) {
         </button>
         <div className="flex items-center gap-3 px-4 py-2 bg-celestial-saturn/10 border border-celestial-saturn/20 rounded-full">
            <div className="w-2 h-2 rounded-full bg-celestial-saturn animate-pulse" />
-           <span className="text-xs font-black text-celestial-saturn uppercase tracking-widest text-white/80">{t.lumiOSStableRelease || 'Lumi OS v2.4.1 Stable Release'}</span>
+           <span className="text-xs font-black text-celestial-saturn uppercase tracking-widest text-white/80">{t.lumiOSStableRelease || 'Peppa OS v2.4.1 Stable Release'}</span>
         </div>
       </div>
 
@@ -146,7 +146,7 @@ export function DesktopIntro({ t, onBack, onInitialize }: DesktopIntroProps) {
             </div>
             
             <div className="space-y-6">
-              <h4 className="text-xs font-black text-celestial-saturn uppercase tracking-[0.3em] border-l-2 border-celestial-saturn pl-4">{t.lumiNativeKernelNode || 'Lumi Native Kernel Node'}</h4>
+              <h4 className="text-xs font-black text-celestial-saturn uppercase tracking-[0.3em] border-l-2 border-celestial-saturn pl-4">{t.lumiNativeKernelNode || 'Peppa Native Kernel Node'}</h4>
               <ul className="space-y-4">
                 {[
                   t.kernelItem1 || 'Full Silicon-level local LLM execution',

@@ -5,7 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-const NOTES_DIR = path.join(os.homedir(), 'lumi_notes');
+const NOTES_DIR = path.join(os.homedir(), 'peppa_notes');
 if (!fs.existsSync(NOTES_DIR)) fs.mkdirSync(NOTES_DIR, { recursive: true });
 
 function listNotes(): { name: string; size: number; modified: string }[] {

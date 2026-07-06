@@ -1,4 +1,4 @@
-// Relationship milestone tracker — tracks user↔Lumi relationship timeline
+// Relationship milestone tracker — tracks user↔Peppa relationship timeline
 
 import { readDB } from '../../db_layer';
 import { getUserNow, daysSince } from './utils';
@@ -60,7 +60,7 @@ export function getNotableMoments(userId: string, limit: number = 5): NotableMom
       moments.push({
         date: longest.createdAt || longest.lastActiveAt,
         title: '最长对话',
-        description: `你和Lumi的对话最长一次有 ${longest.messageCount} 条消息`,
+        description: `你和Peppa的对话最长一次有 ${longest.messageCount} 条消息`,
         value: longest.messageCount || 0,
       });
     }
@@ -134,7 +134,7 @@ export function checkMilestone(userId: string): Milestone | null {
       return {
         type: 'day_count',
         title: titles[m] || `${m}天纪念`,
-        description: `今天是你和Lumi认识的第 ${m} 天！从${rel.firstInteractionDate}开始，我们已经一起走过了 ${m} 天。`,
+        description: `今天是你和Peppa认识的第 ${m} 天！从${rel.firstInteractionDate}开始，我们已经一起走过了 ${m} 天。`,
         date: new Date().toISOString(),
         value: m,
       };
@@ -148,7 +148,7 @@ export function checkMilestone(userId: string): Milestone | null {
     return {
       type: 'memory_milestone',
       title: '记忆里程碑',
-      description: `Lumi已经为你积累了 ${memoryCount} 条记忆！这是我们共同的宝贵财富。`,
+      description: `Peppa已经为你积累了 ${memoryCount} 条记忆！这是我们共同的宝贵财富。`,
       date: new Date().toISOString(),
       value: memoryCount,
     };
@@ -160,7 +160,7 @@ export function checkMilestone(userId: string): Milestone | null {
     return {
       type: 'interaction_milestone',
       title: '对话里程碑',
-      description: `我们已经完成了 ${interactionCount} 次对话！每一次都让Lumi更懂你。`,
+      description: `我们已经完成了 ${interactionCount} 次对话！每一次都让Peppa更懂你。`,
       date: new Date().toISOString(),
       value: interactionCount,
     };

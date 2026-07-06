@@ -3,7 +3,7 @@
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
-import { createLumiMcpServer, handleMcpSSE, handleMcpMessage } from "../mcp/lumi_server";
+import { createPeppaMcpServer, handleMcpSSE, handleMcpMessage } from "../mcp/peppa_server";
 import { attachMcpWebSocket, connectMcpServerToRemote } from "../mcp/ws_transport";
 import { attachLAPWebSocket } from "../lap/transport";
 import { toolRegistry } from "../tools/registry";
@@ -17,21 +17,21 @@ export function setupMcpServer(
   llm: { getDeepSeek: any; getGemini: any; getOpenAI: any; getAnthropic: any; getQwen: any },
   __dirname: string,
 ) {
-  const lumiMcp = createLumiMcpServer(llm, toolRegistry, (event, data) => io.emit(event, data));
+  const peppaMcp = createPeppaMcpServer(llm, toolRegistry, (event, data) => io.emit(event, data));
 
-  app.get('/mcp/sse', (req, res) => handleMcpSSE(lumiMcp, req, res));
+  app.get('/mcp/sse', (req, res) => handleMcpSSE(peppaMcp, req, res));
   app.post('/mcp/message', (req, res) => handleMcpMessage(req, res));
 
   attachMcpWebSocket(server, async (transport) => {
     try {
-      await lumiMcp.connect(transport);
+      await peppaMcp.connect(transport);
       console.log(`[MCP Server] WebSocket client connected: ${transport.sessionId}`);
     } catch (err: any) {
       console.error(`[MCP Server] WebSocket connection error:`, err.message);
     }
   });
 
-  console.log('[MCP Server] Lumi MCP server ready at /mcp/sse + /mcp/ws');
+  console.log('[MCP Server] Peppa MCP server ready at /mcp/sse + /mcp/ws');
 
   attachLAPWebSocket(server);
   console.log('[LAP] Agent protocol ready at /lap');
@@ -42,7 +42,7 @@ export function setupMcpServer(
     if (!url) continue;
     console.log(`[MCP Server] Connecting to remote device: ${name}`);
     connectMcpServerToRemote(
-      url as string, lumiMcp, name as string,
+      url as string, peppaMcp, name as string,
       () => { deviceRegistry.registerMcpDevice(name as string, 'mcp_remote', { audio: true, video: false, spatial: false, haptic: false, holographic: false }); },
       () => { deviceRegistry.unregisterMcpDevice(name as string); },
     );

@@ -41,7 +41,7 @@ if (!res.ok) {
 
 await mkdir(outDir, { recursive: true });
 
-const tmpDir = path.join(os.tmpdir(), `lumi-node-${Date.now()}`);
+const tmpDir = path.join(os.tmpdir(), `peppa-node-${Date.now()}`);
 await mkdir(tmpDir, { recursive: true });
 
 const archivePath = path.join(tmpDir, `${base}.${ext}`);

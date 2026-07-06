@@ -16,7 +16,7 @@ const NARRATIVE_PROMPT = `你是一个叙事编织者。请根据以下按时序
 记忆片段（按时间顺序）：
 {memories}
 
-请以 Lumi 的身份（第一人称"我"）写一段叙事，语气应当温暖、有连接感，展现记忆之间的因果和发展关系。模式参考：
+请以 Peppa 的身份（第一人称"我"）写一段叙事，语气应当温暖、有连接感，展现记忆之间的因果和发展关系。模式参考：
 "记得上次我们...后来你...现在终于..."
 
 输出仅包含 JSON 对象，不要有其他内容：
@@ -126,7 +126,7 @@ export async function buildNarrativeChain(params: {
       },
       {
         tier: 'growth',
-        perspective: 'lumi_self',
+        perspective: 'peppa_self',
         importance: 0.6,
       },
     );

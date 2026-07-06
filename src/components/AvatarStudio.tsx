@@ -8,7 +8,7 @@ import { SpriteAnimator, PetAvatar } from './SpriteAnimator';
 import { ALL_ACCESSORIES, AccessoryDef, AccessoryCategory } from '../pets/accessories';
 
 const BUILTIN_ANIMATIONS = ['idle', 'run', 'wave', 'jump', 'waiting'];
-const CUSTOM_PETS_KEY = 'lumi_custom_pets';
+const CUSTOM_PETS_KEY = 'peppa_custom_pets';
 type UiLang = 'en' | 'zh';
 type LocalizedText = { zh: string; en: string };
 
@@ -35,25 +35,25 @@ function storeCustomPets(pets: PetConfig[]) {
 }
 
 const PET_ICONS: Record<string, React.ReactNode> = {
-  'lumi-cat': <Cat size={16} />,
-  'lumi-blob': <Disc3 size={16} />,
-  'lumi-bird': <Bird size={16} />,
-  'lumi-dragon': <Flame size={16} />,
-  'lumi-fox': <Star size={16} />,
-  'lumi-rabbit': <Rabbit size={16} />,
-  'lumi-bear': <PawPrint size={16} />,
-  'lumi-hamster': <Heart size={16} />,
+  'peppa-cat': <Cat size={16} />,
+  'peppa-blob': <Disc3 size={16} />,
+  'peppa-bird': <Bird size={16} />,
+  'peppa-dragon': <Flame size={16} />,
+  'peppa-fox': <Star size={16} />,
+  'peppa-rabbit': <Rabbit size={16} />,
+  'peppa-bear': <PawPrint size={16} />,
+  'peppa-hamster': <Heart size={16} />,
 };
 
 const PET_DESCS: Record<string, string> = {
-  'lumi-cat': '温暖治愈的猫猫，会眨眼、摇尾巴、撒娇挥手。适合日常陪伴。',
-  'lumi-blob': 'Q弹软萌的史莱姆，一蹦一跳、眼睛闪闪。活泼可爱风。',
-  'lumi-bird': '圆滚滚的小鸟，扑腾翅膀、叽叽喳喳。轻快灵动风。',
-  'lumi-dragon': '迷你小龙，有翅膀和小角。适合喜欢奇幻风格的用户。',
-  'lumi-fox': '橙色小狐狸，三角大耳、蓬松尾巴带白尖。机灵俏皮。',
-  'lumi-rabbit': '软萌小白兔，长耳朵垂下来、圆圆短尾巴。温柔治愈。',
-  'lumi-bear': '棕色小熊，圆耳朵、厚实爪垫。憨态可掬，给人安全感。',
-  'lumi-hamster': '圆圆小仓鼠，鼓鼓的腮帮子、迷你小耳朵。超萌可爱。',
+  'peppa-cat': '温暖治愈的猫猫，会眨眼、摇尾巴、撒娇挥手。适合日常陪伴。',
+  'peppa-blob': 'Q弹软萌的史莱姆，一蹦一跳、眼睛闪闪。活泼可爱风。',
+  'peppa-bird': '圆滚滚的小鸟，扑腾翅膀、叽叽喳喳。轻快灵动风。',
+  'peppa-dragon': '迷你小龙，有翅膀和小角。适合喜欢奇幻风格的用户。',
+  'peppa-fox': '橙色小狐狸，三角大耳、蓬松尾巴带白尖。机灵俏皮。',
+  'peppa-rabbit': '软萌小白兔，长耳朵垂下来、圆圆短尾巴。温柔治愈。',
+  'peppa-bear': '棕色小熊，圆耳朵、厚实爪垫。憨态可掬，给人安全感。',
+  'peppa-hamster': '圆圆小仓鼠，鼓鼓的腮帮子、迷你小耳朵。超萌可爱。',
 };
 
 const SPECIES_LABELS: Record<string, LocalizedText> = {
@@ -284,7 +284,7 @@ export function AvatarStudio({
             <p className="text-xs text-white/55 font-mono">{ui('桌面伙伴设计', 'Avatar Design Studio')}</p>
           </div>
         </div>
-        <div className="lumi-panel flex items-center gap-2 p-1">
+        <div className="peppa-panel flex items-center gap-2 p-1">
           {([
             ['gallery', ui('形象画廊', 'Gallery'), 'text-cyan-400', 'bg-cyan-500/20'],
             ['generate', ui('AI 定制', 'AI Custom'), 'text-fuchsia-400', 'bg-fuchsia-500/20'],
@@ -308,12 +308,12 @@ export function AvatarStudio({
 
       <div className="grid grid-cols-4 gap-2 border-b border-white/[0.08] bg-black/20 px-6 py-3">
         {[
-          [ui('声音', 'Voice'), ui('选择 Lumi 的声音', 'Choose Lumi voice')],
+          [ui('声音', 'Voice'), ui('选择 Peppa 的声音', 'Choose Peppa voice')],
           [ui('形象', 'Avatar'), ui('选择身体', 'Select body')],
           [ui('风格', 'Style'), ui('调整颜色', 'Tune colors')],
           [ui('桌面', 'Desktop'), ui('保存伙伴', 'Save companion')],
         ].map(([label, desc], index) => (
-          <div key={label} className="lumi-panel min-w-0 rounded-xl px-3 py-2">
+          <div key={label} className="peppa-panel min-w-0 rounded-xl px-3 py-2">
             <div className="flex items-center gap-2">
               <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-black ${
                 index === 1 ? 'bg-cyan-300 text-black' : 'bg-white/10 text-white/45'
@@ -399,7 +399,7 @@ export function AvatarStudio({
               <input ref={importRef} type="file" accept=".json" onChange={handleImportClick} className="hidden" />
               <button
                 onClick={() => importRef.current?.click()}
-                className="lumi-button mt-2 w-full border-dashed p-3 text-xs"
+                className="peppa-button mt-2 w-full border-dashed p-3 text-xs"
               >
                 <Upload size={12} />
                 {ui('导入社区宠物（拖拽或点击）', 'Import community pet (drag or click)')}
@@ -409,7 +409,7 @@ export function AvatarStudio({
             <div className="space-y-4">
               <p className="text-[12px] font-bold uppercase tracking-wider text-white/45">{ui('AI 形象生成', 'AI Avatar Generation')}</p>
               <div className="space-y-3">
-                <div className="lumi-panel flex items-center gap-2 p-2">
+                <div className="peppa-panel flex items-center gap-2 p-2">
                   <button
                     onClick={() => setAiMode(true)}
                     className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all ${aiMode ? 'bg-fuchsia-500/20 text-fuchsia-400' : 'text-white/45 hover:text-white/40'}`}
@@ -427,14 +427,14 @@ export function AvatarStudio({
                   value={genPrompt}
                   onChange={e => setGenPrompt(e.target.value)}
                   placeholder={ui('描述你想要的桌面宠物，例如：一只橙色的小狐狸，有蓬松的大尾巴和白肚皮，可爱机灵...', 'Describe the desktop pet you want, e.g. an orange fox with a fluffy tail, white belly, and playful personality...')}
-                  className="lumi-field h-32 w-full resize-none text-xs focus:border-fuchsia-500/20"
+                  className="peppa-field h-32 w-full resize-none text-xs focus:border-fuchsia-500/20"
                 />
                 <motion.button
                   whileHover={{ scale: 1.01 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleGenerate}
                   disabled={!genPrompt.trim() || generating}
-                   className="lumi-button-primary w-full flex-col border-fuchsia-500/25 bg-fuchsia-500/15 px-4 py-3 text-xs text-fuchsia-300 hover:bg-fuchsia-500/25"
+                   className="peppa-button-primary w-full flex-col border-fuchsia-500/25 bg-fuchsia-500/15 px-4 py-3 text-xs text-fuchsia-300 hover:bg-fuchsia-500/25"
                 >
                   {generating ? (
                     <span className="flex items-center justify-center gap-2">
@@ -456,7 +456,7 @@ export function AvatarStudio({
                   </div>
                 )}
               </div>
-              <div className="lumi-panel border-fuchsia-500/10 bg-fuchsia-500/5 p-3 text-[12px] leading-relaxed text-fuchsia-300/50">
+              <div className="peppa-panel border-fuchsia-500/10 bg-fuchsia-500/5 p-3 text-[12px] leading-relaxed text-fuchsia-300/50">
                 <p><Sparkles size={10} className="inline mr-1" />{ui('AI 增强会理解你的描述，自动匹配物种、配色、花纹、眼睛形状等', 'AI Enhanced understands your prompt and matches species, palette, pattern, eye shape, and more.')}</p>
                 <p className="mt-1 text-fuchsia-300/30">{ui('支持中英文描述 · 生成约需 15-30 秒', 'Chinese and English prompts supported · about 15-30 seconds')}</p>
               </div>
@@ -477,7 +477,7 @@ export function AvatarStudio({
           {/* Large Preview */}
           <div className="relative">
             <motion.div
-              className="lumi-surface flex h-72 w-64 items-center justify-center overflow-hidden rounded-3xl bg-white/[0.02] shadow-[0_0_80px_rgba(0,200,200,0.06)]"
+              className="peppa-surface flex h-72 w-64 items-center justify-center overflow-hidden rounded-3xl bg-white/[0.02] shadow-[0_0_80px_rgba(0,200,200,0.06)]"
               whileHover={{ borderColor: 'rgba(0,200,200,0.2)', boxShadow: '0 0 100px rgba(0,200,200,0.1)' }}
             >
               <AnimatePresence mode="wait">
@@ -539,7 +539,7 @@ export function AvatarStudio({
             ))}
             <button
               onClick={() => setAnimKey(k => k + 1)}
-              className="lumi-icon-button h-8 w-8 rounded-lg"
+              className="peppa-icon-button h-8 w-8 rounded-lg"
             >
               <RotateCcw size={12} />
             </button>
@@ -550,7 +550,7 @@ export function AvatarStudio({
             {onResetToSphere && selectedPetId && (
               <button
                 onClick={() => onResetToSphere()}
-                className="lumi-button h-11 rounded-2xl px-5 text-sm"
+                className="peppa-button h-11 rounded-2xl px-5 text-sm"
               >
                 {ui('还原默认圆球', 'Restore default sphere')}
               </button>
@@ -559,7 +559,7 @@ export function AvatarStudio({
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
               onClick={() => handleSelectPet(activePet)}
-              className="lumi-button-primary rounded-2xl border-cyan-500/25 bg-cyan-500/15 px-8 py-3 text-sm text-cyan-300 hover:bg-cyan-500/25"
+              className="peppa-button-primary rounded-2xl border-cyan-500/25 bg-cyan-500/15 px-8 py-3 text-sm text-cyan-300 hover:bg-cyan-500/25"
             >
               <Sparkles size={16} />
               {ui('设为桌面形象', 'Set as Desktop Avatar')}
@@ -654,7 +654,7 @@ function ColorPanel({
           onChangeColor('belly', defaults.belly);
           onChangeColor('eye', defaults.eye);
         }}
-        className="lumi-button w-full p-2 text-[12px]"
+        className="peppa-button w-full p-2 text-[12px]"
       >
         {lang === 'zh' ? '恢复默认' : 'Reset to Default'}
       </button>
@@ -750,7 +750,7 @@ function WardrobePanel({
       {equipped.length > 0 && (
         <button
           onClick={() => onChange([])}
-          className="lumi-button w-full p-2 text-[12px]"
+          className="peppa-button w-full p-2 text-[12px]"
         >
           {lang === 'zh' ? '卸下全部' : 'Remove All'}
         </button>

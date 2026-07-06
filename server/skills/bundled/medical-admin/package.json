@@ -1,12 +1,12 @@
 {
-  "name": "lumi-skill-medical-admin",
+  "name": "peppa-skill-medical-admin",
   "version": "1.0.0",
   "description": "Medical documentation and follow-up pack for clinical note structuring, visit prep, patient instructions drafts, follow-up plans, and medical literature question checklists.",
   "type": "module",
   "main": "index.ts",
   "scripts": { "start": "npx tsx index.ts" },
   "dependencies": { "@modelcontextprotocol/sdk": "^1.0.0", "zod": "^3.22.0" },
-  "lumi": {
+  "peppa": {
     "displayName": "Medical Admin",
     "category": "Healthcare",
     "icon": "Stethoscope",

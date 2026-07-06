@@ -36,10 +36,10 @@ export interface MeetingNoteLike {
   time: number;
 }
 
-export const LEGAL_CASES_STORAGE = 'lumi_legal_cases_v1';
-export const ACTIVE_LEGAL_CASE_STORAGE = 'lumi_legal_active_case_v1';
-export const LEGAL_CONSULTATION_CASE_STORAGE = 'lumi_legal_consultation_case_v1';
-export const LEGAL_CASES_CHANGED_EVENT = 'lumi:legal-cases-changed';
+export const LEGAL_CASES_STORAGE = 'peppa_legal_cases_v1';
+export const ACTIVE_LEGAL_CASE_STORAGE = 'peppa_legal_active_case_v1';
+export const LEGAL_CONSULTATION_CASE_STORAGE = 'peppa_legal_consultation_case_v1';
+export const LEGAL_CASES_CHANGED_EVENT = 'peppa:legal-cases-changed';
 
 function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
@@ -232,7 +232,7 @@ export function archiveLegalMeetingToConsultationCase({
     `开始：${started.toLocaleString()}`,
     `结束：${ended.toLocaleString()}`,
     '',
-    '## Lumi 会谈整理',
+    '## Peppa 会谈整理',
     '',
     report || '暂无整理结果。',
     '',

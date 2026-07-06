@@ -535,7 +535,7 @@ fn run_command(command: String, cwd: Option<String>) -> CommandResult {
             let stderr = String::from_utf8_lossy(&out.stderr).to_string();
             let success = out.status.success();
             eprintln!(
-                "[LumiOS Audit] ts={:?} ok={} cwd={} cmd={}",
+                "[Peppa Audit] ts={:?} ok={} cwd={} cmd={}",
                 now,
                 success,
                 cwd_path
@@ -557,7 +557,7 @@ fn run_command(command: String, cwd: Option<String>) -> CommandResult {
         }
         Err(e) => {
             eprintln!(
-                "[LumiOS Audit] ts={:?} ok=false cmd={} err={}",
+                "[Peppa Audit] ts={:?} ok=false cmd={} err={}",
                 now, truncated, e
             );
             CommandResult {
@@ -573,7 +573,7 @@ fn spawn_python(python_exe: &std::path::Path, api_py: &std::path::Path, work_dir
     let normalized_api = normalize_unc(api_py);
     let normalized_cwd = normalize_unc(work_dir);
     println!(
-        "[LumiOS] Starting GPT-SoVITS API: {} {} (cwd: {})",
+        "[Peppa] Starting GPT-SoVITS API: {} {} (cwd: {})",
         normalized_python.display(),
         normalized_api.display(),
         normalized_cwd.display(),
@@ -589,11 +589,11 @@ fn spawn_python(python_exe: &std::path::Path, api_py: &std::path::Path, work_dir
         .current_dir(normalized_cwd);
     match spawn_hidden(&mut cmd) {
         Ok(child) => {
-            println!("[LumiOS] GPT-SoVITS API PID: {}", child.id());
+            println!("[Peppa] GPT-SoVITS API PID: {}", child.id());
             Some(child)
         }
         Err(e) => {
-            eprintln!("[LumiOS] Failed to start GPT-SoVITS API: {}", e);
+            eprintln!("[Peppa] Failed to start GPT-SoVITS API: {}", e);
             None
         }
     }
@@ -728,15 +728,15 @@ fn set_wallpaper_mode(
     wallpaper.enabled = enabled;
 
     match window.set_ignore_cursor_events(enabled) {
-        Ok(_) => println!("[LumiOS] set_ignore_cursor_events({}) succeeded", enabled),
-        Err(e) => eprintln!("[LumiOS] set_ignore_cursor_events({}) FAILED: {}", enabled, e),
+        Ok(_) => println!("[Peppa] set_ignore_cursor_events({}) succeeded", enabled),
+        Err(e) => eprintln!("[Peppa] set_ignore_cursor_events({}) FAILED: {}", enabled, e),
     }
     match window.set_always_on_top(enabled) {
-        Ok(_) => println!("[LumiOS] set_always_on_top({}) succeeded", enabled),
-        Err(e) => eprintln!("[LumiOS] set_always_on_top({}) FAILED: {}", enabled, e),
+        Ok(_) => println!("[Peppa] set_always_on_top({}) succeeded", enabled),
+        Err(e) => eprintln!("[Peppa] set_always_on_top({}) FAILED: {}", enabled, e),
     }
 
-    println!("[LumiOS] Wallpaper mode: {}", if enabled { "ON (click-through)" } else { "OFF" });
+    println!("[Peppa] Wallpaper mode: {}", if enabled { "ON (click-through)" } else { "OFF" });
     Ok(())
 }
 
@@ -900,7 +900,7 @@ fn child_is_running(child: &mut Option<Child>) -> bool {
 #[cfg(target_os = "windows")]
 const WINDOWS_RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
 #[cfg(target_os = "windows")]
-const AUTOSTART_VALUE_NAME: &str = "LumiOS";
+const AUTOSTART_VALUE_NAME: &str = "Peppa";
 
 #[cfg(target_os = "windows")]
 fn hidden_output(cmd: &mut Command) -> std::io::Result<std::process::Output> {
@@ -1854,7 +1854,7 @@ pub fn run() {
             }
 
             if let Err(e) = setup_tray(app) {
-                eprintln!("[LumiOS] Failed to create tray icon: {}", e);
+                eprintln!("[Peppa] Failed to create tray icon: {}", e);
             }
 
             // Ensure WebView2Loader.dll is alongside the EXE (Windows only)
@@ -1867,7 +1867,7 @@ pub fn run() {
                             .join("desktop-resources")
                             .join("WebView2Loader.dll");
                         if dll_src.exists() {
-                            println!("[LumiOS] Copying WebView2Loader.dll to EXE directory");
+                            println!("[Peppa] Copying WebView2Loader.dll to EXE directory");
                             let _ = std::fs::copy(&dll_src, &dll_dest);
                         }
                     }
@@ -1876,7 +1876,7 @@ pub fn run() {
 
             // In dev mode, the backend is started by beforeDevCommand; skip spawning Node.js
             if cfg!(debug_assertions) {
-                println!("[LumiOS] Dev mode — skipping bundled backend spawn");
+                println!("[Peppa] Dev mode — skipping bundled backend spawn");
             } else {
             // ... rest of spawn code unchanged
 
@@ -1894,7 +1894,7 @@ pub fn run() {
                 let normalized_entry = normalize_unc(&server_js);
                 let normalized_cwd = normalize_unc(&dist_server);
                 println!(
-                    "[LumiOS] Starting backend: {} {} (cwd: {})",
+                    "[Peppa] Starting backend: {} {} (cwd: {})",
                     normalized_node.display(),
                     normalized_entry.display(),
                     normalized_cwd.display(),
@@ -1912,7 +1912,7 @@ pub fn run() {
                 match spawn_hidden(&mut node_cmd)
                 {
                     Ok(child) => {
-                        println!("[LumiOS] Backend PID: {}", child.id());
+                        println!("[Peppa] Backend PID: {}", child.id());
                         let app_state = app.state::<Mutex<BackendProcesses>>();
                         let mut state = app_state.lock().unwrap();
                         state.node_config = Some(SpawnConfig {
@@ -1923,12 +1923,12 @@ pub fn run() {
                         state.node = Some(child);
                     }
                     Err(e) => {
-                        eprintln!("[LumiOS] Failed to start backend: {}", e);
+                        eprintln!("[Peppa] Failed to start backend: {}", e);
                     }
                 }
             } else {
                 eprintln!(
-                    "[LumiOS] Backend not found. node.exe: {}, entry.cjs: {}, server.mjs: {}",
+                    "[Peppa] Backend not found. node.exe: {}, entry.cjs: {}, server.mjs: {}",
                     node_bin.exists(),
                     server_js.exists(),
                     server_bundle.exists()
@@ -1948,7 +1948,7 @@ pub fn run() {
                 spawn_python(&dev_python, &dev_api, Path::new("../gpt-sovits-src"))
             } else {
                 eprintln!(
-                    "[LumiOS] GPT-SoVITS API not found at {} or {}",
+                    "[Peppa] GPT-SoVITS API not found at {} or {}",
                     python_exe.display(),
                     dev_python.display()
                 );
@@ -1989,19 +1989,19 @@ pub fn run() {
                         if let Some(ref mut child) = state.node {
                             match child.try_wait() {
                                 Ok(Some(status)) => {
-                                    eprintln!("[LumiOS] Node backend exited with status {:?}", status.code());
+                                    eprintln!("[Peppa] Node backend exited with status {:?}", status.code());
                                     restart_node = true;
                                 }
                                 Ok(None) => { /* still running */ }
                                 Err(e) => {
-                                    eprintln!("[LumiOS] Node backend health check failed: {}", e);
+                                    eprintln!("[Peppa] Node backend health check failed: {}", e);
                                     restart_node = true;
                                 }
                             }
                         }
                         if restart_node && state.node_restarts < max_restarts {
                             if let Some(ref cfg) = state.node_config {
-                                eprintln!("[LumiOS] Restarting Node backend (attempt {}/{})", state.node_restarts + 1, max_restarts);
+                                eprintln!("[Peppa] Restarting Node backend (attempt {}/{})", state.node_restarts + 1, max_restarts);
                                 let mut restart_cmd = Command::new(&cfg.exe);
                                 restart_cmd.arg(&cfg.entry)
                                     .env("LUMI_DESKTOP", "1")
@@ -2014,17 +2014,17 @@ pub fn run() {
                                 match spawn_hidden(&mut restart_cmd)
                                 {
                                     Ok(child) => {
-                                        println!("[LumiOS] Backend restarted, PID: {}", child.id());
+                                        println!("[Peppa] Backend restarted, PID: {}", child.id());
                                         state.node = Some(child);
                                         state.node_restarts += 1;
                                     }
                                     Err(e) => {
-                                        eprintln!("[LumiOS] Failed to restart Node backend: {}", e);
+                                        eprintln!("[Peppa] Failed to restart Node backend: {}", e);
                                     }
                                 }
                             }
                         } else if restart_node {
-                            eprintln!("[LumiOS] Node backend max restarts ({}) reached, giving up", max_restarts);
+                            eprintln!("[Peppa] Node backend max restarts ({}) reached, giving up", max_restarts);
                             state.node = None;
                         }
 
@@ -2033,19 +2033,19 @@ pub fn run() {
                         if let Some(ref mut child) = state.python {
                             match child.try_wait() {
                                 Ok(Some(status)) => {
-                                    eprintln!("[LumiOS] Python API exited with status {:?}", status.code());
+                                    eprintln!("[Peppa] Python API exited with status {:?}", status.code());
                                     restart_python = true;
                                 }
                                 Ok(None) => { /* still running */ }
                                 Err(e) => {
-                                    eprintln!("[LumiOS] Python API health check failed: {}", e);
+                                    eprintln!("[Peppa] Python API health check failed: {}", e);
                                     restart_python = true;
                                 }
                             }
                         }
                         if restart_python && state.python_restarts < max_restarts {
                             if let Some(ref cfg) = state.python_config {
-                                eprintln!("[LumiOS] Restarting Python API (attempt {}/{})", state.python_restarts + 1, max_restarts);
+                                eprintln!("[Peppa] Restarting Python API (attempt {}/{})", state.python_restarts + 1, max_restarts);
                                 let mut restart_py_cmd = Command::new(&cfg.exe);
                                 restart_py_cmd.arg(&cfg.entry)
                                     .arg("-a").arg("127.0.0.1")
@@ -2055,17 +2055,17 @@ pub fn run() {
                                 match spawn_hidden(&mut restart_py_cmd)
                                 {
                                     Ok(child) => {
-                                        println!("[LumiOS] Python API restarted, PID: {}", child.id());
+                                        println!("[Peppa] Python API restarted, PID: {}", child.id());
                                         state.python = Some(child);
                                         state.python_restarts += 1;
                                     }
                                     Err(e) => {
-                                        eprintln!("[LumiOS] Failed to restart Python API: {}", e);
+                                        eprintln!("[Peppa] Failed to restart Python API: {}", e);
                                     }
                                 }
                             }
                         } else if restart_python {
-                            eprintln!("[LumiOS] Python API max restarts ({}) reached, giving up", max_restarts);
+                            eprintln!("[Peppa] Python API max restarts ({}) reached, giving up", max_restarts);
                             state.python = None;
                         }
                     }
@@ -2111,11 +2111,11 @@ pub fn run() {
                     let state = app.state::<Mutex<BackendProcesses>>();
                     let mut procs = state.lock().unwrap();
                     if let Some(child) = procs.node.as_mut() {
-                        println!("[LumiOS] Stopping Node backend...");
+                        println!("[Peppa] Stopping Node backend...");
                         let _ = child.kill();
                     }
                     if let Some(child) = procs.python.as_mut() {
-                        println!("[LumiOS] Stopping GPT-SoVITS API...");
+                        println!("[Peppa] Stopping GPT-SoVITS API...");
                         let _ = child.kill();
                     }
                 }

@@ -40,7 +40,7 @@ export function MCPSettings({ t }: { t?: any }) {
       const mapped = (data.skills || []).map((s: any) => ({
         name: s.name,
         command: 'npx',
-        args: s.source === 'local' ? ['tsx', `~/lumi_skills/${s.name}/index.ts`] : [],
+        args: s.source === 'local' ? ['tsx', `~/peppa_skills/${s.name}/index.ts`] : [],
         enabled: s.enabled,
         connected: s.connected,
         source: s.source,
@@ -209,7 +209,7 @@ export function MCPSettings({ t }: { t?: any }) {
       </div>
 
       <p className="text-sm text-white/40 max-w-xl">
-        {t?.mcpDescription || "Model Context Protocol servers extend Lumi's capabilities. Auto-generated skills appear here alongside community-maintained servers."}
+        {t?.mcpDescription || "Model Context Protocol servers extend Peppa's capabilities. Auto-generated skills appear here alongside community-maintained servers."}
       </p>
 
       {servers.length === 0 ? (

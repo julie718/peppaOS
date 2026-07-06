@@ -1,5 +1,5 @@
 /**
- * Autonomous Task Queue — in-memory queue with DB persistence for Lumi's background work.
+ * Autonomous Task Queue — in-memory queue with DB persistence for Peppa's background work.
  */
 import { readDB, writeDB } from '../../db_layer';
 

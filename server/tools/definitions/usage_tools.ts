@@ -31,7 +31,7 @@ interface UsageBucket {
 export function registerUsageTools(registry: ToolRegistry): void {
   registry.register({
     name: 'usage_get_summary',
-    description: 'Summarize Lumi LLM/model token usage by provider, model, provider+model, mode, or day. Use this before answering questions about which model was used today and how many tokens/calls were consumed.',
+    description: 'Summarize Peppa LLM/model token usage by provider, model, provider+model, mode, or day. Use this before answering questions about which model was used today and how many tokens/calls were consumed.',
     parameters: {
       type: 'object',
       properties: {

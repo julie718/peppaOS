@@ -1,12 +1,12 @@
 {
-  "name": "lumi-skill-manufacturing-qa",
+  "name": "peppa-skill-manufacturing-qa",
   "version": "1.0.0",
   "description": "Manufacturing and quality operations pack for production reports, BOM checks, 8D quality issue frames, supplier delivery risk, and work order planning.",
   "type": "module",
   "main": "index.ts",
   "scripts": { "start": "npx tsx index.ts" },
   "dependencies": { "@modelcontextprotocol/sdk": "^1.0.0", "zod": "^3.22.0" },
-  "lumi": {
+  "peppa": {
     "displayName": "Manufacturing QA",
     "category": "Manufacturing",
     "icon": "Wrench",

@@ -9,7 +9,7 @@ import { installApiBridge } from '../services/apiBridge';
 import '@fontsource-variable/geist';
 import '../index.css';
 import { DesktopUI } from '../components/DesktopUI';
-import { LumiEcosystem } from '../components/LumiEcosystem';
+import { PeppaEcosystem } from '../components/PeppaEcosystem';
 import { SkillHall } from '../components/SkillHall';
 import { AgentChatPage } from '../components/AgentChatPage';
 import { LoginRequired } from '../core/components/Auth';
@@ -23,7 +23,7 @@ import { useAppShell } from './useAppShell';
 
 installApiBridge();
 
-const SETUP_DONE_KEY = 'lumi_setup_complete';
+const SETUP_DONE_KEY = 'peppa_setup_complete';
 
 export function DesktopApp() {
   const shell = useAppShell();
@@ -39,7 +39,7 @@ export function DesktopApp() {
       <div className="flex items-center justify-center h-screen bg-transparent">
         <motion.div animate={{ scale: [1, 1.1, 1], opacity: [0.5, 1, 0.5] }} transition={{ duration: 2, repeat: Infinity }} className="flex flex-col items-center gap-4">
           <Rocket size={48} className="text-celestial-saturn" />
-          <div className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-celestial-mars to-celestial-saturn">Lumi OS Booting...</div>
+          <div className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-celestial-mars to-celestial-saturn">Peppa OS Booting...</div>
         </motion.div>
       </div>
     );
@@ -48,7 +48,7 @@ export function DesktopApp() {
   const renderTabContent = (tab: string) => {
     switch (tab) {
       case 'home': return null;
-      case 'ecosystem': return <div className="space-y-24"><LumiEcosystem t={shell.t} onChatAgent={(a: any) => { setSelectedAgent(a); setActiveTab('agent-chat'); }} /><SkillHall t={shell.t} lang={shell.lang} /></div>;
+      case 'ecosystem': return <div className="space-y-24"><PeppaEcosystem t={shell.t} onChatAgent={(a: any) => { setSelectedAgent(a); setActiveTab('agent-chat'); }} /><SkillHall t={shell.t} lang={shell.lang} /></div>;
       case 'generate': return !shell.user ? <LoginRequired t={shell.t} onLogin={shell.handleLogin} /> : <SkillHall t={shell.t} lang={shell.lang} initialTab="generate" />;
       case 'agent-chat': return !shell.user ? <LoginRequired t={shell.t} onLogin={shell.handleLogin} /> : <AgentChatPage t={shell.t} user={shell.user} agent={selectedAgent} isOpen={true} onClose={() => setActiveTab('ecosystem')} />;
       case 'docs': return <Docs t={shell.t} />;

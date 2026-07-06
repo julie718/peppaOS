@@ -4,7 +4,7 @@ import { useSocket } from './useSocket';
 /**
  * Hook for pushing multimodal perception events to the server's fusion layer.
  * Components capture sensor data and push it here; the server fuses it into
- * the sensory context that Lumi sees in every system prompt.
+ * the sensory context that Peppa sees in every system prompt.
  */
 export function usePerception() {
   const socket = useSocket();

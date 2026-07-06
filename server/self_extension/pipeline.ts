@@ -154,7 +154,7 @@ export function buildSelfExtensionPlan(options: SelfExtensionPlanOptions): SelfE
       'Use existing explicit tools and client actions before generating new tools.',
       'Use capability_research before connecting a new external ecosystem, GitHub project, MCP server, CAD/BIM bridge, or online AI service.',
       'generate_skill, install_skill, client_repair_skill, desktop control, external app automation, messaging, provider changes, and file writes remain confirmation-sensitive.',
-      'Do not silently modify Lumi core code. For core changes, produce a plan and ask the user/developer to apply and verify it.',
+      'Do not silently modify Peppa core code. For core changes, produce a plan and ask the user/developer to apply and verify it.',
       'Never claim a capability is installed, repaired, or connected until the corresponding tool ran and the state or health check confirms it.',
     ],
   };
@@ -211,7 +211,7 @@ function buildPipeline(
       status: 'available_now',
       tool: 'adapter_registry_list',
       args: { includePlanned: true },
-      notes: 'Confirm what Lumi already has before inventing a new tool.',
+      notes: 'Confirm what Peppa already has before inventing a new tool.',
     },
   ];
 
@@ -281,7 +281,7 @@ function buildPipeline(
     pipeline.push({
       step: 'Escalate to core adapter/client work',
       status: 'needs_core_work',
-      notes: 'This likely needs a repo code change, UI wiring, provider integration, or database/API addition. Lumi should produce a patch plan instead of pretending it can self-install core behavior.',
+      notes: 'This likely needs a repo code change, UI wiring, provider integration, or database/API addition. Peppa should produce a patch plan instead of pretending it can self-install core behavior.',
     });
   }
 
@@ -362,7 +362,7 @@ function readinessToReason(readiness: SelfExtensionPlan['readiness']): string {
 
 function buildSkillDescription(goal: string, domain: string): string {
   return [
-    `Create a Lumi MCP skill for this goal: ${goal}`,
+    `Create a Peppa MCP skill for this goal: ${goal}`,
     `Domain: ${domain}.`,
     'The skill must expose one clear tool with a JSON schema, validate inputs, avoid destructive actions, and return structured JSON.',
     'It must not send messages, control external apps, make purchases, delete files, or install third-party code without explicit confirmation.',

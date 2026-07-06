@@ -25,7 +25,7 @@ function listReferenceFiles(): { path: string; name: string }[] {
 export function listVoices(): VoiceListItem[] {
   const refs = listReferenceFiles();
   if (refs.length === 0) {
-    return [{ voiceId: 'lumi', name: 'Lumi Voice', category: 'cloned', language: 'zh' }];
+    return [{ voiceId: 'peppa', name: 'Peppa Voice', category: 'cloned', language: 'zh' }];
   }
   return refs.map(r => ({
     voiceId: `gptsovits:${r.name.replace(/\s+/g, '_')}`,

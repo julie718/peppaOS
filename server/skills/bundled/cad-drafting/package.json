@@ -1,5 +1,5 @@
 {
-  "name": "lumi-skill-cad-drafting",
+  "name": "peppa-skill-cad-drafting",
   "version": "1.1.0",
   "description": "CAD drafting pack for space programs, renovation folder workflows, editable DXF draft generation, and drawing QA checklists.",
   "type": "module",
@@ -13,7 +13,7 @@
     "xlsx": "^0.18.5",
     "zod": "^3.22.0"
   },
-  "lumi": {
+  "peppa": {
     "displayName": "CAD Drafting Pack",
     "category": "Architecture",
     "icon": "Monitor",

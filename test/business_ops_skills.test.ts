@@ -37,7 +37,7 @@ describe('sales and customer operations skill logic', () => {
   it('scores hot leads from intent signals', () => {
     const lead = scoreLead({
       leadText: 'Boss is decision maker, has budget, wants demo this week with a deadline to solve efficiency pain.',
-      product: 'Lumi',
+      product: 'Peppa',
     });
 
     expect(lead.score).toBeGreaterThanOrEqual(75);

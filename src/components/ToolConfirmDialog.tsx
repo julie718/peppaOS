@@ -52,7 +52,7 @@ function getRiskCopy(risk: ToolRisk, t: any) {
   }
   return {
     label: t.lowRiskAction || 'Permission required',
-    note: t.lowRiskActionNote || 'Review the request before allowing Lumi to continue.',
+    note: t.lowRiskActionNote || 'Review the request before allowing Peppa to continue.',
     className: 'border-white/10 bg-white/5 text-white/55',
   };
 }
@@ -66,7 +66,7 @@ export function ToolConfirmDialog({ socket, isWallpaperMode = false }: { socket:
   const [pending, setPending] = useState<PendingConfirm[]>([]);
   const [autoApproved, setAutoApproved] = useState<Set<string>>(new Set());
   const [allowAll, setAllowAll] = useState(() => {
-    try { return localStorage.getItem('lumi_auto_approve') === 'true'; } catch { return false; }
+    try { return localStorage.getItem('peppa_auto_approve') === 'true'; } catch { return false; }
   });
   const wasWallpaperRef = useRef(false);
   const t = useT();
@@ -74,7 +74,7 @@ export function ToolConfirmDialog({ socket, isWallpaperMode = false }: { socket:
   const toggleAllowAll = () => {
     const next = !allowAll;
     setAllowAll(next);
-    localStorage.setItem('lumi_auto_approve', String(next));
+    localStorage.setItem('peppa_auto_approve', String(next));
   };
 
   // Temporarily exit wallpaper mode while confirm dialog is showing
@@ -130,7 +130,7 @@ export function ToolConfirmDialog({ socket, isWallpaperMode = false }: { socket:
   // Sync allowAll from other tabs (storage event)
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key === 'lumi_auto_approve') {
+      if (e.key === 'peppa_auto_approve') {
         setAllowAll(e.newValue === 'true');
       }
     };

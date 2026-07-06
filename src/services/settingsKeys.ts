@@ -62,7 +62,7 @@ export async function saveServerKeys(keys: Record<string, string>): Promise<Save
   }
 
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('lumi:keys-changed', {
+    window.dispatchEvent(new CustomEvent('peppa:keys-changed', {
       detail: { saved, deleted },
     }));
   }

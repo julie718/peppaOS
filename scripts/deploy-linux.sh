@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# LumiOS Linux Deployment
+# Peppa Linux Deployment
 # Usage: ./scripts/deploy-linux.sh [install_dir]
-# Default: /opt/lumi-os
+# Default: /opt/peppa-os
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-INSTALL_DIR="${1:-/opt/lumi-os}"
+INSTALL_DIR="${1:-/opt/peppa-os}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -17,7 +17,7 @@ GRAY='\033[0;90m'
 NC='\033[0m'
 
 echo -e "${CYAN}============================================"
-echo -e "  LumiOS Deployment"
+echo -e "  Peppa Deployment"
 echo -e "  Install: ${INSTALL_DIR}"
 echo -e "============================================${NC}"
 
@@ -80,14 +80,14 @@ echo -e "${YELLOW}[5/6] Installing to ${INSTALL_DIR}...${NC}"
 
 sudo mkdir -p "$INSTALL_DIR"
 
-BINARY="$PROJECT_DIR/src-tauri/target/release/lumi-os"
+BINARY="$PROJECT_DIR/src-tauri/target/release/peppa-os"
 if [ ! -f "$BINARY" ]; then
-  echo -e "${RED}ERROR: lumi-os binary not found at ${BINARY}${NC}"
+  echo -e "${RED}ERROR: peppa-os binary not found at ${BINARY}${NC}"
   exit 1
 fi
-sudo cp "$BINARY" "$INSTALL_DIR/lumi-os"
-sudo chmod +x "$INSTALL_DIR/lumi-os"
-echo -e "${GRAY}  lumi-os${NC}"
+sudo cp "$BINARY" "$INSTALL_DIR/peppa-os"
+sudo chmod +x "$INSTALL_DIR/peppa-os"
+echo -e "${GRAY}  peppa-os${NC}"
 
 # Copy dist-server (Node.js backend)
 DIST_SERVER="$PROJECT_DIR/desktop-resources/dist-server"
@@ -108,30 +108,30 @@ echo -e "${GREEN}  Installed.${NC}"
 # ── Desktop shortcut ──────────────────────────────────────────────────
 echo -e "${YELLOW}[6/6] Creating desktop shortcut...${NC}"
 
-DESKTOP_ENTRY="$HOME/.local/share/applications/lumi-os.desktop"
+DESKTOP_ENTRY="$HOME/.local/share/applications/peppa-os.desktop"
 mkdir -p "$(dirname "$DESKTOP_ENTRY")"
 cat > "$DESKTOP_ENTRY" << DESKTOPEOF
 [Desktop Entry]
 Type=Application
-Name=Lumi OS
+Name=Peppa OS
 Comment=Personal AI Operating System
-Exec=$INSTALL_DIR/lumi-os
-Icon=$INSTALL_DIR/lumi-os
+Exec=$INSTALL_DIR/peppa-os
+Icon=$INSTALL_DIR/peppa-os
 Terminal=false
 Categories=Utility;
-StartupWMClass=lumi-os
+StartupWMClass=peppa-os
 DESKTOPEOF
 
 # Also copy to desktop
-cp "$DESKTOP_ENTRY" "$HOME/Desktop/lumi-os.desktop" 2>/dev/null || true
-chmod +x "$HOME/Desktop/lumi-os.desktop" 2>/dev/null || true
+cp "$DESKTOP_ENTRY" "$HOME/Desktop/peppa-os.desktop" 2>/dev/null || true
+chmod +x "$HOME/Desktop/peppa-os.desktop" 2>/dev/null || true
 
 echo -e "${GREEN}  Desktop entry: ${DESKTOP_ENTRY}${NC}"
 
 echo ""
 echo -e "${CYAN}============================================"
 echo -e "  Deployment complete!"
-echo -e "  Data: ~/LumiOS/data/"
+echo -e "  Data: ~/Peppa/data/"
 echo -e "  App:  ${INSTALL_DIR}/"
 echo -e "  Desktop shortcut ready."
 echo -e "============================================${NC}"

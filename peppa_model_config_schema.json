@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Lumi Model Configuration — The Hybrid Brain",
+  "title": "Peppa Model Configuration — The Hybrid Brain",
   "description": "A dual-pathway model routing system. Local for reflex, speed, privacy. Cloud for depth, scale, collective intelligence.",
   "type": "object",
   "required": ["local", "cloud", "routing"],

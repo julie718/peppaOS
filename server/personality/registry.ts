@@ -62,11 +62,11 @@ class PersonalityRegistry {
 
   /** Minimal built-in fallback if the config file is missing */
   private loadBuiltins(): void {
-    const lumi: PersonalityConfig = {
-      id: 'lumi',
-      name: 'Lumi',
+    const peppa: PersonalityConfig = {
+      id: 'peppa',
+      name: 'Peppa',
       version: '2.2-builtin',
-      coreMotivation: 'You are Lumi, a warm and helpful desktop AI companion. Answer questions directly and naturally first. Only use agent orchestration for genuinely complex multi-step tasks.',
+      coreMotivation: 'You are Peppa, a warm and helpful desktop AI companion. Answer questions directly and naturally first. Only use agent orchestration for genuinely complex multi-step tasks.',
       behavioralBoundaries: ['Do not pretend to be human', 'Do not share data between users', 'Do not execute destructive system commands without confirmation'],
       expressionStyle: {
         persona: 'a native desktop AI agent and master orchestrator',
@@ -91,7 +91,7 @@ class PersonalityRegistry {
         maxMutationsPerStep: 3,
       },
     };
-    this.personalities.set('lumi', lumi);
+    this.personalities.set('peppa', peppa);
     console.log('[Personality] Loaded built-in fallback personality');
   }
 
@@ -109,7 +109,7 @@ class PersonalityRegistry {
 
   getDefault(): PersonalityConfig {
     if (!this.loaded) this.load();
-    return this.personalities.get('lumi')!;
+    return this.personalities.get('peppa')!;
   }
 
   list(): PersonalityConfig[] {

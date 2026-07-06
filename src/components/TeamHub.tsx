@@ -103,17 +103,17 @@ export function TeamHub({ t }: { t?: any }) {
       fetchAgents();
       fetchExternalCatalog();
     };
-    window.addEventListener('lumi:agents-changed', handleAgentsChanged);
-    return () => window.removeEventListener('lumi:agents-changed', handleAgentsChanged);
+    window.addEventListener('peppa:agents-changed', handleAgentsChanged);
+    return () => window.removeEventListener('peppa:agents-changed', handleAgentsChanged);
   }, [fetchAgents, fetchExternalCatalog]);
 
   useEffect(() => {
     const selectFromStorage = () => {
       try {
-        const pending = window.sessionStorage.getItem('lumi:team:selected-agent-id');
+        const pending = window.sessionStorage.getItem('peppa:team:selected-agent-id');
         if (pending) {
           setSelectedAgentId(pending);
-          window.sessionStorage.removeItem('lumi:team:selected-agent-id');
+          window.sessionStorage.removeItem('peppa:team:selected-agent-id');
         }
       } catch {}
     };
@@ -123,10 +123,10 @@ export function TeamHub({ t }: { t?: any }) {
       fetchAgents();
     };
     selectFromStorage();
-    window.addEventListener('lumi:team:select-agent', handleSelect);
+    window.addEventListener('peppa:team:select-agent', handleSelect);
     window.addEventListener('focus', selectFromStorage);
     return () => {
-      window.removeEventListener('lumi:team:select-agent', handleSelect);
+      window.removeEventListener('peppa:team:select-agent', handleSelect);
       window.removeEventListener('focus', selectFromStorage);
     };
   }, [fetchAgents]);
@@ -190,7 +190,7 @@ export function TeamHub({ t }: { t?: any }) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.success === false) throw new Error(data.error || data.message || 'Failed to add external agent');
       toast.success(data.message || ui(`"${skill.name}" 已加入 Team`, `"${skill.name}" added to Team`));
-      window.dispatchEvent(new CustomEvent('lumi:agents-changed', { detail: { agentId: data.agentId, name: skill.name } }));
+      window.dispatchEvent(new CustomEvent('peppa:agents-changed', { detail: { agentId: data.agentId, name: skill.name } }));
       await Promise.all([fetchAgents(), fetchExternalCatalog()]);
       if (data.agentId) setSelectedAgentId(data.agentId);
     } catch (err: any) {
@@ -206,7 +206,7 @@ export function TeamHub({ t }: { t?: any }) {
       const res = await fetch(`/api/agents/${agent.id}/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ task: `Lumi health check for ${agent.name || 'external agent'}. Reply briefly.` }),
+        body: JSON.stringify({ task: `Peppa health check for ${agent.name || 'external agent'}. Reply briefly.` }),
         credentials: 'include',
       });
       const data = await res.json().catch(() => ({}));
@@ -234,7 +234,7 @@ export function TeamHub({ t }: { t?: any }) {
       name: agent.name,
       description,
       category: agent.category || config.category || 'general',
-      personalityId: agent.personalityId || config.personalityId || 'lumi',
+      personalityId: agent.personalityId || config.personalityId || 'peppa',
       modelPreference: agent.modelPreference || config.modelPreference || '',
       memoryScope: agent.memoryScope || config.memoryScope || 'shared',
       autonomyLevel: agent.autonomyLevel || config.autonomyLevel || 'reactive',
@@ -296,7 +296,7 @@ export function TeamHub({ t }: { t?: any }) {
       if (!submitRes.ok) throw new Error(submitted.error || ui(`提交审核失败（${submitRes.status}）`, `Submit for review failed (${submitRes.status})`));
 
       toast.success(ui('已提交到组织智能体审核队列', 'Submitted to organization agent review'));
-      window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'org', sub: 'review' } }));
+      window.dispatchEvent(new CustomEvent('peppa:navigate', { detail: { tab: 'org', sub: 'review' } }));
     } catch (err: any) {
       toast.error(err.message || ui('提交审核失败', 'Submit for review failed'));
     } finally {
@@ -315,7 +315,7 @@ export function TeamHub({ t }: { t?: any }) {
       if (res.ok) {
         setAgents(prev => prev.filter(a => a.id !== id));
         setSelectedAgentId(current => current === id ? null : current);
-        window.dispatchEvent(new CustomEvent('lumi:agents-changed', { detail: { removedAgentId: id } }));
+        window.dispatchEvent(new CustomEvent('peppa:agents-changed', { detail: { removedAgentId: id } }));
         toast.success(t?.agentRemoved || 'Agent removed');
       } else {
         const err = await res.json().catch(() => ({}));
@@ -424,7 +424,7 @@ export function TeamHub({ t }: { t?: any }) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="lumi-panel flex items-center justify-between gap-4 p-5">
+      <div className="peppa-panel flex items-center justify-between gap-4 p-5">
         <div>
           <h2 className="flex items-center gap-2 text-xl font-black uppercase tracking-[0.08em] text-white/90">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-300/15 bg-cyan-400/10 text-cyan-300">
@@ -433,7 +433,7 @@ export function TeamHub({ t }: { t?: any }) {
             {t?.teamHub || 'Agent Team'}
           </h2>
           <p className="text-sm text-white/40 max-w-xl mt-1">
-            {ui('Lumi 的工作团队。内部 agent 可直接调度，外部 agent 通过本机 CLI 连接，先测试健康状态再交给 orchestrator。', "Lumi's working team. Internal agents are dispatched directly; external agents connect through local CLI commands and should pass a health test before orchestration.")}
+            {ui('Peppa 的工作团队。内部 agent 可直接调度，外部 agent 通过本机 CLI 连接，先测试健康状态再交给 orchestrator。', "Peppa's working team. Internal agents are dispatched directly; external agents connect through local CLI commands and should pass a health test before orchestration.")}
           </p>
           <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold text-white/35">
             <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-1">
@@ -449,7 +449,7 @@ export function TeamHub({ t }: { t?: any }) {
         </div>
         <button
           onClick={() => setShowConnectForm(!showConnectForm)}
-          className="lumi-button-primary shrink-0 border-cyan-400/25 bg-cyan-500/15 text-cyan-300 hover:bg-cyan-500/25"
+          className="peppa-button-primary shrink-0 border-cyan-400/25 bg-cyan-500/15 text-cyan-300 hover:bg-cyan-500/25"
         >
           <ExternalLink size={12} />
           {t?.connectExternal || ui('连接外部 Agent', 'Connect External Agent')}
@@ -459,7 +459,7 @@ export function TeamHub({ t }: { t?: any }) {
       <AnimatePresence>
         {showConnectForm && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-            <div className="lumi-panel space-y-4 border-cyan-500/15 bg-cyan-500/5 p-5">
+            <div className="peppa-panel space-y-4 border-cyan-500/15 bg-cyan-500/5 p-5">
               <div className="flex items-start gap-3">
                 <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-cyan-300/15 bg-cyan-500/10 text-cyan-300">
                   <Info size={15} />
@@ -467,7 +467,7 @@ export function TeamHub({ t }: { t?: any }) {
                 <div>
                   <p className="text-sm font-bold text-cyan-100/80">{ui('外部 Agent 是本机 CLI 桥接', 'External agents are local CLI bridges')}</p>
                   <p className="mt-1 text-xs leading-relaxed text-cyan-100/45">
-                    {ui('这里保存的是命令模板，不是账号绑定。Lumi 会把子任务替换进 {task}，测试通过后才会让它参与团队调度。', 'This stores a command template, not an account binding. Lumi substitutes subtasks into {task}; only agents with a passing health test join orchestration.')}
+                    {ui('这里保存的是命令模板，不是账号绑定。Peppa 会把子任务替换进 {task}，测试通过后才会让它参与团队调度。', 'This stores a command template, not an account binding. Peppa substitutes subtasks into {task}; only agents with a passing health test join orchestration.')}
                   </p>
                 </div>
               </div>
@@ -488,26 +488,26 @@ export function TeamHub({ t }: { t?: any }) {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <input value={connectName} onChange={e => setConnectName(e.target.value)}
-                  placeholder={t?.agentName || 'Agent Name'} className="lumi-field py-2 text-xs" />
+                  placeholder={t?.agentName || 'Agent Name'} className="peppa-field py-2 text-xs" />
                 <select value={connectCategory} onChange={e => setConnectCategory(e.target.value)}
-                  className="lumi-field py-2 text-xs text-white/80">
+                  className="peppa-field py-2 text-xs text-white/80">
                   {['general','code','content','analysis','search','automation','assistant','media'].map(c => (
                     <option key={c} value={c} className="bg-gray-900">{c}</option>
                   ))}
                 </select>
                 <input value={connectSkillTags} onChange={e => setConnectSkillTags(e.target.value)}
-                  placeholder={t?.agentSkillTags || ui('能力标签，用逗号分隔，如 analysis, code', 'Skill tags, comma separated, e.g. analysis, code')} className="lumi-field py-2 text-xs" />
+                  placeholder={t?.agentSkillTags || ui('能力标签，用逗号分隔，如 analysis, code', 'Skill tags, comma separated, e.g. analysis, code')} className="peppa-field py-2 text-xs" />
                 <input value={connectCommand} onChange={e => setConnectCommand(e.target.value)}
-                  placeholder={t?.agentCommandHint || 'openclaw send --task "{task}"'} className="lumi-field py-2 font-mono text-xs" />
+                  placeholder={t?.agentCommandHint || 'openclaw send --task "{task}"'} className="peppa-field py-2 font-mono text-xs" />
               </div>
               <div className="flex gap-2">
                 <button onClick={handleConnectExternal}
                   disabled={connecting || !connectName.trim() || !connectCommand.trim()}
-                  className="lumi-button-primary h-9 border-cyan-300/25 bg-cyan-300/90 px-4 text-xs text-slate-950 hover:bg-cyan-200">
+                  className="peppa-button-primary h-9 border-cyan-300/25 bg-cyan-300/90 px-4 text-xs text-slate-950 hover:bg-cyan-200">
                   {connecting ? (t?.connectingBtn || 'Connecting...') : (t?.connectBtn || 'Connect')}
                 </button>
                 <button onClick={() => setShowConnectForm(false)}
-                  className="lumi-button h-9 px-4 text-xs">
+                  className="peppa-button h-9 px-4 text-xs">
                   {t?.cancel || 'Cancel'}
                 </button>
               </div>
@@ -517,17 +517,17 @@ export function TeamHub({ t }: { t?: any }) {
       </AnimatePresence>
 
       {loading ? (
-        <div className="lumi-panel p-16 text-center">
+        <div className="peppa-panel p-16 text-center">
           <Loader2 size={32} className="text-white/40 mx-auto mb-4 animate-spin" />
           <p className="text-white/40 text-sm">{t?.loading || 'Loading...'}</p>
         </div>
       ) : loadError ? (
-        <div className="lumi-panel border-red-400/15 bg-red-500/5 p-8 text-center">
+        <div className="peppa-panel border-red-400/15 bg-red-500/5 p-8 text-center">
           <p className="text-sm text-red-200/80">{loadError}</p>
-          <button onClick={() => void fetchAgents()} className="lumi-button mt-4">{t?.retry || 'Retry'}</button>
+          <button onClick={() => void fetchAgents()} className="peppa-button mt-4">{t?.retry || 'Retry'}</button>
         </div>
       ) : !hasTeamContent ? (
-        <div className="lumi-panel p-16 text-center">
+        <div className="peppa-panel p-16 text-center">
           <Users size={40} className="text-white/45 mx-auto mb-4" />
           <p className="text-white/40 font-bold uppercase tracking-widest text-sm">{t?.noTeamMembers || 'No team members yet'}</p>
           <p className="text-white/45 text-xs mt-2">{t?.teamCreateHint || 'Use agent_create in chat to add a teammate.'}</p>
@@ -541,14 +541,14 @@ export function TeamHub({ t }: { t?: any }) {
                 <h3 className="text-xs font-black uppercase tracking-widest text-white/50">{ui('外部 Agent 大厅', 'External Agent Hall')}</h3>
                 <button
                   onClick={() => void fetchExternalCatalog()}
-                  className="lumi-icon-button h-8 w-8"
+                  className="peppa-icon-button h-8 w-8"
                   title={t?.refresh || 'Refresh'}
                 >
                   <RefreshCw size={13} className={loadingExternalCatalog ? 'animate-spin' : ''} />
                 </button>
               </div>
               {loadingExternalCatalog ? (
-                <div className="lumi-panel p-8 text-center">
+                <div className="peppa-panel p-8 text-center">
                   <Loader2 size={22} className="mx-auto mb-3 animate-spin text-cyan-200/50" />
                   <p className="text-xs text-white/35">{ui('正在读取外部 Agent...', 'Loading external agents...')}</p>
                 </div>
@@ -562,7 +562,7 @@ export function TeamHub({ t }: { t?: any }) {
                         key={skill.id}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="lumi-panel space-y-3 border-cyan-500/15 bg-cyan-500/[0.04] p-5"
+                        className="peppa-panel space-y-3 border-cyan-500/15 bg-cyan-500/[0.04] p-5"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex min-w-0 items-center gap-3">
@@ -593,7 +593,7 @@ export function TeamHub({ t }: { t?: any }) {
                           </div>
                         )}
                         <div className="flex items-center justify-between gap-3 border-t border-white/[0.06] pt-3">
-                          <span className="text-[11px] text-white/30">{skill.author || 'Lumi Marketplace'}</span>
+                          <span className="text-[11px] text-white/30">{skill.author || 'Peppa Marketplace'}</span>
                           <button
                             onClick={() => void handleAddExternalSkill(skill)}
                             disabled={isAdding}
@@ -636,7 +636,7 @@ export function TeamHub({ t }: { t?: any }) {
                           setSelectedAgentId(agent.id);
                         }
                       }}
-                      className="lumi-panel cursor-pointer space-y-3 p-5 transition-colors hover:border-white/15 hover:bg-white/[0.06]"
+                      className="peppa-panel cursor-pointer space-y-3 p-5 transition-colors hover:border-white/15 hover:bg-white/[0.06]"
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2">
@@ -722,7 +722,7 @@ export function TeamHub({ t }: { t?: any }) {
                           setSelectedAgentId(agent.id);
                         }
                       }}
-                      className="lumi-panel cursor-pointer space-y-3 border-cyan-500/15 bg-cyan-500/5 p-5 transition-colors hover:border-cyan-500/30"
+                      className="peppa-panel cursor-pointer space-y-3 border-cyan-500/15 bg-cyan-500/5 p-5 transition-colors hover:border-cyan-500/30"
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2">
@@ -827,7 +827,7 @@ export function TeamHub({ t }: { t?: any }) {
               initial={{ opacity: 0, y: 18, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 18, scale: 0.98 }}
-              className="lumi-panel max-h-[86vh] w-full max-w-3xl overflow-hidden border-white/10 bg-[#080d16]/95"
+              className="peppa-panel max-h-[86vh] w-full max-w-3xl overflow-hidden border-white/10 bg-[#080d16]/95"
               onClick={(event) => event.stopPropagation()}
             >
               {(() => {
@@ -867,7 +867,7 @@ export function TeamHub({ t }: { t?: any }) {
                       </div>
                       <button
                         onClick={() => setSelectedAgentId(null)}
-                        className="lumi-icon-button h-8 w-8 rounded-lg"
+                        className="peppa-icon-button h-8 w-8 rounded-lg"
                         title={ui('关闭', 'Close')}
                       >
                         <X size={15} />
@@ -888,7 +888,7 @@ export function TeamHub({ t }: { t?: any }) {
                       <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
                         <div className="rounded-xl border border-white/[0.06] bg-white/[0.025] p-3">
                           <div className="text-[10px] font-black uppercase tracking-widest text-white/35">{ui('运行方式', 'Runtime')}</div>
-                          <div className="mt-1 text-sm font-bold text-white/70">{isExternal ? 'CLI Bridge' : 'Lumi Worker'}</div>
+                          <div className="mt-1 text-sm font-bold text-white/70">{isExternal ? 'CLI Bridge' : 'Peppa Worker'}</div>
                         </div>
                         <div className="rounded-xl border border-white/[0.06] bg-white/[0.025] p-3">
                           <div className="text-[10px] font-black uppercase tracking-widest text-white/35">{ui('记忆范围', 'Memory')}</div>
@@ -963,7 +963,7 @@ export function TeamHub({ t }: { t?: any }) {
                           <button
                             onClick={() => void handleTestConnection(selectedAgent)}
                             disabled={testingIds.includes(selectedAgent.id)}
-                            className="lumi-button h-9 px-3 text-xs"
+                            className="peppa-button h-9 px-3 text-xs"
                           >
                             <RefreshCw size={13} className={testingIds.includes(selectedAgent.id) ? 'animate-spin' : ''} />
                             {ui('测试连接', 'Test Connection')}
@@ -973,7 +973,7 @@ export function TeamHub({ t }: { t?: any }) {
                           <button
                             onClick={() => void handleSubmitAgentTemplate(selectedAgent)}
                             disabled={submittingTemplateIds.includes(selectedAgent.id)}
-                            className="lumi-button h-9 border-violet-400/15 bg-violet-500/10 px-3 text-xs text-violet-100/80 hover:bg-violet-500/15 disabled:opacity-45"
+                            className="peppa-button h-9 border-violet-400/15 bg-violet-500/10 px-3 text-xs text-violet-100/80 hover:bg-violet-500/15 disabled:opacity-45"
                           >
                             {submittingTemplateIds.includes(selectedAgent.id) ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
                             {ui('提交到组织审核', 'Submit to Org Review')}
@@ -981,14 +981,14 @@ export function TeamHub({ t }: { t?: any }) {
                         )}
                         <button
                           onClick={() => handleToggle(selectedAgent)}
-                          className="lumi-button h-9 px-3 text-xs"
+                          className="peppa-button h-9 px-3 text-xs"
                         >
                           {selectedAgent.isFrozen ? <Power size={13} /> : <PowerOff size={13} />}
                           {selectedAgent.isFrozen ? ui('启用', 'Activate') : ui('暂停', 'Pause')}
                         </button>
                         <button
                           onClick={() => void handleDelete(selectedAgent.id, selectedAgent.name)}
-                          className="lumi-button h-9 border-red-400/15 bg-red-500/10 px-3 text-xs text-red-200/70 hover:bg-red-500/15"
+                          className="peppa-button h-9 border-red-400/15 bg-red-500/10 px-3 text-xs text-red-200/70 hover:bg-red-500/15"
                         >
                           <Trash2 size={13} />
                           {ui('移除', 'Remove')}

@@ -15,7 +15,7 @@ function normalizeStringList(value: unknown, max = 20): string[] {
     .slice(0, max)));
 }
 
-const BUILTIN_AGENT_IDS = ['lumi', 'lumi_default', 'scholar_default', 'founder_default', 'incubated'];
+const BUILTIN_AGENT_IDS = ['peppa', 'peppa_default', 'scholar_default', 'founder_default', 'incubated'];
 
 function agentInToolScope(agent: any, context?: ToolContext): boolean {
   if (!agent || agent.id?.startsWith?.('ephemeral_')) return false;
@@ -35,7 +35,7 @@ async function agentCreate(args: Record<string, any>, context?: ToolContext): Pr
   const category = (args.category || 'general').trim().toLowerCase();
   const skillTags = normalizeStringList(args.skillTags);
   const description = (args.description || '').trim();
-  const executionMode = args.executionMode || 'lumi';
+  const executionMode = args.executionMode || 'peppa';
   const modelPreference = args.model || 'deepseek-chat';
   const knowledgeDomains = normalizeStringList(args.knowledgeDomains);
   const autonomyLevel = args.autonomyLevel || 'reactive';
@@ -188,7 +188,7 @@ export function registerAgentTools(registry: ToolRegistry): void {
   registry.register({
     name: 'agent_create',
     description:
-      'Create a new permanent worker agent for Lumi\'s swarm. Use this when the user asks you to make a helper, specialist, or worker for a recurring task. The agent becomes an active member of the hive — it can be assigned sub-tasks by the orchestrator and appears in the user\'s agent list.',
+      'Create a new permanent worker agent for Peppa\'s swarm. Use this when the user asks you to make a helper, specialist, or worker for a recurring task. The agent becomes an active member of the hive — it can be assigned sub-tasks by the orchestrator and appears in the user\'s agent list.',
     parameters: {
       type: 'object',
       properties: {
@@ -196,7 +196,7 @@ export function registerAgentTools(registry: ToolRegistry): void {
         category: { type: 'string', description: 'The general domain: coding, writing, research, data, media, automation, etc.' },
         skillTags: { type: 'array', items: { type: 'string' }, description: 'Specific skill tags for task matching (e.g. ["python", "data-analysis"])' },
         description: { type: 'string', description: 'What this agent specializes in — used as its internal config' },
-        executionMode: { type: 'string', description: 'Thinking mode: lumi (default), scholar, founder, or zen' },
+        executionMode: { type: 'string', description: 'Thinking mode: peppa (default), scholar, founder, or zen' },
         model: { type: 'string', description: 'Preferred LLM model (default: deepseek-chat)' },
         knowledgeDomains: { type: 'array', items: { type: 'string' }, description: 'Knowledge domains for RAG routing' },
         autonomyLevel: { type: 'string', description: 'reactive (on-demand only), scheduled (periodic checks), or autonomous (self-triggering)' },
@@ -213,7 +213,7 @@ export function registerAgentTools(registry: ToolRegistry): void {
   registry.register({
     name: 'agent_list',
     description:
-      'List all active worker agents in Lumi\'s swarm. Use this to show the user what agents currently exist, their skills, and status.',
+      'List all active worker agents in Peppa\'s swarm. Use this to show the user what agents currently exist, their skills, and status.',
     parameters: {
       type: 'object',
       properties: {},

@@ -44,7 +44,7 @@ export const PLANS: Record<string, SubscriptionPlan> = {
     agentCount: 1,
     priority: false,
     priceCNY: 0,
-    description: 'Basic Lumi experience. One agent, Qwen LLM, speech in/out.',
+    description: 'Basic Peppa experience. One agent, Qwen LLM, speech in/out.',
   },
   light: {
     id: 'light',

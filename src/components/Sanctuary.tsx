@@ -185,7 +185,7 @@ export function Sanctuary({ agent, isOpen, onClose }: { agent: SanctuaryAgent | 
     // Check for dependency signals
     const dep = checkDependencySignals(text);
     if (dep.detected && dep.level === 'high') {
-      setDependencyWarning(localize(isZh, 'Lumi 温柔提醒：这是从记忆中蒸馏出的模拟。真实的情感连接在现实世界中等你。', 'A gentle Lumi reminder: this is a simulation distilled from memories. Real emotional connection is still waiting for you in the real world.'));
+      setDependencyWarning(localize(isZh, 'Peppa 温柔提醒：这是从记忆中蒸馏出的模拟。真实的情感连接在现实世界中等你。', 'A gentle Peppa reminder: this is a simulation distilled from memories. Real emotional connection is still waiting for you in the real world.'));
     }
 
     // Safety timeout
@@ -197,7 +197,7 @@ export function Sanctuary({ agent, isOpen, onClose }: { agent: SanctuaryAgent | 
     socket.emit('agent:chat', {
       text,
       history: messages.map(m => ({ role: m.type === 'agent' ? 'assistant' : 'user', content: m.text })),
-      personalityId: 'lumi',
+      personalityId: 'peppa',
       agentId,
     });
 

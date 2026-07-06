@@ -1,9 +1,9 @@
 {
-  "name": "lumi-skill-hermes",
+  "name": "peppa-skill-hermes",
   "version": "1.0.0",
-  "description": "Versatile AI assistant with research, writing, and coding capabilities. Connect your existing Hermes instance as a Lumi team member.",
+  "description": "Versatile AI assistant with research, writing, and coding capabilities. Connect your existing Hermes instance as a Peppa team member.",
   "type": "module",
-  "lumi": {
+  "peppa": {
     "displayName": "Hermes",
     "category": "Assistant",
     "icon": "Sparkles",

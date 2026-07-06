@@ -128,9 +128,9 @@ export function getAdapterRegistry(options: AdapterRegistryOptions = {}): Adapte
         'client_self_repair',
       ],
       surfaces: ['desktop shell', 'top bar', 'mode switcher', 'window manager'],
-      setup: hasState ? [] : ['Open Lumi desktop client so the state relay can report live client state.'],
+      setup: hasState ? [] : ['Open Peppa desktop client so the state relay can report live client state.'],
       diagnostics: staleState ? [`Client state is ${stateAgeSeconds}s old.`] : [],
-      notes: 'Preferred route for Lumi UI control. Use this before mouse/keyboard control inside Lumi itself.',
+      notes: 'Preferred route for Peppa UI control. Use this before mouse/keyboard control inside Peppa itself.',
     },
     {
       id: 'client.modes',
@@ -176,7 +176,7 @@ export function getAdapterRegistry(options: AdapterRegistryOptions = {}): Adapte
       diagnostics: state?.org?.connected
         ? [`connected=${state.org.name || state.org.id || 'organization'}`, `role=${state.org.role || 'member'}`]
         : ['No active organization in current client state.'],
-      notes: 'Organization work is available from the desktop client and should not be hidden from Lumi.',
+      notes: 'Organization work is available from the desktop client and should not be hidden from Peppa.',
     },
     {
       id: 'workspace.skills_mcp',
@@ -199,7 +199,7 @@ export function getAdapterRegistry(options: AdapterRegistryOptions = {}): Adapte
         skillStats.unhealthy ? `unhealthy=${skillStats.unhealthy}` : '',
         skillStats.issueNames.length ? `issues=${skillStats.issueNames.slice(0, 5).join(', ')}` : '',
       ].filter(Boolean),
-      notes: 'Skills are Lumi expansion points. Repair/install actions need confirmation.',
+      notes: 'Skills are Peppa expansion points. Repair/install actions need confirmation.',
     },
     {
       id: 'workspace.knowledge_files',
@@ -211,7 +211,7 @@ export function getAdapterRegistry(options: AdapterRegistryOptions = {}): Adapte
       diagnostics: [
         state?.surfaces?.knowledgeOpen ? 'knowledge=open' : '',
       ].filter(Boolean),
-      notes: 'Use Lumi Knowledge Base for browsing, importing, absorbing, and retrieving user-provided knowledge files.',
+      notes: 'Use Peppa Knowledge Base for browsing, importing, absorbing, and retrieving user-provided knowledge files.',
     },
     {
       id: 'media.music_netease',
@@ -281,17 +281,17 @@ export function getAdapterRegistry(options: AdapterRegistryOptions = {}): Adapte
       actions: ['self_extension_plan', 'adapter_registry_list', 'capability_research', 'generate_skill', 'install_skill', 'client_repair_skill'],
       surfaces: ['Skill Hall', 'Adapter Registry', 'MCP runtime', 'capability research'],
       requiresConfirmation: true,
-      safety: 'Planning is safe. Generating, installing, repairing, connecting, executing third-party code, and modifying Lumi core remain confirmation-sensitive.',
-      notes: 'Use when Lumi notices a missing capability: inspect existing coverage, research candidates, generate a skill draft if appropriate, or escalate to core work.',
+      safety: 'Planning is safe. Generating, installing, repairing, connecting, executing third-party code, and modifying Peppa core remain confirmation-sensitive.',
+      notes: 'Use when Peppa notices a missing capability: inspect existing coverage, research candidates, generate a skill draft if appropriate, or escalate to core work.',
     },
     {
       id: 'system.personality_constitution',
       label: 'Personality Constitution',
       category: 'system',
       status: 'ready',
-      actions: ['lumi_constitution'],
+      actions: ['peppa_constitution'],
       surfaces: ['personality core', 'client self-model', 'action boundaries'],
-      notes: 'Stable operating constitution for Lumi identity, truth-about-work, owner sovereignty, privacy, self-extension, growth, and collaboration.',
+      notes: 'Stable operating constitution for Peppa identity, truth-about-work, owner sovereignty, privacy, self-extension, growth, and collaboration.',
     },
     {
       id: 'system.work_product_supervisor',
@@ -323,7 +323,7 @@ export function getAdapterRegistry(options: AdapterRegistryOptions = {}): Adapte
       requiresConfirmation: true,
       setup: gate.externalAppAutomationEnabled ? [] : ['Enable external app automation in Settings > Autonomy before controlling external applications.'],
       safety: 'Prefer explicit adapters and files first. Use mouse/keyboard only after confirmation and with visible progress.',
-      notes: 'This is Lumi using the computer, not the default route for Lumi client UI.',
+      notes: 'This is Peppa using the computer, not the default route for Peppa client UI.',
     },
     {
       id: 'web.browser',
@@ -356,8 +356,8 @@ export function getAdapterRegistry(options: AdapterRegistryOptions = {}): Adapte
       surfaces: ['WeChat', 'Feishu bot/remote channel', 'clipboard drafts'],
       requiresConfirmation: true,
       diagnostics: [`sendRequiresConfirmation=${gate.messagingSendRequiresConfirmation}`],
-      safety: 'Lumi can draft and copy. Sending or external posting must stay user-confirmed.',
-      notes: 'For a shared local Lumi, remote messages are routed into the same local agent unless a future multi-user router is added.',
+      safety: 'Peppa can draft and copy. Sending or external posting must stay user-confirmed.',
+      notes: 'For a shared local Peppa, remote messages are routed into the same local agent unless a future multi-user router is added.',
     },
     {
       id: 'cad_bim.drafting',
@@ -379,7 +379,7 @@ export function getAdapterRegistry(options: AdapterRegistryOptions = {}): Adapte
       surfaces: ['LibreCAD', 'Sweet Home 3D', 'FreeCAD', 'Blender', externalToolbox.installersDir],
       requiresConfirmation: true,
       setup: externalToolbox.hasCadInstallers
-        ? [`Install the selected package from ${externalToolbox.installersDir} before Lumi claims direct app control.`, 'Prefer explicit MCP/plugin adapters over raw mouse control.']
+        ? [`Install the selected package from ${externalToolbox.installersDir} before Peppa claims direct app control.`, 'Prefer explicit MCP/plugin adapters over raw mouse control.']
         : [`Download or install verified CAD/interior-design tools into ${externalToolbox.installersDir}.`],
       diagnostics: externalToolbox.diagnostics,
       safety: 'Installers and source candidates are staged only. Opening, installing, plugin activation, and UI control all need user confirmation.',
@@ -405,7 +405,7 @@ export function getAdapterRegistry(options: AdapterRegistryOptions = {}): Adapte
       surfaces: ['MCP', 'browser', 'files', 'clipboard', 'local AI apps'],
       requiresConfirmation: true,
       setup: skillStats.connected > 0 ? [] : ['Connect a specific AI app, MCP server, browser account, or file workflow before delegating real work.'],
-      notes: 'Lumi can research and draft adapters. Installing or running third-party code requires confirmation.',
+      notes: 'Peppa can research and draft adapters. Installing or running third-party code requires confirmation.',
     },
     {
       id: 'ai.nano_banana',
@@ -425,21 +425,21 @@ export function getAdapterRegistry(options: AdapterRegistryOptions = {}): Adapte
     },
     {
       id: 'collaboration.lap',
-      label: 'LAP Inter-Lumi Collaboration',
+      label: 'LAP Inter-Peppa Collaboration',
       category: 'collaboration',
       status: 'available',
       actions: ['lap.handshake', 'lap.task.delegate', 'lap.task.result', 'lap.context.share', 'lap.revoke'],
-      surfaces: ['community Lumi', 'organization Lumi', 'remote peers'],
+      surfaces: ['community Peppa', 'organization Peppa', 'remote peers'],
       requiresConfirmation: true,
-      safety: 'External Lumi context is external by default and cannot mutate local memory/core identity without approval.',
-      notes: 'Use LAP for future Lumi-to-Lumi cooperation with source and consent boundaries.',
+      safety: 'External Peppa context is external by default and cannot mutate local memory/core identity without approval.',
+      notes: 'Use LAP for future Peppa-to-Peppa cooperation with source and consent boundaries.',
     },
     {
       id: 'system.sleep_dream',
       label: 'Sleep and Dream Memory Cycle',
       category: 'system',
       status: 'ready',
-      actions: ['lumi_sleep_status', 'lumi_sleep_cycle'],
+      actions: ['peppa_sleep_status', 'peppa_sleep_cycle'],
       surfaces: ['memory consolidation', 'rest cycle', 'always-online idle time'],
       notes: 'Dreaming consolidates memory and uncertainty without deleting originals or changing core identity.',
     },
@@ -511,9 +511,9 @@ interface ExternalToolboxStatus {
 }
 
 function getExternalToolboxStatus(): ExternalToolboxStatus {
-  const root = process.env.LUMI_EXTERNAL_TOOLS_DIR || (process.platform === 'win32' ? 'D:\\LumiTools' : path.join(process.cwd(), 'external-tools'));
+  const root = process.env.PEPPA_EXTERNAL_TOOLS_DIR || (process.platform === 'win32' ? 'D:\\LumiTools' : path.join(process.cwd(), 'external-tools'));
   const installersDir = path.join(root, 'installers');
-  const catalogPath = path.join(root, 'catalog', 'lumi_external_tools_catalog.md');
+  const catalogPath = path.join(root, 'catalog', 'peppa_external_tools_catalog.md');
   const hasLibreCad = hasFileMatching(installersDir, ['librecad']);
   const hasSweetHome = hasFileMatching(installersDir, ['sweet home 3d']);
   const hasSweetHomeMcp = hasFileMatching(installersDir, ['sh3d-mcp-plugin']);

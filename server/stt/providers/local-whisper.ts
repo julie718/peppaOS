@@ -58,7 +58,7 @@ export async function transcribe(audioBuffer: Buffer, language: string = 'zh', o
   }
 
   const tmpDir = os.tmpdir();
-  const audioPath = path.join(tmpDir, `lumi_stt_${Date.now()}_${Math.random().toString(36).slice(2)}${safeAudioExt(options.fileName)}`);
+  const audioPath = path.join(tmpDir, `peppa_stt_${Date.now()}_${Math.random().toString(36).slice(2)}${safeAudioExt(options.fileName)}`);
   fs.writeFileSync(audioPath, audioBuffer);
 
   try {

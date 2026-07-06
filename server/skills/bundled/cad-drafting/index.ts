@@ -11,15 +11,15 @@ function ok(data: unknown) {
 }
 
 function safeName(value: string): string {
-  return (value || 'lumi_cad_draft').replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').slice(0, 80) || 'lumi_cad_draft';
+  return (value || 'peppa_cad_draft').replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').slice(0, 80) || 'peppa_cad_draft';
 }
 
 function line(x1: number, y1: number, x2: number, y2: number): string {
-  return `0\nLINE\n8\nLUMI_WALLS\n10\n${x1}\n20\n${y1}\n30\n0\n11\n${x2}\n21\n${y2}\n31\n0\n`;
+  return `0\nLINE\n8\nMAYOS_WALLS\n10\n${x1}\n20\n${y1}\n30\n0\n11\n${x2}\n21\n${y2}\n31\n0\n`;
 }
 
 function text(x: number, y: number, value: string, height = 220): string {
-  return `0\nTEXT\n8\nLUMI_LABELS\n10\n${x}\n20\n${y}\n30\n0\n40\n${height}\n1\n${value.replace(/\n/g, ' ')}\n`;
+  return `0\nTEXT\n8\nMAYOS_LABELS\n10\n${x}\n20\n${y}\n30\n0\n40\n${height}\n1\n${value.replace(/\n/g, ' ')}\n`;
 }
 
 function rect(x: number, y: number, w: number, h: number): string {
@@ -54,7 +54,7 @@ server.registerTool('cad_space_program', {
 });
 
 server.registerTool('cad_generate_simple_dxf', {
-  description: 'Generate a simple editable DXF draft with an outer rectangle and labeled room blocks. Saves the DXF to the Desktop/LumiCAD folder by default.',
+  description: 'Generate a simple editable DXF draft with an outer rectangle and labeled room blocks. Saves the DXF to the Desktop/MayCAD folder by default.',
   inputSchema: {
     title: z.string().describe('Drawing title and output filename'),
     widthMm: z.number().describe('Outer width in millimeters'),
@@ -66,9 +66,9 @@ server.registerTool('cad_generate_simple_dxf', {
   const width = Math.max(Number(args.widthMm || 0), 1000);
   const height = Math.max(Number(args.heightMm || 0), 1000);
   const rooms = Array.isArray(args.rooms) ? args.rooms.map(String).filter(Boolean) : [];
-  const dir = String(args.outputDirectory || path.join(os.homedir(), 'Desktop', 'LumiCAD'));
+  const dir = String(args.outputDirectory || path.join(os.homedir(), 'Desktop', 'MayCAD'));
   fs.mkdirSync(dir, { recursive: true });
-  const filePath = path.join(dir, `${safeName(String(args.title || 'lumi_cad_draft'))}.dxf`);
+  const filePath = path.join(dir, `${safeName(String(args.title || 'peppa_cad_draft'))}.dxf`);
   let entities = rect(0, 0, width, height);
   const cols = Math.max(1, Math.ceil(Math.sqrt(Math.max(rooms.length, 1))));
   const rows = Math.max(1, Math.ceil(Math.max(rooms.length, 1) / cols));
@@ -82,7 +82,7 @@ server.registerTool('cad_generate_simple_dxf', {
     entities += rect(Math.round(x), Math.round(y), Math.round(cellW), Math.round(cellH));
     entities += text(Math.round(x + cellW * 0.12), Math.round(y + cellH * 0.5), room, Math.max(160, Math.min(cellW, cellH) * 0.08));
   });
-  entities += text(0, height + 500, `${args.title || 'Lumi CAD Draft'} - conceptual draft, verify before production`, 220);
+  entities += text(0, height + 500, `${args.title || 'Peppa CAD Draft'} - conceptual draft, verify before production`, 220);
   const dxf = `0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n${entities}0\nENDSEC\n0\nEOF\n`;
   fs.writeFileSync(filePath, dxf, 'utf-8');
   return ok({ path: filePath, widthMm: width, heightMm: height, roomCount: rooms.length, note: 'Editable DXF draft generated. Review dimensions and construction details before use.' });
@@ -115,7 +115,7 @@ server.registerTool('cad_renovation_folder_workflow', {
     stylePreference: z.string().optional().describe('Preferred interior style, if known'),
     knownDimensions: z.string().optional().describe('Known overall dimensions or calibration dimensions, for example 9000mm x 7600mm'),
     budget: z.string().optional().describe('Known budget range'),
-    outputDir: z.string().optional().describe('Optional output directory. Defaults to a LumiCAD renovation folder inside folderPath.'),
+    outputDir: z.string().optional().describe('Optional output directory. Defaults to a MayCAD renovation folder inside folderPath.'),
     writeFiles: z.boolean().optional().describe('When true, writes markdown, CSV, DXF, and SVG files. When false, returns previews only.'),
     maxFiles: z.number().int().min(1).max(400).optional().describe('Maximum number of files to scan recursively'),
     maxChars: z.number().int().min(10000).max(900000).optional().describe('Maximum extracted text characters to include in analysis'),

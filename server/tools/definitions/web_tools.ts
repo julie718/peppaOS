@@ -113,7 +113,7 @@ async function urlFetchHandler(args: Record<string, any>): Promise<string> {
 
     const response = await fetch(url, {
       signal: controller.signal,
-      headers: { 'User-Agent': 'LumiAI/2.0 (Agent Tool)' },
+      headers: { 'User-Agent': 'MayOS/2.0 (Agent Tool)' },
     });
     clearTimeout(timeout);
 

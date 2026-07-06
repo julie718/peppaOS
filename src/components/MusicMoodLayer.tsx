@@ -88,7 +88,7 @@ const DEFAULT_SCENE: MusicScene = {
 // ── Main ──
 
 export function MusicMoodLayer() {
-  const { visible, isPlaying, track, progress, duration, lyrics, scene, lumiReason, play, pause, hide } = useMusicPlayer();
+  const { visible, isPlaying, track, progress, duration, lyrics, scene, peppaReason, play, pause, hide } = useMusicPlayer();
   const activeScene = scene || DEFAULT_SCENE;
 
   const [parsedLyrics, setParsedLyrics] = useState<MusicLyricLine[]>([]);
@@ -109,9 +109,9 @@ export function MusicMoodLayer() {
   const visualProgress = duration > 0 ? loopedProgress % duration : loopedProgress;
   const currentLyricIdx = useMemo(() => getCurrentLyricIndex(parsedLyrics, loopedProgress), [parsedLyrics, loopedProgress]);
   const emotionalNote = useMemo(() => {
-    const note = (lumiReason || activeScene.reason || '').trim();
+    const note = (peppaReason || activeScene.reason || '').trim();
     return note && note !== DEFAULT_SCENE.reason ? note : '';
-  }, [activeScene.reason, lumiReason]);
+  }, [activeScene.reason, peppaReason]);
 
   // ── Keyboard ──
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -341,7 +341,7 @@ export function MusicMoodLayer() {
           className="pointer-events-none absolute bottom-14 left-8 max-w-[min(360px,calc(100vw-4rem))] text-left"
         >
           <p className="text-[10px] uppercase tracking-wide font-serif" style={{ color: 'rgba(42,36,24,0.32)' }}>
-            Lumi
+            Peppa
           </p>
           <p className="mt-1 text-[13px] leading-6 font-serif" style={{ color: 'rgba(42,36,24,0.58)' }}>
             {emotionalNote}
@@ -359,7 +359,7 @@ export function MusicMoodLayer() {
           {track?.name || 'Mood layer standby'}
         </p>
         <p className="mt-0.5 max-w-[260px] text-[9px] font-serif" style={{ color: 'rgba(42,36,24,0.22)' }}>
-          {track?.artists?.join(' / ') || 'Open Music Center or ask Lumi to play when you are ready.'}
+          {track?.artists?.join(' / ') || 'Open Music Center or ask Peppa to play when you are ready.'}
         </p>
       </motion.div>
     </motion.div>

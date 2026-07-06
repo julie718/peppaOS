@@ -37,7 +37,7 @@ async function handler(args: any) {
       if (!to || !subject) throw new Error('to and subject are required');
       // Build RFC2822 email with mailparser tools
       const headers = [
-        `From: ${user || 'user@lumi.local'}`,
+        `From: ${user || 'user@peppa.local'}`,
         `To: ${to}`,
         `Subject: ${subject}`,
         'MIME-Version: 1.0',

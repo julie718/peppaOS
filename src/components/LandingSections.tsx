@@ -19,7 +19,7 @@ export function LandingSections({ t, onNavigateToSolutions, onSelectDesktop, onS
           </div>
           <h2 className="text-5xl font-bold tracking-tighter glow-text">{t.smartHostProgram}</h2>
           <p className="text-white/40 max-w-2xl mx-auto font-mono text-sm italic">
-            "{t.everythingCanBeLumi}"
+            "{t.everythingCanBePeppa}"
           </p>
         </div>
 
@@ -363,11 +363,11 @@ export function LandingSections({ t, onNavigateToSolutions, onSelectDesktop, onS
           </div>
           <h2 className="text-4xl font-black tracking-tighter">{t.downloadTitle || 'Ready to go native?'}</h2>
           <p className="text-white/40 max-w-xl mx-auto">
-            {t.downloadDesc || 'Download the Lumi OS desktop app for full system access — open apps, manage files, search the web, and control your desktop with AI. Available for Windows, with macOS and Linux coming soon.'}
+            {t.downloadDesc || 'Download the Peppa OS desktop app for full system access — open apps, manage files, search the web, and control your desktop with AI. Available for Windows, with macOS and Linux coming soon.'}
           </p>
           <div className="flex gap-4 justify-center flex-wrap">
             <a
-              href="https://releases.lumiai.asia/lumi-os/latest/download"
+              href="https://releases.mayos.asia/peppa-os/latest/download"
               className="px-8 py-4 bg-celestial-saturn text-black font-black rounded-2xl hover:scale-105 active:scale-95 transition-all inline-flex items-center gap-2 shadow-xl"
             >
               <Smartphone size={18} />
@@ -388,7 +388,7 @@ export function LandingSections({ t, onNavigateToSolutions, onSelectDesktop, onS
       {/* Stats */}
       <GlassCard className="p-12 rounded-[3rem]" hoverEffect={false}>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-12 text-center">
-          <StatItem label={t.activeLumis} value="12.4k" />
+          <StatItem label={t.activePeppas} value="12.4k" />
           <StatItem label={t.dataSynced} value="850TB" />
           <StatItem label={t.spiritsBorn} value="3.2k" />
         </div>

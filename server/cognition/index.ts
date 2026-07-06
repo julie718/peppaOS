@@ -1,5 +1,5 @@
 /**
- * Lumi Cognitive Engine — the independent decision-making layer.
+ * Peppa Cognitive Engine — the independent decision-making layer.
  *
  * This engine sits BETWEEN the socket handlers and the LLM. It:
  * 1. Classifies every user input before it reaches any LLM
@@ -10,8 +10,8 @@
  * Architecture:
  *   User Input → [Cognitive Engine] → Direct Tool OR LLM → Response
  *
- * Lumi is the dominant decision-maker. The LLM is just a swappable
- * text generation module — Lumi's identity, intent understanding,
+ * Peppa is the dominant decision-maker. The LLM is just a swappable
+ * text generation module — Peppa's identity, intent understanding,
  * and tool routing all work independently of it.
  */
 
@@ -139,7 +139,7 @@ export function handleLLMFailure(
 
   if (down) {
     return {
-      responseText: `Lumi 的语言模块暂时不可用（${error.message.slice(0, 80)}）。\n\n但我核心功能还在 — 你可以直接给我指令，比如"打开记事本"、"搜索文件"、"列出桌面"。`,
+      responseText: `Peppa 的语言模块暂时不可用（${error.message.slice(0, 80)}）。\n\n但我核心功能还在 — 你可以直接给我指令，比如"打开记事本"、"搜索文件"、"列出桌面"。`,
       intent,
       llmWasCalled: true,
       directToolExecuted: false,

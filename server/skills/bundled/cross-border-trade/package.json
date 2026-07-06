@@ -1,12 +1,12 @@
 {
-  "name": "lumi-skill-cross-border-trade",
+  "name": "peppa-skill-cross-border-trade",
   "version": "1.0.0",
   "description": "Foreign trade and cross-border commerce pack for inquiry replies, quotations, customs document checklists, logistics updates, and multilingual customer service.",
   "type": "module",
   "main": "index.ts",
   "scripts": { "start": "npx tsx index.ts" },
   "dependencies": { "@modelcontextprotocol/sdk": "^1.0.0", "zod": "^3.22.0" },
-  "lumi": {
+  "peppa": {
     "displayName": "Cross-border Trade",
     "category": "International Trade",
     "icon": "Globe",

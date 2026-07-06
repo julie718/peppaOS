@@ -78,7 +78,7 @@ export function Navbar({ user, onLogin, onLogout, activeTab, setActiveTab, lang,
           <Rocket className="text-white" size={16} />
         </div>
         <div className="flex flex-col -space-y-1">
-          <span className="text-sm font-black tracking-tight glow-text uppercase">{t.lumiKernel || 'Lumi Kernel'}</span>
+          <span className="text-sm font-black tracking-tight glow-text uppercase">{t.lumiKernel || 'Peppa Kernel'}</span>
           <span className="text-xs font-bold text-white/40 tracking-widest">{t.stableVersion || 'STABLE v3.0.0'}</span>
         </div>
       </div>

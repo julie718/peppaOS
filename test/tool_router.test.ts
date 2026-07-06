@@ -153,7 +153,7 @@ describe('tool router', () => {
 
   it('routes voice-style legal commands to external research and browser login tools', () => {
     const route = routeToolsForTurn(
-      'Lumi 帮我查这个买卖合同纠纷的类案，先去人民法院案例库、裁判文书网、法蝉和企查查，整理外部检索行动单',
+      'Peppa 帮我查这个买卖合同纠纷的类案，先去人民法院案例库、裁判文书网、法蝉和企查查，整理外部检索行动单',
       DECLARATIONS,
     );
 
@@ -209,7 +209,7 @@ describe('tool router', () => {
   });
 
   it('routes skill questions to skill management tools', () => {
-    const route = routeToolsForTurn('这些技能 Lumi 会调用吗，帮我看看技能大厅和 MCP', DECLARATIONS);
+    const route = routeToolsForTurn('这些技能 Peppa 会调用吗，帮我看看技能大厅和 MCP', DECLARATIONS);
 
     expect(route.categories).toContain('skills_agents');
     expect(route.toolNames).toEqual(expect.arrayContaining([

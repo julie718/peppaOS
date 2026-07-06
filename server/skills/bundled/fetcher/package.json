@@ -1,10 +1,10 @@
 {
-  "name": "lumi-skill-fetcher",
+  "name": "peppa-skill-fetcher",
   "version": "1.0.0",
   "description": "Smart web content fetching — converts any URL to clean readable Markdown. Powered by fetcher-mcp with Playwright + Readability.",
   "type": "module",
   "dependencies": { "fetcher-mcp": "^1.0.0" },
-  "lumi": {
+  "peppa": {
     "displayName": "Web Fetcher Pro",
     "category": "Web",
     "icon": "Globe",

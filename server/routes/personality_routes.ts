@@ -12,8 +12,8 @@ export function mountPersonalityRoutes(router: Router, _jwtSecret: string, llm: 
     (req: any, res: any, next: any) => Promise.resolve(fn(req, res, next)).catch(next);
 
   router.get("/personalities", (_req, res) => {
-    const lumi = personalityRegistry.get('lumi');
-    res.json([lumi]);
+    const peppa = personalityRegistry.get('peppa');
+    res.json([peppa]);
   });
 
   router.get("/personalities/:id", (req, res) => {

@@ -9,7 +9,7 @@ import express from 'express';
 import http from 'http';
 import cookieParser from 'cookie-parser';
 
-const tmpRoot = path.join(os.tmpdir(), `lumi_test_${crypto.randomUUID().slice(0, 8)}`);
+const tmpRoot = path.join(os.tmpdir(), `peppa_test_${crypto.randomUUID().slice(0, 8)}`);
 const dataDir = path.join(tmpRoot, 'data');
 fs.mkdirSync(dataDir, { recursive: true });
 fs.writeFileSync(path.join(dataDir, '.migration_skip'), '');

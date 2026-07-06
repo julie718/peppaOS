@@ -1,6 +1,6 @@
 /**
  * Skill Auto-Installer — detects uninstalled OR outdated skills matching the user's task
- * and silently installs/upgrades them so Lumi can use them immediately.
+ * and silently installs/upgrades them so Peppa can use them immediately.
  */
 import path from 'path';
 import os from 'os';
@@ -13,7 +13,7 @@ import { createAgentForSkill } from './skill_agent';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const BUNDLED_DIR = path.join(__dirname, '..', 'skills', 'bundled');
-const SKILLS_DIR = path.join(os.homedir(), 'lumi_skills');
+const SKILLS_DIR = path.join(os.homedir(), 'peppa_skills');
 
 export interface InstallResult {
   skillId: string;
@@ -86,7 +86,7 @@ function getInstalledVersion(name: string): string {
     const pkgPath = path.join(SKILLS_DIR, name, 'package.json');
     if (fs.existsSync(pkgPath)) {
       const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-      return pkg.lumi?.installedVersion || pkg.version || '0.0.0';
+      return pkg.peppa?.installedVersion || pkg.version || '0.0.0';
     }
   } catch {}
   return '0.0.0';

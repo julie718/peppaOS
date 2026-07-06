@@ -53,7 +53,7 @@ import { guardCompletionClaims, needsCompletionEvidence } from "../work_product/
 import { buildModelSelfAwareness, buildVisionRoutingOverlay, hasVisionIntent } from "../cognition/vision_routing";
 import { DEFAULT_MODELS, getScopedPreferredLLM } from "../llm/user_preferences";
 
-const JWT_SECRET = process.env.JWT_SECRET || 'lumiOS_default_jwt_secret_2026_local';
+const JWT_SECRET = process.env.JWT_SECRET || 'peppaOS_default_jwt_secret_2026_local';
 
 function normalizeChatHistoryRecord(m: any): NormalizedMessage[] {
   const role = m?.role === 'assistant' ? 'assistant' : m?.role === 'system' ? 'system' : m?.role === 'user' ? 'user' : '';
@@ -206,7 +206,7 @@ export function registerChatHandler(
     }
     if (aborted) {
       socket.emit("agent:status", { status: "idle", source: "chat" });
-      socket.emit("agent:response", { text: "[Cancelled]", agentName: "Lumi", source: "chat" });
+      socket.emit("agent:response", { text: "[Cancelled]", agentName: "Peppa", source: "chat" });
     }
   });
 
@@ -241,7 +241,7 @@ export function registerChatHandler(
 
   socket.on("agent:chat", async (data: { text?: string; history?: any[]; attachments?: any[]; personalityId?: string; category?: string; agentId?: string; domain?: string; orgId?: string | null; mode?: string; source?: string; requestId?: string }) => {
     console.log('[ChatHandler] agent:chat RECEIVED:', JSON.stringify(data).slice(0, 300));
-    const { history, personalityId = "lumi", category, agentId, mode: payloadMode, source } = data;
+    const { history, personalityId = "peppa", category, agentId, mode: payloadMode, source } = data;
     const attachments = normalizeIncomingAttachments(data.attachments);
     const rawUserText = typeof data.text === 'string' ? data.text.trim() : '';
     const visibleUserText = rawUserText || (attachments.length > 0 ? 'Please review the attached file(s).' : '');
@@ -259,7 +259,7 @@ export function registerChatHandler(
         ...(requestId ? { requestId } : {}),
       });
     };
-    const conversationAgentId = agentId || 'lumi';
+    const conversationAgentId = agentId || 'peppa';
     const uid = userIdFn(socket);
     const sessionKey = `${uid}:${eventSource}`;
     console.log('[ChatHandler] uid:', uid, 'agentId:', agentId, 'source:', source);
@@ -329,9 +329,9 @@ export function registerChatHandler(
       });
       console.log('[ChatHandler] relevantMemories (vector):', relevantMemories.length);
 
-      // RAG: retrieve relevant knowledge chunks from agent-scoped and Lumi knowledge.
+      // RAG: retrieve relevant knowledge chunks from agent-scoped and Peppa knowledge.
       let ragChunks: string[] = [];
-      const ragAgentIds = Array.from(new Set([conversationAgentId, 'lumi'].filter(Boolean)));
+      const ragAgentIds = Array.from(new Set([conversationAgentId, 'peppa'].filter(Boolean)));
       for (const ragAgentId of ragAgentIds) {
         const chunks = retrieveChunks(uid, ragAgentId, text, 3, {
           domain: resolvedDomain,
@@ -582,9 +582,9 @@ export function registerChatHandler(
         });
       }
       if (clientActionOnlyTurn) {
-        effectiveSystemPrompt += '\n\n## Client Mode Control\nThe user is asking Lumi to change a client mode or open a client-native surface. You may only use client_get_state and client_action. Do not use file, terminal, desktop mouse/keyboard, web, team, or external-app tools. Music is a playback/atmosphere capability, not a top-level work mode: open the music center or mood layer without switching client mode. For meeting/autonomous mode, use the client action confirmation flow when required.';
+        effectiveSystemPrompt += '\n\n## Client Mode Control\nThe user is asking Peppa to change a client mode or open a client-native surface. You may only use client_get_state and client_action. Do not use file, terminal, desktop mouse/keyboard, web, team, or external-app tools. Music is a playback/atmosphere capability, not a top-level work mode: open the music center or mood layer without switching client mode. For meeting/autonomous mode, use the client action confirmation flow when required.';
       } else if (selfRepairTurn) {
-        effectiveSystemPrompt += '\n\n## Client Self-Repair Turn\nThe user is reporting that Lumi or one of its client workflows is failing. Do not only apologize or repeat the raw error. Use client_get_state first when tools are available, inspect relevant status/log/config surfaces, apply one safe recovery or retry when the cause is clear, verify the result, and then give a concise report. Reads and status checks are allowed; writes, desktop control, external app automation, and system changes still require confirmation.';
+        effectiveSystemPrompt += '\n\n## Client Self-Repair Turn\nThe user is reporting that Peppa or one of its client workflows is failing. Do not only apologize or repeat the raw error. Use client_get_state first when tools are available, inspect relevant status/log/config surfaces, apply one safe recovery or retry when the cause is clear, verify the result, and then give a concise report. Reads and status checks are allowed; writes, desktop control, external app automation, and system changes still require confirmation.';
       } else if (opModeConfig && (allowToolUseForTurn || operationMode === 'meeting')) {
         effectiveSystemPrompt += '\n\n' + opModeConfig.promptOverlay;
       } else {
@@ -753,7 +753,7 @@ export function registerChatHandler(
         return;
       }
 
-      // ── Lumi Cognitive Engine: classify intent BEFORE calling any LLM ──
+      // ── Peppa Cognitive Engine: classify intent BEFORE calling any LLM ──
       const cognitiveCtx: CognitiveContext = {
         userId: uid,
         agentId: agentId || undefined,
@@ -832,12 +832,12 @@ export function registerChatHandler(
       });
 
       if (cognition.directToolExecuted && cognition.responseText) {
-        // Path A: Lumi handled this directly — no LLM needed
+        // Path A: Peppa handled this directly — no LLM needed
         responseText = cognition.responseText;
         console.log(`[Cognition] Direct tool '${cognition.intent.directToolCall?.name}' handled without LLM`);
       }
 
-      // Path A2: music intent. Handle before the generic tool loop so Lumi
+      // Path A2: music intent. Handle before the generic tool loop so Peppa
       // does not wander into unrelated tools or report raw provider errors.
       const isMusicAdjustment = isMusicAdjustmentRequest(text);
       if (!responseText && (isMusicPlaybackRequest(text) || isMusicAdjustment)) {
@@ -905,7 +905,7 @@ export function registerChatHandler(
           });
           pushNotification(uid, {
             type: 'background_delegation',
-            title: 'Lumi 后台子 agent',
+            title: 'Peppa 后台子 agent',
             message: `已将任务交给后台子 agent：${text.slice(0, 60)}`,
           });
 
@@ -973,7 +973,7 @@ export function registerChatHandler(
                 if (runningTask) emitTaskUpdate(runningTask);
                 emitBackground("agent:status", {
                   status: "thinking",
-                  agentName: "Lumi Orchestrator",
+                  agentName: "Peppa Orchestrator",
                   phase: 'background',
                   detail: `后台子 agent 正在处理 ${backgroundTaskId}`,
                 });
@@ -989,7 +989,7 @@ export function registerChatHandler(
                   },
                   { provider: activeProvider as any, model: activeModel },
                   llmGetters,
-                  (message) => emitBackground("agent:chunk", { text: message, agentName: "Lumi Orchestrator" }),
+                  (message) => emitBackground("agent:chunk", { text: message, agentName: "Peppa Orchestrator" }),
                   (record, meta) => {
                     backgroundToolRecords.push({
                       id: record.id,
@@ -1108,13 +1108,13 @@ export function registerChatHandler(
         // Path B: Orchestrator — decompose tasks into sub-tasks for worker agents
         // (Skipped for sanctuary agents — they stay in their territory)
         try {
-          emitAgent("agent:status", { status: "thinking", agentName: exposeAgentWork ? "Lumi Orchestrator" : personality.name, phase: exposeAgentWork ? 'orchestrator' : 'background' });
+          emitAgent("agent:status", { status: "thinking", agentName: exposeAgentWork ? "Peppa Orchestrator" : personality.name, phase: exposeAgentWork ? 'orchestrator' : 'background' });
           const orchResult = await runOrchestratedTask(
             text,
             { userId: uid, personalityId, domain: resolvedDomain, orgId: resolvedOrgId, desktopRelay },
             { provider: activeProvider, model: activeModel },
             llmGetters,
-            exposeAgentWork ? (msg) => emitAgent("agent:chunk", { text: msg, agentName: "Lumi" }) : undefined,
+            exposeAgentWork ? (msg) => emitAgent("agent:chunk", { text: msg, agentName: "Peppa" }) : undefined,
             (record, meta) => {
               allToolRecords.push({
                 id: record.id,
@@ -1223,7 +1223,7 @@ export function registerChatHandler(
           ? persistedHistory
           : (history ? history.flatMap(normalizeChatHistoryRecord) : []);
 
-        // Tell Lumi which model is currently active without hiding routed vision capacity.
+        // Tell Peppa which model is currently active without hiding routed vision capacity.
         const selfAwareness = buildModelSelfAwareness(activeProvider, activeModel, uid, { visionAware: visionIntent && operationMode !== 'meeting' });
         const messages: NormalizedMessage[] = [
           { role: 'system', content: effectiveSystemPrompt + selfAwareness },
@@ -1325,7 +1325,7 @@ export function registerChatHandler(
                 });
               },
               onProgress: (step: string) => {
-                emitAgent("agent:chunk", { text: `[${step}]\n`, agentName: "Lumi" });
+                emitAgent("agent:chunk", { text: `[${step}]\n`, agentName: "Peppa" });
               },
               ...(routedToolPolicy ? { toolPolicy: routedToolPolicy } : {}),
               ...(operationMode === 'assistant' || operationMode === 'autonomous' || clientActionOnlyTurn || selfRepairTurn ? {
@@ -1386,7 +1386,7 @@ export function registerChatHandler(
           // Do not silently switch to another paid provider. The selected model should run or fail visibly.
           if (false && llmErr.message?.includes('not configured') && activeProvider !== 'gemini') {
             try {
-              const fallbackMessage = `主推理服务 ${activeProvider}/${activeModel} 不可用，Lumi 将临时降级到 Gemini。`;
+              const fallbackMessage = `主推理服务 ${activeProvider}/${activeModel} 不可用，Peppa 将临时降级到 Gemini。`;
               socket.emit('agent:notification', { type: 'llm_fallback', level: 'warning', message: fallbackMessage });
               pushNotification(uid, { type: 'llm_fallback', title: 'LLM 降级提醒', message: fallbackMessage });
               if (!allowToolUseForTurn || isSanctuary) {
@@ -1552,7 +1552,7 @@ export function registerChatHandler(
       // Clean up abort session
       chatSessionMap.delete(sessionKey);
 
-      // Auto-learn from corrections: when user corrects Lumi, extract high-confidence memories
+      // Auto-learn from corrections: when user corrects Peppa, extract high-confidence memories
       const correctionPatterns = [/不是/, /不对/, /错了/, /wrong/i, /incorrect/i, /actually/i, /no,?\s/i, /你弄错了/, /不是这样的/];
       const isCorrection = correctionPatterns.some(p => p.test(text));
       if (isCorrection && responseText) {
@@ -1571,14 +1571,14 @@ export function registerChatHandler(
           }
           console.log(`[ChatHandler] Correction learned: ${corrected.memories.length} memories with boosted confidence`);
 
-          // Real-time identity correction: when user contradicts a claim Lumi makes about the user
+          // Real-time identity correction: when user contradicts a claim Peppa makes about the user
           // (e.g. "我不做自动驾驶" → remove from coreMotivation immediately, no 7-day wait)
           try {
             const identityCheck = await makeLLMCall(
               [
                 {
                   role: 'system',
-                  content: `Detect identity corrections. Lumi's stable coreMotivation:\n"${personalityConfig.coreMotivation}"\nLumi's owner-specific growthState: ${JSON.stringify((personalityConfig as any).growthState || {})}\n\nUser said: "${text}"\nLumi said: "${responseText.slice(0, 300)}"\n\nIs the user denying something Lumi believes about them (interest, trait, name, profession)? If YES, return JSON: {"correctsIdentity": true, "removeInterest": "exact contradicted growth/core phrase to remove", "rewriteMotivation": "rewrite coreMotivation only if the false claim is inside coreMotivation, otherwise null"}. If NO, return {"correctsIdentity": false}.\nReturn ONLY JSON.`,
+                  content: `Detect identity corrections. Peppa's stable coreMotivation:\n"${personalityConfig.coreMotivation}"\nPeppa's owner-specific growthState: ${JSON.stringify((personalityConfig as any).growthState || {})}\n\nUser said: "${text}"\nPeppa said: "${responseText.slice(0, 300)}"\n\nIs the user denying something Peppa believes about them (interest, trait, name, profession)? If YES, return JSON: {"correctsIdentity": true, "removeInterest": "exact contradicted growth/core phrase to remove", "rewriteMotivation": "rewrite coreMotivation only if the false claim is inside coreMotivation, otherwise null"}. If NO, return {"correctsIdentity": false}.\nReturn ONLY JSON.`,
                 },
               ],
               [],

@@ -125,7 +125,7 @@ export function captureFromOrchestration(
 
 /**
  * Auto-detect repeated behavior patterns from the worklog and create named workflows.
- * Called periodically by the scheduler. When Lumi notices the user doing the same
+ * Called periodically by the scheduler. When Peppa notices the user doing the same
  * thing 3+ times, she auto-creates a workflow so the user can say "run my X routine".
  *
  * Returns the number of new workflows created.

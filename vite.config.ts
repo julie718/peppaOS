@@ -25,7 +25,7 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
       {
-        name: 'lumi-platform-html-output',
+        name: 'peppa-platform-html-output',
         writeBundle() {
           const htmlName = target === 'web'
             ? 'index.web.html'

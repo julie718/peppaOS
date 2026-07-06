@@ -88,7 +88,7 @@ function getSkillRuntimeFindings() {
 export function registerClientSelfTools(registry: ToolRegistry): void {
   registry.register({
     name: 'client_get_state',
-    description: 'Read Lumi desktop client self-model: available client capabilities and the latest reported UI state.',
+    description: 'Read Peppa desktop client self-model: available client capabilities and the latest reported UI state.',
     parameters: {
       type: 'object',
       properties: {},
@@ -111,10 +111,10 @@ export function registerClientSelfTools(registry: ToolRegistry): void {
   registry.register({
     name: 'client_action',
     description: [
-      'Safely control Lumi client UI surfaces through the client action router.',
+      'Safely control Peppa client UI surfaces through the client action router.',
       'Use explicit client-native actions like refresh_client_state, open_music_center, start_meeting_mode, open_runtime_log, show_knowledge_base, open_avatar_studio, open_sound_studio, open_computer_adaptation, open_settings, or set_wallpaper_mode.',
       'Legacy open_app/close_app/set_mode are still accepted for compatibility.',
-      'This does not use mouse/keyboard control and should be preferred over computer_use for Lumi client UI navigation.',
+      'This does not use mouse/keyboard control and should be preferred over computer_use for Peppa client UI navigation.',
     ].join(' '),
     parameters: {
       type: 'object',
@@ -131,7 +131,7 @@ export function registerClientSelfTools(registry: ToolRegistry): void {
         mode: {
           type: 'string',
           enum: ['meeting', 'chat', 'assistant', 'autonomous'],
-          description: 'Target Lumi mode for set_mode or set_client_mode. Music is not a mode; use open_music_center or show_music_layer.',
+          description: 'Target Peppa mode for set_mode or set_client_mode. Music is not a mode; use open_music_center or show_music_layer.',
         },
         task: {
           type: 'string',
@@ -154,7 +154,7 @@ export function registerClientSelfTools(registry: ToolRegistry): void {
     },
     handler: async (args, context) => {
       if (!context?.desktopRelay) {
-        throw new Error('Client actions require the Lumi desktop client relay.');
+        throw new Error('Client actions require the Peppa desktop client relay.');
       }
       const userConfirmed = Boolean(context.userConfirmed || args.confirmed);
       return context.desktopRelay('client_action', {
@@ -173,7 +173,7 @@ export function registerClientSelfTools(registry: ToolRegistry): void {
 
   registry.register({
     name: 'client_health_check',
-    description: 'Run Lumi local self-governance health check: client body state, runtime errors, music/runtime/files/voice issues, autonomy boundary, and skill runtime findings.',
+    description: 'Run Peppa local self-governance health check: client body state, runtime errors, music/runtime/files/voice issues, autonomy boundary, and skill runtime findings.',
     parameters: {
       type: 'object',
       properties: {},
@@ -194,9 +194,9 @@ export function registerClientSelfTools(registry: ToolRegistry): void {
   registry.register({
     name: 'client_self_repair',
     description: [
-      'Perform safe Lumi client self-repair actions that do not write user files or operate external apps.',
+      'Perform safe Peppa client self-repair actions that do not write user files or operate external apps.',
       'Use refresh_client_state to force a state relay refresh.',
-      'Use open_recovery_surface to open the relevant Lumi surface (skills, music, runtime-log, settings, kernel, plans, knowledge, org).',
+      'Use open_recovery_surface to open the relevant Peppa surface (skills, music, runtime-log, settings, kernel, plans, knowledge, org).',
       'For skill package repair use client_repair_skill, which requires confirmation.',
     ].join(' '),
     parameters: {
@@ -216,7 +216,7 @@ export function registerClientSelfTools(registry: ToolRegistry): void {
     },
     handler: async (args, context) => {
       if (!context?.desktopRelay) {
-        throw new Error('Client self-repair requires the Lumi desktop client relay.');
+        throw new Error('Client self-repair requires the Peppa desktop client relay.');
       }
       if (args.action === 'refresh_client_state') {
         return context.desktopRelay('client_action', { action: 'refresh_client_state' });
@@ -234,7 +234,7 @@ export function registerClientSelfTools(registry: ToolRegistry): void {
 
   registry.register({
     name: 'client_repair_skill',
-    description: 'Repair or restart a Lumi skill/MCP server by name. This may reinstall dependencies or restart a local skill process, so it requires confirmation.',
+    description: 'Repair or restart a Peppa skill/MCP server by name. This may reinstall dependencies or restart a local skill process, so it requires confirmation.',
     parameters: {
       type: 'object',
       properties: {

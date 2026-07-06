@@ -53,7 +53,7 @@ export function OrgPortal({ onBack, initialMode = 'select' }: { onBack?: () => v
 
         const orgRole = org?.role || org?.orgRole || (org?.ownerUid === (user as any)?.uid ? 'owner' : 'member');
         const orgName = org?.name || org?.orgName || '';
-        localStorage.setItem('lumi_org_connection', JSON.stringify({
+        localStorage.setItem('peppa_org_connection', JSON.stringify({
           orgId,
           orgRole,
           orgName,
@@ -87,9 +87,9 @@ export function OrgPortal({ onBack, initialMode = 'select' }: { onBack?: () => v
             const discovered = await discoverExistingOrg();
             if (!discovered) {
               setStatus({ connected: false, orgId: null, orgRole: null, sessionConnected: false });
-              localStorage.removeItem('lumi_org_connection');
-              if (localStorage.getItem('lumi_work_domain') === 'work') {
-                localStorage.setItem('lumi_work_domain', 'personal');
+              localStorage.removeItem('peppa_org_connection');
+              if (localStorage.getItem('peppa_work_domain') === 'work') {
+                localStorage.setItem('peppa_work_domain', 'personal');
               }
             }
             setLoading(false);
@@ -116,8 +116,8 @@ export function OrgPortal({ onBack, initialMode = 'select' }: { onBack?: () => v
       });
       const data = await res.json();
       if (res.ok) {
-        if (data.token) localStorage.setItem('lumi_auth_token', data.token);
-        localStorage.setItem('lumi_org_connection', JSON.stringify({
+        if (data.token) localStorage.setItem('peppa_auth_token', data.token);
+        localStorage.setItem('peppa_org_connection', JSON.stringify({
           orgId: data.id,
           orgRole: data.orgRole || 'owner',
           orgName: data.name || orgForm.name.trim(),
@@ -299,7 +299,7 @@ export function OrgPortal({ onBack, initialMode = 'select' }: { onBack?: () => v
               <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
                 <h2 className="text-xl font-bold text-white">{t.createOrganization || 'Create Organization'}</h2>
                 <p className="text-white/40 text-sm">
-                  {t.createOrganizationNote || 'This will upgrade your LumiOS instance to org mode. The server will restart automatically.'}
+                  {t.createOrganizationNote || 'This will upgrade your Peppa instance to org mode. The server will restart automatically.'}
                 </p>
 
                 <div>

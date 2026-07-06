@@ -68,27 +68,27 @@ export async function bootstrap(ctx: BootstrapContext) {
     process.exit(1);
   }
 
-  // Auto-create admin account for local/desktop use
-  const adminPassword = process.env.AUTO_LOGIN_PASSWORD || 'lumi_admin_2026';
-  if (adminPassword) {
+  // Auto-create peppa account for personal use
+  const peppaPassword = process.env.PEPPA_PASSWORD || 'peppa_2026';
+  if (peppaPassword) {
     try {
       const db = readDB();
-      const adminExists = db.users.find((u: any) => u.username === 'admin');
-      if (!adminExists) {
+      const peppaExists = db.users.find((u: any) => u.username === 'peppa');
+      if (!peppaExists) {
         db.users.push({
           uid: Math.random().toString(36).substring(2, 15),
-          username: 'admin',
-          password: await bcrypt.hash(adminPassword, 10),
+          username: 'peppa',
+          password: await bcrypt.hash(peppaPassword, 10),
           phone: '+00000000000',
           role: 'admin',
           balance: 999.0,
           createdAt: new Date().toISOString(),
         });
         writeDB(db);
-        console.log('[Bootstrap] Admin account created');
+        console.log('[Bootstrap] Peppa account created');
       }
     } catch (err) {
-      console.warn('[Bootstrap] Failed to ensure admin account:', (err as Error).message);
+      console.warn('[Bootstrap] Failed to ensure peppa account:', (err as Error).message);
     }
   }
 

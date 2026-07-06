@@ -2,15 +2,15 @@ export type MemoryType = 'preference' | 'fact' | 'habit' | 'knowledge';
 
 /** Memory hierarchy tier — determines decay rate and retrieval priority */
 export type MemoryTier = 'episodic'       // Raw conversation memories, fast decay
-                       | 'internalized'  // Internalized preferences (Lumi's own)
+                       | 'internalized'  // Internalized preferences (Peppa's own)
                        | 'growth'        // Growth narratives, LLM-consolidated
                        | 'core_identity';// Core identity, never decays, protected
 
 /** Whose perspective does this memory belong to */
 export type MemoryPerspective = 'owner_trait'   // About the owner's traits
-                              | 'lumi_self'     // Lumi's self-knowledge
+                              | 'peppa_self'     // Peppa's self-knowledge
                               | 'shared_memory' // "Our" shared experiences
-                              | 'lumi_growth';  // Lumi's growth milestones
+                              | 'peppa_growth';  // Peppa's growth milestones
 
 export type MemorySource = 'chat' | 'voice' | 'runtime_log' | 'meeting' | 'manual' | 'organization' | 'lap' | 'community' | 'external_app' | 'system' | 'import' | 'consolidation';
 export type MemoryPrivacyClass = 'private' | 'organization' | 'shared' | 'public' | 'secret';

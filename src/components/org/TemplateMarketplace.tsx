@@ -142,13 +142,13 @@ export function TemplateMarketplace() {
           [templateId]: { id: agentId, name: String(data.agent?.name || data.template?.name || selected?.name || ui('团队智能体', 'Team agent')) },
         }));
       }
-      window.dispatchEvent(new CustomEvent('lumi:agents-changed', { detail: { agent: data.agent, agentId } }));
+      window.dispatchEvent(new CustomEvent('peppa:agents-changed', { detail: { agent: data.agent, agentId } }));
       const agentName = data.agent?.name || data.template?.name || selected?.name || ui('智能体', 'Agent');
       setFeedback({
         type: 'success',
         text: data.alreadyInstalled
           ? ui(`已安装过，团队里已有：${agentName}`, `Already installed in Team: ${agentName}`)
-          : ui(`已安装到 Lumi 团队：${agentName}`, `Installed to Lumi Team: ${agentName}`),
+          : ui(`已安装到 Peppa 团队：${agentName}`, `Installed to Peppa Team: ${agentName}`),
         agentId,
       });
     } catch (err: any) {
@@ -160,12 +160,12 @@ export function TemplateMarketplace() {
 
   const goToTeamAgent = (agentId?: string) => {
     if (agentId) {
-      try { window.sessionStorage.setItem('lumi:team:selected-agent-id', agentId); } catch {}
+      try { window.sessionStorage.setItem('peppa:team:selected-agent-id', agentId); } catch {}
     }
-    window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'team', agentId } }));
+    window.dispatchEvent(new CustomEvent('peppa:navigate', { detail: { tab: 'team', agentId } }));
     if (agentId) {
       window.setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('lumi:team:select-agent', { detail: { agentId } }));
+        window.dispatchEvent(new CustomEvent('peppa:team:select-agent', { detail: { agentId } }));
       }, 80);
     }
   };
@@ -182,12 +182,12 @@ export function TemplateMarketplace() {
               <div>
                 <h2 className="text-xl font-semibold text-white">{t.templateMarketplace || ui('智能体模板市场', 'Agent Template Marketplace')}</h2>
                 <p className="mt-1 text-sm text-white/50">
-                  {t.templateMarketplaceDesc || ui('把组织审核通过的子 agent 安装到 Lumi 团队。', 'Install organization-approved sub-agents into Lumi Team.')}
+                  {t.templateMarketplaceDesc || ui('把组织审核通过的子 agent 安装到 Peppa 团队。', 'Install organization-approved sub-agents into Peppa Team.')}
                 </p>
               </div>
             </div>
             <button
-              onClick={() => window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'org', sub: 'templates-create' } }))}
+              onClick={() => window.dispatchEvent(new CustomEvent('peppa:navigate', { detail: { tab: 'org', sub: 'templates-create' } }))}
               className="inline-flex items-center gap-2 rounded-lg border border-violet-400/20 bg-violet-500/15 px-3 py-2 text-sm font-medium text-violet-100 transition hover:bg-violet-500/25"
             >
               <Send size={15} />

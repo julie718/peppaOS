@@ -112,10 +112,10 @@ export function Settings({
     };
     void loadProviderStatus();
     const onKeysChanged = () => { void loadProviderStatus(); };
-    window.addEventListener('lumi:keys-changed', onKeysChanged);
+    window.addEventListener('peppa:keys-changed', onKeysChanged);
     return () => {
       cancelled = true;
-      window.removeEventListener('lumi:keys-changed', onKeysChanged);
+      window.removeEventListener('peppa:keys-changed', onKeysChanged);
     };
   }, []);
 
@@ -179,7 +179,7 @@ export function Settings({
       case 'neural':
         return (
           <div className="space-y-8">
-            <SettingsSection title={t.agentFramework || ui('智能体框架（Lumi 协议）', 'Agent Framework (Lumi Protocol)')} icon={<BrainCircuit size={18} className="text-celestial-saturn" />}>
+            <SettingsSection title={t.agentFramework || ui('智能体框架（Peppa 协议）', 'Agent Framework (Peppa Protocol)')} icon={<BrainCircuit size={18} className="text-celestial-saturn" />}>
               <div className="space-y-6">
                 <AutonomousSettingsPanel t={t} operationMode={operationMode} setOperationMode={setOperationMode} />
               </div>
@@ -198,9 +198,9 @@ export function Settings({
         return (
           <div className="space-y-8">
             <SettingsSection title={t.privacySecurity || ui('隐私与安全', 'Privacy & Security')} icon={<Shield size={18} className="text-celestial-mars" />}>
-              <SettingsItem label={t.localEncryption || ui('本地加密', 'Local Encryption')} desc={t.localEncryptionDesc || ui('加密存储在本地磁盘上的所有智能体数据。', 'Encrypt all Agent data stored on your local disk.')} storageKey="lumi_sec_local_encryption" t={t} />
-              <SettingsItem label={t.anonymousMode || ui('匿名模式', 'Anonymous Mode')} desc={t.anonymousModeDesc || ui('在协作网络中隐藏你的节点 ID。', 'Hide your node ID from the collaborative network.')} storageKey="lumi_sec_anonymous_mode" t={t} />
-              <SettingsItem label={t.biometricLock || ui('生物识别锁', 'Biometric Lock')} desc={t.biometricLockDesc || ui('生成智能体时要求指纹或人脸验证。', 'Require fingerprint or face ID for Agent generation.')} storageKey="lumi_sec_biometric_lock" t={t} />
+              <SettingsItem label={t.localEncryption || ui('本地加密', 'Local Encryption')} desc={t.localEncryptionDesc || ui('加密存储在本地磁盘上的所有智能体数据。', 'Encrypt all Agent data stored on your local disk.')} storageKey="peppa_sec_local_encryption" t={t} />
+              <SettingsItem label={t.anonymousMode || ui('匿名模式', 'Anonymous Mode')} desc={t.anonymousModeDesc || ui('在协作网络中隐藏你的节点 ID。', 'Hide your node ID from the collaborative network.')} storageKey="peppa_sec_anonymous_mode" t={t} />
+              <SettingsItem label={t.biometricLock || ui('生物识别锁', 'Biometric Lock')} desc={t.biometricLockDesc || ui('生成智能体时要求指纹或人脸验证。', 'Require fingerprint or face ID for Agent generation.')} storageKey="peppa_sec_biometric_lock" t={t} />
             </SettingsSection>
             {isElectron && (
               <SettingsSection title={t.desktopNodeRuntime || ui('桌面节点运行时', 'Desktop Node Runtime')} icon={<Database size={18} className="text-celestial-jupiter" />}>
@@ -208,8 +208,8 @@ export function Settings({
                   <div className="flex justify-between items-center text-sm"><span className="text-white/60">{t.platform || ui('平台', 'Platform')}:</span><span className="font-mono text-celestial-jupiter uppercase">{platform}</span></div>
                   <div className="flex justify-between items-center text-sm"><span className="text-white/60">{t.nodeStatus || ui('节点状态', 'Node Status')}:</span><div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /><span className="font-bold text-green-500 underline decoration-green-500/20 underline-offset-4">{t.nodeActive || ui('运行中', 'ACTIVE')}</span></div></div>
                 </div>
-                <SettingsItem label={t.hardwareAcceleration || ui('硬件加速', 'Hardware Acceleration')} desc={t.hardwareAccelerationDesc || ui('使用 GPU 加速核心推理。', 'Use GPU for neural core inference.')} storageKey="lumi_sec_hw_accel" t={t} />
-                <SettingsItem label={t.systemTrayMode || ui('系统托盘模式', 'System Tray Mode')} desc={t.systemTrayModeDesc || ui('让 Lumi 在后台保持运行。', 'Keep Lumi running in the background.')} storageKey="lumi_sec_system_tray" t={t} />
+                <SettingsItem label={t.hardwareAcceleration || ui('硬件加速', 'Hardware Acceleration')} desc={t.hardwareAccelerationDesc || ui('使用 GPU 加速核心推理。', 'Use GPU for neural core inference.')} storageKey="peppa_sec_hw_accel" t={t} />
+                <SettingsItem label={t.systemTrayMode || ui('系统托盘模式', 'System Tray Mode')} desc={t.systemTrayModeDesc || ui('让 Peppa 在后台保持运行。', 'Keep Peppa running in the background.')} storageKey="peppa_sec_system_tray" t={t} />
               </SettingsSection>
             )}
 
@@ -230,7 +230,7 @@ export function Settings({
   };
 
   return (
-    <div className="lumi-surface flex h-full overflow-hidden">
+    <div className="peppa-surface flex h-full overflow-hidden">
       {/* Sidebar — fixed height, scrollable */}
       <div className="w-56 flex-shrink-0 border-r border-white/[0.08] bg-white/[0.025] flex flex-col min-h-0">
         <div className="px-4 pt-5 pb-3">
@@ -272,10 +272,10 @@ export function Settings({
             onClick={async () => {
               try {
                 await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-                localStorage.removeItem('lumi_auth_token');
+                localStorage.removeItem('peppa_auth_token');
                 window.location.reload();
               } catch {
-                localStorage.removeItem('lumi_auth_token');
+                localStorage.removeItem('peppa_auth_token');
                 window.location.reload();
               }
             }}
@@ -346,7 +346,7 @@ function HardwareSettings({ t }: { t: any }) {
     };
 
     const onStorageChange = (event: StorageEvent) => {
-      if (event.key === 'lumi_mic_enabled' || event.key === 'lumi_camera_enabled') refreshAccess();
+      if (event.key === 'peppa_mic_enabled' || event.key === 'peppa_camera_enabled') refreshAccess();
     };
 
     void refresh();
@@ -412,7 +412,7 @@ function HardwareSettings({ t }: { t: any }) {
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <SettingsSection title={t.hardwareSensorNetwork || ui('硬件传感器网络', 'Hardware Sensor Network')} icon={<Camera size={18} className="text-celestial-saturn" />}>
         <p className="text-sm text-white/40 mb-8 max-w-xl">
-          {t.hardwareSensorNetworkDesc || ui('LumiAI 需要访问物理传感器来进行现实上下文感知和生物识别验证。所有数据都会在你的本地节点处理。', 'LumiAI requires access to your physical sensors for real-world contextual awareness and biometric verification. All data is processed locally on your node.')}
+          {t.hardwareSensorNetworkDesc || ui('PeppaAI 需要访问物理传感器来进行现实上下文感知和生物识别验证。所有数据都会在你的本地节点处理。', 'PeppaAI requires access to your physical sensors for real-world contextual awareness and biometric verification. All data is processed locally on your node.')}
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -562,14 +562,14 @@ function LLMProviderRow({ icon, label, providerId, models, placeholder, disabled
   const isZh = t?.langCode !== 'en';
   const ui = (zh: string, en: string) => (isZh ? zh : en);
   const [keyValue, setKeyValue] = useState(() => {
-    try { return localStorage.getItem(`lumi_${providerId}_key`) || ''; } catch { return ''; }
+    try { return localStorage.getItem(`peppa_${providerId}_key`) || ''; } catch { return ''; }
   });
   const [saved, setSaved] = useState(false);
   const [serverConfigured, setServerConfigured] = useState(false);
   const [showKey, setShowKey] = useState(false);
 
   const savedModels = (() => {
-    try { return JSON.parse(localStorage.getItem('lumi_llm_models') || '{}'); } catch { return {}; }
+    try { return JSON.parse(localStorage.getItem('peppa_llm_models') || '{}'); } catch { return {}; }
   })();
   const [model, setModel] = useState(() => {
     return savedModels[providerId] || models[0];
@@ -583,7 +583,7 @@ function LLMProviderRow({ icon, label, providerId, models, placeholder, disabled
 
   const handleRemoveKey = () => {
     saveServerKeys({ [serverKey]: '' }).then(() => {
-      localStorage.removeItem(`lumi_${providerId}_key`);
+      localStorage.removeItem(`peppa_${providerId}_key`);
       setServerConfigured(false);
       setKeyValue('');
       setSaved(true);
@@ -595,7 +595,7 @@ function LLMProviderRow({ icon, label, providerId, models, placeholder, disabled
   const handleSaveKey = () => {
     if (!keyValue.trim()) return;
     saveServerKeys({ [serverKey]: keyValue.trim() }).then(() => {
-      localStorage.setItem(`lumi_${providerId}_key`, keyValue.trim());
+      localStorage.setItem(`peppa_${providerId}_key`, keyValue.trim());
       setServerConfigured(true);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -615,10 +615,10 @@ function LLMProviderRow({ icon, label, providerId, models, placeholder, disabled
   const handleModelChange = (m: string) => {
     setModel(m);
     const allModels = (() => {
-      try { return JSON.parse(localStorage.getItem('lumi_llm_models') || '{}'); } catch { return {}; }
+      try { return JSON.parse(localStorage.getItem('peppa_llm_models') || '{}'); } catch { return {}; }
     })();
     allModels[providerId] = m;
-    localStorage.setItem('lumi_llm_models', JSON.stringify(allModels));
+    localStorage.setItem('peppa_llm_models', JSON.stringify(allModels));
     syncToServer(allModels);
     if (aiConfig.provider === providerId) {
       updateAIConfig({ model: m });
@@ -695,13 +695,13 @@ function VisionProviderRow({ icon, label, providerId, models, placeholder, disab
   const isZh = t?.langCode !== 'en';
   const ui = (zh: string, en: string) => (isZh ? zh : en);
   const [keyValue, setKeyValue] = useState(() => {
-    try { return localStorage.getItem(`lumi_vision_${providerId}_key`) || ''; } catch { return ''; }
+    try { return localStorage.getItem(`peppa_vision_${providerId}_key`) || ''; } catch { return ''; }
   });
   const [saved, setSaved] = useState(false);
   const [serverConfigured, setServerConfigured] = useState(false);
   const [showKey, setShowKey] = useState(false);
   const savedModels = (() => {
-    try { return JSON.parse(localStorage.getItem('lumi_vision_models') || '{}'); } catch { return {}; }
+    try { return JSON.parse(localStorage.getItem('peppa_vision_models') || '{}'); } catch { return {}; }
   })();
   const [model, setModel] = useState(() => savedModels[providerId] || models[0]);
 
@@ -714,7 +714,7 @@ function VisionProviderRow({ icon, label, providerId, models, placeholder, disab
   const handleSaveKey = () => {
     if (!keyValue.trim()) return;
     saveServerKeys({ [serverKey]: keyValue.trim() }).then(() => {
-      localStorage.setItem(`lumi_vision_${providerId}_key`, keyValue.trim());
+      localStorage.setItem(`peppa_vision_${providerId}_key`, keyValue.trim());
       setServerConfigured(true);
       if (visionConfig.provider === providerId) {
         updateVisionConfig({ apiKey: keyValue.trim(), model });
@@ -727,7 +727,7 @@ function VisionProviderRow({ icon, label, providerId, models, placeholder, disab
 
   const handleRemoveKey = () => {
     saveServerKeys({ [serverKey]: '' }).then(() => {
-      localStorage.removeItem(`lumi_vision_${providerId}_key`);
+      localStorage.removeItem(`peppa_vision_${providerId}_key`);
       setServerConfigured(false);
       setKeyValue('');
       setSaved(true);
@@ -739,10 +739,10 @@ function VisionProviderRow({ icon, label, providerId, models, placeholder, disab
   const handleModelChange = (m: string) => {
     setModel(m);
     const allModels = (() => {
-      try { return JSON.parse(localStorage.getItem('lumi_vision_models') || '{}'); } catch { return {}; }
+      try { return JSON.parse(localStorage.getItem('peppa_vision_models') || '{}'); } catch { return {}; }
     })();
     allModels[providerId] = m;
-    localStorage.setItem('lumi_vision_models', JSON.stringify(allModels));
+    localStorage.setItem('peppa_vision_models', JSON.stringify(allModels));
     if (visionConfig.provider === providerId) {
       updateVisionConfig({ model: m });
     } else {
@@ -839,7 +839,7 @@ function VisionLocalProviderRow({ icon, label, providerId, endpoint, storageKey,
   const [checking, setChecking] = useState(false);
   const [saved, setSaved] = useState(false);
   const savedModels = (() => {
-    try { return JSON.parse(localStorage.getItem('lumi_vision_models') || '{}'); } catch { return {}; }
+    try { return JSON.parse(localStorage.getItem('peppa_vision_models') || '{}'); } catch { return {}; }
   })();
   const [model, setModel] = useState(() => savedModels[providerId] || defaultModel);
 
@@ -863,10 +863,10 @@ function VisionLocalProviderRow({ icon, label, providerId, endpoint, storageKey,
   const persistModel = (nextModel: string) => {
     setModel(nextModel);
     const allModels = (() => {
-      try { return JSON.parse(localStorage.getItem('lumi_vision_models') || '{}'); } catch { return {}; }
+      try { return JSON.parse(localStorage.getItem('peppa_vision_models') || '{}'); } catch { return {}; }
     })();
     allModels[providerId] = nextModel;
-    localStorage.setItem('lumi_vision_models', JSON.stringify(allModels));
+    localStorage.setItem('peppa_vision_models', JSON.stringify(allModels));
     if (visionConfig.provider === providerId) {
       updateVisionConfig({ model: nextModel });
     } else {
@@ -976,13 +976,13 @@ function VisionRelayProviderRow({ t }: { t?: any }) {
   const isZh = t?.langCode !== 'en';
   const ui = (zh: string, en: string) => (isZh ? zh : en);
   const [apiKey, setApiKey] = useState(() => {
-    try { return localStorage.getItem('lumi_relay_key') || ''; } catch { return ''; }
+    try { return localStorage.getItem('peppa_relay_key') || ''; } catch { return ''; }
   });
   const [baseUrl, setBaseUrl] = useState(() => {
-    try { return localStorage.getItem('lumi_relay_url') || 'http://localhost:8000/v1'; } catch { return 'http://localhost:8000/v1'; }
+    try { return localStorage.getItem('peppa_relay_url') || 'http://localhost:8000/v1'; } catch { return 'http://localhost:8000/v1'; }
   });
   const savedModels = (() => {
-    try { return JSON.parse(localStorage.getItem('lumi_vision_models') || '{}'); } catch { return {}; }
+    try { return JSON.parse(localStorage.getItem('peppa_vision_models') || '{}'); } catch { return {}; }
   })();
   const [model, setModel] = useState(() => savedModels.relay || 'qwen2.5-vl-7b-instruct');
   const [serverConfigured, setServerConfigured] = useState(false);
@@ -997,18 +997,18 @@ function VisionRelayProviderRow({ t }: { t?: any }) {
   const persistModel = (nextModel: string) => {
     setModel(nextModel);
     const allModels = (() => {
-      try { return JSON.parse(localStorage.getItem('lumi_vision_models') || '{}'); } catch { return {}; }
+      try { return JSON.parse(localStorage.getItem('peppa_vision_models') || '{}'); } catch { return {}; }
     })();
     allModels.relay = nextModel;
-    localStorage.setItem('lumi_vision_models', JSON.stringify(allModels));
+    localStorage.setItem('peppa_vision_models', JSON.stringify(allModels));
     if (visionConfig.provider === 'relay') updateVisionConfig({ model: nextModel });
   };
 
   const handleSave = () => {
     if (!apiKey.trim() || !baseUrl.trim()) return;
     saveServerKeys({ RELAY_API_KEY: apiKey.trim(), RELAY_BASE_URL: baseUrl.trim() }).then(() => {
-      localStorage.setItem('lumi_relay_key', apiKey.trim());
-      localStorage.setItem('lumi_relay_url', baseUrl.trim());
+      localStorage.setItem('peppa_relay_key', apiKey.trim());
+      localStorage.setItem('peppa_relay_url', baseUrl.trim());
       setServerConfigured(true);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -1084,14 +1084,14 @@ function VisionRelayProviderRow({ t }: { t?: any }) {
 }
 
 function ProactiveVoiceToggle() {
-  const storageKey = 'lumi_allow_proactive_voice';
+  const storageKey = 'peppa_allow_proactive_voice';
   const [enabled, setEnabled] = useState(() => localStorage.getItem(storageKey) === 'true');
 
   const toggle = () => {
     const next = !enabled;
     setEnabled(next);
     localStorage.setItem(storageKey, String(next));
-    window.dispatchEvent(new CustomEvent('lumi:setting-changed', {
+    window.dispatchEvent(new CustomEvent('peppa:setting-changed', {
       detail: { key: storageKey, value: next },
     }));
   };
@@ -1111,14 +1111,14 @@ function ProactiveVoiceToggle() {
 }
 
 function WakeWordToggle() {
-  const storageKey = 'lumi_wake_word_enabled';
+  const storageKey = 'peppa_wake_word_enabled';
   const [enabled, setEnabled] = useState(() => localStorage.getItem(storageKey) === 'true');
 
   const toggle = () => {
     const next = !enabled;
     setEnabled(next);
     localStorage.setItem(storageKey, String(next));
-    window.dispatchEvent(new CustomEvent('lumi:setting-changed', {
+    window.dispatchEvent(new CustomEvent('peppa:setting-changed', {
       detail: { key: storageKey, value: next },
     }));
   };
@@ -1138,7 +1138,7 @@ function WakeWordToggle() {
 }
 
 function AlwaysOnVoiceToggle() {
-  const storageKey = 'lumi_always_on_voice';
+  const storageKey = 'peppa_always_on_voice';
   const [enabled, setEnabled] = useState(() => localStorage.getItem(storageKey) === 'true');
 
   const toggle = () => {
@@ -1198,7 +1198,7 @@ function VisionModelPage({ t }: { t: any }) {
             label="Ollama Local Vision"
             providerId="ollama"
             endpoint="/api/ollama/config"
-            storageKey="lumi_ollama_url"
+            storageKey="peppa_ollama_url"
             defaultUrl="http://localhost:11434"
             defaultModel="qwen2.5vl:7b"
             suggestions={['qwen2.5vl:7b', 'minicpm-v:8b', 'llama3.2-vision:11b']}
@@ -1209,7 +1209,7 @@ function VisionModelPage({ t }: { t: any }) {
             label="LM Studio Local Vision"
             providerId="lmstudio"
             endpoint="/api/lmstudio/config"
-            storageKey="lumi_lmstudio_url"
+            storageKey="peppa_lmstudio_url"
             defaultUrl="http://localhost:1234"
             defaultModel="local-vision-model"
             suggestions={['qwen2.5-vl-7b-instruct', 'minicpm-v-4_5', 'internvl3_5-8b']}
@@ -1277,7 +1277,7 @@ function OllamaProviderRow({ t }: { t?: any }) {
   const isZh = t?.langCode !== 'en';
   const ui = (zh: string, en: string) => (isZh ? zh : en);
   const [baseUrl, setBaseUrl] = useState(() => {
-    try { return localStorage.getItem('lumi_ollama_url') || 'http://localhost:11434'; } catch { return 'http://localhost:11434'; }
+    try { return localStorage.getItem('peppa_ollama_url') || 'http://localhost:11434'; } catch { return 'http://localhost:11434'; }
   });
   const [detected, setDetected] = useState(false);
   const [models, setModels] = useState<string[]>([]);
@@ -1313,7 +1313,7 @@ function OllamaProviderRow({ t }: { t?: any }) {
       if (!resp.ok) throw new Error(cfg.error || 'Ollama detection failed');
       setDetected(!!cfg.detected);
       setModels(cfg.models || []);
-      localStorage.setItem('lumi_ollama_url', baseUrl);
+      localStorage.setItem('peppa_ollama_url', baseUrl);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch { setDetected(false); setModels([]); }
@@ -1365,7 +1365,7 @@ function LmStudioProviderRow({ t }: { t?: any }) {
   const isZh = t?.langCode !== 'en';
   const ui = (zh: string, en: string) => (isZh ? zh : en);
   const [baseUrl, setBaseUrl] = useState(() => {
-    try { return localStorage.getItem('lumi_lmstudio_url') || 'http://localhost:1234'; } catch { return 'http://localhost:1234'; }
+    try { return localStorage.getItem('peppa_lmstudio_url') || 'http://localhost:1234'; } catch { return 'http://localhost:1234'; }
   });
   const [detected, setDetected] = useState(false);
   const [models, setModels] = useState<string[]>([]);
@@ -1400,7 +1400,7 @@ function LmStudioProviderRow({ t }: { t?: any }) {
       if (!resp.ok) throw new Error(cfg.error || 'LM Studio detection failed');
       setDetected(!!cfg.detected);
       setModels(cfg.models || []);
-      localStorage.setItem('lumi_lmstudio_url', baseUrl);
+      localStorage.setItem('peppa_lmstudio_url', baseUrl);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch { setDetected(false); setModels([]); }
@@ -1473,28 +1473,29 @@ function VoiceServicesPage({ t }: { t: any }) {
           {t.voiceServicesDesc || ui('语音识别（ASR）和语音合成（TTS）。配置豆包语音后会自动优先使用。', 'Speech recognition (ASR) and speech synthesis (TTS). Doubao Speech is auto-prioritized when configured.')}
         </p>
         <div className="grid grid-cols-1 gap-6">
-          <ApiKeyField icon={<Volume2 size={18} className="text-emerald-400" />} label={t.doubaoSpeechLabel || 'Doubao Speech (STT + TTS)'} placeholder="AppID:AccessToken" storageKey="lumi_doubao_speech" serverKey="DOUBAO_SPEECH_KEY" hint={t.doubaoSpeechHint || ui('格式：AppID:AccessToken。可在 console.volcengine.com/speech 的应用管理中获取。', 'Format: AppID:AccessToken. Get both from console.volcengine.com/speech → App Management')} t={t} />
-          <ApiKeyField icon={<Zap size={18} className="text-violet-400" />} label={t.dashscopeLabel || 'DashScope (STT + TTS)'} placeholder="sk-..." storageKey="lumi_dashscope_key" serverKey="DASHSCOPE_API_KEY" hint={t.dashscopeHint || ui('用于 Qwen ASR 和 CosyVoice TTS。可在 dashscope.aliyun.com 获取密钥。', 'Powers Qwen ASR and CosyVoice TTS. Get your key at dashscope.aliyun.com')} t={t} />
+          <ApiKeyField icon={<Volume2 size={18} className="text-emerald-400" />} label={t.doubaoSpeechLabel || 'Doubao Speech (STT + TTS)'} placeholder="AppID:AccessToken" storageKey="peppa_doubao_speech" serverKey="DOUBAO_SPEECH_KEY" hint={t.doubaoSpeechHint || ui('格式：AppID:AccessToken。可在 console.volcengine.com/speech 的应用管理中获取。', 'Format: AppID:AccessToken. Get both from console.volcengine.com/speech → App Management')} t={t} />
+          <ApiKeyField icon={<Headphones size={18} className="text-blue-400" />} label="Deepgram (STT)" placeholder={ui('输入 Deepgram API Key...', 'Enter Deepgram API key...')} storageKey="peppa_deepgram_key" serverKey="DEEPGRAM_API_KEY" hint={ui('用于高质量云端语音识别。可在 console.deepgram.com 获取 API Key。免费额度：$200。', 'High-quality cloud speech recognition. Get your API key at console.deepgram.com. Free credit: $200.')} t={t} />
+          <ApiKeyField icon={<Zap size={18} className="text-violet-400" />} label={t.dashscopeLabel || 'DashScope (STT + TTS)'} placeholder="sk-..." storageKey="peppa_dashscope_key" serverKey="DASHSCOPE_API_KEY" hint={t.dashscopeHint || ui('用于 Qwen ASR 和 CosyVoice TTS。可在 dashscope.aliyun.com 获取密钥。', 'Powers Qwen ASR and CosyVoice TTS. Get your key at dashscope.aliyun.com')} t={t} />
         </div>
         <div className="mt-6 p-4 bg-white/5 rounded-xl border border-white/10">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-bold text-white/80">{t.proactiveVoiceGreeting || '允许Lumi主动语音问候'}</p>
-              <p className="text-xs text-white/55 mt-0.5">{t.proactiveVoiceGreetingDesc || '开启后，Lumi会在检测到异常或长时间不活动时主动开口说话'}</p>
+              <p className="text-xs font-bold text-white/80">{t.proactiveVoiceGreeting || '允许Peppa主动语音问候'}</p>
+              <p className="text-xs text-white/55 mt-0.5">{t.proactiveVoiceGreetingDesc || '开启后，Peppa会在检测到异常或长时间不活动时主动开口说话'}</p>
             </div>
             <ProactiveVoiceToggle />
           </div>
           <div className="flex items-center justify-between mt-3">
             <div>
               <p className="text-xs font-bold text-white/80">{t.wakeWordLabel || '唤醒词检测 (Wake Word)'}</p>
-              <p className="text-xs text-white/55 mt-0.5">{t.wakeWordDesc || '持续监听"Lumi"唤醒词。开启后麦克风持续上传音频做ASR识别，会产生费用。'}</p>
+              <p className="text-xs text-white/55 mt-0.5">{t.wakeWordDesc || '持续监听"Peppa"唤醒词。开启后麦克风持续上传音频做ASR识别，会产生费用。'}</p>
             </div>
             <WakeWordToggle />
           </div>
           <div className="flex items-center justify-between mt-3">
             <div>
               <p className="text-xs font-bold text-white/80">{t.alwaysOnVoiceLabel || '持续语音通道 (Always-On Voice)'}</p>
-              <p className="text-xs text-white/55 mt-0.5">{t.alwaysOnVoiceDesc || '开启后麦克风不会自动断开，Lumi始终在听。'}</p>
+              <p className="text-xs text-white/55 mt-0.5">{t.alwaysOnVoiceDesc || '开启后麦克风不会自动断开，Peppa始终在听。'}</p>
             </div>
             <AlwaysOnVoiceToggle />
           </div>
@@ -1602,10 +1603,10 @@ function RelayProviderRow({ t }: { t?: any }) {
   const isZh = t?.langCode !== 'en';
   const ui = (zh: string, en: string) => (isZh ? zh : en);
   const [apiKey, setApiKey] = useState(() => {
-    try { return localStorage.getItem('lumi_relay_key') || ''; } catch { return ''; }
+    try { return localStorage.getItem('peppa_relay_key') || ''; } catch { return ''; }
   });
   const [baseUrl, setBaseUrl] = useState(() => {
-    try { return localStorage.getItem('lumi_relay_url') || 'https://api.example.com/v1'; } catch { return 'https://api.example.com/v1'; }
+    try { return localStorage.getItem('peppa_relay_url') || 'https://api.example.com/v1'; } catch { return 'https://api.example.com/v1'; }
   });
   const [serverKeyOk, setServerKeyOk] = useState(false);
   const [serverUrlOk, setServerUrlOk] = useState(false);
@@ -1623,8 +1624,8 @@ function RelayProviderRow({ t }: { t?: any }) {
   const handleSave = () => {
     if (!apiKey.trim() || !baseUrl.trim()) return;
     saveServerKeys({ RELAY_API_KEY: apiKey.trim(), RELAY_BASE_URL: baseUrl.trim() }).then(() => {
-      localStorage.setItem('lumi_relay_key', apiKey.trim());
-      localStorage.setItem('lumi_relay_url', baseUrl.trim());
+      localStorage.setItem('peppa_relay_key', apiKey.trim());
+      localStorage.setItem('peppa_relay_url', baseUrl.trim());
       setServerKeyOk(true);
       setServerUrlOk(true);
       setSaved(true);
@@ -1635,8 +1636,8 @@ function RelayProviderRow({ t }: { t?: any }) {
 
   const handleRemove = () => {
     saveServerKeys({ RELAY_API_KEY: '', RELAY_BASE_URL: '' }).then(() => {
-      localStorage.removeItem('lumi_relay_key');
-      localStorage.removeItem('lumi_relay_url');
+      localStorage.removeItem('peppa_relay_key');
+      localStorage.removeItem('peppa_relay_url');
       setServerKeyOk(false);
       setServerUrlOk(false);
       setApiKey('');
@@ -1818,7 +1819,7 @@ function AutonomousSettingsPanel({ t, operationMode, setOperationMode }: { t: an
       if (kind === 'autostart') {
         await invoke('set_autostart_enabled', { enabled });
       } else {
-        localStorage.setItem('lumi_close_to_background', String(enabled));
+        localStorage.setItem('peppa_close_to_background', String(enabled));
         await invoke('set_close_to_background', { enabled });
       }
       await refreshNativeRuntime();
@@ -1881,7 +1882,7 @@ function AutonomousSettingsPanel({ t, operationMode, setOperationMode }: { t: an
         <div className="flex items-center justify-between">
           <div>
             <div className="text-xs font-black uppercase tracking-widest text-white/60">{ui('自主模式', 'Autonomy Mode')}</div>
-            <p className="text-xs text-white/40 mt-1">{ui('允许 Lumi 先给行动指南，再用工具、运行日志、桌面控制和团队智能体处理多步工作。', 'Allow Lumi to give an action guide, then handle multi-step work with tools, run logs, desktop control, and team agents.')}</p>
+            <p className="text-xs text-white/40 mt-1">{ui('允许 Peppa 先给行动指南，再用工具、运行日志、桌面控制和团队智能体处理多步工作。', 'Allow Peppa to give an action guide, then handle multi-step work with tools, run logs, desktop control, and team agents.')}</p>
           </div>
           <button
             onClick={() => setOperationMode(isAutonomous ? 'assistant' : 'autonomous')}
@@ -1893,7 +1894,7 @@ function AutonomousSettingsPanel({ t, operationMode, setOperationMode }: { t: an
         {isAutonomous && (
           <div className="flex items-center gap-2 text-xs text-cyan-400/70">
             <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-            {ui('自主模式已开启：Lumi 可以把复杂任务拆成可见的工作路径。', 'Autonomy active: Lumi can turn complex tasks into visible work paths.')}
+            {ui('自主模式已开启：Peppa 可以把复杂任务拆成可见的工作路径。', 'Autonomy active: Peppa can turn complex tasks into visible work paths.')}
           </div>
         )}
       </div>
@@ -1902,17 +1903,17 @@ function AutonomousSettingsPanel({ t, operationMode, setOperationMode }: { t: an
       <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-3">
         <div>
           <div className="text-xs font-black uppercase tracking-widest text-white/60">{ui('常驻在线', 'Always Online')}</div>
-          <p className="text-xs text-white/40 mt-1">{ui('桌面客户端或后台服务运行时，Lumi 可以保持待命。自动处理由下面的安全门单独控制。', 'Lumi can stay ready while the desktop client or background server is running. Automatic processing is controlled separately.')}</p>
+          <p className="text-xs text-white/40 mt-1">{ui('桌面客户端或后台服务运行时，Peppa 可以保持待命。自动处理由下面的安全门单独控制。', 'Peppa can stay ready while the desktop client or background server is running. Automatic processing is controlled separately.')}</p>
         </div>
         <ToggleRow
-          label={ui('保持 Lumi 待命', 'Keep Lumi ready')}
+          label={ui('保持 Peppa 待命', 'Keep Peppa ready')}
           desc={ui('应用在线时允许后台扫描、状态中继、计划任务和待处理工作流检查。', 'Allows background scans, state relay, schedulers, and pending workflow checks while the app is online.')}
           checked={gateConfig.alwaysOnline}
           onClick={() => updateGate({ alwaysOnline: !gateConfig.alwaysOnline })}
         />
         <ToggleRow
           label={ui('自动处理已确认工作流', 'Auto-process confirmed workflows')}
-          desc={ui('只有用户已经同意该工作流后，Lumi 才会执行排队的后台工作。', 'Lets Lumi execute queued background work only after the user has agreed to that workflow.')}
+          desc={ui('只有用户已经同意该工作流后，Peppa 才会执行排队的后台工作。', 'Lets Peppa execute queued background work only after the user has agreed to that workflow.')}
           checked={gateConfig.autoProcessEnabled}
           onClick={() => updateGate({ autoProcessEnabled: !gateConfig.autoProcessEnabled })}
           danger
@@ -1942,13 +1943,13 @@ function AutonomousSettingsPanel({ t, operationMode, setOperationMode }: { t: an
             <div className="space-y-2">
               <ToggleRow
                 label={ui('开机登录后启动', 'Launch at login')}
-                desc={nativeRuntime.autostart_supported ? ui('为当前 Windows 用户安装项以 --background 模式启动 Lumi。', 'Starts Lumi with --background for current Windows user installs.') : ui('当前平台暂不支持登录后启动。', 'Launch at login is not supported on this platform yet.')}
+                desc={nativeRuntime.autostart_supported ? ui('为当前 Windows 用户安装项以 --background 模式启动 Peppa。', 'Starts Peppa with --background for current Windows user installs.') : ui('当前平台暂不支持登录后启动。', 'Launch at login is not supported on this platform yet.')}
                 checked={nativeRuntime.autostart_enabled}
                 onClick={() => nativeRuntime.autostart_supported && updateNativeRuntime('autostart', !nativeRuntime.autostart_enabled)}
               />
               <ToggleRow
                 label={ui('关闭按钮转入后台', 'Close button hides to background')}
-                desc={ui('顶部关闭按钮和 Alt+F4 会隐藏 Lumi，而不是停止后端。需要完全退出时使用托盘退出。', 'The top close button and Alt+F4 hide Lumi instead of stopping the backend. Use tray Quit to fully exit.')}
+                desc={ui('顶部关闭按钮和 Alt+F4 会隐藏 Peppa，而不是停止后端。需要完全退出时使用托盘退出。', 'The top close button and Alt+F4 hide Peppa instead of stopping the backend. Use tray Quit to fully exit.')}
                 checked={nativeRuntime.close_to_background}
                 onClick={() => updateNativeRuntime('closeToBackground', !nativeRuntime.close_to_background)}
               />
@@ -1969,7 +1970,7 @@ function AutonomousSettingsPanel({ t, operationMode, setOperationMode }: { t: an
                   onClick={() => invokeRuntimeAction('quit')}
                   className="rounded-lg border border-red-400/20 bg-red-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-red-200/70 hover:bg-red-400/15 hover:text-red-100"
                 >
-                  {ui('退出 Lumi', 'Quit Lumi')}
+                  {ui('退出 Peppa', 'Quit Peppa')}
                 </button>
               </div>
             </div>
@@ -1985,18 +1986,18 @@ function AutonomousSettingsPanel({ t, operationMode, setOperationMode }: { t: an
       <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-3">
         <div>
           <div className="text-xs font-black uppercase tracking-widest text-white/60">{ui('外部应用', 'External Apps')}</div>
-          <p className="text-xs text-white/40 mt-1">{ui('浏览器、微信、CAD 和其他 AI 应用会先经过适配器路由，再由 Lumi 使用视觉控制。', 'Browser, WeChat, CAD, and other AI apps are routed through adapters before Lumi uses visual control.')}</p>
+          <p className="text-xs text-white/40 mt-1">{ui('浏览器、微信、CAD 和其他 AI 应用会先经过适配器路由，再由 Peppa 使用视觉控制。', 'Browser, WeChat, CAD, and other AI apps are routed through adapters before Peppa uses visual control.')}</p>
         </div>
         <ToggleRow
           label={ui('允许外部应用自动化', 'Allow external app automation')}
-          desc={ui('Lumi 通过适配器打开或控制外部应用前需要开启。关闭时只生成草稿和文件。', 'Required before Lumi opens or controls external apps through adapters. Keep off for draft-only behavior.')}
+          desc={ui('Peppa 通过适配器打开或控制外部应用前需要开启。关闭时只生成草稿和文件。', 'Required before Peppa opens or controls external apps through adapters. Keep off for draft-only behavior.')}
           checked={gateConfig.externalAppAutomationEnabled}
           onClick={() => updateGate({ externalAppAutomationEnabled: !gateConfig.externalAppAutomationEnabled })}
           danger
         />
         <ToggleRow
           label={ui('发送消息前确认', 'Confirm before message sending')}
-          desc={ui('Lumi 可以准备并复制消息草稿，但最终发送仍需要用户确认。', 'Lumi may prepare and copy message drafts, but sending should remain user-confirmed.')}
+          desc={ui('Peppa 可以准备并复制消息草稿，但最终发送仍需要用户确认。', 'Peppa may prepare and copy message drafts, but sending should remain user-confirmed.')}
           checked={gateConfig.messagingSendRequiresConfirmation}
           onClick={() => updateGate({ messagingSendRequiresConfirmation: !gateConfig.messagingSendRequiresConfirmation })}
         />

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# LumiOS macOS Deployment
+# Peppa macOS Deployment
 # Usage: ./scripts/deploy-macos.sh [install_dir]
-# Default: /Applications/LumiOS.app
+# Default: /Applications/Peppa.app
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-INSTALL_DIR="${1:-/Applications/LumiOS.app}"
+INSTALL_DIR="${1:-/Applications/Peppa.app}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -17,7 +17,7 @@ GRAY='\033[0;90m'
 NC='\033[0m'
 
 echo -e "${CYAN}============================================"
-echo -e "  LumiOS Deployment"
+echo -e "  Peppa Deployment"
 echo -e "  Install: ${INSTALL_DIR}"
 echo -e "============================================${NC}"
 
@@ -73,14 +73,14 @@ echo -e "${YELLOW}[5/6] Installing to ${INSTALL_DIR}...${NC}"
 
 sudo mkdir -p "$INSTALL_DIR"
 
-BINARY="$PROJECT_DIR/src-tauri/target/release/lumi-os"
+BINARY="$PROJECT_DIR/src-tauri/target/release/peppa-os"
 if [ ! -f "$BINARY" ]; then
-  echo -e "${RED}ERROR: lumi-os binary not found at ${BINARY}${NC}"
+  echo -e "${RED}ERROR: peppa-os binary not found at ${BINARY}${NC}"
   exit 1
 fi
-sudo cp "$BINARY" "$INSTALL_DIR/lumi-os"
-sudo chmod +x "$INSTALL_DIR/lumi-os"
-echo -e "${GRAY}  lumi-os${NC}"
+sudo cp "$BINARY" "$INSTALL_DIR/peppa-os"
+sudo chmod +x "$INSTALL_DIR/peppa-os"
+echo -e "${GRAY}  peppa-os${NC}"
 
 # Copy dist-server (Node.js backend)
 DIST_SERVER="$PROJECT_DIR/desktop-resources/dist-server"
@@ -103,10 +103,10 @@ echo -e "${YELLOW}[6/6] Creating desktop shortcut...${NC}"
 
 # Create a .app-like launcher in /Applications that the user can pin to Dock
 DESKTOP_DIR="$HOME/Desktop"
-LAUNCHER="$DESKTOP_DIR/Lumi OS.command"
+LAUNCHER="$DESKTOP_DIR/Peppa OS.command"
 cat > "$LAUNCHER" << LAUNCHEREOF
 #!/usr/bin/env bash
-exec "$INSTALL_DIR/lumi-os" &
+exec "$INSTALL_DIR/peppa-os" &
 LAUNCHEREOF
 chmod +x "$LAUNCHER"
 echo -e "${GREEN}  Desktop launcher: ${LAUNCHER}${NC}"
@@ -114,7 +114,7 @@ echo -e "${GREEN}  Desktop launcher: ${LAUNCHER}${NC}"
 echo ""
 echo -e "${CYAN}============================================"
 echo -e "  Deployment complete!"
-echo -e "  Data: ~/LumiOS/data/"
+echo -e "  Data: ~/Peppa/data/"
 echo -e "  App:  ${INSTALL_DIR}/"
 echo -e "  Desktop launcher ready."
 echo -e "============================================${NC}"

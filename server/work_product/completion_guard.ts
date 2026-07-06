@@ -28,7 +28,7 @@ const FILE_CREATION_CLAIM_RE =
   /(?:已经|已|都)?[^。！？\n]{0,18}(?:生成|创建|保存|输出|写入|导出)|(?:生成好了|创建好了|保存好了|输出好了)|\b(?:created|saved|exported|generated)\b/i;
 
 const INSPECTION_ONLY_TOOL_RE =
-  /^(read_|list_|search_|grep_|desktop_path_info|desktop_list_files|client_get_state|adapter_health_check|usage_get_summary|calendar_|lumi_constitution|agent_list|get_|path_info)/i;
+  /^(read_|list_|search_|grep_|desktop_path_info|desktop_list_files|client_get_state|adapter_health_check|usage_get_summary|calendar_|peppa_constitution|agent_list|get_|path_info)/i;
 
 const FILE_PRODUCER_TOOL_RE =
   /^(write_file|create_ppt|create_docx|create_pdf|cad_generate_dxf|generate_.*(?:dxf|ppt|file)|export_|save_|document_)/i;

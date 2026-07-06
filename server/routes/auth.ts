@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, Request } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
@@ -16,6 +16,14 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+function getAuthToken(req: Request): string | null {
+  let token = req.cookies?.token;
+  if (!token && req.headers.authorization?.startsWith('Bearer ')) {
+    token = req.headers.authorization.slice(7);
+  }
+  return token || null;
+}
 
 export function mountAuthRoutes(router: Router, jwtSecret: string, getCookieOptions: () => any) {
   router.post("/auth/register", authLimiter, async (req, res) => {
@@ -85,12 +93,7 @@ export function mountAuthRoutes(router: Router, jwtSecret: string, getCookieOpti
   });
 
   router.get("/auth/me", (req, res) => {
-    let token = req.cookies.token;
-    // Fallback: WebView2 may not send httpOnly cookies, check Authorization header
-    if (!token) {
-      const authHeader = req.headers.authorization;
-      if (authHeader?.startsWith('Bearer ')) token = authHeader.slice(7);
-    }
+    const token = getAuthToken(req);
     if (!token) return res.status(401).json({ error: "Not authenticated" });
     try {
       const decoded: any = jwt.verify(token, jwtSecret);
@@ -111,62 +114,32 @@ export function mountAuthRoutes(router: Router, jwtSecret: string, getCookieOpti
     res.json({ success: true });
   });
 
-  // Bootstrap endpoint: auto-login for local admin account
-  // Only active when AUTO_LOGIN_PASSWORD env var is configured
+  // Bootstrap endpoint: check current session state without creating any user
   router.get("/auth/bootstrap", async (req, res) => {
     try {
-    const adminPassword = process.env.AUTO_LOGIN_PASSWORD || 'lumi_admin_2026';
-
-    const db = readDB();
-    let admin = db.users.find((u: any) => u.username === "admin");
-
-    if (!admin) {
-      // Create admin account on first bootstrap
-      const hashedPassword = await bcrypt.hash(adminPassword, 10);
-      admin = {
-        uid: Math.random().toString(36).substring(2, 15),
-        username: "admin",
-        password: hashedPassword,
-        phone: "+00000000000",
-        role: "admin",
-        balance: 999.0,
-        createdAt: new Date().toISOString(),
-      };
-      db.users.push(admin);
-      writeDB(db);
-    }
-
-    // Verify password matches current AUTO_LOGIN_PASSWORD
-    const pwMatch = await bcrypt.compare(adminPassword, admin.password);
-    if (!pwMatch) {
-      // Password changed in .env — update stored hash
-      admin.password = await bcrypt.hash(adminPassword, 10);
-      const idx = db.users.findIndex((u: any) => u.username === "admin");
-      if (idx >= 0) {
-        db.users[idx].password = admin.password;
-        writeDB(db);
+      const token = getAuthToken(req) || "";
+      if (!token) {
+        return res.status(401).json({ success: false, error: "Not authenticated" });
       }
-    }
 
-    const tokenPayload: any = { uid: admin.uid, username: "admin", role: admin.role };
-    const token = jwt.sign(
-      tokenPayload,
-      jwtSecret,
-      { expiresIn: "24h" },
-    );
-    res.cookie("token", token, getCookieOptions());
-    const { password: _, ...userWithoutPassword } = admin;
-    const userResp: any = { ...userWithoutPassword };
-    return res.json({ success: true, user: userResp, token });
+      const decoded: any = jwt.verify(token, jwtSecret);
+      const db = readDB();
+      const user = db.users.find((u: any) => u.uid === decoded.uid);
+      if (!user) {
+        return res.status(401).json({ success: false, error: "User not found" });
+      }
+
+      const { password: _, ...userWithoutPassword } = user;
+      return res.json({ success: true, user: userWithoutPassword });
     } catch (err: any) {
       console.error('[Auth] bootstrap error:', err.message);
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(401).json({ success: false, error: 'Not authenticated' });
     }
   });
 
   router.post("/auth/change-password", async (req, res) => {
     try {
-    const token = req.cookies.token;
+    const token = getAuthToken(req);
     if (!token) return res.status(401).json({ error: "Unauthorized" });
 
     const decoded: any = jwt.verify(token, jwtSecret);
@@ -202,10 +175,7 @@ export function mountAuthRoutes(router: Router, jwtSecret: string, getCookieOpti
 
   // Switch into organization context — returns a new JWT with orgId + orgRole
   router.post("/auth/switch-org", (req, res) => {
-    let token = req.cookies.token;
-    if (!token && req.headers.authorization?.startsWith('Bearer ')) {
-      token = req.headers.authorization.slice(7);
-    }
+    const token = getAuthToken(req);
     if (!token) return res.status(401).json({ error: "Not authenticated" });
 
     try {
@@ -256,8 +226,7 @@ export function mountAuthRoutes(router: Router, jwtSecret: string, getCookieOpti
 
   // Enroll a voiceprint: receives MFCC features extracted in-browser
   router.put("/auth/biometric/voiceprint/enroll", async (req, res) => {
-    let token = req.cookies.token;
-    if (!token && req.headers.authorization?.startsWith('Bearer ')) token = req.headers.authorization.slice(7);
+    const token = getAuthToken(req);
     if (!token) return res.status(401).json({ error: "Not authenticated" });
     try {
       const decoded: any = jwt.verify(token, jwtSecret);
@@ -303,8 +272,7 @@ export function mountAuthRoutes(router: Router, jwtSecret: string, getCookieOpti
 
   // Verify a recent speech window against enrolled voiceprints.
   router.post("/auth/biometric/voiceprint/verify", async (req, res) => {
-    let token = req.cookies.token;
-    if (!token && req.headers.authorization?.startsWith('Bearer ')) token = req.headers.authorization.slice(7);
+    const token = getAuthToken(req);
     if (!token) return res.status(401).json({ error: "Not authenticated" });
     try {
       const decoded: any = jwt.verify(token, jwtSecret);
@@ -334,8 +302,7 @@ export function mountAuthRoutes(router: Router, jwtSecret: string, getCookieOpti
 
   // Enroll a face: receives embedding extracted in-browser via MediaPipe
   router.put("/auth/biometric/face/enroll", (req, res) => {
-    let token = req.cookies.token;
-    if (!token && req.headers.authorization?.startsWith('Bearer ')) token = req.headers.authorization.slice(7);
+    const token = getAuthToken(req);
     if (!token) return res.status(401).json({ error: "Not authenticated" });
     try {
       const decoded: any = jwt.verify(token, jwtSecret);
@@ -356,8 +323,7 @@ export function mountAuthRoutes(router: Router, jwtSecret: string, getCookieOpti
 
   // List enrolled biometrics for current user
   router.get("/auth/biometric/list", (req, res) => {
-    let token = req.cookies.token;
-    if (!token && req.headers.authorization?.startsWith('Bearer ')) token = req.headers.authorization.slice(7);
+    const token = getAuthToken(req);
     if (!token) return res.status(401).json({ error: "Not authenticated" });
     try {
       const decoded: any = jwt.verify(token, jwtSecret);
@@ -381,8 +347,7 @@ export function mountAuthRoutes(router: Router, jwtSecret: string, getCookieOpti
 
   // Delete a biometric item
   router.delete("/auth/biometric/:type/:id", (req, res) => {
-    let token = req.cookies.token;
-    if (!token && req.headers.authorization?.startsWith('Bearer ')) token = req.headers.authorization.slice(7);
+    const token = getAuthToken(req);
     if (!token) return res.status(401).json({ error: "Not authenticated" });
     try {
       const decoded: any = jwt.verify(token, jwtSecret);
@@ -403,8 +368,7 @@ export function mountAuthRoutes(router: Router, jwtSecret: string, getCookieOpti
 
   // Switch to another user (biometric-triggered multi-user mode)
   router.post("/auth/switch-user", (req, res) => {
-    let token = req.cookies.token;
-    if (!token && req.headers.authorization?.startsWith('Bearer ')) token = req.headers.authorization.slice(7);
+    const token = getAuthToken(req);
     if (!token) return res.status(401).json({ error: "Not authenticated" });
     try {
       const decoded: any = jwt.verify(token, jwtSecret);
@@ -436,10 +400,7 @@ export function mountAuthRoutes(router: Router, jwtSecret: string, getCookieOpti
 
   // List user's organization memberships (for org switcher UI)
   router.get("/auth/orgs", (req, res) => {
-    let token = req.cookies.token;
-    if (!token && req.headers.authorization?.startsWith('Bearer ')) {
-      token = req.headers.authorization.slice(7);
-    }
+    const token = getAuthToken(req);
     if (!token) return res.status(401).json({ error: "Not authenticated" });
 
     try {

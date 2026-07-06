@@ -93,7 +93,7 @@ export function registerAmbientHandlers(socket: Socket, getUserId: (s: Socket) =
           socket.emit('autonomous:away_summary', {
             awayMinutes,
             taskCount: recentTasks.length,
-            summary: `你离开的${awayMinutes}分钟里，Lumi完成了${recentTasks.length}项任务:\n${summary}`,
+            summary: `你离开的${awayMinutes}分钟里，Peppa完成了${recentTasks.length}项任务:\n${summary}`,
             tasks: recentTasks.map((t: any) => ({ id: t.id, title: t.title, result: t.result?.slice(0, 200) })),
           });
         }

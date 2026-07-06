@@ -244,7 +244,7 @@ async function handleDesktopExec(socket: Socket, data: {
           output = 'Wallpaper mode request ignored: only controlled computer_use sessions may toggle it.';
           break;
         }
-        window.dispatchEvent(new CustomEvent('lumi:set-wallpaper-mode', {
+        window.dispatchEvent(new CustomEvent('peppa:set-wallpaper-mode', {
           detail: {
             enabled: Boolean(args.enabled),
             source: args.source,
@@ -309,7 +309,7 @@ async function dispatchClientAction(args: Record<string, any>): Promise<string> 
       reject(new Error('Client action timed out'));
     }, 5000);
 
-    window.dispatchEvent(new CustomEvent('lumi:client-action', {
+    window.dispatchEvent(new CustomEvent('peppa:client-action', {
       detail: {
         ...args,
         respond: (result: any) => {

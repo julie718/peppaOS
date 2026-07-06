@@ -13,7 +13,7 @@ interface MusicAtmosphere {
   track: { name: string; artists: string[]; album?: string; coverUrl?: string; duration?: number };
   mood: string;
   weather?: string;
-  lumiReason?: string;
+  peppaReason?: string;
   audioUrl?: string;
   nativePlayback?: boolean;
   queue?: Array<{

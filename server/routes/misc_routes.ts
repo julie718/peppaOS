@@ -93,7 +93,7 @@ export function mountMiscRoutes(router: Router, _jwtSecret: string, llm: {
     }
   });
 
-  // ── Org Chat (simpler version of /ai/chat, used by CentralLumiChat) ──
+  // ── Org Chat (simpler version of /ai/chat, used by CentralPeppaChat) ──
   router.post("/chat", optionalAuth, asyncHandler(async (req, res) => {
     const { messages, provider: reqProvider } = req.body || {};
     if (!messages || !Array.isArray(messages)) {

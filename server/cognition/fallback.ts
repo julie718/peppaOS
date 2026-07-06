@@ -1,8 +1,8 @@
 /**
- * Fallback Response System — Lumi's LLM-independent voice.
+ * Fallback Response System — Peppa's LLM-independent voice.
  *
  * When the LLM is unreachable or the intent is simple enough to handle locally,
- * Lumi responds using this deterministic response engine. This ensures Lumi
+ * Peppa responds using this deterministic response engine. This ensures Peppa
  * always has a voice, regardless of which LLM is connected (or even if none is).
  */
 
@@ -10,9 +10,9 @@ import { IntentResult } from './intent';
 
 const GREETING_RESPONSES = [
   '嘿，我在呢。有什么需要我帮忙的吗？',
-  '你好！我是 Lumi，随时为你服务。',
+  '你好！我是 Peppa，随时为你服务。',
   'Hi！我在。说吧，我能做什么？',
-  'Lumi 在线。需要我帮你做什么吗？',
+  'Peppa 在线。需要我帮你做什么吗？',
 ];
 
 const THANKS_RESPONSES = [

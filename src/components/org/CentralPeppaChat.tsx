@@ -41,16 +41,16 @@ function normalizeHistoryMessage(item: any): Message | null {
   };
 }
 
-export function CentralLumiChat() {
+export function CentralPeppaChat() {
   const t = useT();
   const socket = useSocket();
   const { orgConnection } = useApp();
   const isZh = t.langCode !== 'en';
   const ui = useCallback((zh: string, en: string) => (isZh ? zh : en), [isZh]);
   const greeting = useCallback((): Message => ({
-    id: 'org-lumi-greeting',
+    id: 'org-peppa-greeting',
     role: 'assistant',
-    content: ui('你好，我是你们公司的 Lumi。我可以协助查询制度、文化、知识库和组织信息。你想了解什么？', "Hello! I'm your company's Lumi. I can help with policies, culture, knowledge base, and more. What would you like to know?"),
+    content: ui('你好，我是你们公司的 Peppa。我可以协助查询制度、文化、知识库和组织信息。你想了解什么？', "Hello! I'm your company's Peppa. I can help with policies, culture, knowledge base, and more. What would you like to know?"),
     timestamp: Date.now(),
     source: 'system',
   }), [ui]);
@@ -105,14 +105,14 @@ export function CentralLumiChat() {
     ? `${llmPolicy.provider || llmPolicy.inheritedProvider || '-'} / ${llmPolicy.model || llmPolicy.inheritedModel || '-'}`
     : ui('加载中', 'Loading');
   const openOrgSettings = () => {
-    window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'org', sub: 'settings' } }));
+    window.dispatchEvent(new CustomEvent('peppa:navigate', { detail: { tab: 'org', sub: 'settings' } }));
   };
 
   useEffect(() => {
     let cancelled = false;
     const loadConversation = async () => {
       try {
-        const activeRes = await fetch('/api/conversations/active?domain=work&agentId=lumi', {
+        const activeRes = await fetch('/api/conversations/active?domain=work&agentId=peppa', {
           credentials: 'include',
         });
         const activeData = await activeRes.json().catch(() => ({}));
@@ -208,7 +208,7 @@ export function CentralLumiChat() {
       setMessages(prev => [...prev, {
         id: makeMessageId('org-error'),
         role: 'assistant',
-        content: data.message || ui('公司 Lumi 暂时无法回答这个问题。', "Company Lumi can't answer right now."),
+        content: data.message || ui('公司 Peppa 暂时无法回答这个问题。', "Company Peppa can't answer right now."),
         timestamp: Date.now(),
         source: 'error',
       }]);
@@ -273,7 +273,7 @@ export function CentralLumiChat() {
       setMessages(prev => [...prev, {
         id: makeMessageId('org-timeout'),
         role: 'assistant',
-        content: ui('公司 Lumi 响应超时了，请稍后重试。', 'Company Lumi timed out. Please try again shortly.'),
+        content: ui('公司 Peppa 响应超时了，请稍后重试。', 'Company Peppa timed out. Please try again shortly.'),
         timestamp: Date.now(),
         source: 'error',
       }]);
@@ -286,9 +286,9 @@ export function CentralLumiChat() {
     socket.emit('agent:chat', {
       text,
       history,
-      personalityId: 'lumi',
+      personalityId: 'peppa',
       category: 'organization',
-      agentId: 'lumi',
+      agentId: 'peppa',
       domain: 'work',
       orgId: orgConnection.orgId,
       source: 'org-chat',

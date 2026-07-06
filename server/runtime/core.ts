@@ -65,7 +65,7 @@ export function createApp(): AppContext {
     res.status(500).json({ error: err?.message || 'Internal server error' });
   });
 
-  const JWT_SECRET = process.env.JWT_SECRET || 'lumiOS_default_jwt_secret_2026_local';
+  const JWT_SECRET = process.env.JWT_SECRET || 'peppaOS_default_jwt_secret_2026_local';
 
   // Serialize personality file writes to prevent concurrent overwrites
   // SameSite=None requires Secure (Chromium silently rejects otherwise).

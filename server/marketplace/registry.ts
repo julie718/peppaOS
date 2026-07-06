@@ -1,10 +1,10 @@
 /**
- * LumiOS Skill Marketplace Registry
+ * Peppa Skill Marketplace Registry
  *
  * Dynamically discovers skills from:
  *   - Bundled skills in server/skills/bundled/
  *   - Community registry (published skills)
- *   - Local ~/lumi_skills/ installs
+ *   - Local ~/peppa_skills/ installs
  */
 import fs from 'fs';
 import path from 'path';
@@ -16,7 +16,7 @@ import { getTranslation, translateCategory } from '../skills/translations';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export const SKILLS_DIR = path.join(os.homedir(), 'lumi_skills');
+export const SKILLS_DIR = path.join(os.homedir(), 'peppa_skills');
 
 function resolveBundledDir(): string {
   const candidates = [
@@ -84,33 +84,33 @@ function discoverBundledSkills(scope?: MarketplaceAgentScope): MarketplaceSkill[
 
     try {
       const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-      const lumi = pkg.lumi || {};
-      const runtime = lumi.runtime || 'internal';
-      const teamAgent = runtime === 'external' ? findSkillTeamAgent(entry.name, lumi.displayName, scope) : undefined;
+      const peppa = pkg.peppa || {};
+      const runtime = peppa.runtime || 'internal';
+      const teamAgent = runtime === 'external' ? findSkillTeamAgent(entry.name, peppa.displayName, scope) : undefined;
       const installed = runtime === 'external'
-        ? isInstalledSkill(entry.name, lumi.displayName) || !!teamAgent
-        : isInstalledSkill(entry.name, lumi.displayName);
+        ? isInstalledSkill(entry.name, peppa.displayName) || !!teamAgent
+        : isInstalledSkill(entry.name, peppa.displayName);
       skills.push({
         id: `skill-${entry.name}`,
-        name: lumi.displayName || toDisplayName(entry.name),
+        name: peppa.displayName || toDisplayName(entry.name),
         description: pkg.description || '',
-        author: 'Lumi Official',
+        author: 'Peppa Official',
         downloads: 0,
         rating: 0,
-        category: lumi.category || 'Other',
-        icon: lumi.icon || 'Zap',
+        category: peppa.category || 'Other',
+        icon: peppa.icon || 'Zap',
         installSource: 'bundled',
         installPath: path.join(BUNDLED_DIR, entry.name),
         installed,
         version: pkg.version,
-        toolCount: lumi.toolCount || 1,
-        requiresApiKey: lumi.requiresApiKey || false,
-        apiKeyEnv: lumi.apiKeyEnv,
-        apiKeyUrl: lumi.apiKeyUrl,
-        requiresSetup: lumi.requiresSetup || false,
-        setupNote: lumi.setupNote,
+        toolCount: peppa.toolCount || 1,
+        requiresApiKey: peppa.requiresApiKey || false,
+        apiKeyEnv: peppa.apiKeyEnv,
+        apiKeyUrl: peppa.apiKeyUrl,
+        requiresSetup: peppa.requiresSetup || false,
+        setupNote: peppa.setupNote,
         runtime,
-        externalCommand: lumi.externalCommand,
+        externalCommand: peppa.externalCommand,
         externalAgentId: teamAgent?.id,
         externalHealthStatus: teamAgent?.healthStatus,
       });

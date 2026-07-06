@@ -1,7 +1,7 @@
 /**
- * Conversation Modes — Lumi's interaction style presets.
+ * Conversation Modes — Peppa's interaction style presets.
  *
- * Each mode applies a prompt overlay that shapes HOW Lumi responds
+ * Each mode applies a prompt overlay that shapes HOW Peppa responds
  * without changing WHO she is (personality). Modes are user-selectable
  * per conversation and affect tone, depth, and interaction patterns.
  */

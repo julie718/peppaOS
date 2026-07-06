@@ -14,7 +14,7 @@ export interface AgentRecord {
   userId?: string;
   status: string;
   /** REMOVED: personalityId — agents no longer bind to a personality.
-   *  Lumi is the sole orchestrator; worker agents are limbs. */
+   *  Peppa is the sole orchestrator; worker agents are limbs. */
   personalityId?: string;
   modelPreference: string;
   memoryScope: 'shared' | 'private';
@@ -119,7 +119,7 @@ export class AgentRuntime {
       } as any,
       {
         tier: memory.tier || 'episodic',
-        perspective: memory.perspective || 'lumi_self',
+        perspective: memory.perspective || 'peppa_self',
         importance: (memory as any).importance || 0.3,
       },
     );
@@ -176,7 +176,7 @@ export class AgentRuntime {
           .map((i: any) => `- ${i.timestamp}: ${(i.message || i.content || '').slice(0, 80)}`)
           .join('\n');
 
-        const analysisPrompt = `You are Lumi's introspective analysis module. Review the following recent data and generate ONE brief, warm, insightful reflection in Chinese (under 100 characters).
+        const analysisPrompt = `You are Peppa's introspective analysis module. Review the following recent data and generate ONE brief, warm, insightful reflection in Chinese (under 100 characters).
 
 Focus on:
 - What the user has been focused on or thinking about
@@ -205,11 +205,11 @@ Return ONLY the reflection text — no preamble, no labels, no markdown.`;
           userId,
           type: 'knowledge',
           content: `[Autonomous Reflection] ${reflection}`,
-          keywords: ['autonomous_reflection', 'introspection', 'lumi_growth'],
+          keywords: ['autonomous_reflection', 'introspection', 'peppa_growth'],
           confidence: 0.7,
           sourceInteractionId: 'autonomous_tick',
           tier: 'growth',
-          perspective: 'lumi_self',
+          perspective: 'peppa_self',
           importance: 0.5,
         } as any);
       } catch { /* best-effort */ }

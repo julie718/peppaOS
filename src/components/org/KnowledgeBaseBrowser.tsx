@@ -317,8 +317,8 @@ export function KnowledgeBaseBrowser() {
       .slice(0, 5);
   }, [articles, healthById]);
 
-  const goNew = () => window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'org', sub: 'kb-edit' } }));
-  const goEdit = (articleId: string) => window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'org', sub: 'kb-edit', articleId } }));
+  const goNew = () => window.dispatchEvent(new CustomEvent('peppa:navigate', { detail: { tab: 'org', sub: 'kb-edit' } }));
+  const goEdit = (articleId: string) => window.dispatchEvent(new CustomEvent('peppa:navigate', { detail: { tab: 'org', sub: 'kb-edit', articleId } }));
 
   const handleImportFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files || []);
@@ -396,7 +396,7 @@ export function KnowledgeBaseBrowser() {
             {t.orgKB || ui('组织知识库', 'Knowledge Base')}
           </h2>
           <p className="mt-1 text-sm text-white/50">
-            {ui('集中管理制度、项目资料、上传文件和团队经验，供组织 Lumi 检索调用。', 'Manage policies, project files, uploads, and team knowledge for organization Lumi.')}
+            {ui('集中管理制度、项目资料、上传文件和团队经验，供组织 Peppa 检索调用。', 'Manage policies, project files, uploads, and team knowledge for organization Peppa.')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -410,7 +410,7 @@ export function KnowledgeBaseBrowser() {
           <button
             onClick={loadKnowledgeBase}
             disabled={loading}
-            className="lumi-icon-button"
+            className="peppa-icon-button"
             title={ui('刷新', 'Refresh')}
           >
             {loading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
@@ -418,14 +418,14 @@ export function KnowledgeBaseBrowser() {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="lumi-button border-emerald-400/20 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20"
+            className="peppa-button border-emerald-400/20 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20"
           >
             {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
             {ui('导入资料', 'Import Files')}
           </button>
           <button
             onClick={goNew}
-            className="lumi-button-primary border-blue-400/25 bg-blue-500/15 text-blue-100 hover:bg-blue-500/25"
+            className="peppa-button-primary border-blue-400/25 bg-blue-500/15 text-blue-100 hover:bg-blue-500/25"
           >
             <Plus size={15} />
             {ui('新建文章', 'New Article')}
@@ -448,7 +448,7 @@ export function KnowledgeBaseBrowser() {
       </div>
 
       <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[380px_minmax(0,1fr)_280px]">
-        <section className="lumi-panel flex min-h-[420px] flex-col overflow-hidden rounded-lg">
+        <section className="peppa-panel flex min-h-[420px] flex-col overflow-hidden rounded-lg">
           <div className="space-y-3 border-b border-white/[0.08] p-3">
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/45" />
@@ -464,7 +464,7 @@ export function KnowledgeBaseBrowser() {
               <select
                 value={categoryFilter}
                 onChange={event => setCategoryFilter(event.target.value)}
-                className="lumi-field h-9 rounded-lg py-0 text-xs"
+                className="peppa-field h-9 rounded-lg py-0 text-xs"
               >
                 <option value="all">{ui('全部分类', 'All Categories')}</option>
                 {categoryOptions.map(category => (
@@ -474,7 +474,7 @@ export function KnowledgeBaseBrowser() {
               <select
                 value={statusFilter}
                 onChange={event => setStatusFilter(event.target.value)}
-                className="lumi-field h-9 rounded-lg py-0 text-xs"
+                className="peppa-field h-9 rounded-lg py-0 text-xs"
               >
                 <option value="all">{ui('全部状态', 'All Status')}</option>
                 <option value="published">{ui('已发布', 'Published')}</option>
@@ -484,7 +484,7 @@ export function KnowledgeBaseBrowser() {
               <select
                 value={sortMode}
                 onChange={event => setSortMode(event.target.value as SortMode)}
-                className="lumi-field h-9 rounded-lg py-0 text-xs"
+                className="peppa-field h-9 rounded-lg py-0 text-xs"
               >
                 <option value="updated">{ui('最近更新', 'Recent')}</option>
                 <option value="health">{ui('维护优先', 'Care First')}</option>
@@ -575,7 +575,7 @@ export function KnowledgeBaseBrowser() {
           </div>
         </section>
 
-        <section className="lumi-panel min-h-0 overflow-hidden rounded-lg">
+        <section className="peppa-panel min-h-0 overflow-hidden rounded-lg">
           {selectedArticle ? (
             <div className="flex h-full min-h-0 flex-col">
               <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/[0.08] p-5">
@@ -604,14 +604,14 @@ export function KnowledgeBaseBrowser() {
                   <button
                     onClick={() => handleReindex(selectedArticle.id)}
                     disabled={indexingId === selectedArticle.id}
-                    className="lumi-button"
+                    className="peppa-button"
                   >
                     {indexingId === selectedArticle.id ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                     {ui('重建索引', 'Reindex')}
                   </button>
                   <button
                     onClick={() => goEdit(selectedArticle.id)}
-                    className="lumi-button"
+                    className="peppa-button"
                   >
                     <Pencil size={14} />
                     {ui('编辑', 'Edit')}
@@ -644,7 +644,7 @@ export function KnowledgeBaseBrowser() {
               <p className="text-sm">{ui('选择一篇文章查看详情，或新建组织知识。', 'Select an article to view details, or create organization knowledge.')}</p>
               <button
                 onClick={goNew}
-                className="lumi-button-primary border-blue-400/25 bg-blue-500/15 text-blue-100 hover:bg-blue-500/25"
+                className="peppa-button-primary border-blue-400/25 bg-blue-500/15 text-blue-100 hover:bg-blue-500/25"
               >
                 <Plus size={15} />
                 {ui('新建文章', 'New Article')}
@@ -654,7 +654,7 @@ export function KnowledgeBaseBrowser() {
         </section>
 
         <aside className="hidden min-h-0 flex-col gap-4 xl:flex">
-          <section className="lumi-panel rounded-lg p-4">
+          <section className="peppa-panel rounded-lg p-4">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-white/85">
               <BarChart3 size={16} className="text-cyan-300" />
               {ui('知识体系', 'Knowledge System')}
@@ -677,7 +677,7 @@ export function KnowledgeBaseBrowser() {
             </div>
           </section>
 
-          <section className="lumi-panel rounded-lg p-4">
+          <section className="peppa-panel rounded-lg p-4">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-white/85">
               <Filter size={16} className="text-emerald-300" />
               {ui('状态分布', 'Status')}
@@ -689,7 +689,7 @@ export function KnowledgeBaseBrowser() {
             </div>
           </section>
 
-          <section className="lumi-panel min-h-0 rounded-lg p-4">
+          <section className="peppa-panel min-h-0 rounded-lg p-4">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-white/85">
               <AlertCircle size={16} className="text-amber-300" />
               {ui('维护队列', 'Care Queue')}
@@ -724,7 +724,7 @@ export function KnowledgeBaseBrowser() {
 
 function Metric({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: number; tone: string }) {
   return (
-    <div className="lumi-panel rounded-lg px-4 py-3">
+    <div className="peppa-panel rounded-lg px-4 py-3">
       <div className="flex items-center justify-between gap-3">
         <span className={`flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 ${tone}`}>
           {icon}

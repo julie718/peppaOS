@@ -1,12 +1,12 @@
 import { readDB, writeDB } from "../../db_layer";
 
-export interface LumiPlan {
+export interface PeppaPlan {
   id: string;
   title: string;
   description: string;
   status: "active" | "paused" | "completed" | "cancelled";
   priority: "low" | "medium" | "high" | "critical";
-  source: "user" | "lumi" | "auto";
+  source: "user" | "peppa" | "auto";
   steps: PlanStep[];
   tags: string[];
   createdAt: string;
@@ -26,19 +26,19 @@ export interface PlanStep {
   order: number;
 }
 
-type PlanUpdate = Partial<Pick<LumiPlan, "title" | "description" | "priority" | "tags" | "result">> & {
-  status?: LumiPlan["status"] | "done";
+type PlanUpdate = Partial<Pick<PeppaPlan, "title" | "description" | "priority" | "tags" | "result">> & {
+  status?: PeppaPlan["status"] | "done";
 };
 
 export function createPlan(
   title: string,
   description: string,
-  source: "user" | "lumi" | "auto" = "lumi",
+  source: "user" | "peppa" | "auto" = "peppa",
   priority: "low" | "medium" | "high" | "critical" = "medium",
   steps: { title: string; description?: string }[] = [],
   tags: string[] = [],
-): LumiPlan {
-  const plan: LumiPlan = {
+): PeppaPlan {
+  const plan: PeppaPlan = {
     id: `plan_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     title,
     description,
@@ -65,9 +65,9 @@ export function createPlan(
   return plan;
 }
 
-export function updatePlan(id: string, updates: PlanUpdate): LumiPlan | null {
+export function updatePlan(id: string, updates: PlanUpdate): PeppaPlan | null {
   const db = readDB();
-  const idx = ((db as any).plans || []).findIndex((p: LumiPlan) => p.id === id);
+  const idx = ((db as any).plans || []).findIndex((p: PeppaPlan) => p.id === id);
   if (idx === -1) return null;
 
   const plan = (db as any).plans[idx];
@@ -83,9 +83,9 @@ export function updatePlan(id: string, updates: PlanUpdate): LumiPlan | null {
   return plan;
 }
 
-export function updatePlanStep(planId: string, stepId: string, updates: Partial<Pick<PlanStep, "status" | "title" | "description" | "result">>): LumiPlan | null {
+export function updatePlanStep(planId: string, stepId: string, updates: Partial<Pick<PlanStep, "status" | "title" | "description" | "result">>): PeppaPlan | null {
   const db = readDB();
-  const plan = ((db as any).plans || []).find((p: LumiPlan) => p.id === planId);
+  const plan = ((db as any).plans || []).find((p: PeppaPlan) => p.id === planId);
   if (!plan) return null;
 
   const step = plan.steps.find((s: PlanStep) => s.id === stepId);
@@ -104,9 +104,9 @@ export function updatePlanStep(planId: string, stepId: string, updates: Partial<
   return plan;
 }
 
-export function listPlans(filter?: { status?: string; source?: string; limit?: number }): LumiPlan[] {
+export function listPlans(filter?: { status?: string; source?: string; limit?: number }): PeppaPlan[] {
   const db = readDB();
-  let plans: LumiPlan[] = (((db as any).plans || []) as LumiPlan[]).map(plan => (
+  let plans: PeppaPlan[] = (((db as any).plans || []) as PeppaPlan[]).map(plan => (
     (plan as any).status === "done"
       ? { ...plan, status: "completed", completedAt: plan.completedAt || plan.updatedAt }
       : plan
@@ -124,14 +124,14 @@ export function listPlans(filter?: { status?: string; source?: string; limit?: n
   return filter?.limit ? plans.slice(0, filter.limit) : plans;
 }
 
-export function getPlan(id: string): LumiPlan | null {
+export function getPlan(id: string): PeppaPlan | null {
   const db = readDB();
-  return ((db as any).plans || []).find((p: LumiPlan) => p.id === id) || null;
+  return ((db as any).plans || []).find((p: PeppaPlan) => p.id === id) || null;
 }
 
 export function deletePlan(id: string): boolean {
   const db = readDB();
-  const idx = ((db as any).plans || []).findIndex((p: LumiPlan) => p.id === id);
+  const idx = ((db as any).plans || []).findIndex((p: PeppaPlan) => p.id === id);
   if (idx === -1) return false;
   (db as any).plans.splice(idx, 1);
   writeDB(db);

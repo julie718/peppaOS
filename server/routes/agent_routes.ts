@@ -103,11 +103,11 @@ export function mountAgentRoutes(
   router.get("/agents/:id/history", requireAuth, (req, res) => {
     try {
       const { id } = req.params; const db = readDB();
-      const isDefault = ['lumi', 'lumi_default', 'scholar_default', 'founder_default', 'incubated'].includes(id);
+      const isDefault = ['peppa', 'peppa_default', 'scholar_default', 'founder_default', 'incubated'].includes(id);
       if (!isDefault && !db.agents.find((a: any) => a.id === id && a.ownerUid === req.user!.uid)) return res.status(404).json({ error: "Agent not found" });
       const conv = getActiveConversation(req.user!.uid, id);
       const msgs = conv ? getMessages(conv.id, 100) : [];
-      // Also merge proactive push notifications (Lumi-initiated messages)
+      // Also merge proactive push notifications (Peppa-initiated messages)
       const proactive = (db.interactions || [])
         .filter((i: any) => i.userId === req.user!.uid && i.mode === 'proactive')
         .slice(-50)
@@ -122,7 +122,7 @@ export function mountAgentRoutes(
   router.post("/agents/:id/history", requireAuth, (req, res) => {
     try {
       const { id } = req.params; const { messages } = req.body;
-      const db = readDB(); const isDefault = ['lumi', 'lumi_default', 'scholar_default', 'founder_default', 'incubated'].includes(id);
+      const db = readDB(); const isDefault = ['peppa', 'peppa_default', 'scholar_default', 'founder_default', 'incubated'].includes(id);
       if (!isDefault && !db.agents.find((a: any) => a.id === id && a.ownerUid === req.user!.uid)) return res.status(404).json({ error: "Agent not found" });
       const conv = getOrCreateActiveConversation(req.user!.uid, id);
       if (Array.isArray(messages)) for (const msg of messages) addMessage({ userId: req.user!.uid, agentId: id, conversationId: conv.id, role: msg.role || 'user', content: msg.content || '' });
@@ -156,7 +156,7 @@ export function mountAgentRoutes(
         category: category || (relationshipType || 'friend'),
         data: data || '{}',
         status: "active",
-        personalityId: personalityId || 'lumi',
+        personalityId: personalityId || 'peppa',
         modelPreference: modelPreference || '',
         memoryScope: isSanctuary ? 'private' : (memoryScope || 'shared'),
         autonomyLevel: isSanctuary ? 'reactive' : (autonomyLevel || 'reactive'),
@@ -194,7 +194,7 @@ export function mountAgentRoutes(
     const validationError = validateExternalCommand(command);
     if (validationError) return res.status(400).json({ error: validationError });
 
-    const task = String(req.body?.task || 'Lumi external agent health check. Reply briefly with OK and your agent name if you can receive this task.').slice(0, 500);
+    const task = String(req.body?.task || 'Peppa external agent health check. Reply briefly with OK and your agent name if you can receive this task.').slice(0, 500);
     const timeoutMs = Math.max(1000, Math.min(Number(req.body?.timeoutMs) || 30000, 60000));
     const result = await executeExternalAgent({
       command,
@@ -279,7 +279,7 @@ export function mountAgentRoutes(
   router.delete("/agents/:id", requireAuth, (req, res) => {
     try {
       const { id } = req.params; const db = readDB();
-      const BUILTINS = ['lumi', 'lumi_default', 'scholar_default', 'founder_default', 'incubated'];
+      const BUILTINS = ['peppa', 'peppa_default', 'scholar_default', 'founder_default', 'incubated'];
       if (BUILTINS.includes(id)) return res.status(403).json({ error: "Cannot delete built-in agent" });
       const idx = db.agents.findIndex((a: any) => a.id === id && agentMatchesScope(a, req.user!));
       if (idx === -1) return res.status(404).json({ error: "Agent not found or unauthorized" });

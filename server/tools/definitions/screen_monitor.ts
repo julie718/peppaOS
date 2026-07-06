@@ -59,7 +59,7 @@ export function registerScreenMonitorTools(registry: ToolRegistry): void {
   registry.register({
     name: 'capture_screen',
     description:
-      'Capture a screenshot of the user\'s primary monitor and save it to disk. Returns the file path and dimensions. Use this sparingly when the user asks Lumi to look at the screen or when a desktop task needs current visual confirmation; do not use it for continuous surveillance.',
+      'Capture a screenshot of the user\'s primary monitor and save it to disk. Returns the file path and dimensions. Use this sparingly when the user asks Peppa to look at the screen or when a desktop task needs current visual confirmation; do not use it for continuous surveillance.',
     parameters: {
       type: 'object',
       properties: {

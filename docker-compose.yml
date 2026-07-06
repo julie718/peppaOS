@@ -1,4 +1,4 @@
-# LumiOS Docker Compose
+# Peppa Docker Compose
 #
 # Personal:
 #   docker compose --profile personal up -d
@@ -12,10 +12,10 @@
 #   docker compose --profile personal --profile org up -d
 
 services:
-  lumi-personal:
+  peppa-personal:
     profiles: [personal]
     build: .
-    container_name: lumi-personal
+    container_name: peppa-personal
     ports:
       - "3000:3000"
     environment:
@@ -31,10 +31,10 @@ services:
       - lumi_personal_data:/app/data
     restart: unless-stopped
 
-  lumi-org:
+  peppa-org:
     profiles: [org]
     build: .
-    container_name: lumi-org
+    container_name: peppa-org
     ports:
       - "3001:3000"
     environment:

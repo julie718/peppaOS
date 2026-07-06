@@ -183,7 +183,7 @@ export function KnowledgeBase({ t, isOpen, onClose, domain = 'personal' }: Knowl
       .slice(0, 5);
   }, [memories, search]);
 
-  const targetAgentId = domain === 'work' ? 'org-kb' : 'lumi';
+  const targetAgentId = domain === 'work' ? 'org-kb' : 'peppa';
   const fileIsAbsorbed = useCallback((file: FileEntry) => {
     if (file.agentIds?.includes(targetAgentId)) return true;
     return domain === 'work' && file.status === 'indexed';
@@ -269,7 +269,7 @@ export function KnowledgeBase({ t, isOpen, onClose, domain = 'personal' }: Knowl
         const count = data.chunkCount || data.memoryIds?.length || 0;
         toast.success(domain === 'work'
           ? (t.kbIngested || 'Synced to organization knowledge')
-          : `${t.kbIngested || 'Absorbed into Lumi'}${count ? ` | ${count} chunks` : ''}`);
+          : `${t.kbIngested || 'Absorbed into Peppa'}${count ? ` | ${count} chunks` : ''}`);
         fetchAll();
       } else {
         const data = await res.json().catch(() => ({}));
@@ -516,7 +516,7 @@ export function KnowledgeBase({ t, isOpen, onClose, domain = 'personal' }: Knowl
               </div>
               {pendingFileCount > 0 && (
                 <div className="border-b border-amber-400/10 bg-amber-400/[0.055] px-4 py-2 text-[11px] font-bold leading-5 text-amber-100/68">
-                  {pendingFileCount} {t.kbPendingIngest || (isZh ? '个文件等待 Lumi 吸收' : 'file(s) waiting to be absorbed by Lumi')}
+                  {pendingFileCount} {t.kbPendingIngest || (isZh ? '个文件等待 Peppa 吸收' : 'file(s) waiting to be absorbed by Peppa')}
                 </div>
               )}
               {partialFileCount > 0 && (
@@ -526,7 +526,7 @@ export function KnowledgeBase({ t, isOpen, onClose, domain = 'personal' }: Knowl
               )}
               {needsAttentionFileCount > 0 && (
                 <div className="border-b border-red-400/10 bg-red-400/[0.055] px-4 py-2 text-[11px] font-bold leading-5 text-red-100/70">
-                  {isZh ? `${needsAttentionFileCount} 个文件需要检查后 Lumi 才能使用。` : `${needsAttentionFileCount} file(s) need review before Lumi can use them.`}
+                  {isZh ? `${needsAttentionFileCount} 个文件需要检查后 Peppa 才能使用。` : `${needsAttentionFileCount} file(s) need review before Peppa can use them.`}
                 </div>
               )}
               <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">

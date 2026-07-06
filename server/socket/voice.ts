@@ -13,7 +13,7 @@ import { personalityRegistry } from "../personality";
 import { loadEmotionalState, updateEmotionalState, saveEmotionalState, loadHIMState, saveHIMState } from "../personality/state";
 import { himTick } from "../personality/him";
 import { createStreamingSession, getActiveSTTProvider } from "../stt/adapter";
-import { synthesizeSpeech, getActiveProvider as getTTSProvider, resolveEmotionVoice } from "../tts/adapter";
+import { synthesizeSpeech, resolveEmotionVoice, resolveVoiceTtsProvider } from "../tts/adapter";
 import { recordLatency } from "../monitor/latency_store";
 import { getOrCreateActiveConversation, addMessage, getMessagesByTokenBudget, extractTopics, trackTopic, getTopicContext, getConversationSummary } from "../conversation/manager";
 import { processInput, CognitiveContext, extractSentiment } from "../cognition";
@@ -39,6 +39,7 @@ interface AudioSession {
   isActive: boolean;
   ttsAbortController: AbortController | null;
   currentVoiceId: string | null;
+  currentVoiceProvider: string | null;
   personalityId: string;
   userId: string;
   agentId: string;
@@ -158,7 +159,7 @@ function detectVoiceClientModeSwitch(text: string): OperationMode | null {
 function isPureModeSwitchRequest(text: string, mode: OperationMode | null): boolean {
   if (!mode) return false;
   const normalized = text.replace(/\s+/g, '').toLowerCase();
-  return /^(lumi|露米)?(请|帮我|给我|麻烦)?(切换|切到|切成|换到|进入|打开|开启|启动|设为|设置为|切回|回到|switch|change|enter|start|open)(到|成)?(会议|聊天|助手|自主|自主执行|自动执行|meeting|chat|assistant|autonomy|autonomous|autoexecute)(模式|mode)?[。.!！?？]*$/i.test(normalized);
+  return /^(peppa|露米)?(请|帮我|给我|麻烦)?(切换|切到|切成|换到|进入|打开|开启|启动|设为|设置为|切回|回到|switch|change|enter|start|open)(到|成)?(会议|聊天|助手|自主|自主执行|自动执行|meeting|chat|assistant|autonomy|autonomous|autoexecute)(模式|mode)?[。.!！?？]*$/i.test(normalized);
 }
 function shouldAutoPromoteVoiceWork(text: string, operationMode: OperationMode, requestedMode: OperationMode | null): boolean {
   if (operationMode !== 'chat' || requestedMode) return false;
@@ -258,7 +259,8 @@ function getAudioSession(socket: Socket): AudioSession {
       isActive: false,
       ttsAbortController: null,
       currentVoiceId: null,
-      personalityId: 'lumi',
+      currentVoiceProvider: null,
+      personalityId: 'peppa',
       accumulatedText: '',
       isSpeaking: false,
       isProcessing: false,
@@ -271,7 +273,7 @@ function getAudioSession(socket: Socket): AudioSession {
       ttsDecayTimers: [],
       bargeinTimer: null,
       userId: '',
-      agentId: 'lumi',
+      agentId: 'peppa',
       domain: 'personal',
       orgId: '',
       voiceprintMatched: true,  // default: allow (no voiceprints enrolled yet)
@@ -327,7 +329,7 @@ async function processVoiceInput(
   session.isSpeaking = false;
   session.isProcessing = true;
   session.pipelineAbortController = new AbortController();
-  socket.emit("agent:status", { status: "thinking", agentName: "Lumi" });
+  socket.emit("agent:status", { status: "thinking", agentName: "Peppa" });
   session.ttsAbortController = new AbortController();
   socket.emit("audio:status", { status: "thinking" });
   const voiceScope = { domain: session.domain, orgId: session.orgId };
@@ -347,7 +349,7 @@ async function processVoiceInput(
 
   const sensoryAudio = sensoryFn(socket.id);
   const { config: personality, systemPrompt: fullPersonalityPrompt } = personalityRegistry.buildSystemPrompt(
-    session.personalityId || 'lumi',
+    session.personalityId || 'peppa',
     { mode: 'task', sensory: sensoryAudio, uiContext: 'voice' },
     {
       userId: session.userId,
@@ -357,7 +359,7 @@ async function processVoiceInput(
   );
 
   // ── Unified personality prompt + voice-specific overlay ──
-  // Same core prompt as text chat — one Lumi, one framework.
+  // Same core prompt as text chat — one Peppa, one framework.
   const toolVoiceOverlay = [
     '\n## Voice Mode',
     '- You are SPEAKING, not typing. Be conversational and natural, like talking to a friend.',
@@ -448,9 +450,9 @@ async function processVoiceInput(
         : { allowedTools: [], requireConfirmation: [], forbiddenTools: ['*'], maxIterations: 0 };
   logger.info(`[Audio] tool gate: ${allowToolUseForTurn ? 'enabled' : 'chat-only'} mode=${operationMode} effective=${effectiveOperationMode} clientActionOnly=${clientActionOnlyTurn} selfRepair=${selfRepairTurn}`);
   const opModeOverlay = clientActionOnlyTurn
-    ? '\n\n## Client Mode Control\nThe user is asking Lumi to change client mode or open a client-native surface. You may only use client_get_state and client_action. Do not use file, terminal, desktop mouse/keyboard, web, team, or external-app tools. Music is a playback/atmosphere capability, not a top-level work mode: open the music center or mood layer without switching client mode. For meeting/autonomous mode, use the client action confirmation flow when required.'
+    ? '\n\n## Client Mode Control\nThe user is asking Peppa to change client mode or open a client-native surface. You may only use client_get_state and client_action. Do not use file, terminal, desktop mouse/keyboard, web, team, or external-app tools. Music is a playback/atmosphere capability, not a top-level work mode: open the music center or mood layer without switching client mode. For meeting/autonomous mode, use the client action confirmation flow when required.'
     : selfRepairTurn
-    ? '\n\n## Client Self-Repair Turn\nThe user is reporting that Lumi or one of its client workflows is failing. Do not only apologize or repeat the raw error. Use client_get_state first when tools are available, inspect relevant status/log/config surfaces, apply one safe recovery or retry when the cause is clear, verify the result, and then give a concise spoken report. Reads and status checks are allowed; writes, desktop control, external app automation, and system changes still require confirmation.'
+    ? '\n\n## Client Self-Repair Turn\nThe user is reporting that Peppa or one of its client workflows is failing. Do not only apologize or repeat the raw error. Use client_get_state first when tools are available, inspect relevant status/log/config surfaces, apply one safe recovery or retry when the cause is clear, verify the result, and then give a concise spoken report. Reads and status checks are allowed; writes, desktop control, external app automation, and system changes still require confirmation.'
     : (effectiveOpModeConfig && (allowToolUseForTurn || effectiveOperationMode === 'meeting') ? '\n\n' + effectiveOpModeConfig.promptOverlay : '');
   const workSurfaceOverlay = workSurfaceRoute.promptOverlay ? '\n\n' + workSurfaceRoute.promptOverlay : '';
   const visionRoutingOverlay = visionIntent && effectiveOperationMode !== 'meeting' ? '\n\n' + buildVisionRoutingOverlay(session.userId, userText) : '';
@@ -531,7 +533,7 @@ async function processVoiceInput(
     isCancelled: () => pipelineAbort?.signal.aborted ?? false,
     toolPolicy: routedToolPolicy,
   };
-  const ttsProvider = getTTSProvider();
+  const ttsProvider = resolveVoiceTtsProvider({ provider: session.currentVoiceProvider || undefined });
   // Emotion-adaptive voice: map mood to speech parameters, preserve user's chosen voiceId
   const emotionVoice = ((): { voiceId: string; speechRate?: number; pitch?: number; volume?: number } => {
     try {
@@ -540,6 +542,7 @@ async function processVoiceInput(
     } catch {}
     return { voiceId: session.currentVoiceId || 'longxiaochun_v3' };
   })();
+  logger.info(`[Audio] TTS provider=${ttsProvider} voiceId=${session.currentVoiceId}`);
   let responseText = '';
   let toolResults: ToolExecutionRecord[] = [];
   let sentenceBuffer = '';
@@ -575,6 +578,7 @@ async function processVoiceInput(
           volume: emotionVoice.volume,
           signal: ttsAbort?.signal,
         });
+        logger.info(`[Audio TTS] "${txt.slice(0,30)}" → ${ttsResult.audioBuffer.length} bytes OK`);
         if (!ttsAbort?.signal.aborted && session.bgGeneration === myGeneration) {
           socket.emit("audio:status", { status: "speaking" });
           addEchoText(txt);
@@ -637,7 +641,7 @@ async function processVoiceInput(
       socket.emit('chat:conversation_updated', { conversationId: conv.id, agentId: session.agentId, source: 'voice' });
       socket.emit("audio:status", { status: "listening" });
       socket.emit("agent:status", { status: "idle" });
-      socket.emit("agent:response", { text: responseText, agentName: "Lumi", source: "voice_mode" });
+      socket.emit("agent:response", { text: responseText, agentName: "Peppa", source: "voice_mode" });
       return;
     }
   }
@@ -677,7 +681,7 @@ async function processVoiceInput(
       socket.emit('chat:conversation_updated', { conversationId: conv.id, agentId: session.agentId, source: 'voice' });
       socket.emit("audio:status", { status: "listening" });
       socket.emit("agent:status", { status: "idle" });
-      socket.emit("agent:response", { text: responseText, agentName: "Lumi", source: "quick_command" });
+      socket.emit("agent:response", { text: responseText, agentName: "Peppa", source: "quick_command" });
       return;
     }
   } catch (qcErr: any) {
@@ -704,7 +708,7 @@ async function processVoiceInput(
     socket.emit('chat:conversation_updated', { conversationId: conv.id, agentId: session.agentId, source: 'voice' });
     socket.emit("audio:status", { status: "listening" });
     socket.emit("agent:status", { status: "idle" });
-    socket.emit("agent:response", { text: responseText, agentName: "Lumi", source: "music_profile" });
+    socket.emit("agent:response", { text: responseText, agentName: "Peppa", source: "music_profile" });
     return;
   }
 
@@ -726,7 +730,7 @@ async function processVoiceInput(
     socket.emit('chat:conversation_updated', { conversationId: conv.id, agentId: session.agentId, source: 'voice' });
     socket.emit("audio:status", { status: "listening" });
     socket.emit("agent:status", { status: "idle" });
-    socket.emit("agent:response", { text: responseText, agentName: "Lumi", source: "music_voice_ack" });
+    socket.emit("agent:response", { text: responseText, agentName: "Peppa", source: "music_voice_ack" });
 
     const musicUserId = session.userId;
     void (async () => {
@@ -751,12 +755,12 @@ async function processVoiceInput(
   }
 
   try {
-    // ── Lumi Cognitive Engine: classify intent BEFORE calling any LLM ──
-    // Same cognitive layer as text chat — one Lumi, one framework.
+    // ── Peppa Cognitive Engine: classify intent BEFORE calling any LLM ──
+    // Same cognitive layer as text chat — one Peppa, one framework.
     const cognitiveCtx: CognitiveContext = {
       userId: session.userId,
       agentId: session.agentId,
-      personalityId: session.personalityId || 'lumi',
+      personalityId: session.personalityId || 'peppa',
       personalityName: personality.name,
       llmProvider: provider,
       llmModel: voiceModel,
@@ -850,7 +854,7 @@ async function processVoiceInput(
     const complexity = classifyComplexity(userText, { userId: session.userId, personalityId: session.personalityId });
     if (allowToolUseForTurn && !clientActionOnlyTurn && !selfRepairTurn && !(workSurfaceRoute.artifactFirst && !workSurfaceRoute.directDesktop) && (complexity === 'complex' || complexity === 'moderate')) {
       try {
-        socket.emit("agent:status", { status: "thinking", agentName: "Lumi", phase: exposeAgentWork ? 'orchestrator' : 'background' });
+        socket.emit("agent:status", { status: "thinking", agentName: "Peppa", phase: exposeAgentWork ? 'orchestrator' : 'background' });
         const voiceLeadIn = exposeAgentWork
           ? "\u6536\u5230\uff0c\u6b63\u5728\u8ba9\u56e2\u961f\u534f\u4f5c\u5904\u7406\u8fd9\u4e2a\u4efb\u52a1\u3002"
           : "\u6536\u5230\uff0c\u6211\u6765\u5904\u7406\u3002";
@@ -862,7 +866,7 @@ async function processVoiceInput(
           { userId: session.userId, personalityId: session.personalityId, domain: voiceScope.domain, orgId: voiceScope.orgId, desktopRelay },
           { provider, model: effectiveModel },
           llmGetters,
-          exposeAgentWork ? (msg) => socket.emit("agent:chunk", { text: msg, agentName: "Lumi" }) : undefined,
+          exposeAgentWork ? (msg) => socket.emit("agent:chunk", { text: msg, agentName: "Peppa" }) : undefined,
           (record, meta) => {
             toolResults.push({
               id: record.id,
@@ -888,7 +892,7 @@ async function processVoiceInput(
         if (orchResult) {
           usedOrchestrator = true;
           responseText = orchResult.responseText;
-          const rawSentences = responseText.split(/(?<=[。！？.!?\n])/);
+          const rawSentences = responseText.split(/(?<=[。！？.!?\n])/).filter(s => s.trim());
           if (!deferCompletionSpeech) {
             // Flush orchestrator result to TTS sentence by sentence
             for (const s of rawSentences) {
@@ -942,7 +946,7 @@ async function processVoiceInput(
           responseText += chunk;
           if (!deferCompletionSpeech) {
             sentenceBuffer += chunk;
-            socket.emit("agent:chunk", { text: chunk, agentName: "Lumi" });
+            socket.emit("agent:chunk", { text: chunk, agentName: "Peppa" });
             const match = sentenceBuffer.match(/^([\s\S]*?[。！？.!?\n])/);
             if (match) {
               sentenceBuffer = sentenceBuffer.slice(match[1].length);
@@ -1025,7 +1029,7 @@ async function processVoiceInput(
     // Flush remaining text
     if (sentenceBuffer.trim() && !deferCompletionSpeech) flushSentence(sentenceBuffer);
     if (deferCompletionSpeech && responseText) {
-      const finalSentences = responseText.split(/(?<=[。！？.!?\n])/);
+      const finalSentences = responseText.split(/(?<=[。！？.!?\n])/).filter(s => s.trim());
       for (const s of finalSentences) {
         if (pipelineAbort?.signal.aborted) break;
         flushSentence(s);
@@ -1035,7 +1039,7 @@ async function processVoiceInput(
 
     if (responseText) {
       logger.info(`[Audio] Response: "${responseText.slice(0, 80)}" (${sentenceIdx} sentences, ${toolResults.length} tool calls)`);
-      socket.emit("agent:response", { text: responseText, agentName: "Lumi", source: "voice" });
+      socket.emit("agent:response", { text: responseText, agentName: "Peppa", source: "voice" });
     }
 
     // Persist
@@ -1118,7 +1122,7 @@ export function registerVoiceHandlers(
   sensoryFn: (uid: string) => any,
   getUserId: (s: Socket) => string,
 ) {
-  socket.on("audio:start", async (data: { voiceId?: string; personalityId?: string; agentId?: string; transcriptionOnly?: boolean; domain?: 'personal' | 'work'; orgId?: string }) => {
+  socket.on("audio:start", async (data: { voiceId?: string; voiceProvider?: string; personalityId?: string; agentId?: string; transcriptionOnly?: boolean; domain?: 'personal' | 'work'; orgId?: string }) => {
     logger.info(`[Audio] Voice call started by ${socket.id}`);
     const session = getAudioSession(socket);
     session.isActive = true;
@@ -1128,7 +1132,7 @@ export function registerVoiceHandlers(
     session.inputQueue = [];
     session.lastChunkTime = 0;
     session.userId = getUserId(socket);
-    session.agentId = data.agentId || 'lumi';
+    session.agentId = data.agentId || 'peppa';
     session.domain = data.domain === 'work' && data.orgId ? 'work' : 'personal';
     session.orgId = session.domain === 'work' ? String(data.orgId || '') : '';
     session.transcriptionOnly = data.transcriptionOnly === true;
@@ -1137,10 +1141,11 @@ export function registerVoiceHandlers(
     session.voiceprintMatched = !session.voiceprintRequired;
     session.voiceprintConfidence = 0;
     session.voiceprintLastAt = 0;
-    const personalityCfg = personalityRegistry.get(data.personalityId || 'lumi');
+    const personalityCfg = personalityRegistry.get(data.personalityId || 'peppa');
     // Use explicit voiceId, then personality's TTS voice, then null (TTS provider default)
     session.currentVoiceId = data.voiceId || personalityCfg?.ttsVoiceId || null;
-    session.personalityId = data.personalityId || 'lumi';
+    session.currentVoiceProvider = data.voiceProvider || null;
+    session.personalityId = data.personalityId || 'peppa';
 
     // End previous STT session if re-starting without explicit stop
     if (session.sttSession) { try { session.sttSession.end(); } catch {} session.sttSession = null; }
@@ -1338,7 +1343,7 @@ export function registerVoiceHandlers(
   });
 
   /**
-   * Night / Focus quiet mode: determine whether Lumi should suppress proactive speech.
+   * Night / Focus quiet mode: determine whether Peppa should suppress proactive speech.
    */
   function shouldStayQuiet(userId: string): { quiet: boolean; reason: string } {
     const hour = new Date().getHours();
@@ -1386,12 +1391,12 @@ export function registerVoiceHandlers(
     // Resolve voiceId: session first, then personality config, then give up
     let voiceId = session.currentVoiceId;
     if (!voiceId) {
-      const personalityCfg = personalityRegistry.get(session.personalityId || 'lumi');
+      const personalityCfg = personalityRegistry.get(session.personalityId || 'peppa');
       voiceId = personalityCfg?.ttsVoiceId || null;
     }
     if (!voiceId) { resetSpeaking(); return; }
 
-    // Gate: check initiative level — Lumi only speaks first when comfortable enough
+    // Gate: check initiative level — Peppa only speaks first when comfortable enough
     const es = loadEmotionalState(userId);
     if (es.initiative < 0.4) { resetSpeaking(); return; }
 
@@ -1399,7 +1404,7 @@ export function registerVoiceHandlers(
     const noise = getAmbientNoise();
     if (noise !== null && noise > 0.08) { resetSpeaking(); return; }
 
-    const ttsProvider = getTTSProvider();
+    const ttsProvider = resolveVoiceTtsProvider({ provider: session.currentVoiceProvider || undefined });
     if (!ttsProvider) { resetSpeaking(); return; }
 
     const proactiveVoice = resolveEmotionVoice(voiceId, es);
@@ -1438,7 +1443,7 @@ export function registerVoiceHandlers(
     const session = getAudioSession(socket);
     let voiceId = session.currentVoiceId;
     if (!voiceId) {
-      const personalityCfg = personalityRegistry.get(session.personalityId || 'lumi');
+      const personalityCfg = personalityRegistry.get(session.personalityId || 'peppa');
       voiceId = personalityCfg?.ttsVoiceId || null;
     }
     if (!voiceId) return;
@@ -1520,7 +1525,7 @@ export function registerVoiceHandlers(
       const greeting = response.text?.trim() || '';
       if (!greeting) throw new Error('Empty LLM response');
 
-      const ttsProvider = getTTSProvider();
+      const ttsProvider = resolveVoiceTtsProvider({ provider: session.currentVoiceProvider || undefined });
       if (!ttsProvider) return;
 
       const result = await synthesizeSpeech(greeting, { provider: ttsProvider, voiceId });
@@ -1546,7 +1551,7 @@ export function registerVoiceHandlers(
       const hour = new Date().getHours();
       const fallback = hour < 6 ? '夜深了，还在忙吗？' : hour < 12 ? '早上好，欢迎回来。' : hour < 18 ? '下午好，继续吧。' : '晚上好，欢迎回来。';
       try {
-        const ttsProvider = getTTSProvider();
+        const ttsProvider = resolveVoiceTtsProvider({ provider: session.currentVoiceProvider || undefined });
         if (ttsProvider) {
           const result = await synthesizeSpeech(fallback, { provider: ttsProvider, voiceId });
           socket.emit("audio:proactive_speak", { audioBuffer: result.audioBuffer, text: fallback, timestamp: new Date().toISOString(), volumeGain: computeVolumeGain() });

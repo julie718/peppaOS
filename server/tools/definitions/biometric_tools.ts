@@ -38,7 +38,7 @@ async function biometricEnroll(args: Record<string, any>, context?: any): Promis
 
   return [
     'To enroll biometrics, use the Settings → Biometrics panel in the desktop app, or call:',
-    '- Voiceprint enrollment: speak 3 short phrases ("Hey Lumi, it\'s me") while the enrollment dialog is open',
+    '- Voiceprint enrollment: speak 3 short phrases ("Hey Peppa, it\'s me") while the enrollment dialog is open',
     '- Face enrollment: look at the camera and hold still for 2 seconds',
     `Currently registered users: ${registeredUsers.size > 0 ? [...registeredUsers].join(', ') : 'none besides you'}`,
     `Your user ID: ${uid}`,
@@ -47,7 +47,7 @@ async function biometricEnroll(args: Record<string, any>, context?: any): Promis
 
 async function biometricVerify(_args: Record<string, any>, _context?: any): Promise<string> {
   // Manual verification — the System will prompt user to look at camera and speak.
-  return 'Biometric verification initiated. Please look at the camera and say "Hey Lumi, verify me". The system will compare against enrolled voiceprints and faces in real time.';
+  return 'Biometric verification initiated. Please look at the camera and say "Hey Peppa, verify me". The system will compare against enrolled voiceprints and faces in real time.';
 }
 
 async function biometricForget(args: Record<string, any>, context?: any): Promise<string> {

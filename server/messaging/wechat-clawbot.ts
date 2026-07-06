@@ -2,9 +2,9 @@
  * WeChat ClawBot Adapter — 腾讯官方个人号 Bot API (iLink 协议)
  *
  * 接入方式：
- *   1. Lumi Settings → Messaging → WeChat 页签 → 点「获取二维码」
+ *   1. Peppa Settings → Messaging → WeChat 页签 → 点「获取二维码」
  *   2. 手机微信扫描二维码 → 确认登录
- *   3. Lumi 自动开始接收和回复微信消息
+ *   3. Peppa 自动开始接收和回复微信消息
  *
  * 不需要企业注册、不需要域名、不需要 Webhook 回调。
  * 基于腾讯 ilinkai.weixin.qq.com 的官方开放的个人 Bot API。

@@ -44,7 +44,7 @@ interface UseWakeWordReturn {
   disable: () => void;
 }
 
-const PICOVOICE_ACCESS_KEY_STORAGE = 'lumi_picovoice_key';
+const PICOVOICE_ACCESS_KEY_STORAGE = 'peppa_picovoice_key';
 const WAKE_SERVICE_MISSING_MESSAGE = '语音唤醒需要先在设置 > 语音服务配置豆包语音或 DashScope。';
 
 async function hasServerWakeProvider(): Promise<boolean | null> {
@@ -409,8 +409,8 @@ export function useWakeWord({
         setTimeout(() => { void enable(); }, 0);
       }
     };
-    window.addEventListener('lumi:keys-changed', onKeysChanged);
-    return () => window.removeEventListener('lumi:keys-changed', onKeysChanged);
+    window.addEventListener('peppa:keys-changed', onKeysChanged);
+    return () => window.removeEventListener('peppa:keys-changed', onKeysChanged);
   }, [enable]);
 
   // Auto-start / stop — includes socket state so it retries when connection becomes available

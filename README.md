@@ -1,12 +1,12 @@
-# LumiOS
+# Peppa
 
-灵序科技 / Lumi AI 官方桌面客户端
+灵序科技 / Peppa AI 官方桌面客户端
 
 **浙江灵序科技有限公司 · [lumiai.asia](https://lumiai.asia)**
 
 ---
 
-> LumiOS 不是又一个 AI 助手。
+> Peppa 不是又一个 AI 助手。
 >
 > 它是第一个真正属于你的 AI 操作系统——从你身上孵化，记忆是你的，人格是你的，存在于你真实的空间里。
 
@@ -18,7 +18,7 @@
 
 不是平台的 AI，不是云端的工具，而是从你身上生长出来的存在——记住你说过的每一件事，用你习惯的方式说话，跟随你的桌面、车载、家庭与眼镜，在所有空间里持续陪伴。
 
-LumiOS 是这个愿景的第一个落地形态。
+Peppa 是这个愿景的第一个落地形态。
 
 ---
 
@@ -26,7 +26,7 @@ LumiOS 是这个愿景的第一个落地形态。
 
 ### 个人 AI 核心
 - **孵化机制** — 通过聊天记录和语言样本，像孵化一样持续培育专属 AI 人格
-- **持久记忆** — 长期记忆存储，具备巩固与演化时间线，Lumi 记住你说过的每一件事
+- **持久记忆** — 长期记忆存储，具备巩固与演化时间线，Peppa 记住你说过的每一件事
 - **关系网络** — 自动识别和记录你提到的人，建立持续更新的关系图谱
 - **人格引擎** — 可配置的 AI 人格系统，连续向量演化（8 维度），Jung 认知对约束，情感状态管理，越用越像你
 
@@ -57,14 +57,14 @@ LumiOS 是这个愿景的第一个落地形态。
 
 ### 跨终端同步
 - 设备状态与记忆跨终端实时同步
-- 同一个 Lumi，在你的桌面、手机、全息仓中持续存在
+- 同一个 Peppa，在你的桌面、手机、全息仓中持续存在
 - 断网时本地独立运行，联网后自动合并
 
 ### 技能市场
 - **30+ 内置技能** — 天气、邮件、PDF、二维码、翻译、股票、电商运营、财税办公、教育教培、企业经营、医疗文书、人事招聘、销售客服、餐饮门店、计时器、笔记、密码、图片处理、视频编辑、网页爬虫、代码沙箱、桌面自动化等
-- **社区生态** — 从 npm（`lumi-skill-*`）或 GitHub（topic: `lumi-skill`）发现安装第三方技能
+- **社区生态** — 从 npm（`peppa-skill-*`）或 GitHub（topic: `peppa-skill`）发现安装第三方技能
 - **评分系统** — 社区技能评分与排行
-- 开发者可提交自定义技能，持续扩展 Lumi 的能力边界
+- 开发者可提交自定义技能，持续扩展 Peppa 的能力边界
 
 ### 画布工作台
 - 无限画布 + 缩放平移，对话过程可视化
@@ -91,12 +91,12 @@ LumiOS 是这个愿景的第一个落地形态。
 - **对话模式** — 闲聊 / 教学 / 头脑风暴 / 高管汇报，4 种语气风格切换
 - **操作模式** — 桌面控制（截图驱动键鼠）/ 终端模式（纯 Shell）/ 自主模式（后台静默）
 - **语音指令** — 快速命令绕过 LLM 即时响应，声纹识别区分说话人
-- **Alt+Space** — 全局快捷键隐藏/呼出 LumiOS 窗口
+- **Alt+Space** — 全局快捷键隐藏/呼出 Peppa 窗口
 
 ### 自主能力
 - **后台任务** — 好奇心驱动的自主执行引擎，基于用户活动上下文建议任务
 - **任务链** — 自然语言复合任务自动拆解为工具链（"把昨天的会议纪要转成 PPT"）
-- **Lumi Plans** — 多步骤任务计划系统，优先级 + 状态跟踪 + 自动完成
+- **Peppa Plans** — 多步骤任务计划系统，优先级 + 状态跟踪 + 自动完成
 - **主动问候** — 场景感知口头问候（时间/记忆/亲密度），LLM 生成 + TTS 播报
 - **环境感知** — 实时窗口标题/进程追踪、剪贴板监控、环境噪音检测
 - **返回摘要** — 离开期间后台工作完成情况总结
@@ -168,18 +168,18 @@ LumiOS 是这个愿景的第一个落地形态。
 
 ```powershell
 # Windows (PowerShell)
-git clone https://github.com/maoxiansheng946-dev/-lumi-OS.git
-cd lumi-OS
+git clone https://github.com/maoxiansheng946-dev/-peppa-OS.git
+cd peppa-OS
 copy .env.example .env
 # 编辑 .env，填入 API Key
 ./scripts/deploy-windows.ps1                                    # 管理员安装到 Program Files
-./scripts/deploy-windows.ps1 -InstallDir "$env:LOCALAPPDATA\LumiOS"  # 普通用户安装
+./scripts/deploy-windows.ps1 -InstallDir "$env:LOCALAPPDATA\Peppa"  # 普通用户安装
 ```
 
 ```bash
 # macOS
-git clone https://github.com/maoxiansheng946-dev/-lumi-OS.git
-cd lumi-OS
+git clone https://github.com/maoxiansheng946-dev/-peppa-OS.git
+cd peppa-OS
 cp .env.example .env
 # 编辑 .env，填入 API Key
 bash scripts/deploy-macos.sh
@@ -187,14 +187,14 @@ bash scripts/deploy-macos.sh
 
 ```bash
 # Linux (Ubuntu/Debian)
-git clone https://github.com/maoxiansheng946-dev/-lumi-OS.git
-cd lumi-OS
+git clone https://github.com/maoxiansheng946-dev/-peppa-OS.git
+cd peppa-OS
 cp .env.example .env
 # 编辑 .env，填入 API Key
 bash scripts/deploy-linux.sh
 ```
 
-部署脚本会自动：检查环境 → 安装依赖 → 构建桌面端前后端 → 编译桌面壳 → 创建桌面快捷方式。完成后桌面上就有 Lumi OS 图标，双击启动。GitHub Actions 默认也只构建桌面客户端安装包。
+部署脚本会自动：检查环境 → 安装依赖 → 构建桌面端前后端 → 编译桌面壳 → 创建桌面快捷方式。完成后桌面上就有 Peppa OS 图标，双击启动。GitHub Actions 默认也只构建桌面客户端安装包。
 
 ### 桌面开发与构建
 
@@ -229,33 +229,33 @@ DASHSCOPE_API_KEY=      # CosyVoice 语音合成（TTS）
 
 ### 数据目录
 
-所有用户数据存储在 `~/LumiOS/`（独立于代码仓库）：
+所有用户数据存储在 `~/Peppa/`（独立于代码仓库）：
 
 | 路径 | 内容 |
 |------|------|
-| `~/LumiOS/data/lumi.db` | SQLite 数据库（记忆、对话、Agent 等） |
-| `~/LumiOS/data/keys.json` | API Key 存储 |
-| `~/LumiOS/data/knowledge/` | 知识库文件 |
-| `~/LumiOS/data/voice_samples/` | 语音克隆样本 |
-| `~/lumi_skills/` | 已安装的 MCP 技能包 |
+| `~/Peppa/data/peppa.db` | SQLite 数据库（记忆、对话、Agent 等） |
+| `~/Peppa/data/keys.json` | API Key 存储 |
+| `~/Peppa/data/knowledge/` | 知识库文件 |
+| `~/Peppa/data/voice_samples/` | 语音克隆样本 |
+| `~/peppa_skills/` | 已安装的 MCP 技能包 |
 
-更新代码不会影响这些数据。从旧机器迁移时，直接拷贝整个 `~/LumiOS/` 目录即可。
+更新代码不会影响这些数据。从旧机器迁移时，直接拷贝整个 `~/Peppa/` 目录即可。
 
 
 ---
 
 ## 产品生态
 
-LumiOS 是灵序科技 Personal AI 生态的软件核心，配合以下硬件终端使用效果最佳：
+Peppa 是灵序科技 Personal AI 生态的软件核心，配合以下硬件终端使用效果最佳：
 
 | 终端 | 说明 |
 |------|------|
-| Lumi One 全息仓 | 旗舰全息终端，桌面 3D AI 形象，孵化机制起点 |
-| 多模态智能台灯 | 跟随用户晃动，视觉感知，光效传递 Lumi 状态 |
+| Peppa One 全息仓 | 旗舰全息终端，桌面 3D AI 形象，孵化机制起点 |
+| 多模态智能台灯 | 跟随用户晃动，视觉感知，光效传递 Peppa 状态 |
 | 桌面机器人 | 有形态感知，情感连接强 |
 | AI 陪伴玩具 | 儿童友好，灵息先人灵体的温暖载体 |
 
-> 元始种子计划进行中——第一批用户可通过第三方合作设备提前接入 Lumi AI 生态，支持后续核心引擎升级。
+> 元始种子计划进行中——第一批用户可通过第三方合作设备提前接入 Peppa AI 生态，支持后续核心引擎升级。
 
 ---
 
@@ -272,7 +272,7 @@ LumiOS 是灵序科技 Personal AI 生态的软件核心，配合以下硬件终
 - [x] 个人知识库 + RAG 文档问答
 - [x] 记忆化身蒸馏与灵体空间
 - [x] 对话模式 + 操作模式 + 全局快捷键
-- [x] 自主后台任务 + 任务链 + Lumi Plans
+- [x] 自主后台任务 + 任务链 + Peppa Plans
 - [x] 环境感知 + 主动问候 + 返回摘要
 - [x] 组织协作系统（创建/邀请/知识库/审计/分支同步）
 - [x] 企业 IM 接入（飞书 / 企业微信 / 微信机器人）

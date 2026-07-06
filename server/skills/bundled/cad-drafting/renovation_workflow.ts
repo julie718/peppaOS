@@ -85,7 +85,7 @@ const TEXT_EXTS = new Set(['.txt', '.md', '.csv', '.json', '.log', '.rtf']);
 const DOC_EXTS = new Set(['.docx', '.xlsx', '.xls', '.pptx', '.pdf']);
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif', '.tif', '.tiff']);
 const SUPPORTED_EXTS = new Set([...TEXT_EXTS, ...DOC_EXTS, ...IMAGE_EXTS]);
-const IGNORE_DIRS = new Set(['node_modules', '.git', 'dist', 'dist-server', '.codex-run', 'LumiCAD装修方案']);
+const IGNORE_DIRS = new Set(['node_modules', '.git', 'dist', 'dist-server', '.codex-run', 'MayCAD装修方案']);
 
 function normalizeWhitespace(value: string): string {
   return value.replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
@@ -637,7 +637,7 @@ export async function runRenovationFolderWorkflow(args: RenovationFolderWorkflow
   const markdown = makeMarkdown({ ...args, folderPath, projectName }, filesRead, referenceImages, filesSkipped, signals, geometry);
   const outputDir = args.outputDir
     ? path.resolve(expandHome(args.outputDir))
-    : path.join(folderPath, 'LumiCAD装修方案');
+    : path.join(folderPath, 'MayCAD装修方案');
 
   const draftMap: Array<[string, string]> = [
     ['00_资料摘要.md', markdown.summary],

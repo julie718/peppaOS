@@ -15,7 +15,7 @@ export function HardcoreBootSequence({ onComplete, t }: { onComplete: () => void
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const bootSteps = [
-    { text: 'LUMI BIOS Ver 4.4.2 (2026-05-02)', delay: 100 },
+    { text: 'MAYOS BIOS Ver 4.4.2 (2026-05-02)', delay: 100 },
     { text: 'CPUID: Intel(R) Silicon Adaptive Neural Processor @ 9.2GHz', delay: 200 },
     { text: 'CPU Check: 128 Threads... OK', delay: 150 },
     { text: 'Memory: 32768MB Distributed Mesh RAM... OK', delay: 300 },
@@ -23,15 +23,15 @@ export function HardcoreBootSequence({ onComplete, t }: { onComplete: () => void
     { text: 'Shard-A (System) OK', delay: 100 },
     { text: 'Shard-B (Neural) OK', delay: 100 },
     { text: 'Shard-C (Memory) OK', delay: 100 },
-    { text: 'Booting Lumi Virtual Kernel v3.0.0...', delay: 500 },
+    { text: 'Booting Peppa Virtual Kernel v3.0.0...', delay: 500 },
     { text: '[ LOADING MODULES ]', delay: 200 },
     { text: 'Mounting /dev/mesh-01...', delay: 150 },
     { text: 'Mapping Neural Synapses...', delay: 250 },
-    { text: 'Init: Lumi-Core-D (v1.0.12)...', delay: 100 },
+    { text: 'Init: Peppa-Core-D (v1.0.12)...', delay: 100 },
     { text: 'Network: Mesh Peer Bridge Active...', delay: 200 },
     { text: 'Security: Neural ID Verification Active...', delay: 150 },
     { text: 'Environment: Virtual Desktop Engine Starting...', delay: 300 },
-    { text: 'LUMI_OS READY', delay: 500 },
+    { text: 'MAYOS READY', delay: 500 },
   ];
 
   useEffect(() => {
@@ -78,7 +78,7 @@ export function HardcoreBootSequence({ onComplete, t }: { onComplete: () => void
       <div className="max-w-4xl mx-auto h-full flex flex-col relative z-20">
         <div className="flex justify-between items-start mb-8">
            <div className="space-y-1">
-             <div className="text-[#00ff41] font-black tracking-[0.2em] uppercase">LUMI NEURAL SYSTEMS (C) 2026</div>
+             <div className="text-[#00ff41] font-black tracking-[0.2em] uppercase">MAYOS NEURAL SYSTEMS (C) 2026</div>
              <div className="text-white/40">SECURE BOOT INTERFACE // KERNEL_TRUST_0x44</div>
            </div>
            <div className="text-right">

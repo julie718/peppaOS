@@ -11,14 +11,14 @@ let cleanup = () => {};
 describe('Markdown knowledge metadata', () => {
   it('extracts Obsidian-style properties, tags, wikilinks, and markdown links', () => {
     const source = `---
-title: Project Lumi
-aliases: [Lumi KB, Knowledge Base]
+title: Project Peppa
+aliases: [Peppa KB, Knowledge Base]
 tags:
   - ai
   - workspace/notes
 owner: team
 ---
-# Project Lumi
+# Project Peppa
 
 Links to [[Source Note|source]] and [[Roadmap#Q3]].
 See [Spec](docs/spec.md) and #rag.
@@ -31,11 +31,11 @@ See [Spec](docs/spec.md) and #rag.
 \`\`\`
 `;
 
-    const enriched = enrichMarkdownKnowledgeContent(source, 'Project Lumi.md');
+    const enriched = enrichMarkdownKnowledgeContent(source, 'Project Peppa.md');
 
     expect(enriched.metadata).toMatchObject({
-      title: 'Project Lumi',
-      aliases: ['Lumi KB', 'Knowledge Base'],
+      title: 'Project Peppa',
+      aliases: ['Peppa KB', 'Knowledge Base'],
       tags: ['ai', 'workspace/notes', 'rag'],
       wikiLinks: ['Source Note', 'Roadmap'],
       markdownLinks: ['docs/spec.md'],
@@ -69,22 +69,22 @@ describe('RAG markdown source metadata', () => {
     const { readDB } = await import('../db_layer');
     const sourceMetadata: MarkdownKnowledgeMetadata = {
       kind: 'markdown',
-      title: 'Project Lumi',
-      aliases: ['Lumi KB'],
+      title: 'Project Peppa',
+      aliases: ['Peppa KB'],
       tags: ['rag', 'workspace/notes'],
       wikiLinks: ['Source Note'],
       markdownLinks: ['docs/spec.md'],
       links: ['Source Note', 'docs/spec.md'],
-      frontmatter: { title: 'Project Lumi' },
+      frontmatter: { title: 'Project Peppa' },
     };
 
     const result = await ingestDocument(
       'user-md',
-      'lumi',
-      'Project Lumi.md',
-      'Project Lumi keeps source metadata attached to every chunk.',
+      'peppa',
+      'Project Peppa.md',
+      'Project Peppa keeps source metadata attached to every chunk.',
       {
-        filePath: 'Project Lumi.md',
+        filePath: 'Project Peppa.md',
         sourceMetadata,
       },
     );
@@ -92,8 +92,8 @@ describe('RAG markdown source metadata', () => {
     const db = readDB();
     const stored = db.memories.find((memory: any) => memory.id === result.memoryIds[0]);
     expect(stored?.keywords).toEqual(expect.arrayContaining([
-      'title:Project Lumi',
-      'alias:Lumi KB',
+      'title:Project Peppa',
+      'alias:Peppa KB',
       'tag:rag',
       'tag:workspace/notes',
       'wikilink:Source Note',

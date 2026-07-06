@@ -18,18 +18,18 @@ export function ProactiveNotifications() {
 
     const handleProactive = (data: { type?: string; taskId?: string; message: string; timestamp: string }) => {
       const taskId = data.type || data.taskId || 'unknown';
-      const proactiveGreetingEnabled = localStorage.getItem('lumi_allow_proactive_voice') === 'true';
+      const proactiveGreetingEnabled = localStorage.getItem('peppa_allow_proactive_voice') === 'true';
       if (taskId === 'greeting' && !proactiveGreetingEnabled) return;
 
       // Voice-appropriate proactive events: also trigger spoken output
-      const voiceTasks = new Set(['proactive_lumi_scan', 'greeting', 'daily_summary', 'evening_wrapup']);
+      const voiceTasks = new Set(['proactive_peppa_scan', 'greeting', 'daily_summary', 'evening_wrapup']);
       if (voiceTasks.has(taskId) && proactiveGreetingEnabled) {
         socket.emit('proactive:request_speak', { message: data.message });
       }
 
       switch (taskId) {
         case 'greeting':
-          addNotification({ type: 'system', title: t.notifLumi || 'Lumi', message: data.message });
+          addNotification({ type: 'system', title: t.notifPeppa || 'Peppa', message: data.message });
           toast(data.message, { duration: 8000, id: `proactive-${data.timestamp}` });
           break;
         case 'reminder_check':

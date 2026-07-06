@@ -32,7 +32,7 @@ export interface PersonalityVector {
 
 /** An execution mode preset stored inside a personality config.
  *  Scholar and Founder are no longer independent personalities —
- *  they are Lumi's internal thinking-mode presets. */
+ *  they are Peppa's internal thinking-mode presets. */
 export interface ExecutionMode {
   description: string;
   tone: ExpressionStyle['tone'];
@@ -140,7 +140,7 @@ export interface PersonalityConfig {
   personalityVector?: PersonalityVector;
 
   /** Execution mode presets (e.g. scholar, founder) — internal thinking-mode switches
-   *  that Lumi can activate for specific task types. These are NOT independent personalities. */
+   *  that Peppa can activate for specific task types. These are NOT independent personalities. */
   executionModes?: Record<string, ExecutionMode>;
 
   /** Per-context overrides — e.g. 'floating-window' can be more concise than 'full-screen' */
@@ -165,7 +165,7 @@ export interface PersonalityConfig {
   /** Record of evolution steps applied to this personality */
   evolutionHistory?: any[];
 
-  /** User-specific growth state. This adapts Lumi to the owner without changing core identity. */
+  /** User-specific growth state. This adapts Peppa to the owner without changing core identity. */
   growthState?: PersonalityGrowthState;
 
   /** If set, automatic and manual personality evolution are frozen until unfrozen. */

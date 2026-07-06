@@ -43,7 +43,7 @@ describe('Agent CRUD', () => {
     const res = await fetch(`${url}/api/agents`, {
       method: 'POST',
       headers: headers(),
-      body: JSON.stringify({ name: 'Test Agent', category: 'assistant', personalityId: 'lumi', memoryScope: 'shared', autonomyLevel: 'reactive' }),
+      body: JSON.stringify({ name: 'Test Agent', category: 'assistant', personalityId: 'peppa', memoryScope: 'shared', autonomyLevel: 'reactive' }),
       signal: AbortSignal.timeout(5000),
     });
     const body = await res.json();

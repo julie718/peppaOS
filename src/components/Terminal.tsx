@@ -89,7 +89,7 @@ export function TerminalWindow({ t: _t, onClose, isActive }: TerminalWindowProps
       term.clear();
       term.focus();
       term.writeln('\x1b[1;32m┌─────────────────────────────────────────┐\x1b[0m');
-      term.writeln('\x1b[1;32m│\x1b[0m  \x1b[1;36mLumiOS Terminal\x1b[0m                          \x1b[1;32m│\x1b[0m');
+      term.writeln('\x1b[1;32m│\x1b[0m  \x1b[1;36mPeppa Terminal\x1b[0m                          \x1b[1;32m│\x1b[0m');
       term.writeln('\x1b[1;32m│\x1b[0m  Type \x1b[33m`exit`\x1b[0m to close this session          \x1b[1;32m│\x1b[0m');
       term.writeln('\x1b[1;32m└─────────────────────────────────────────┘\x1b[0m');
       term.writeln('');

@@ -49,14 +49,14 @@ const TOOL_RESULT_LIMITS: Record<string, number> = {
   authority_research_save: 4_000,
   self_extension_plan: 8_000,
   usage_get_summary: 6_000,
-  lumi_constitution: 6_000,
+  peppa_constitution: 6_000,
   work_product_plan: 6_000,
   work_product_verify: 6_000,
   adapter_registry_list: 8_000,
   adapter_health_check: 6_000,
   external_app_list_adapters: 6_000,
-  lumi_sleep_cycle: 6_000,
-  lumi_sleep_status: 3_000,
+  peppa_sleep_cycle: 6_000,
+  peppa_sleep_status: 3_000,
   ocr_screen: 4_000,
   ocr_region: 4_000,
 };
@@ -166,7 +166,7 @@ function buildIterationLimitSummary(executionLog: ToolExecutionRecord[]): string
   });
 
   return [
-    'Maximum tool call iterations reached before Lumi could write the final answer.',
+    'Maximum tool call iterations reached before Peppa could write the final answer.',
     '',
     'What completed:',
     ...recentSteps,

@@ -1,5 +1,5 @@
 /**
- * Safety gate for autonomous work — controls when and how Lumi can work independently.
+ * Safety gate for autonomous work — controls when and how Peppa can work independently.
  * Gates: time-of-day, user-idle requirement, token budget, quiet hours.
  */
 import { readDB, writeDB } from '../../db_layer';

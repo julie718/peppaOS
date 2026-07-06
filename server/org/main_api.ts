@@ -1,5 +1,5 @@
 /**
- * Main Server Branch API — runs on the company Lumi server.
+ * Main Server Branch API — runs on the company Peppa server.
  *
  * Endpoints that employee branches call: register, sync work data,
  * download KB cache, heartbeat, fetch published templates.

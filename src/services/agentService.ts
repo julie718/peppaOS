@@ -69,7 +69,7 @@ export async function runAgentLogic(
   const { provider = 'gemini', model = 'gemini-1.5-flash', apiKey } = context.aiConfig || {};
 
   const systemInstruction = `
-    You are the LumiAI Core acting on the ${context.platform} platform.
+    You are the PeppaAI Core acting on the ${context.platform} platform.
     If platform is 'electron', you have access to local file systems and system automation.
     If platform is 'web', you are a lightweight assistant restricted to a browser sandbox.
 

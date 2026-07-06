@@ -17,6 +17,7 @@ interface StartCallOptions {
   transcriptionOnly?: boolean;
   domain?: 'personal' | 'work';
   orgId?: string;
+  voiceProvider?: string;
 }
 
 export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFromVoice, canSendMicAudio }: UseVoiceCallOptions) {
@@ -245,7 +246,7 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
             prevCallState.current = next;
             return next;
           }
-          const alwaysOn = localStorage.getItem('lumi_always_on_voice') === 'true';
+          const alwaysOn = localStorage.getItem('peppa_always_on_voice') === 'true';
           const passiveDelay = alwaysOn ? 5 * 60 * 1000 : 15 * 1000;   // 5min in always-on, 15s default
           passiveTimer.current = setTimeout(() => {
             setCallState('passive');
@@ -473,7 +474,7 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
     const active = typeof level === 'number';
     if (prev.active === active && prev.level === level) return;
     musicDuckingRef.current = { active, level };
-    window.dispatchEvent(new CustomEvent('lumi:music-ducking', {
+    window.dispatchEvent(new CustomEvent('peppa:music-ducking', {
       detail: {
         reason: 'voice-call',
         active,
@@ -484,13 +485,13 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
 
   useEffect(() => {
     return () => {
-      window.dispatchEvent(new CustomEvent('lumi:music-ducking', {
+      window.dispatchEvent(new CustomEvent('peppa:music-ducking', {
         detail: { reason: 'voice-call', active: false },
       }));
     };
   }, []);
 
-  const startCall = useCallback(async (voiceId?: string, personalityId: string = 'lumi', agentId?: string, options: StartCallOptions = {}) => {
+  const startCall = useCallback(async (voiceId?: string, personalityId: string = 'peppa', agentId?: string, options: StartCallOptions = {}) => {
     try {
       setError(null);
       setCallState('connecting');
@@ -529,7 +530,7 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
         const chunk = new Uint8Array(int16.buffer);
         const frameRms = Math.sqrt(frameSum / Math.max(1, input.length));
 
-        // While Lumi is speaking, keep a tiny pre-roll instead of streaming
+        // While Peppa is speaking, keep a tiny pre-roll instead of streaming
         // speaker echo into STT. If the owner truly barges in, we flush this
         // short tail after playback stops so the first words are less likely
         // to be clipped.
@@ -579,6 +580,7 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
       }, 1000);
       socket.emit('audio:start', {
         voiceId,
+        voiceProvider: options.voiceProvider,
         personalityId,
         agentId,
         transcriptionOnly: options.transcriptionOnly === true,
@@ -661,7 +663,7 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
   }, [socket, stopAllPlayback, clearPassiveTimers, clearThinkingWatchdog]);
 
   // Barge-in: detect user speaking over TTS via audio level.
-  // After TTS starts, wait 400ms before enabling barge-in so Lumi's own
+  // After TTS starts, wait 400ms before enabling barge-in so Peppa's own
   // voice from external speakers doesn't trigger a self-interrupt.
   const ttsStartedAt = useRef(0);
   useEffect(() => {

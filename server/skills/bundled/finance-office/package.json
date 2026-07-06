@@ -1,12 +1,12 @@
 {
-  "name": "lumi-skill-finance-office",
+  "name": "peppa-skill-finance-office",
   "version": "1.2.0",
   "description": "Business finance and tax pack for expense summaries, cash-flow forecasts, invoice VAT checks, AR/AP aging, e-commerce tax workpapers, and management report outlines.",
   "type": "module",
   "main": "index.ts",
   "scripts": { "start": "npx tsx index.ts" },
   "dependencies": { "@modelcontextprotocol/sdk": "^1.0.0", "zod": "^3.22.0" },
-  "lumi": {
+  "peppa": {
     "displayName": "Finance & Tax Office",
     "category": "Finance",
     "icon": "Calculator",

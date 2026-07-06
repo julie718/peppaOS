@@ -103,7 +103,7 @@ export function FeishuSettings({ t }: { t?: any }) {
 
   const copyBindingCommand = async () => {
     if (!bindingCode) return;
-    const command = `绑定 Lumi ${bindingCode}`;
+    const command = `绑定 Peppa ${bindingCode}`;
     try {
       await navigator.clipboard.writeText(command);
       toast.success(ui('绑定命令已复制', 'Binding command copied'));
@@ -115,7 +115,7 @@ export function FeishuSettings({ t }: { t?: any }) {
   const removeBinding = async (binding: FeishuBinding) => {
     const ok = await appConfirm({
       title: ui('解除飞书绑定', 'Remove Feishu Binding'),
-      message: ui('解除后，这个飞书身份将不能再访问当前 Lumi 的组织数据。', 'This Feishu identity will no longer access this Lumi organization data.'),
+      message: ui('解除后，这个飞书身份将不能再访问当前 Peppa 的组织数据。', 'This Feishu identity will no longer access this Peppa organization data.'),
       confirmText: ui('解除绑定', 'Remove'),
       cancelText: ui('取消', 'Cancel'),
       tone: 'danger',
@@ -170,7 +170,7 @@ export function FeishuSettings({ t }: { t?: any }) {
           {ui('飞书远程身份绑定', 'Feishu Remote Identity Binding')}
         </div>
         <p className="text-xs leading-relaxed text-white/40">
-          {ui('生成一次性绑定码后，在飞书里发送“绑定 Lumi 绑定码”。绑定后，Lumi 才能通过飞书安全地查询组织知识库、查案件或归档案件文件。', 'Generate a one-time code, then send “绑定 Lumi CODE” in Feishu. After binding, Lumi can securely query org KB, search cases, and archive case files from Feishu.')}
+          {ui('生成一次性绑定码后，在飞书里发送“绑定 Peppa 绑定码”。绑定后，Peppa 才能通过飞书安全地查询组织知识库、查案件或归档案件文件。', 'Generate a one-time code, then send “绑定 Peppa CODE” in Feishu. After binding, Peppa can securely query org KB, search cases, and archive case files from Feishu.')}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -186,7 +186,7 @@ export function FeishuSettings({ t }: { t?: any }) {
               className="inline-flex h-9 items-center gap-2 rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-3 text-xs font-bold text-cyan-200 hover:bg-cyan-400/15"
             >
               <Copy size={13} />
-              {`绑定 Lumi ${bindingCode}`}
+              {`绑定 Peppa ${bindingCode}`}
             </button>
           )}
         </div>
@@ -280,7 +280,7 @@ export function FeishuSettings({ t }: { t?: any }) {
           <p>{ui('1. 前往', '1. Go to')} <a href="https://open.feishu.cn/app" target="_blank" rel="noopener noreferrer" className="text-celestial-saturn underline inline-flex items-center gap-0.5">{ui('飞书开放平台', 'Feishu Open Platform')}<ExternalLink size={10} /></a> {ui('创建应用', 'and create an app')}</p>
           <p>{ui('2. 左侧菜单「应用能力」-> 启用「机器人」', '2. In App Capabilities, enable Bot')}</p>
           <p>{ui('3. 左侧菜单「凭证与基础信息」-> 复制 App ID 和 App Secret', '3. In Credentials & Basic Info, copy App ID and App Secret')}</p>
-          <p>{ui('4. 左侧菜单「事件订阅」-> 请求 URL 填：', '4. In Event Subscriptions, set Request URL to:')}<code className="text-celestial-jupiter bg-white/5 px-1 rounded">https://lumiai.asia/api/feishu/events</code></p>
+          <p>{ui('4. 左侧菜单「事件订阅」-> 请求 URL 填：', '4. In Event Subscriptions, set Request URL to:')}<code className="text-celestial-jupiter bg-white/5 px-1 rounded">https://mayos.asia/api/feishu/events</code></p>
           <p>{ui('5. 订阅事件：添加「接收消息」im.message.receive_v1', '5. Subscribe to event: im.message.receive_v1')}</p>
           <p>{ui('6. 左侧菜单「权限管理」-> 开通「获取并发送单聊、群聊消息」', '6. In Permissions, enable reading and sending direct/group messages')}</p>
           <p>{ui('7. 左侧菜单「应用发布」-> 创建版本并发布', '7. In App Release, create a version and publish it')}</p>

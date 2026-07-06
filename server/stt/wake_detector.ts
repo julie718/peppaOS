@@ -9,14 +9,13 @@ import { getVoicePreference } from '../config/voice_preference';
 const WAKE_WORDS = [
   'Jarvis', 'jarvis', '贾维斯',
   '计算机', '电脑',
-  'lumi', 'Lumi', 'LUMI',
-  '卢米', '路米', '鲁米', '露米',
-  // "嘿 Lumi" + common ASR misrecognition variants
-  '嘿 Lumi', '嘿 lumi', '嘿lumi', 'hey lumi', 'Hey Lumi', 'Hey lumi',
-  '黑卢米', '嘿路米', '黑鲁米', '嘿卢米', '黑路米', '嗨卢米', '嗨路米',
-  'hi lumi', 'Hi Lumi', 'hi Lumi', '黑 lumi', '嗨 lumi',
-  'hi 卢米', 'hi 路米', 'hey 卢米', 'hey 路米',
-  '嘿 卢米', '嘿 路米', '嗨 卢米', '嗨 路米',
+  // Peppa + common ASR variants
+  'Peppa', 'peppa', 'PEPPA',
+  '嘿 Peppa', '嘿 peppa', '嘿peppa', 'hey peppa', 'Hey Peppa', 'Hey peppa',
+  'hi peppa', 'Hi Peppa', 'hi Peppa', '黑 peppa', '嗨 peppa',
+  // 佩奇 + common ASR variants
+  '佩奇', '佩琦', '佩琪', '佩齐',
+  '嘿 佩奇', '嗨 佩奇', 'hey 佩奇', 'hi 佩奇',
   // 豆包 + common ASR variants
   '豆包', '斗包', '都包', '豆瓣', '逗包',
   '嘿 豆包', '嗨 豆包', 'hey 豆包', 'hi 豆包',

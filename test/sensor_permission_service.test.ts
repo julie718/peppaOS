@@ -62,18 +62,18 @@ describe('sensor permission access toggles', () => {
     vi.restoreAllMocks();
   });
 
-  it('blocks microphone capture when the Lumi mic switch is disabled', async () => {
+  it('blocks microphone capture when the Peppa mic switch is disabled', async () => {
     const getUserMedia = vi.fn();
     installBrowserGlobals(getUserMedia);
 
     setSensorEnabled('microphone', false);
 
-    await expect(requestMicrophoneStream(true)).rejects.toThrow('Microphone is disabled in Lumi settings.');
+    await expect(requestMicrophoneStream(true)).rejects.toThrow('Microphone is disabled in Peppa settings.');
     expect(isSensorEnabled('microphone')).toBe(false);
     expect(getUserMedia).not.toHaveBeenCalled();
   });
 
-  it('stops active microphone streams when the Lumi mic switch is turned off', async () => {
+  it('stops active microphone streams when the Peppa mic switch is turned off', async () => {
     const fake = createFakeStream();
     const getUserMedia = vi.fn().mockResolvedValue(fake.stream);
     installBrowserGlobals(getUserMedia);

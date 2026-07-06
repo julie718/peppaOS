@@ -16,7 +16,7 @@ export interface AutonomousWorkflow {
 
 type WorkflowInput = Partial<Omit<AutonomousWorkflow, 'id' | 'userId' | 'createdAt' | 'updatedAt'>>;
 
-export const DEFAULT_LEARNING_WORKFLOW_ID = 'workflow_lumi_continuous_learning';
+export const DEFAULT_LEARNING_WORKFLOW_ID = 'workflow_peppa_continuous_learning';
 
 function allWorkflows(): AutonomousWorkflow[] {
   try {
@@ -53,9 +53,9 @@ function buildLearningWorkflow(userId: string, existing?: AutonomousWorkflow): A
   return {
     id: DEFAULT_LEARNING_WORKFLOW_ID,
     userId,
-    title: 'Lumi 持续学习与知识吸收',
+    title: 'Peppa 持续学习与知识吸收',
     description: [
-      'Lumi 根据最近上下文、长期记忆、知识库变化和未解决问题，主动创建小型学习计划。',
+      'Peppa 根据最近上下文、长期记忆、知识库变化和未解决问题，主动创建小型学习计划。',
       '她会整理可复用知识、发现知识缺口、沉淀摘要和下一步建议，不对外发送消息，不删除或修改用户文件。',
     ].join(' '),
     trigger: 'autonomous_cycle: recent activity, memory gaps, uploaded knowledge, reusable insights',

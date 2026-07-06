@@ -104,10 +104,10 @@ describe('Wake Detector Factory', () => {
     expect(isWakeWord('jarvis')).toBe('Jarvis'); // lowercased input matches 'Jarvis' first in WAKE_WORDS
     expect(isWakeWord('Jarvis')).toBe('Jarvis');
     expect(isWakeWord('贾维斯')).toBe('贾维斯');
-    // 'lumi' before more specific matches in WAKE_WORDS array
-    expect(isWakeWord('lumi')).toBe('lumi');
-    expect(isWakeWord('Lumi')).toBe('lumi');
-    expect(isWakeWord('Hey Lumi')).toBe('lumi'); // substring match: 'lumi' found before 'Hey Lumi'
+    // 'peppa' before more specific matches in WAKE_WORDS array
+    expect(isWakeWord('peppa')).toBe('peppa');
+    expect(isWakeWord('Peppa')).toBe('peppa');
+    expect(isWakeWord('Hey Peppa')).toBe('peppa'); // substring match: 'peppa' found before 'Hey Peppa'
     expect(isWakeWord('豆包')).toBe('豆包');
     expect(isWakeWord('豆瓣')).toBe('豆瓣');
     expect(isWakeWord('嘿 豆包')).toBe('豆包'); // '豆包' substring match comes before '嘿 豆包'

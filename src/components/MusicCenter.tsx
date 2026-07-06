@@ -173,15 +173,15 @@ export function MusicCenter({ isOpen, onClose, t }: { isOpen: boolean; onClose: 
     socket.emit('agent:chat', {
       text: prompt,
       history: [],
-      personalityId: 'lumi',
+      personalityId: 'peppa',
       source: 'music-center',
     });
-    toast.info(t?.musicRequestSent || ui('音乐请求已发送给 Lumi', 'Music request sent to Lumi'));
+    toast.info(t?.musicRequestSent || ui('音乐请求已发送给 Peppa', 'Music request sent to Peppa'));
     if (options?.clearPrompt) setMusicPrompt('');
     return true;
   };
 
-  const askLumiToPlay = () => {
+  const askPeppaToPlay = () => {
     requestMusicPlayback(musicPrompt, { clearPrompt: true });
   };
 
@@ -201,7 +201,7 @@ export function MusicCenter({ isOpen, onClose, t }: { isOpen: boolean; onClose: 
     if (player.visible) player.hide();
     else if (player.track) player.show();
     else {
-      toast.info(t?.musicLayerNeedsTrack || ui('先让 Lumi 播放一首歌，再打开氛围层。', 'Ask Lumi to play music first, then open the mood layer.'));
+      toast.info(t?.musicLayerNeedsTrack || ui('先让 Peppa 播放一首歌，再打开氛围层。', 'Ask Peppa to play music first, then open the mood layer.'));
       promptInputRef.current?.focus();
     }
   };
@@ -216,7 +216,7 @@ export function MusicCenter({ isOpen, onClose, t }: { isOpen: boolean; onClose: 
   return (
     <div className="h-full overflow-y-auto custom-scrollbar p-1">
       <div className="space-y-5">
-        <section className="lumi-panel border-red-400/10 bg-red-500/[0.04] p-5 space-y-4">
+        <section className="peppa-panel border-red-400/10 bg-red-500/[0.04] p-5 space-y-4">
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
@@ -226,19 +226,19 @@ export function MusicCenter({ isOpen, onClose, t }: { isOpen: boolean; onClose: 
                 </h3>
               </div>
               <p className="mt-1 text-xs text-white/40">
-                {player.track ? (t?.musicNowPlaying || ui('正在播放', 'Now playing')) : (t?.musicIdleHint || ui('让 Lumi 播放歌曲、歌单、心情音乐或每日推荐。', 'Ask Lumi to play a song, mood, playlist, or daily recommendation.'))}
+                {player.track ? (t?.musicNowPlaying || ui('正在播放', 'Now playing')) : (t?.musicIdleHint || ui('让 Peppa 播放歌曲、歌单、心情音乐或每日推荐。', 'Ask Peppa to play a song, mood, playlist, or daily recommendation.'))}
               </p>
             </div>
             <button
               onClick={onClose}
-              className="lumi-icon-button h-8 w-8 border-transparent"
+              className="peppa-icon-button h-8 w-8 border-transparent"
               title={t?.close || ui('关闭', 'Close')}
             >
               <X size={16} />
             </button>
           </div>
 
-          <div className="lumi-panel bg-black/30 p-4">
+          <div className="peppa-panel bg-black/30 p-4">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <div className="text-base font-bold text-white/85 truncate">
@@ -263,7 +263,7 @@ export function MusicCenter({ isOpen, onClose, t }: { isOpen: boolean; onClose: 
             </div>
 
             <div className="mt-4 flex items-center gap-3">
-              <button onClick={player.prev} className="lumi-icon-button">
+              <button onClick={player.prev} className="peppa-icon-button">
                 <SkipBack size={16} />
               </button>
               <button
@@ -272,7 +272,7 @@ export function MusicCenter({ isOpen, onClose, t }: { isOpen: boolean; onClose: 
               >
                 {player.isPlaying ? <Pause size={18} /> : <Play size={18} />}
               </button>
-              <button onClick={player.next} className="lumi-icon-button">
+              <button onClick={player.next} className="peppa-icon-button">
                 <SkipForward size={16} />
               </button>
               <div className="flex-1 min-w-0">
@@ -312,28 +312,28 @@ export function MusicCenter({ isOpen, onClose, t }: { isOpen: boolean; onClose: 
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="lumi-panel flex flex-1 items-center gap-2 px-3 py-2">
+            <div className="peppa-panel flex flex-1 items-center gap-2 px-3 py-2">
               <Search size={15} className="text-white/30" />
               <input
                 ref={promptInputRef}
                 value={musicPrompt}
                 onChange={(e) => setMusicPrompt(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') askLumiToPlay(); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') askPeppaToPlay(); }}
                 placeholder={t?.musicPromptPlaceholder || ui('播放周杰伦、每日推荐，或雨天专注音乐...', 'Play Jay Chou, daily recommendations, or rainy focus music...')}
                 className="flex-1 bg-transparent outline-none text-xs text-white/80 placeholder:text-white/25"
               />
             </div>
             <button
-              onClick={askLumiToPlay}
+              onClick={askPeppaToPlay}
               disabled={!musicPrompt.trim()}
-              className="lumi-button h-10 border-red-400/25 bg-red-500/15 px-4 text-red-300 hover:bg-red-500/25"
+              className="peppa-button h-10 border-red-400/25 bg-red-500/15 px-4 text-red-300 hover:bg-red-500/25"
             >
               {t?.play || ui('播放', 'Play')}
             </button>
           </div>
         </section>
 
-        <section className="lumi-panel bg-white/[0.025] p-5 space-y-4">
+        <section className="peppa-panel bg-white/[0.025] p-5 space-y-4">
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
@@ -421,7 +421,7 @@ export function MusicCenter({ isOpen, onClose, t }: { isOpen: boolean; onClose: 
         </section>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <section className="lumi-panel bg-white/[0.02] p-5 flex flex-col gap-3">
+          <section className="peppa-panel bg-white/[0.02] p-5 flex flex-col gap-3">
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-bold uppercase tracking-widest text-white/35">{ui('API 凭据', 'API Credentials')}</span>
               {configured && <span className="text-[9px] text-emerald-400 font-mono bg-emerald-400/10 px-2 py-0.5 rounded-full">OK</span>}
@@ -432,23 +432,23 @@ export function MusicCenter({ isOpen, onClose, t }: { isOpen: boolean; onClose: 
             <input
               type="text" placeholder={ui('App ID', 'App ID')}
               value={appId} onChange={e => setAppId(e.target.value)}
-              className="lumi-field w-full py-2 text-xs focus:border-red-500/40"
+              className="peppa-field w-full py-2 text-xs focus:border-red-500/40"
             />
             <input
               type="password" placeholder={ui('Private Key', 'Private Key')}
               value={privateKey} onChange={e => setPrivateKey(e.target.value)}
-              className="lumi-field w-full py-2 text-xs focus:border-red-500/40"
+              className="peppa-field w-full py-2 text-xs focus:border-red-500/40"
             />
             <button
               onClick={saveCreds} disabled={cfgBusy || !appId.trim() || !privateKey.trim()}
-              className="lumi-button w-full"
+              className="peppa-button w-full"
             >
               {cfgBusy ? (t?.saving || ui('保存中...', 'Saving...')) : (t?.saveCredentials || ui('保存凭据', 'Save credentials'))}
             </button>
             {cfgMsg && <p className="text-[10px] text-center text-white/40">{cfgMsg}</p>}
           </section>
 
-          <section className="lumi-panel bg-white/[0.02] p-5 flex flex-col items-center gap-4">
+          <section className="peppa-panel bg-white/[0.02] p-5 flex flex-col items-center gap-4">
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-bold uppercase tracking-widest text-white/35">{ui('网易云音乐', 'NetEase Cloud')}</span>
               {loginDone && (
@@ -462,7 +462,7 @@ export function MusicCenter({ isOpen, onClose, t }: { isOpen: boolean; onClose: 
             {qrImgSrc ? (
               <img src={qrImgSrc} alt={ui('二维码', 'QR Code')} className="w-40 h-40 rounded-xl bg-white" />
             ) : (
-              <div className="lumi-panel flex h-40 w-40 items-center justify-center rounded-xl bg-white/[0.03] text-xs text-white/25">
+              <div className="peppa-panel flex h-40 w-40 items-center justify-center rounded-xl bg-white/[0.03] text-xs text-white/25">
                 {loginDone ? ui('已连接', 'Connected') : ui('扫码登录', 'QR Login')}
               </div>
             )}
@@ -470,7 +470,7 @@ export function MusicCenter({ isOpen, onClose, t }: { isOpen: boolean; onClose: 
             <button
               onClick={startLogin}
               disabled={loading}
-              className="lumi-button w-full border-red-500/25 bg-red-500/15 py-2.5 text-sm font-medium text-red-400 hover:bg-red-500/25"
+              className="peppa-button w-full border-red-500/25 bg-red-500/15 py-2.5 text-sm font-medium text-red-400 hover:bg-red-500/25"
             >
               {loading ? (t?.loading || ui('加载中...', 'Loading...')) : loginDone ? (t?.musicConnected || ui('已连接', 'Connected')) : (t?.scanToLogin || ui('扫码登录', 'Scan to login'))}
             </button>

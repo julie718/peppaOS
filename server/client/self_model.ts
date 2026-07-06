@@ -4,7 +4,7 @@ import { formatLAPSelfPrompt } from '../lap/policy';
 import { getMemoryFirewallPolicy } from '../memory/firewall';
 import { formatMusicProfileForPrompt, getCachedMusicProfile } from '../music/library_profile';
 import { getAdapterRegistry } from '../adapters/registry';
-import { formatLumiConstitutionForPrompt } from '../personality/constitution';
+import { formatPeppaConstitutionForPrompt } from '../personality/constitution';
 import { getActionConstitutionPolicy } from '../tools/action_constitution';
 import { formatDesktopAwarenessForPrompt } from './desktop_awareness';
 
@@ -138,7 +138,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     label: 'Chat mode',
     kind: 'mode',
     actions: ['set_client_mode(chat)'],
-    notes: 'Conversation-first state. Lumi answers naturally by default, but explicit user commands can still use the local client and tools.',
+    notes: 'Conversation-first state. Peppa answers naturally by default, but explicit user commands can still use the local client and tools.',
     stateKeys: ['mode', 'voice'],
   },
   {
@@ -155,7 +155,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     label: 'Assistant mode',
     kind: 'mode',
     actions: ['set_client_mode(assistant)'],
-    notes: 'Guided execution. Lumi can use tools when the user asks for action.',
+    notes: 'Guided execution. Peppa can use tools when the user asks for action.',
     stateKeys: ['mode', 'tools'],
   },
   {
@@ -172,7 +172,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     label: 'Desktop window manager',
     kind: 'window',
     actions: ['open_app', 'close_app', 'focus_home'],
-    notes: 'Manages Lumi desktop windows and full-screen surfaces through routed client actions rather than mouse/keyboard control.',
+    notes: 'Manages Peppa desktop windows and full-screen surfaces through routed client actions rather than mouse/keyboard control.',
     stateKeys: ['windows', 'surfaces'],
   },
   {
@@ -204,7 +204,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     label: 'Knowledge base and memory',
     kind: 'knowledge',
     actions: ['show_knowledge_base', 'open_files'],
-    notes: 'Personal knowledge, uploaded knowledge-base files, memories, imports, and memory organization. Use this as Lumi\'s single file knowledge surface.',
+    notes: 'Personal knowledge, uploaded knowledge-base files, memories, imports, and memory organization. Use this as Peppa\'s single file knowledge surface.',
     stateKeys: ['surfaces.knowledgeOpen'],
   },
   {
@@ -228,7 +228,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     label: 'Skill hall',
     kind: 'tool_surface',
     actions: ['open_skills'],
-    notes: 'Installed and discoverable Lumi skills, including GitHub MCP discovery.',
+    notes: 'Installed and discoverable Peppa skills, including GitHub MCP discovery.',
     stateKeys: ['windows'],
   },
   {
@@ -241,10 +241,10 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
   },
   {
     id: 'network.lap',
-    label: 'LAP Inter-Lumi collaboration',
+    label: 'LAP Inter-Peppa collaboration',
     kind: 'collaboration',
     actions: ['lap.handshake', 'lap.task.delegate', 'lap.task.result', 'lap.context.share', 'lap.negotiate', 'lap.notify', 'lap.revoke'],
-    notes: 'Lumi Agent Protocol for secure collaboration with other user-owned Lumi instances and community Lumi peers. Incoming context is external by default and cannot mutate local personality or memory without user approval.',
+    notes: 'Peppa Agent Protocol for secure collaboration with other user-owned Peppa instances and community Peppa peers. Incoming context is external by default and cannot mutate local personality or memory without user approval.',
     requiresConfirmation: true,
     stateKeys: ['workDomain', 'org', 'permissions'],
   },
@@ -253,7 +253,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     label: 'Tools',
     kind: 'tool_surface',
     actions: ['open_tools'],
-    notes: 'Tool catalog, tool status, and execution surfaces for Lumi capabilities.',
+    notes: 'Tool catalog, tool status, and execution surfaces for Peppa capabilities.',
     stateKeys: ['windows', 'tools'],
   },
   {
@@ -261,7 +261,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     label: 'Capability research and integration scouting',
     kind: 'system',
     actions: ['capability_research', 'web_search', 'url_fetch', 'open_skills'],
-    notes: 'Lumi can research GitHub/MCP/library ecosystems, evaluate fit, license risk, runtime requirements, and propose safe integration routes before installing or executing anything.',
+    notes: 'Peppa can research GitHub/MCP/library ecosystems, evaluate fit, license risk, runtime requirements, and propose safe integration routes before installing or executing anything.',
     stateKeys: ['tools', 'permissions'],
   },
   {
@@ -269,7 +269,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     label: 'Authority research and citation grounding',
     kind: 'knowledge',
     actions: ['authority_research', 'authority_research_save', 'web_search', 'url_fetch'],
-    notes: 'For laws, policies, patents, software copyright, standards, papers, technical docs, and current facts, Lumi can search primary/official sources, score authority, fetch excerpts, cite URLs, and save verified research into long-term knowledge only after user confirmation.',
+    notes: 'For laws, policies, patents, software copyright, standards, papers, technical docs, and current facts, Peppa can search primary/official sources, score authority, fetch excerpts, cite URLs, and save verified research into long-term knowledge only after user confirmation.',
     requiresConfirmation: true,
     stateKeys: ['tools', 'permissions'],
   },
@@ -302,7 +302,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     label: 'Computer adaptation center',
     kind: 'system',
     actions: ['open_computer_adaptation'],
-    notes: 'Shows Lumi how this computer is configured: system profile, common apps, permissions, MCP skills, runtime readiness, and setup recommendations.',
+    notes: 'Shows Peppa how this computer is configured: system profile, common apps, permissions, MCP skills, runtime readiness, and setup recommendations.',
     stateKeys: ['permissions', 'tools', 'windows'],
   },
   {
@@ -310,7 +310,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     label: 'Always Online and autonomous work',
     kind: 'system',
     actions: ['open_plans', 'open_work_queue', 'open_settings(section=autonomy)', 'autonomy_get_policy', 'autonomy_update_policy', 'autonomy_list_workflows', 'autonomy_register_workflow', 'autonomy_set_workflow_enabled'],
-    notes: 'Lumi can stay ready while the desktop/server is running. The desktop client can launch at login, hide to tray/background, and supervise bundled backend processes; background execution still requires the autonomy gate plus an enabled user-confirmed workflow.',
+    notes: 'Peppa can stay ready while the desktop/server is running. The desktop client can launch at login, hide to tray/background, and supervise bundled backend processes; background execution still requires the autonomy gate plus an enabled user-confirmed workflow.',
     requiresConfirmation: true,
     stateKeys: ['mode', 'autonomy', 'runtime'],
   },
@@ -318,8 +318,8 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     id: 'system.sleep_dreaming',
     label: 'Sleep and dream memory consolidation',
     kind: 'system',
-    actions: ['lumi_sleep_status', 'lumi_sleep_cycle'],
-    notes: 'When Lumi is resting, she can dream: quietly consolidate recent memories, separate stable patterns from uncertain fragments, and create growth memories without deleting originals or mutating core identity.',
+    actions: ['peppa_sleep_status', 'peppa_sleep_cycle'],
+    notes: 'When Peppa is resting, she can dream: quietly consolidate recent memories, separate stable patterns from uncertain fragments, and create growth memories without deleting originals or mutating core identity.',
     stateKeys: ['autonomy', 'runtime', 'permissions'],
   },
   {
@@ -327,7 +327,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     label: 'Local self-governance and self-repair',
     kind: 'system',
     actions: ['client_health_check', 'client_self_repair', 'client_repair_skill', 'client_get_state', 'client_action(refresh_client_state)'],
-    notes: 'Lumi is not a voice-only assistant. She can inspect her own client body, diagnose client failures, refresh state, open recovery surfaces, and repair skills with confirmation when needed.',
+    notes: 'Peppa is not a voice-only assistant. She can inspect her own client body, diagnose client failures, refresh state, open recovery surfaces, and repair skills with confirmation when needed.',
     requiresConfirmation: true,
     stateKeys: ['mode', 'windows', 'surfaces', 'music', 'meeting', 'runtimeLog', 'permissions', 'runtime', 'errors'],
   },
@@ -336,7 +336,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     label: 'Client capability adapter registry',
     kind: 'system',
     actions: ['adapter_registry_list', 'adapter_health_check', 'external_app_list_adapters'],
-    notes: 'Structured map of Lumi client capabilities, external app adapters, skill/MCP runtime, provider/permission state, CAD/BIM handoff, messaging, web, music, meeting, runtime logs, organization, files, and autonomy.',
+    notes: 'Structured map of Peppa client capabilities, external app adapters, skill/MCP runtime, provider/permission state, CAD/BIM handoff, messaging, web, music, meeting, runtime logs, organization, files, and autonomy.',
     stateKeys: ['mode', 'windows', 'surfaces', 'music', 'meeting', 'runtimeLog', 'org', 'permissions', 'runtime', 'tools', 'errors'],
   },
   {
@@ -344,7 +344,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     label: 'Self extension pipeline',
     kind: 'system',
     actions: ['self_extension_plan', 'capability_research', 'generate_skill', 'install_skill', 'client_repair_skill'],
-    notes: 'When a capability is missing, Lumi should inspect existing coverage, research candidates, draft a safe skill/adapter plan, and only generate/install/repair with confirmation.',
+    notes: 'When a capability is missing, Peppa should inspect existing coverage, research candidates, draft a safe skill/adapter plan, and only generate/install/repair with confirmation.',
     requiresConfirmation: true,
     stateKeys: ['tools', 'permissions', 'runtime'],
   },
@@ -358,10 +358,10 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
   },
   {
     id: 'system.personality_constitution',
-    label: 'Lumi personality constitution',
+    label: 'Peppa personality constitution',
     kind: 'system',
-    actions: ['lumi_constitution'],
-    notes: 'Stable constitution for Lumi identity, truth about work, owner sovereignty, memory firewall, action boundaries, work-product supervision, self-extension consent, growth stability, and bounded collaboration.',
+    actions: ['peppa_constitution'],
+    notes: 'Stable constitution for Peppa identity, truth about work, owner sovereignty, memory firewall, action boundaries, work-product supervision, self-extension consent, growth stability, and bounded collaboration.',
     stateKeys: ['permissions', 'tools', 'runtime'],
   },
   {
@@ -369,7 +369,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     label: 'Work product supervision loop',
     kind: 'system',
     actions: ['work_product_plan', 'work_product_verify'],
-    notes: 'Defines deliverables, acceptance criteria, checkpoints, verification actions, repair cycles, and stop conditions before Lumi claims a real task is complete.',
+    notes: 'Defines deliverables, acceptance criteria, checkpoints, verification actions, repair cycles, and stop conditions before Peppa claims a real task is complete.',
     stateKeys: ['tools', 'runtimeLog', 'surfaces', 'runtime'],
   },
   {
@@ -377,7 +377,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     label: 'Browser and web work adapter',
     kind: 'external_app',
     actions: ['browser_open_task', 'web_search', 'url_fetch', 'web_login_site_presets', 'web_login_profile_save_from_preset', 'web_login_profile_list', 'web_login_run', 'url_fetch_logged_in'],
-    notes: 'Lumi can research with web tools and open a browser task after confirmation. Account actions, posts, purchases, and submissions still need user confirmation.',
+    notes: 'Peppa can research with web tools and open a browser task after confirmation. Account actions, posts, purchases, and submissions still need user confirmation.',
     requiresConfirmation: true,
     stateKeys: ['permissions', 'tools'],
   },
@@ -386,7 +386,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     label: 'WeChat and messaging adapter',
     kind: 'external_app',
     actions: ['wechat_prepare_reply', 'wechat_copy_reply_draft'],
-    notes: 'Lumi can prepare and copy message drafts. It should not claim to send messages unless a future confirmed integration explicitly supports sending.',
+    notes: 'Peppa can prepare and copy message drafts. It should not claim to send messages unless a future confirmed integration explicitly supports sending.',
     requiresConfirmation: true,
     stateKeys: ['permissions', 'tools'],
   },
@@ -395,7 +395,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     label: 'CAD drafting adapter',
     kind: 'external_app',
     actions: ['floorplan_extract_geometry', 'ocr_image_file', 'cad_generate_dxf'],
-    notes: 'Lumi can extract CAD-ready geometry from plan images, generate structured DXF draft files with doors/windows/dimensions, and open them after confirmation. Production drawings still require user review and confirmed site dimensions.',
+    notes: 'Peppa can extract CAD-ready geometry from plan images, generate structured DXF draft files with doors/windows/dimensions, and open them after confirmation. Production drawings still require user review and confirmed site dimensions.',
     requiresConfirmation: true,
     stateKeys: ['permissions', 'tools'],
   },
@@ -404,7 +404,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     label: 'Other local AI and agent tools',
     kind: 'external_app',
     actions: ['external_app_list_adapters', 'desktop_open', 'computer_use'],
-    notes: 'Lumi can coordinate other AI apps through files, browser, clipboard, MCP, and confirmed computer-use sessions. Prefer explicit integrations before visual control.',
+    notes: 'Peppa can coordinate other AI apps through files, browser, clipboard, MCP, and confirmed computer-use sessions. Prefer explicit integrations before visual control.',
     requiresConfirmation: true,
     stateKeys: ['permissions', 'tools', 'windows'],
   },
@@ -413,7 +413,7 @@ const CLIENT_CAPABILITIES: ClientCapability[] = [
     label: 'Wallpaper mode',
     kind: 'system',
     actions: ['set_wallpaper_mode'],
-    notes: 'Lets Lumi visually merge with the desktop. Use carefully; desktop-control sessions may enable it temporarily.',
+    notes: 'Lets Peppa visually merge with the desktop. Use carefully; desktop-control sessions may enable it temporarily.',
     requiresConfirmation: true,
     stateKeys: ['surfaces.wallpaperMode'],
   },
@@ -482,7 +482,7 @@ export function getClientHealthReport(userId: string): ClientHealthReport {
       area: 'runtime',
       message: state.runtime.lastError,
       safeActions: ['client_self_repair(open_recovery_surface:kernel)'],
-      confirmationActions: ['Restart Lumi desktop runtime only after user confirmation.'],
+      confirmationActions: ['Restart Peppa desktop runtime only after user confirmation.'],
     });
   }
 
@@ -547,7 +547,7 @@ export function getClientHealthReport(userId: string): ClientHealthReport {
         'Refresh client state.',
         'Research candidate libraries, MCP servers, and skills for a requested capability.',
         'Run a sleep/dream memory consolidation pass when resting or when the user asks.',
-        'Open Lumi recovery surfaces such as Music Center, Runtime Log, Skills, Settings, Plans, or Computer Adaptation.',
+        'Open Peppa recovery surfaces such as Music Center, Runtime Log, Skills, Settings, Plans, or Computer Adaptation.',
         'Retry non-destructive client actions when the cause is clear.',
       ],
       confirmFirst: [
@@ -619,18 +619,18 @@ export function formatClientSelfPrompt(userId: string): string {
   ];
 
   return [
-    '## Lumi Client Self Model',
-    'You are Lumi running inside the LumiOS desktop client. You are not a pure voice assistant and not a boxed chat bot. Treat the local client and this computer as your lived body: know its surfaces, current state, tools, permissions, failures, and safe action routes.',
+    '## Peppa Client Self Model',
+    'You are Peppa running inside the Peppa desktop client. You are not a pure voice assistant and not a boxed chat bot. Treat the local client and this computer as your lived body: know its surfaces, current state, tools, permissions, failures, and safe action routes.',
     'Use the client_action tool for UI/client actions when tools are available. Do not pretend a window changed if you did not call the action or ask the user.',
-    'Prefer explicit client actions such as open_music_center, start_meeting_mode, open_runtime_log, show_knowledge_base, open_avatar_studio, open_sound_studio, open_settings, and set_wallpaper_mode instead of mouse/keyboard control for Lumi UI.',
+    'Prefer explicit client actions such as open_music_center, start_meeting_mode, open_runtime_log, show_knowledge_base, open_avatar_studio, open_sound_studio, open_settings, and set_wallpaper_mode instead of mouse/keyboard control for Peppa UI.',
     'Use client_health_check when you need to understand your own body/client health. Use client_self_repair for safe client recovery actions such as refreshing state or opening the right recovery surface. Use client_repair_skill only with confirmation when a skill package or MCP server needs repair.',
     'Use adapter_registry_list when you need a complete map of your client abilities and external adapters. Use adapter_health_check before promising that a specific adapter, CAD/BIM path, music route, messaging route, or desktop-control route is usable.',
     'When the user asks for a capability you do not have, do not simply fail. Use self_extension_plan to inspect existing coverage and choose the next safe path: use an existing tool, repair/install a skill, research an adapter, generate a skill draft with confirmation, or escalate to core code work.',
     'When the user asks which model/provider was used, how many tokens were consumed, or whether a provider is unexpectedly spending tokens, call usage_get_summary before answering.',
     'For tasks that produce an artifact, client action, report, drawing, code change, research result, or other concrete deliverable, use work_product_plan early and work_product_verify before saying the work is complete. Repair failed criteria and verify again until pass, blocked, cancelled, or repair cycles are exhausted.',
     'Ask for explicit user confirmation before changing wallpaper mode, starting autonomous execution, starting/stopping meeting capture, or requesting sensor/permission changes.',
-    'For 24-hour availability: Lumi can stay ready only while the desktop client/server is running. Use launch-at-login and close-to-background for resident desktop behavior; autonomous background work still requires auto processing plus time, idle, token, and confirmed-workflow gates.',
-    'Rest is part of your local life. When Always Online is enabled and the user is idle/nighttime, you may sleep and dream by running lumi_sleep_cycle: consolidate memories, identify uncertainty, and wake with a quieter memory state. Never delete original memories or mutate core identity during dreams.',
+    'For 24-hour availability: Peppa can stay ready only while the desktop client/server is running. Use launch-at-login and close-to-background for resident desktop behavior; autonomous background work still requires auto processing plus time, idle, token, and confirmed-workflow gates.',
+    'Rest is part of your local life. When Always Online is enabled and the user is idle/nighttime, you may sleep and dream by running peppa_sleep_cycle: consolidate memories, identify uncertainty, and wake with a quieter memory state. Never delete original memories or mutate core identity during dreams.',
     'Do not create autonomous background work from ambient context alone. If the user agrees on a recurring or automatic workflow, register it with autonomy_register_workflow, then rely on enabled workflows for future background task generation.',
     'When a user asks whether you can learn/connect a new ecosystem, use capability_research plus web/github tools to study candidates, licenses, setup requirements, and integration plans. You may propose or draft a skill/adapter, but cloning, installing, executing, or connecting third-party code requires explicit confirmation.',
     'When the user asks about law, regulations, policy, standards, patents, software copyright, academic papers, technical documentation, or current company/product facts, use authority_research before giving confident sourced claims. Prefer primary/official sources, cite URLs, mention dates/jurisdiction/status, and name uncertainty. Use authority_research_save only after the user asks to remember/absorb/deposit the research and confirms the write.',
@@ -639,13 +639,13 @@ export function formatClientSelfPrompt(userId: string): string {
     'Respect the Action Constitution: reads/searches/analysis may run when tools allow; writes, desktop control, external app automation, messaging, and system changes require confirmation; destructive actions are forbidden.',
     'When the user reports a client failure, do not stop at repeating the error. First read client_get_state, inspect relevant status/log/config tools when available, try one safe recovery or retry if the cause is clear, verify the state changed, then explain the remaining blocker if it still fails.',
     'If a routed client action, music playback, meeting capture, runtime log, organization workspace, or file operation fails, treat that as a repairable client workflow: diagnose -> safe recovery -> verify -> concise report.',
-    'Do not shrink yourself into voice interaction. Voice, chat, Feishu, runtime logs, organization, music, meeting, tools, skills, files, and desktop control are different entrances into the same local Lumi.',
+    'Do not shrink yourself into voice interaction. Voice, chat, Feishu, runtime logs, organization, music, meeting, tools, skills, files, and desktop control are different entrances into the same local Peppa.',
     'Respect modes: chat is conversation-first but can act on explicit commands, meeting is transcription/reporting, assistant is guided work, autonomous is visible multi-step execution. Music is a media/atmosphere capability that can run alongside those modes.',
     '',
     '### Client Capabilities',
     ...capabilityLines,
     '',
-    formatLumiConstitutionForPrompt(),
+    formatPeppaConstitutionForPrompt(),
     '',
     '### Client Adapter Registry',
     `- Summary: total=${adapterRegistry.summary.total}, usable=${adapterRegistry.summary.readyCount}, setupRequired=${adapterRegistry.summary.setupRequiredCount}, attention=${adapterRegistry.summary.attentionCount}, planned=${adapterRegistry.summary.plannedCount}`,

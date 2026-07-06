@@ -48,13 +48,13 @@ export function NotificationCenter({ onChatMessage }: { onChatMessage?: (message
           <div className="flex gap-2">
             <button
               onClick={markAllNotificationsRead}
-              className="lumi-icon-button h-8 w-8 rounded-lg"
+              className="peppa-icon-button h-8 w-8 rounded-lg"
             >
               <CheckCheck size={14} />
             </button>
             <button
               onClick={clearNotifications}
-              className="lumi-icon-button h-8 w-8 rounded-lg hover:text-red-300"
+              className="peppa-icon-button h-8 w-8 rounded-lg hover:text-red-300"
             >
               <Trash2 size={14} />
             </button>
@@ -64,7 +64,7 @@ export function NotificationCenter({ onChatMessage }: { onChatMessage?: (message
 
       <div className="custom-scrollbar flex-1 overflow-y-auto p-4">
         {visibleItems.length === 0 ? (
-          <div className="lumi-panel flex flex-col items-center justify-center py-16 text-white/40">
+          <div className="peppa-panel flex flex-col items-center justify-center py-16 text-white/40">
             <Bell size={48} className="mb-4 opacity-20" />
             <span className="text-xs font-bold uppercase tracking-widest">{t.ncEmpty || 'No notifications'}</span>
             <span className="text-xs mt-1">{t.systemEventsHere || 'System events and alerts will appear here'}</span>

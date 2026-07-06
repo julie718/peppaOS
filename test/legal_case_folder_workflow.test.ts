@@ -6,7 +6,7 @@ import { runLegalCaseFolderWorkflow } from '../server/skills/bundled/legal-casew
 
 describe('legal case folder workflow', () => {
   it('extracts case signals and writes lawyer-facing work papers', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lumi_legal_case_'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'peppa_legal_case_'));
     try {
       fs.writeFileSync(path.join(dir, '案情.txt'), `
 案由：买卖合同纠纷
@@ -55,7 +55,7 @@ describe('legal case folder workflow', () => {
   });
 
   it('returns previews without writing files when writeFiles is false', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lumi_legal_case_preview_'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'peppa_legal_case_preview_'));
     try {
       fs.writeFileSync(path.join(dir, '材料.txt'), '原告：甲公司\n被告：乙公司\n合同纠纷\n付款人民币 10万元', 'utf-8');
       const result = await runLegalCaseFolderWorkflow({ folderPath: dir, writeFiles: false, maxFiles: 5 });
@@ -63,7 +63,7 @@ describe('legal case folder workflow', () => {
       expect(result.outputDir).toBeUndefined();
       expect(result.draftFiles.length).toBeGreaterThan(0);
       expect(result.draftFiles.every(file => !file.path && file.preview.length > 0)).toBe(true);
-      expect(fs.existsSync(path.join(dir, 'Lumi法律工作底稿'))).toBe(false);
+      expect(fs.existsSync(path.join(dir, 'Peppa法律工作底稿'))).toBe(false);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

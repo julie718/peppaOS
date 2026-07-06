@@ -95,7 +95,7 @@ export function WeChatSettings({ t }: { t?: any }) {
             <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
             <span className="text-xs font-bold text-green-400">{t?.connected || 'Connected'}</span>
           </div>
-          <p className="text-xs text-white/40">{t?.wechatConnected || 'Lumi is listening on WeChat.'}</p>
+          <p className="text-xs text-white/40">{t?.wechatConnected || 'Peppa is listening on WeChat.'}</p>
           <button
             onClick={async () => {
               clearPolling();

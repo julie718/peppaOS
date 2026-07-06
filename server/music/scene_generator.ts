@@ -20,7 +20,7 @@ export interface MusicScene {
   emotion?: { valence: number; arousal: number };
 }
 
-const SCENE_PROMPT = `你是 Lumi 的像素视觉引擎。根据主人的状态生成一个像素风音乐氛围场景。输出严格 JSON，不要其他文字。
+const SCENE_PROMPT = `你是 Peppa 的像素视觉引擎。根据主人的状态生成一个像素风音乐氛围场景。输出严格 JSON，不要其他文字。
 
 输入：
 - 情绪：valence(愉悦-1~1) arousal(活跃0~1) dominantMood(主导心情) energy(精力0~1) connection(亲密度0~1)

@@ -7,11 +7,11 @@ export interface User {
 }
 
 function storeToken(token: string) {
-  try { localStorage.setItem('lumi_auth_token', token); } catch {}
+  try { localStorage.setItem('peppa_auth_token', token); } catch {}
 }
 
 export function getStoredToken(): string | null {
-  try { return localStorage.getItem('lumi_auth_token'); } catch { return null; }
+  try { return localStorage.getItem('peppa_auth_token'); } catch { return null; }
 }
 
 export async function register(username: string, password: string, phone: string): Promise<{ success: boolean; user?: User; error?: string }> {

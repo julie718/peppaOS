@@ -1,6 +1,6 @@
 
 /**
- * Procedural Audio Synthesis for Lumi OS
+ * Procedural Audio Synthesis for Peppa OS
  * Generates technical sound effects using Web Audio API
  */
 class SoundService {

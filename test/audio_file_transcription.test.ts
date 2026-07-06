@@ -14,7 +14,7 @@ async function loadModule() {
 
 describe('audio file transcription helper', () => {
   beforeEach(() => {
-    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lumi_audio_test_'));
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'peppa_audio_test_'));
     previousDataDir = process.env.LUMI_DATA_DIR;
     process.env.LUMI_DATA_DIR = tempRoot;
     previousKeys = {};

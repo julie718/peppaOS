@@ -1,5 +1,5 @@
 /**
- * Operation modes describe how much autonomy Lumi has.
+ * Operation modes describe how much autonomy Peppa has.
  * Desktop control, terminal commands, tools, skills, teams, and sub-agents are
  * execution capabilities selected inside assistant/auto mode, not top-level modes.
  */
@@ -21,7 +21,7 @@ export const OPERATION_MODE_CONFIGS: Record<OperationMode, OperationModeConfig> 
     id: 'chat',
     label: 'Chat',
     labelCN: 'Chat',
-    description: 'Conversation-first. Lumi answers naturally by default, but explicit user commands can still use tools because chat is an entrance into the same local Lumi.',
+    description: 'Conversation-first. Peppa answers naturally by default, but explicit user commands can still use tools because chat is an entrance into the same local Peppa.',
     promptOverlay: 'This is conversation-first chat mode. If the user is only talking or asking a question, answer naturally and do not call tools. If this turn was routed here because the user gave an explicit actionable command, first provide a concise action guide unless the task is trivial, then use the appropriate tools and client actions while respecting confirmation boundaries. If the work surface is ambiguous, ask whether to work in chat, tools, or directly on the desktop. Do not pretend you acted without tool evidence.',
     toolPolicy: {
       allowedTools: ['*'],
@@ -47,7 +47,7 @@ export const OPERATION_MODE_CONFIGS: Record<OperationMode, OperationModeConfig> 
     id: 'assistant',
     label: 'Assistant',
     labelCN: 'Assistant',
-    description: 'Guided assistance. Lumi can use desktop, terminal, tools, skills, and teams when the request asks for action.',
+    description: 'Guided assistance. Peppa can use desktop, terminal, tools, skills, and teams when the request asks for action.',
     promptOverlay: [
       'You are in assistant mode.',
       'Before handling a non-trivial task, give the user a concise action guide: where you will work (chat, tools, run logs, or desktop), what you will do first, and what needs confirmation.',
@@ -80,7 +80,7 @@ export const OPERATION_MODE_CONFIGS: Record<OperationMode, OperationModeConfig> 
     id: 'autonomous',
     label: 'Autonomy',
     labelCN: '自主',
-    description: 'Multi-step autonomous work. Lumi gives an action guide, then plans, uses tools, operates the desktop, opens run logs when useful, and coordinates agents with visible progress.',
+    description: 'Multi-step autonomous work. Peppa gives an action guide, then plans, uses tools, operates the desktop, opens run logs when useful, and coordinates agents with visible progress.',
     promptOverlay: [
       'You are in autonomy mode.',
       'Start with a concise action guide before running a multi-step task: route, major steps, expected outputs, and confirmation points.',
@@ -117,7 +117,7 @@ export const OPERATION_MODE_CONFIGS: Record<OperationMode, OperationModeConfig> 
     id: 'meeting',
     label: 'Meeting',
     labelCN: '会议',
-    description: 'Transcription-only meeting notes. Lumi listens and records, but does not answer or execute tools for each utterance.',
+    description: 'Transcription-only meeting notes. Peppa listens and records, but does not answer or execute tools for each utterance.',
     promptOverlay: 'Meeting mode is transcription-only. Record speech as meeting notes. Do not call tools, operate the desktop, speak responses, or treat every utterance as a command.',
     toolPolicy: {
       allowedTools: [],

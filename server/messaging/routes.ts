@@ -5,7 +5,7 @@
  *   1. POST /api/feishu/events — receives all subscribed events
  *   2. URL verification: Feishu sends { type: "url_verification", challenge: "..." }
  *      → respond with { challenge: "..." } within 1 second
- *   3. Message events: parse → process via LLM with Lumi personality → reply
+ *   3. Message events: parse → process via LLM with Peppa personality → reply
  */
 import { Router } from 'express';
 import fs from 'fs';
@@ -195,7 +195,7 @@ export function createMessagingRoutes(
       res.json({
         code: code.code,
         expiresAt: code.expiresAt,
-        instruction: `在飞书里发送：绑定 Lumi ${code.code}`,
+        instruction: `在飞书里发送：绑定 Peppa ${code.code}`,
       });
     } catch (err: any) {
       res.status(400).json({ error: err?.message || 'Failed to create binding code' });
@@ -214,7 +214,7 @@ export function createMessagingRoutes(
   return router;
 }
 
-// ── AI reply pipeline — powered by Lumi personality ──
+// ── AI reply pipeline — powered by Peppa personality ──
 
 function sanitizeFileName(name: string): string {
   return (name || 'attachment')
@@ -237,23 +237,23 @@ function getRequestText(msg: IncomingMessage): string {
 
 function handleFeishuBindingCommand(msg: IncomingMessage): string | null {
   const text = msg.text.trim();
-  const match = text.match(/^(?:绑定|bind)\s*(?:Lumi|露米|lumi)?\s*([A-Z0-9]{4,12})$/i);
+  const match = text.match(/^(?:绑定|bind)\s*(?:Peppa|露米|peppa)?\s*([A-Z0-9]{4,12})$/i);
   if (!match) return null;
   const binding = consumeBindingCode('feishu', match[1], msg.userId);
   if (!binding) {
-    return '绑定码无效或已过期。请在 Lumi 桌面端重新生成飞书绑定码。';
+    return '绑定码无效或已过期。请在 Peppa 桌面端重新生成飞书绑定码。';
   }
-  return `绑定成功。之后你可以通过飞书让 Lumi 查询组织知识库、查询案件，或发送案件文件让 Lumi 归档到组织案件。`;
+  return `绑定成功。之后你可以通过飞书让 Peppa 查询组织知识库、查询案件，或发送案件文件让 Peppa 归档到组织案件。`;
 }
 
 function applyMessagingBinding(msg: IncomingMessage): IncomingMessage {
   const binding = getBinding('feishu', msg.userId);
   if (!binding) return msg;
-  const membership = getMember(binding.orgId, binding.lumiUserId);
+  const membership = getMember(binding.orgId, binding.peppaUserId);
   if (!membership || membership.status !== 'active') return msg;
   return {
     ...msg,
-    boundUserId: binding.lumiUserId,
+    boundUserId: binding.peppaUserId,
     boundOrgId: binding.orgId,
   };
 }
@@ -291,8 +291,8 @@ function formatCaseResults(cases: LegalCases.OrgLegalCaseFile[]): string {
 
 function stripExtractionQuery(text: string, source: 'case' | 'kb' | 'any' = 'any'): string {
   let query = text
-    .replace(/绑定 Lumi [A-Z0-9]{4,12}/gi, ' ')
-    .replace(/(请|帮我|麻烦|一下|从|在|把|将|给我|发我|Lumi|露米|组织|工作域|远程|飞书)/g, ' ')
+    .replace(/绑定 Peppa [A-Z0-9]{4,12}/gi, ' ')
+    .replace(/(请|帮我|麻烦|一下|从|在|把|将|给我|发我|Peppa|露米|组织|工作域|远程|飞书)/g, ' ')
     .replace(/(提取|调取|获取|查看|查询|查找|搜索|检索|整理|总结|摘要|列出|找出|读取|看看)/g, ' ')
     .replace(/(出来|一下|相关|有关|里面|中的|里的|关于|信息|资料|内容|全文|要点|清单|列表|目录|报告)/g, ' ');
 
@@ -528,7 +528,7 @@ async function handleRemoteOrgCommand(msg: IncomingMessage): Promise<string | nu
   const requestText = getRequestText(msg);
   const wantsOrgData = needsBinding(requestText);
   if (wantsOrgData && (!msg.boundUserId || !msg.boundOrgId)) {
-    return '这个操作需要先绑定飞书身份。请在 Lumi 桌面端生成飞书绑定码，然后在飞书里发送：绑定 Lumi <绑定码>。';
+    return '这个操作需要先绑定飞书身份。请在 Peppa 桌面端生成飞书绑定码，然后在飞书里发送：绑定 Peppa <绑定码>。';
   }
   if (!msg.boundUserId || !msg.boundOrgId) return null;
 
@@ -734,7 +734,7 @@ async function processWithPersonality(
   const registry = options?.personalityRegistry;
   const effectiveUserId = msg.boundUserId || msg.userId;
 
-  // ── Build system prompt from Lumi personality ──
+  // ── Build system prompt from Peppa personality ──
   let systemPrompt = '';
   let personality: any = null;
 
@@ -746,7 +746,7 @@ async function processWithPersonality(
       const emotionalState = options?.loadEmotionalState ? options.loadEmotionalState(effectiveUserId) : undefined;
 
       const result = registry.buildSystemPrompt(
-        'lumi',
+        'peppa',
         { mode: 'chat', sensory: { hasAudio: false, hasVideo: false, hasSpatial: false, hasHaptic: false, hasHolographic: false, activeDeviceTypes: [], deviceCount: 0 } },
         {
           memories: memories.length > 0 ? memories : undefined,
@@ -762,12 +762,12 @@ async function processWithPersonality(
   }
 
   if (!systemPrompt) {
-    systemPrompt = `你是一个名为 Lumi 的 AI 助手，通过飞书与用户交流。保持回复简洁、有帮助、自然。`;
+    systemPrompt = `你是一个名为 Peppa 的 AI 助手，通过飞书与用户交流。保持回复简洁、有帮助、自然。`;
   }
   if (msg.boundOrgId) {
-    systemPrompt += '\n\n当前飞书用户已绑定到 Lumi 组织工作域。你可以基于本轮消息和已提供的附件内容进行分析；查询组织知识库、查询/归档案件由服务端安全工具提前处理。不要声称已经写入组织数据，除非系统消息或用户看到的回复明确说明已完成。涉及法律材料时必须提醒最终由执业律师确认。';
+    systemPrompt += '\n\n当前飞书用户已绑定到 Peppa 组织工作域。你可以基于本轮消息和已提供的附件内容进行分析；查询组织知识库、查询/归档案件由服务端安全工具提前处理。不要声称已经写入组织数据，除非系统消息或用户看到的回复明确说明已完成。涉及法律材料时必须提醒最终由执业律师确认。';
   } else {
-    systemPrompt += '\n\n当前飞书用户尚未绑定 Lumi 身份。可以分析用户直接提供的文本/附件，但不要声称可以访问组织知识库、组织案件或本地私人数据。';
+    systemPrompt += '\n\n当前飞书用户尚未绑定 Peppa 身份。可以分析用户直接提供的文本/附件，但不要声称可以访问组织知识库、组织案件或本地私人数据。';
   }
 
   // ── Determine model order from user LLM prefs ──

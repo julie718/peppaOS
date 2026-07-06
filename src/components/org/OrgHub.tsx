@@ -10,7 +10,7 @@ import { KnowledgeBaseEditor } from './KnowledgeBaseEditor';
 import { TemplateMarketplace } from './TemplateMarketplace';
 import { TemplateCreator } from './TemplateCreator';
 import { TemplateReviewQueue } from './TemplateReviewQueue';
-import { CentralLumiChat } from './CentralLumiChat';
+import { CentralPeppaChat } from './CentralPeppaChat';
 import { OrgMembers } from './OrgMembers';
 import { OrgSettings } from './OrgSettings';
 import { AuditLogViewer } from './AuditLogViewer';
@@ -71,8 +71,8 @@ export function OrgHub() {
         setSubView(detail.sub as SubView);
       }
     };
-    window.addEventListener('lumi:navigate', handler);
-    return () => window.removeEventListener('lumi:navigate', handler);
+    window.addEventListener('peppa:navigate', handler);
+    return () => window.removeEventListener('peppa:navigate', handler);
   }, []);
 
   const orgRole = orgConnection?.orgRole || 'member';
@@ -103,7 +103,7 @@ export function OrgHub() {
       case 'templates': return <TemplateMarketplace />;
       case 'templates-create': return <TemplateCreator />;
       case 'review': return <TemplateReviewQueue />;
-      case 'chat': return <CentralLumiChat />;
+      case 'chat': return <CentralPeppaChat />;
       case 'messaging': return <MessagingHub t={t} />;
       case 'members': return <OrgMembers />;
       case 'settings': return <OrgSettings />;
@@ -116,7 +116,7 @@ export function OrgHub() {
   };
 
   return (
-    <div className="lumi-surface flex h-full overflow-hidden rounded-none border-0 bg-black/20">
+    <div className="peppa-surface flex h-full overflow-hidden rounded-none border-0 bg-black/20">
       {/* Sidebar */}
       <div className="flex w-60 shrink-0 flex-col border-r border-white/[0.08] bg-black/25">
         <div className="space-y-3 border-b border-white/[0.08] p-4">
@@ -137,7 +137,7 @@ export function OrgHub() {
           <button
             onClick={handleDomainToggle}
             disabled={switchBusy}
-            className={`lumi-button h-9 w-full justify-start px-3 ${
+            className={`peppa-button h-9 w-full justify-start px-3 ${
               workDomain === 'work'
                 ? 'border-blue-400/25 bg-blue-500/10 text-blue-300'
                 : ''
@@ -167,7 +167,7 @@ export function OrgHub() {
           <button
             onClick={() => {
               void switchDomain('personal').finally(() => {
-                window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'home' } }));
+                window.dispatchEvent(new CustomEvent('peppa:navigate', { detail: { tab: 'home' } }));
               });
             }}
             className="flex w-full items-center gap-2 rounded-xl border border-transparent px-3 py-2 text-sm text-white/40 transition-colors hover:border-white/[0.08] hover:bg-white/[0.05] hover:text-white/70"

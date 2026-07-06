@@ -167,7 +167,7 @@ export function KnowledgeBaseEditor({ articleId, onSaved }: Props) {
     }
   };
 
-  const goBack = () => window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'org', sub: 'kb' } }));
+  const goBack = () => window.dispatchEvent(new CustomEvent('peppa:navigate', { detail: { tab: 'org', sub: 'kb' } }));
 
   if (loading) {
     return (
@@ -193,14 +193,14 @@ export function KnowledgeBaseEditor({ articleId, onSaved }: Props) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={goBack} className="lumi-button">
+          <button onClick={goBack} className="peppa-button">
             <ArrowLeft size={15} />
             {t.backToKB || ui('返回知识库', 'Back to KB')}
           </button>
           <button
             onClick={handleSave}
             disabled={!canSave}
-            className="lumi-button-primary border-blue-400/25 bg-blue-500/15 text-blue-100 hover:bg-blue-500/25"
+            className="peppa-button-primary border-blue-400/25 bg-blue-500/15 text-blue-100 hover:bg-blue-500/25"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             {articleId ? (t.updateArticle || ui('更新文章', 'Update Article')) : (t.createArticle || ui('创建文章', 'Create Article'))}
@@ -222,18 +222,18 @@ export function KnowledgeBaseEditor({ articleId, onSaved }: Props) {
       )}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <section className="lumi-panel overflow-hidden rounded-lg">
+        <section className="peppa-panel overflow-hidden rounded-lg">
           <div className="grid gap-3 border-b border-white/[0.08] p-4 lg:grid-cols-[minmax(0,1fr)_180px_160px]">
             <input
               value={title}
               onChange={event => setTitle(event.target.value)}
               placeholder={t.articleTitle || ui('文章标题...', 'Article title...')}
-              className="lumi-field min-w-0 rounded-lg focus:border-blue-500/40"
+              className="peppa-field min-w-0 rounded-lg focus:border-blue-500/40"
             />
             <select
               value={category}
               onChange={event => setCategory(event.target.value)}
-              className="lumi-field rounded-lg text-sm text-white/70"
+              className="peppa-field rounded-lg text-sm text-white/70"
             >
               {CATEGORY_OPTIONS.map(option => (
                 <option key={option.value} value={option.value}>{isZh ? option.zh : option.en}</option>
@@ -242,7 +242,7 @@ export function KnowledgeBaseEditor({ articleId, onSaved }: Props) {
             <select
               value={status}
               onChange={event => setStatus(event.target.value as ArticleStatus)}
-              className="lumi-field rounded-lg text-sm text-white/70"
+              className="peppa-field rounded-lg text-sm text-white/70"
             >
               <option value="draft">{t.draftStatus || ui('草稿', 'Draft')}</option>
               <option value="published">{t.publishedStatus || ui('已发布', 'Published')}</option>
@@ -256,7 +256,7 @@ export function KnowledgeBaseEditor({ articleId, onSaved }: Props) {
               value={tags}
               onChange={event => setTags(event.target.value)}
               placeholder={t.tagsCommaSeparated || ui('标签，用逗号分隔', 'Tags, comma separated')}
-              className="lumi-field min-w-[220px] flex-1 rounded-lg text-sm focus:border-blue-500/40"
+              className="peppa-field min-w-[220px] flex-1 rounded-lg text-sm focus:border-blue-500/40"
             />
             <div className="flex rounded-lg border border-white/10 bg-black/20 p-1">
               <button
@@ -282,7 +282,7 @@ export function KnowledgeBaseEditor({ articleId, onSaved }: Props) {
                 value={content}
                 onChange={event => setContent(event.target.value)}
                 placeholder={t.writeArticleContent || ui('在这里编写文章内容，支持 Markdown。', 'Write your article content here. Markdown is supported.')}
-                className="lumi-field h-[460px] w-full resize-y rounded-lg font-mono text-sm leading-6 focus:border-blue-500/40"
+                className="peppa-field h-[460px] w-full resize-y rounded-lg font-mono text-sm leading-6 focus:border-blue-500/40"
               />
             ) : (
               <article className="custom-scrollbar h-[460px] overflow-y-auto rounded-lg border border-white/10 bg-black/20 p-4 text-sm leading-7 text-white/75 whitespace-pre-wrap">
@@ -293,7 +293,7 @@ export function KnowledgeBaseEditor({ articleId, onSaved }: Props) {
         </section>
 
         <aside className="flex flex-col gap-4">
-          <section className="lumi-panel rounded-lg p-4">
+          <section className="peppa-panel rounded-lg p-4">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-white/85">
               <Hash size={16} className="text-cyan-300" />
               {ui('元数据', 'Metadata')}
@@ -305,7 +305,7 @@ export function KnowledgeBaseEditor({ articleId, onSaved }: Props) {
             </div>
           </section>
 
-          <section className="lumi-panel rounded-lg p-4">
+          <section className="peppa-panel rounded-lg p-4">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-white/85">
               <BookOpen size={16} className="text-emerald-300" />
               {ui('发布检查', 'Publish Check')}

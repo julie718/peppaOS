@@ -26,7 +26,7 @@ const AEC_SEED_REPOS = [
 function githubHeaders(): Record<string, string> {
   return {
     Accept: 'application/vnd.github.v3+json',
-    'User-Agent': 'LumiOS-Capability-Research',
+    'User-Agent': 'Peppa-Capability-Research',
     ...(process.env.GITHUB_TOKEN ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {}),
   };
 }
@@ -119,7 +119,7 @@ function scoreCandidate(repo: RepoCandidate, _goal: string): { score: number; fi
   }
   if (/typescript|javascript|node/.test(haystack)) {
     score += 8;
-    fit.push('Close to Lumi Node/TypeScript runtime');
+    fit.push('Close to Peppa Node/TypeScript runtime');
   }
   if (/python/.test(haystack)) {
     score += 6;
@@ -151,7 +151,7 @@ function scoreCandidate(repo: RepoCandidate, _goal: string): { score: number; fi
   let integration = 'Reference only';
   if (/ifcopenshell/i.test(repo.fullName)) integration = 'Best for optional Python IFC generator/runtime';
   else if (/web-ifc/i.test(repo.fullName)) integration = 'Best for Node/TypeScript IFC validation, preview, and light write/read';
-  else if (/xbim/i.test(repo.fullName)) integration = 'Best for .NET IFC workflows if Lumi adds a Windows/.NET helper';
+  else if (/xbim/i.test(repo.fullName)) integration = 'Best for .NET IFC workflows if Peppa adds a Windows/.NET helper';
   else if (/revit.*mcp|mcp.*revit/i.test(repo.fullName) || (/revit/.test(haystack) && /mcp/.test(haystack))) integration = 'Best for optional Revit MCP adapter with user-installed Revit add-in';
   else if (/aec-model-bridge/i.test(repo.fullName)) integration = 'Architecture reference; license requires care';
   else if (/autodesk-platform-services/i.test(repo.fullName)) integration = 'Cloud Revit automation reference, not local-first default';
@@ -164,14 +164,14 @@ function buildPlan(goal: string, candidates: Array<RepoCandidate & ReturnType<ty
   const hasIfc = candidates.some(c => /ifc/i.test(c.fullName + c.description));
   const hasRevitMcp = candidates.some(c => /revit/i.test(c.fullName + c.description) && /mcp/i.test(c.fullName + c.description + c.readmeExcerpt));
   const plan = [
-    'Keep Lumi local-first: extract geometry from images/files into Lumi structured building data first.',
+    'Keep Peppa local-first: extract geometry from images/files into Peppa structured building data first.',
     hasIfc
       ? 'Add an IFC export/import validation layer using a mature IFC library, preferably IfcOpenShell first and web-ifc for Node-side validation later.'
       : 'Search for a mature IFC writer before attempting direct RVT output.',
     'Generate DXF, IFC, and Dynamo/pyRevit scripts from the same structured building data so CAD/BIM outputs stay consistent.',
   ];
   if (hasRevitMcp) {
-    plan.push('Treat Revit control as an optional adapter: user installs a Revit add-in/MCP bridge, Lumi connects to it, then runs explicit create/update/check commands.');
+    plan.push('Treat Revit control as an optional adapter: user installs a Revit add-in/MCP bridge, Peppa connects to it, then runs explicit create/update/check commands.');
   } else {
     plan.push('Do not rely on mouse/keyboard drawing in Revit as the primary path; use scripts or a Revit API bridge first.');
   }
@@ -183,7 +183,7 @@ function buildPlan(goal: string, candidates: Array<RepoCandidate & ReturnType<ty
 }
 
 async function capabilityResearchHandler(args: Record<string, any>): Promise<string> {
-  const goal = String(args.goal || args.query || 'Find reusable CAD/Revit/IFC integrations for Lumi').trim();
+  const goal = String(args.goal || args.query || 'Find reusable CAD/Revit/IFC integrations for Peppa').trim();
   const domain = String(args.domain || 'aec_bim_cad').trim();
   const limit = Math.min(Math.max(Number(args.limit) || 8, 3), 12);
   const repos = new Set<string>();
@@ -251,11 +251,11 @@ export function registerCapabilityResearchTools(registry: ToolRegistry): void {
   registry.register({
     name: 'capability_research',
     description:
-      'Research GitHub/MCP/library candidates for extending Lumi with a new capability, then evaluate technical fit, license risk, integration route, and a safe implementation plan. Use this when Lumi needs to learn how to connect new ecosystems such as CAD, Revit, IFC, Dynamo, local AI apps, or industry tools. This tool does not install or execute third-party code.',
+      'Research GitHub/MCP/library candidates for extending Peppa with a new capability, then evaluate technical fit, license risk, integration route, and a safe implementation plan. Use this when Peppa needs to learn how to connect new ecosystems such as CAD, Revit, IFC, Dynamo, local AI apps, or industry tools. This tool does not install or execute third-party code.',
     parameters: {
       type: 'object',
       properties: {
-        goal: { type: 'string', description: 'Capability goal to research, e.g. "Revit IFC generation and control for Lumi".' },
+        goal: { type: 'string', description: 'Capability goal to research, e.g. "Revit IFC generation and control for Peppa".' },
         query: { type: 'string', description: 'Alias for goal.' },
         domain: { type: 'string', description: 'Optional domain. Use aec_bim_cad for CAD/Revit/IFC/BIM research.' },
         repositories: { type: 'array', description: 'Optional explicit GitHub repositories, e.g. ["IfcOpenShell/IfcOpenShell"].', items: { type: 'string' } },

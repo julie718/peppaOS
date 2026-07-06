@@ -2,7 +2,7 @@
  * External Agent Runtime
  *
  * Executes tasks on external agents (OpenClaw, Hermes, etc.) via CLI.
- * These agents run as child processes — Lumi dispatches a task, waits for
+ * These agents run as child processes — Peppa dispatches a task, waits for
  * the result, and feeds it back into the orchestrator's aggregation pipeline.
  *
  * Security: commands are shell-quoted, tasks are capped at 4000 chars,

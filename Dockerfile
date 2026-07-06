@@ -1,4 +1,4 @@
-# LumiOS — unified Docker image for personal + org deployments
+# Peppa — unified Docker image for personal + org deployments
 # Build:  docker build -t lumios .
 # Run:    docker run -p 3000:3000 -e JWT_SECRET=xxx -e LUMI_ROLE=personal lumios
 

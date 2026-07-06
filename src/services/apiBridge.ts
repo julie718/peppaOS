@@ -1,7 +1,7 @@
 declare global {
   interface Window {
-    __LUMI_API_BRIDGE_INSTALLED__?: boolean;
-    __LUMI_DESKTOP__?: boolean;
+    __MAYOS_API_BRIDGE_INSTALLED__?: boolean;
+    __MAYOS_DESKTOP__?: boolean;
   }
 }
 
@@ -14,7 +14,7 @@ export function isTauriRuntime(): boolean {
 export function getBackendOrigin(): string {
   if (typeof window === 'undefined') return 'http://127.0.0.1:3000';
   // Desktop shell flag set by installApiBridge() — always route to local backend
-  if ((window as any).__LUMI_DESKTOP__) return 'http://127.0.0.1:3000';
+  if ((window as any).__MAYOS_DESKTOP__) return 'http://127.0.0.1:3000';
   // In Tauri production, WebView2 custom protocol can't reach the backend;
   // always route through the bundled Node.js server.
   const protocol = window.location.protocol;
@@ -36,10 +36,10 @@ export function getSocketOrigin(): string {
 }
 
 export function installApiBridge(): void {
-  if (typeof window === 'undefined' || window.__LUMI_API_BRIDGE_INSTALLED__) return;
+  if (typeof window === 'undefined' || window.__MAYOS_API_BRIDGE_INSTALLED__) return;
 
   const win = window as any;
-  win.__LUMI_DESKTOP__ = true; // signal to getBackendOrigin that we're in a desktop shell
+  win.__MAYOS_DESKTOP__ = true; // signal to getBackendOrigin that we're in a desktop shell
 
   const nativeFetch = window.fetch.bind(window);
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
@@ -53,14 +53,14 @@ export function installApiBridge(): void {
     // In Tauri, API paths need credentials for cross-origin (localhost vs 127.0.0.1)
     // But if same-origin, pass through untouched
     if (url.startsWith('/')) {
-      const isDesktop = !!(win.__LUMI_DESKTOP__ || win.__TAURI_INTERNALS__ || win.__TAURI_IPC__ || win.__TAURI__);
+      const isDesktop = !!(win.__MAYOS_DESKTOP__ || win.__TAURI_INTERNALS__ || win.__TAURI_IPC__ || win.__TAURI__);
       const needsCredentials = isDesktop && (url.startsWith('/api/') || url === '/api' || url.startsWith('/mcp/'));
       if (!needsCredentials) return nativeFetch(input, init);
       const patched: RequestInit = { ...init, credentials: 'include' };
 
       // WebView2 may not send httpOnly cookies — inject stored auth token as fallback
       try {
-        const storedToken = localStorage.getItem('lumi_auth_token');
+        const storedToken = localStorage.getItem('peppa_auth_token');
         if (storedToken) {
           patched.headers = {
             ...(patched.headers as Record<string, string> || {}),
@@ -77,5 +77,5 @@ export function installApiBridge(): void {
     return nativeFetch(input, init);
   };
 
-  window.__LUMI_API_BRIDGE_INSTALLED__ = true;
+  window.__MAYOS_API_BRIDGE_INSTALLED__ = true;
 }

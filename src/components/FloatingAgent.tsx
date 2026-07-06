@@ -13,7 +13,7 @@ import Markdown from 'react-markdown';
 export function FloatingAgent({ t }: { t: any }) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
-    { role: 'assistant', content: t.manualIntro || '你好！我是 Lumi 使用说明书助手。有什么我可以帮您了解平台的吗？' }
+    { role: 'assistant', content: t.manualIntro || '你好！我是 Peppa 使用说明书助手。有什么我可以帮您了解平台的吗？' }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -72,7 +72,7 @@ export function FloatingAgent({ t }: { t: any }) {
           role: m.role,
           content: m.content
         })),
-        personalityId: 'lumi'
+        personalityId: 'peppa'
       });
     }
   };
@@ -232,7 +232,7 @@ export function FloatingAgent({ t }: { t: any }) {
                     <Input 
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
-                      placeholder={isListening ? (t.listening || "Listening...") : (t.askAboutLumiAI || "Ask about LumiAI...")}
+                      placeholder={isListening ? (t.listening || "Listening...") : (t.askAboutPeppaAI || "Ask about PeppaAI...")}
                       className="h-12 bg-black/40 border-white/10 focus:border-celestial-saturn/50 rounded-2xl pr-12"
                     />
                     <button 

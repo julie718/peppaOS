@@ -117,7 +117,7 @@ export function GitHubMCPBrowser({ t, embedded = false }: { t?: any; embedded?: 
 
       <div className="flex-1 p-6 space-y-4">
         <div className="rounded-xl border border-amber-400/15 bg-amber-500/10 px-4 py-3 text-xs leading-relaxed text-amber-100/75">
-          {t?.mcpInstallNotice || 'Only MCP-compatible packages can be installed. Lumi will clone/install/start the package first; if it cannot run as an MCP server, it will fail with a clear message instead of pretending to be ready.'}
+          {t?.mcpInstallNotice || 'Only MCP-compatible packages can be installed. Peppa will clone/install/start the package first; if it cannot run as an MCP server, it will fail with a clear message instead of pretending to be ready.'}
         </div>
         {/* Source tabs */}
         <div className="flex gap-1 p-1 rounded-xl bg-white/5 border border-white/5">

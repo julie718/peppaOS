@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { ToolRegistry } from '../registry';
 
-const OUTPUT_DIR = path.join(process.cwd(), 'lumi_output');
+const OUTPUT_DIR = path.join(process.cwd(), 'peppa_output');
 const IMAGE_EXTS = /\.(png|jpg|jpeg|svg|gif|webp)$/i;
 
 function ensureOutputDir() {
@@ -23,7 +23,7 @@ function formatImages(images: string[]): string {
   return images.map(img => {
     const stat = fs.statSync(path.join(OUTPUT_DIR, img));
     const sizeKB = (stat.size / 1024).toFixed(1);
-    return `![${img}](/lumi_output/${img})\n*${img} · ${sizeKB} KB*`;
+    return `![${img}](/peppa_output/${img})\n*${img} · ${sizeKB} KB*`;
   }).join('\n\n');
 }
 
@@ -101,7 +101,7 @@ export function registerPythonTools(registry: ToolRegistry): void {
   registry.register({
     name: 'python_exec',
     description:
-      'Execute Python 3.10 code with matplotlib, seaborn, plotly, pandas, and Pillow available. Use this to generate charts, plots, data visualizations, statistical graphics, and image processing. To display a chart in chat, save it with `plt.savefig(\'filename.png\')` — saved images are automatically captured and shown. The matplotlib backend is already set to Agg (no GUI needed). Working directory is lumi_output/. Use `plt.savefig(\'chart.png\', dpi=100, bbox_inches=\'tight\')` for best results. For plotly, use `fig.write_image(\'chart.png\')` or `fig.write_html(\'chart.html\')`.',
+      'Execute Python 3.10 code with matplotlib, seaborn, plotly, pandas, and Pillow available. Use this to generate charts, plots, data visualizations, statistical graphics, and image processing. To display a chart in chat, save it with `plt.savefig(\'filename.png\')` — saved images are automatically captured and shown. The matplotlib backend is already set to Agg (no GUI needed). Working directory is peppa_output/. Use `plt.savefig(\'chart.png\', dpi=100, bbox_inches=\'tight\')` for best results. For plotly, use `fig.write_image(\'chart.png\')` or `fig.write_html(\'chart.html\')`.',
     parameters: {
       type: 'object',
       properties: {

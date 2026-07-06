@@ -92,7 +92,7 @@ export function WeComSettings({ t }: { t?: any }) {
       <div className="p-3 rounded-xl bg-white/5 border border-white/5 text-xs text-white/55 space-y-1">
         <p>{ui('1. 前往', '1. Go to')} <a href="https://work.weixin.qq.com/wework_admin/frame#apps" target="_blank" rel="noopener noreferrer" className="text-celestial-saturn underline inline-flex items-center gap-0.5">{ui('企业微信管理后台', 'WeCom Admin Console')} <ExternalLink size={9} /></a> {ui('创建应用', 'and create an app')}</p>
         <p>{ui('2. 复制 Corp ID、Agent ID、App Secret', '2. Copy Corp ID, Agent ID, and App Secret')}</p>
-        <p>{ui('3. 「接收消息」-> 设置回调 URL：', '3. In Receive Messages, set callback URL to:')}<code className="text-celestial-jupiter bg-white/5 px-1 rounded">https://lumiai.asia/api/wecom/events</code></p>
+        <p>{ui('3. 「接收消息」-> 设置回调 URL：', '3. In Receive Messages, set callback URL to:')}<code className="text-celestial-jupiter bg-white/5 px-1 rounded">https://mayos.asia/api/wecom/events</code></p>
         <p>{ui('4. 随机生成 Token 和 EncodingAESKey（推荐 43 位），填入上面表单并保存', '4. Generate Token and EncodingAESKey, fill the form above, and save')}</p>
         <p>{ui('5. 回到企业微信后台，填入相同的 Token 和 AESKey，点击「保存」完成验证', '5. Return to WeCom, enter the same Token and AESKey, then save to verify')}</p>
       </div>

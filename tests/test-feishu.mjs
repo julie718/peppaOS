@@ -77,7 +77,7 @@ async function main() {
           chat_id: 'oc_testchat001',
           chat_type: 'group',
           message_type: 'text',
-          content: JSON.stringify({ text: '你好 Lumi，今天天气怎么样？' }),
+          content: JSON.stringify({ text: '你好 Peppa，今天天气怎么样？' }),
           create_time: String(Math.floor(Date.now() / 1000)),
         },
       },
@@ -94,7 +94,7 @@ async function main() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       chatId: 'oc_testchat001',
-      text: '测试消息 — from LumiOS test suite',
+      text: '测试消息 — from Peppa test suite',
     }),
   });
   const sendData = await sendRes.json();
@@ -115,9 +115,9 @@ async function main() {
     body: JSON.stringify({
       chatId: 'oc_testchat001',
       card: {
-        title: 'LumiOS Test Card',
+        title: 'Peppa Test Card',
         subtitle: 'Integration Test',
-        body: 'This card was sent from the LumiOS Feishu test suite.',
+        body: 'This card was sent from the Peppa Feishu test suite.',
         color: 'blue',
         linkUrl: 'https://lumiai.asia',
       },

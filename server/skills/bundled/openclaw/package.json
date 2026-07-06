@@ -1,9 +1,9 @@
 {
-  "name": "lumi-skill-openclaw",
+  "name": "peppa-skill-openclaw",
   "version": "1.0.0",
-  "description": "Open-source desktop automation agent. Controls mouse, keyboard, and browsers. Connect your existing OpenClaw instance as a Lumi team member.",
+  "description": "Open-source desktop automation agent. Controls mouse, keyboard, and browsers. Connect your existing OpenClaw instance as a Peppa team member.",
   "type": "module",
-  "lumi": {
+  "peppa": {
     "displayName": "OpenClaw",
     "category": "Automation",
     "icon": "Monitor",

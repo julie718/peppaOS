@@ -1,6 +1,6 @@
 /**
- * Lumi as an MCP Server — exposes Lumi's capabilities as MCP tools
- * so remote devices can connect and invoke Lumi via the MCP protocol.
+ * Peppa as an MCP Server — exposes Peppa's capabilities as MCP tools
+ * so remote devices can connect and invoke Peppa via the MCP protocol.
  *
  * Transport: SSE (HTTP) — devices connect via POST to /mcp/message
  * and receive responses via SSE at /mcp/sse
@@ -28,7 +28,7 @@ import type { Request, Response } from 'express';
 // Track active transports per session
 const transports: Map<string, SSEServerTransport> = new Map();
 
-export function createLumiMcpServer(llmGetters?: {
+export function createPeppaMcpServer(llmGetters?: {
   getDeepSeek?: () => any;
   getGemini?: () => any;
   getOpenAI?: () => any;
@@ -40,28 +40,28 @@ export function createLumiMcpServer(llmGetters?: {
   const bc = broadcast || (() => {});
   setOfficeBroadcast(bc);
   const mcp = new McpServer({
-    name: 'lumi-mcp',
+    name: 'peppa-mcp',
     version: '2.0.0',
   }, {
     capabilities: { tools: {} },
   });
 
-  // Tool: send a chat message to Lumi
+  // Tool: send a chat message to Peppa
   mcp.registerTool(
-    'lumi_chat',
+    'peppa_chat',
     {
-      description: 'Send a message to Lumi and get an AI-powered response. Lumi will use its personality, memory, and tool capabilities.',
+      description: 'Send a message to Peppa and get an AI-powered response. Peppa will use its personality, memory, and tool capabilities.',
       inputSchema: {
-        message: z.string().describe('The message to send to Lumi'),
-        personalityId: z.string().optional().describe('Personality to use (default: "lumi")'),
+        message: z.string().describe('The message to send to Peppa'),
+        personalityId: z.string().optional().describe('Personality to use (default: "peppa")'),
       },
     },
     async ({ message, personalityId }) => {
       try {
         bc('mcp:activity', { device: 'xiaozhi', action: 'chat', status: 'received', message: message.slice(0, 200) });
-        bc('agent:status', { status: 'thinking', agentName: 'Lumi' });
-        const pid = personalityId || 'lumi';
-        const personality = personalityRegistry.get(pid) || personalityRegistry.get('lumi')!;
+        bc('agent:status', { status: 'thinking', agentName: 'Peppa' });
+        const pid = personalityId || 'peppa';
+        const personality = personalityRegistry.get(pid) || personalityRegistry.get('peppa')!;
         const ds = deviceRegistry.getSensoryContext('mcp_remote');
         const sensory = {
           audio: ds.hasAudio,
@@ -126,11 +126,11 @@ export function createLumiMcpServer(llmGetters?: {
           response = await Promise.race([responsePromise, timeoutPromise]);
         } catch (e: any) {
           if (e.message === 'MCP_TIMEOUT') {
-            console.log('[MCP lumi_chat] Timeout — continuing in background');
+            console.log('[MCP peppa_chat] Timeout — continuing in background');
             bc('mcp:activity', { device: 'xiaozhi', action: 'chat', status: 'timeout' });
-            bc('agent:status', { status: 'idle', agentName: 'Lumi' });
+            bc('agent:status', { status: 'idle', agentName: 'Peppa' });
             responsePromise.then(() => {
-              bc('agent:status', { status: 'idle', agentName: 'Lumi' });
+              bc('agent:status', { status: 'idle', agentName: 'Peppa' });
             }).catch(() => {});
             return {
               content: [{ type: 'text' as const, text: '正在处理中，稍等片刻...' }],
@@ -157,7 +157,7 @@ export function createLumiMcpServer(llmGetters?: {
                 gDeep, gGem, gOAI, gAnt, gQw,
               );
               for (const mem of result.memories) {
-                addMemory({ userId: 'mcp_remote', type: mem.type, content: mem.content, keywords: mem.keywords, confidence: mem.confidence, sourceInteractionId: 'mcp_lumi_chat' });
+                addMemory({ userId: 'mcp_remote', type: mem.type, content: mem.content, keywords: mem.keywords, confidence: mem.confidence, sourceInteractionId: 'mcp_peppa_chat' });
               }
             } catch { /* best-effort */ }
           })();
@@ -167,11 +167,11 @@ export function createLumiMcpServer(llmGetters?: {
           ? textToHolographicOutput(response.text)
           : undefined;
         bc('mcp:activity', { device: 'xiaozhi', action: 'chat', status: 'responded', toolCalls: response.toolCalls.length });
-        bc('agent:response', { text: response.text, agentName: 'Lumi' });
-        bc('agent:status', { status: 'idle', agentName: 'Lumi' });
-        console.log('[MCP lumi_chat] Response length:', response.text.length, 'chars, toolCalls:', response.toolCalls.length);
+        bc('agent:response', { text: response.text, agentName: 'Peppa' });
+        bc('agent:status', { status: 'idle', agentName: 'Peppa' });
+        console.log('[MCP peppa_chat] Response length:', response.text.length, 'chars, toolCalls:', response.toolCalls.length);
 
-        // Synthesize TTS audio so xiaozhi can speak with Lumi's voice
+        // Synthesize TTS audio so xiaozhi can speak with Peppa's voice
         let audioBase64: string | undefined;
         let audioFormat: string | undefined;
         try {
@@ -193,9 +193,9 @@ export function createLumiMcpServer(llmGetters?: {
       } catch (err: any) {
         bc('mcp:activity', { device: 'xiaozhi', action: 'chat', status: 'failed', error: err.message });
         bc('agent:error', { message: err.message });
-        bc('agent:status', { status: 'error', agentName: 'Lumi' });
+        bc('agent:status', { status: 'error', agentName: 'Peppa' });
         return {
-          content: [{ type: 'text' as const, text: `[Lumi error]: ${err.message}` }],
+          content: [{ type: 'text' as const, text: `[Peppa error]: ${err.message}` }],
           isError: true,
         };
       }
@@ -204,9 +204,9 @@ export function createLumiMcpServer(llmGetters?: {
 
   // Tool: search memories
   mcp.registerTool(
-    'lumi_memory_search',
+    'peppa_memory_search',
     {
-      description: 'Search Lumi\'s memory for facts, preferences, habits, and knowledge about the user.',
+      description: 'Search Peppa\'s memory for facts, preferences, habits, and knowledge about the user.',
       inputSchema: {
         query: z.string().optional().describe('Search query (keyword match in content and keywords)'),
         type: z.enum(['preference', 'fact', 'habit', 'knowledge']).optional().describe('Filter by memory type'),
@@ -237,12 +237,12 @@ export function createLumiMcpServer(llmGetters?: {
 
   // Tool: add a memory
   mcp.registerTool(
-    'lumi_memory_add',
+    'peppa_memory_add',
     {
-      description: 'Teach Lumi something new — add a memory entry about a user preference, fact, habit, or knowledge.',
+      description: 'Teach Peppa something new — add a memory entry about a user preference, fact, habit, or knowledge.',
       inputSchema: {
         type: z.enum(['preference', 'fact', 'habit', 'knowledge']).describe('Type of memory'),
-        content: z.string().describe('What Lumi should remember'),
+        content: z.string().describe('What Peppa should remember'),
         keywords: z.array(z.string()).optional().describe('Search keywords for this memory'),
       },
     },
@@ -271,9 +271,9 @@ export function createLumiMcpServer(llmGetters?: {
 
   // Tool: list reminders
   mcp.registerTool(
-    'lumi_reminder_list',
+    'peppa_reminder_list',
     {
-      description: 'Get all pending reminders that Lumi is tracking.',
+      description: 'Get all pending reminders that Peppa is tracking.',
       inputSchema: {},
     },
     async () => {
@@ -299,14 +299,14 @@ export function createLumiMcpServer(llmGetters?: {
   );
 
 
-  // Tool: proactive speak — Lumi pushes TTS audio to xiaozhi
+  // Tool: proactive speak — Peppa pushes TTS audio to xiaozhi
   mcp.registerTool(
-    'lumi_speak',
+    'peppa_speak',
     {
-      description: 'Synthesize speech from text and return audio. Used for Lumi to proactively speak through the xiaozhi device — notifications, reminders, or unprompted comments.',
+      description: 'Synthesize speech from text and return audio. Used for Peppa to proactively speak through the xiaozhi device — notifications, reminders, or unprompted comments.',
       inputSchema: {
-        text: z.string().describe('The text Lumi should speak'),
-        voiceId: z.string().optional().describe('TTS voice ID (default uses Lumi personality voice)'),
+        text: z.string().describe('The text Peppa should speak'),
+        voiceId: z.string().optional().describe('TTS voice ID (default uses Peppa personality voice)'),
       },
     },
     async ({ text, voiceId }) => {
@@ -330,9 +330,9 @@ export function createLumiMcpServer(llmGetters?: {
 
   // Tool: memory narrative chain — weave related memories into a chronological story
   mcp.registerTool(
-    'lumi_narrative',
+    'peppa_narrative',
     {
-      description: '将分散的记忆片段按时间顺序编织成连贯的第一人称中文叙事。输入一个主题，Lumi 会搜索相关记忆并生成叙事故事。',
+      description: '将分散的记忆片段按时间顺序编织成连贯的第一人称中文叙事。输入一个主题，Peppa 会搜索相关记忆并生成叙事故事。',
       inputSchema: {
         topic: z.string().describe('叙事主题，用于搜索相关记忆'),
         limit: z.number().optional().default(10).describe('最大记忆数量'),
@@ -366,7 +366,7 @@ export function createLumiMcpServer(llmGetters?: {
 
   // Cross-agent memory sharing: borrow memories from other agents
   mcp.registerTool(
-    'lumi_agent_share',
+    'peppa_agent_share',
     {
       description: '从其他 Agent 借用与某个主题相关的高价值记忆。只返回标记为跨 Agent 共享的记忆（growth 层 + 高重要性 internalized 层）。',
       inputSchema: {
@@ -404,9 +404,9 @@ export function createLumiMcpServer(llmGetters?: {
 
   // List all worker agents with status, skills, and routing history
   mcp.registerTool(
-    'lumi_list_workers',
+    'peppa_list_workers',
     {
-      description: '列出所有可用的 Worker Agent，包括状态、技能标签、知识域和路由缓存统计。用于监控 Lumi 主脑的工人池。',
+      description: '列出所有可用的 Worker Agent，包括状态、技能标签、知识域和路由缓存统计。用于监控 Peppa 主脑的工人池。',
       inputSchema: {
         statusFilter: z.enum(['active', 'idle', 'offline', 'all']).optional().default('all').describe('按状态过滤'),
       },
@@ -428,7 +428,7 @@ export function createLumiMcpServer(llmGetters?: {
             name: a.name,
             status: a.status || 'idle',
             skillTags: a.skillTags || [],
-            executionMode: a.executionMode || 'lumi',
+            executionMode: a.executionMode || 'peppa',
             knowledgeDomains: a.knowledgeDomains || [],
             memoryScope: a.memoryScope || 'shared',
             autonomyLevel: a.autonomyLevel || 'reactive',
@@ -458,7 +458,7 @@ export function createLumiMcpServer(llmGetters?: {
 
   // Detailed worker status
   mcp.registerTool(
-    'lumi_worker_status',
+    'peppa_worker_status',
     {
       description: '获取指定 Worker Agent 的详细状态，包括关联记忆数、最近任务、路由命中率。',
       inputSchema: {
@@ -503,7 +503,7 @@ export function createLumiMcpServer(llmGetters?: {
                 name: agent.name,
                 status: agent.status || 'idle',
                 skillTags: agent.skillTags || [],
-                executionMode: agent.executionMode || 'lumi',
+                executionMode: agent.executionMode || 'peppa',
                 knowledgeDomains: agent.knowledgeDomains || [],
                 memoryScope: agent.memoryScope || 'shared',
                 autonomyLevel: agent.autonomyLevel || 'reactive',
@@ -528,9 +528,9 @@ export function createLumiMcpServer(llmGetters?: {
 
   // Manually route a task through the orchestrator
   mcp.registerTool(
-    'lumi_route_task',
+    'peppa_route_task',
     {
-      description: '通过 Lumi 主脑编排引擎手动路由一个任务。任务会被分解并分配给合适的 Worker Agent 执行，结果汇总后返回。',
+      description: '通过 Peppa 主脑编排引擎手动路由一个任务。任务会被分解并分配给合适的 Worker Agent 执行，结果汇总后返回。',
       inputSchema: {
         task: z.string().describe('要执行的任务描述'),
         targetAgentId: z.string().optional().describe('指定目标 Agent ID（可选，不指定则自动匹配）'),
@@ -540,12 +540,12 @@ export function createLumiMcpServer(llmGetters?: {
       try {
         bc('mcp:activity', { device: 'xiaozhi', action: 'route_task', status: 'received', task: task.slice(0, 200) });
 
-        const complexity = classifyComplexity(task, { userId: 'mcp_remote', personalityId: 'lumi' });
+        const complexity = classifyComplexity(task, { userId: 'mcp_remote', personalityId: 'peppa' });
 
         if (complexity !== 'complex') {
-          // Simple task — let Lumi handle directly
-          const personality = personalityRegistry.get('lumi') || personalityRegistry.getDefault();
-          const { systemPrompt } = personalityRegistry.buildSystemPrompt('lumi', { mode: 'task', sensory: { audio: false, visual: false, spatial: false, haptic: false, holographic: false, activeDeviceTypes: [], deviceCount: 0 } });
+          // Simple task — let Peppa handle directly
+          const personality = personalityRegistry.get('peppa') || personalityRegistry.getDefault();
+          const { systemPrompt } = personalityRegistry.buildSystemPrompt('peppa', { mode: 'task', sensory: { audio: false, visual: false, spatial: false, haptic: false, holographic: false, activeDeviceTypes: [], deviceCount: 0 } });
 
           const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
             { role: 'system', content: systemPrompt },
@@ -565,7 +565,7 @@ export function createLumiMcpServer(llmGetters?: {
               type: 'text' as const,
               text: JSON.stringify({
                 complexity: 'simple',
-                handledBy: 'Lumi (direct)',
+                handledBy: 'Peppa (direct)',
                 result: result.text,
                 toolCalls: result.toolCalls.length,
               }, null, 2),
@@ -592,14 +592,14 @@ export function createLumiMcpServer(llmGetters?: {
         const subTasks = await decomposeTask(
           task,
           { provider: 'deepseek', model: 'deepseek-v4-pro' },
-          { userId: 'mcp_remote', personalityId: 'lumi' },
+          { userId: 'mcp_remote', personalityId: 'peppa' },
           { getDeepSeek: g.getDeepSeek || (() => null), getGemini: g.getGemini || (() => null), getOpenAI: g.getOpenAI || (() => null), getAnthropic: g.getAnthropic || (() => null), getQwen: g.getQwen || (() => null) },
         );
 
         const assignments = matchWorkers(subTasks, availableAgents);
         const workflowResult = await executeWorkflow(
           assignments,
-          { userId: 'mcp_remote', personalityId: 'lumi' },
+          { userId: 'mcp_remote', personalityId: 'peppa' },
           { provider: 'deepseek', model: 'deepseek-v4-pro' },
           { getDeepSeek: g.getDeepSeek || (() => null), getGemini: g.getGemini || (() => null), getOpenAI: g.getOpenAI || (() => null), getAnthropic: g.getAnthropic || (() => null), getQwen: g.getQwen || (() => null) },
         );
@@ -617,7 +617,7 @@ export function createLumiMcpServer(llmGetters?: {
             type: 'text' as const,
             text: JSON.stringify({
               complexity: 'complex',
-              handledBy: `Lumi Orchestrator → ${workflowResult.totalAgentsUsed} worker(s)`,
+              handledBy: `Peppa Orchestrator → ${workflowResult.totalAgentsUsed} worker(s)`,
               subTasks: subTasks.map(s => ({ id: s.id, description: s.description, skill: s.requiredSkill, agentId: s.assignedAgentId })),
               assignments: assignments.map(a => ({ subTaskId: a.subTask.id, agentId: a.agent.id, agentName: a.agent.name })),
               result: aggregated,
@@ -636,7 +636,7 @@ export function createLumiMcpServer(llmGetters?: {
 }
 
 /**
- * Handle SSE connection — create transport and add to the Lumi MCP server.
+ * Handle SSE connection — create transport and add to the Peppa MCP server.
  */
 export async function handleMcpSSE(mcpServer: McpServer, req: Request, res: Response) {
   try {

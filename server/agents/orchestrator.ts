@@ -1,7 +1,7 @@
 /**
- * Lumi Master Brain Orchestrator
+ * Peppa Master Brain Orchestrator
  *
- * Lumi receives tasks → judges complexity → handles simple ones directly →
+ * Peppa receives tasks → judges complexity → handles simple ones directly →
  * decomposes complex ones into sub-tasks → dispatches to worker agents →
  * aggregates results → optionally distills pattern into a reusable skill.
  *
@@ -57,7 +57,7 @@ export interface SubTask {
   id: string;
   description: string;
   requiredSkill: 'code' | 'writing' | 'analysis' | 'search' | 'general';
-  executionMode: 'lumi' | 'scholar' | 'founder';
+  executionMode: 'peppa' | 'scholar' | 'founder';
   dependsOn?: string[];
   assignedAgentId?: string;
 }
@@ -254,7 +254,7 @@ const TEAM_TRIGGERS = [
   '多个agent', '多个智能体', 'multi-agent', 'crew',
 ];
 
-// Tool-requiring action verbs: user wants Lumi to DO something with tools.
+// Tool-requiring action verbs: user wants Peppa to DO something with tools.
 // These imply at least moderate complexity — dispatch to worker for execution.
 const ACTION_VERBS = [
   '做', '帮我做', '制作', '创建', '生成', '写', '编写', '画', '绘制',
@@ -271,7 +271,7 @@ const ACTION_VERBS = [
   'translate', 'convert', 'export', 'import', 'extract',
 ];
 
-// Pure Q&A / single-step verbs — these stay with Lumi directly
+// Pure Q&A / single-step verbs — these stay with Peppa directly
 const SIMPLE_VERBS = [
   '是什么', '什么是', '什么意思', '怎么用', '用法',
   'what is', 'how do i', 'how to', 'why is',
@@ -373,7 +373,7 @@ Rules:
 - Each sub-task should be self-contained and independently executable
 - If sub-tasks have dependencies, mark them with dependsOn
 - Assign each sub-task a requiredSkill: code, writing, analysis, search, or general
-- Assign an executionMode: scholar (technical/analytical), founder (creative/strategic), or lumi (default)
+- Assign an executionMode: scholar (technical/analytical), founder (creative/strategic), or peppa (default)
 - Produce 2-5 sub-tasks. Do NOT over-decompose.
 - Output ONLY valid JSON array — no explanation, no markdown fences.
 
@@ -444,7 +444,7 @@ export async function decomposeTask(
       id: item.id || `sub_${idx + 1}`,
       description: item.description || '',
       requiredSkill: item.requiredSkill || 'general',
-      executionMode: item.executionMode || 'lumi',
+      executionMode: item.executionMode || 'peppa',
       dependsOn: item.dependsOn || [],
     }));
   } catch (err) {
@@ -454,7 +454,7 @@ export async function decomposeTask(
       id: 'sub_1',
       description: text,
       requiredSkill: 'general',
-      executionMode: 'lumi',
+      executionMode: 'peppa',
     }];
   }
 }
@@ -648,7 +648,7 @@ function createEphemeralAgent(category: string, skillTag: string): AgentRecord {
     autonomyLevel: 'reactive',
     runtimeConfig: '{}',
     skillTags: [skillTag],
-    executionMode: 'lumi',
+    executionMode: 'peppa',
     allowCrossPollination: false,
   };
   try {
@@ -780,9 +780,9 @@ async function executeWorkerTask(
       : '';
 
     let modeDirective = '';
-    if (subTask.executionMode !== 'lumi') {
-      const lumiConfig = personalityRegistry.get('lumi');
-      const mode = lumiConfig?.executionModes?.[subTask.executionMode];
+    if (subTask.executionMode !== 'peppa') {
+      const peppaConfig = personalityRegistry.get('peppa');
+      const mode = peppaConfig?.executionModes?.[subTask.executionMode];
       if (mode?.promptExtension) {
         modeDirective = mode.promptExtension;
       }
@@ -952,7 +952,7 @@ export async function executeWorkflow(
       sourceInteractionId: `orch_${Date.now()}`,
     }, {
       tier: 'growth',
-      perspective: 'lumi_growth',
+      perspective: 'peppa_growth',
       importance: 0.7,
       domain: context.domain,
       orgId: context.orgId,
@@ -973,7 +973,7 @@ export async function executeWorkflow(
 
 // ── Result aggregation ──
 
-const AGGREGATE_PROMPT = `You are Lumi, the master orchestrator. Synthesize the following worker outputs into a single, coherent response for the user.
+const AGGREGATE_PROMPT = `You are Peppa, the master orchestrator. Synthesize the following worker outputs into a single, coherent response for the user.
 
 Original task: {task}
 

@@ -125,7 +125,7 @@ function getGridPoints(cx: number, cy: number, radius: number): string {
   }).join(' ');
 }
 
-export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
+export function PersonalityEvolution({ personalityId = 'peppa' }: Props) {
   const t = useT();
   const isZh = t.langCode !== 'en';
   const ui = (zh: string, en: string) => (isZh ? zh : en);
@@ -165,7 +165,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
     if (!socket) return;
     const handler = (event: { personalityId: string; version: string; narrative: string; mutations: any[]; timestamp: string }) => {
       if (event.personalityId === personalityId) {
-        toast.success(`${t.lumiEvolvedTo || ui('Lumi 已演化到', 'Lumi evolved to')} ${event.version}!`, {
+        toast.success(`${t.lumiEvolvedTo || ui('Peppa 已演化到', 'Peppa evolved to')} ${event.version}!`, {
           description: event.narrative?.slice(0, 100),
         });
         // Re-fetch to get the full updated state
@@ -234,7 +234,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
 
   if (loading) {
     return (
-      <div className="lumi-panel flex h-full items-center justify-center bg-zinc-950/60">
+      <div className="peppa-panel flex h-full items-center justify-center bg-zinc-950/60">
         <Loader2 size={24} className="animate-spin text-white/55" />
       </div>
     );
@@ -254,7 +254,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
   const cx = 150, cy = 150, r = 130;
 
   return (
-    <div className="lumi-surface h-full overflow-hidden rounded-2xl bg-zinc-950/75">
+    <div className="peppa-surface h-full overflow-hidden rounded-2xl bg-zinc-950/75">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-white/[0.08] p-5">
         <div className="flex items-center gap-3">
@@ -274,7 +274,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
           <button
             onClick={toggleFreeze}
             disabled={freezing}
-            className={`lumi-button h-9 px-3 text-xs ${
+            className={`peppa-button h-9 px-3 text-xs ${
               data?.evolutionFrozenAt
                 ? 'border-amber-500/30 bg-amber-500/20 text-amber-300'
                 : ''
@@ -286,7 +286,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
           <button
             onClick={triggerEvolution}
             disabled={evolving || Boolean(data?.evolutionFrozenAt)}
-            className="lumi-button-primary h-9 border-fuchsia-500/30 bg-fuchsia-500/20 px-4 text-xs text-fuchsia-300 hover:bg-fuchsia-500/30"
+            className="peppa-button-primary h-9 border-fuchsia-500/30 bg-fuchsia-500/20 px-4 text-xs text-fuchsia-300 hover:bg-fuchsia-500/30"
           >
             {evolving ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
             {t.evolve || ui('演化', 'Evolve')}
@@ -297,7 +297,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
       {!hasHistory ? (
         <div className="flex h-64 flex-col items-center justify-center gap-4 text-white/45">
           <TrendingUp size={48} />
-          <p className="text-xs">{t.noEvolutionHistory || ui('暂无演化历史。Lumi 会在与你的互动中逐渐成长。', "No evolution history yet. Lumi's personality grows with you.")}</p>
+          <p className="text-xs">{t.noEvolutionHistory || ui('暂无演化历史。Peppa 会在与你的互动中逐渐成长。', "No evolution history yet. Peppa's personality grows with you.")}</p>
         </div>
       ) : (
         <div className="flex h-[calc(100%-65px)]">
@@ -423,7 +423,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
                 <>
                   {/* Owner Profile (if available) */}
                   {selected.ownerProfile && (
-                    <div className="lumi-panel space-y-2 p-4">
+                    <div className="peppa-panel space-y-2 p-4">
                       <h3 className="text-xs font-black text-white/55 uppercase tracking-wider flex items-center gap-2">
                         <Target size={12} /> {t.ownerProfile || ui('用户画像', 'Owner Profile')}
                       </h3>
@@ -456,7 +456,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
                   )}
 
                   {selectedAudit && (
-                    <div className="lumi-panel space-y-3 p-4">
+                    <div className="peppa-panel space-y-3 p-4">
                       <div className="flex items-center justify-between gap-3">
                         <h3 className="text-xs font-black text-white/55 uppercase tracking-wider">{ui('演化审计', 'Evolution Audit')}</h3>
                         <span className={`text-[11px] font-mono uppercase px-2 py-1 rounded-full ${
@@ -479,7 +479,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
                       <button
                         onClick={revertSelected}
                         disabled={!selectedAudit.reversible || selectedAudit.status === 'reverted' || reverting}
-                        className="lumi-button h-9 border-red-500/20 bg-red-500/10 px-3 text-xs text-red-300 hover:bg-red-500/20"
+                        className="peppa-button h-9 border-red-500/20 bg-red-500/10 px-3 text-xs text-red-300 hover:bg-red-500/20"
                       >
                         {reverting ? ui('回退中...', 'Reverting...') : ui('回退这一步', 'Revert This Step')}
                       </button>
@@ -496,7 +496,7 @@ export function PersonalityEvolution({ personalityId = 'lumi' }: Props) {
                       initial={{ opacity: 0, x: 10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: mi * 0.08 }}
-                      className="lumi-panel space-y-2 p-4"
+                      className="peppa-panel space-y-2 p-4"
                     >
                       <div className="flex items-center gap-2">
                         <code className="text-[12px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">

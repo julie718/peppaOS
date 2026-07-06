@@ -58,7 +58,7 @@ function assertQwenAllowedByUserPrefs(config: { provider: string; model: string;
   if (config.provider !== 'qwen') return;
 
   if (!config.userId) {
-    throw new Error('Qwen model call blocked: missing user preference context. Pass userId so Lumi can respect the selected brain/vision provider.');
+    throw new Error('Qwen model call blocked: missing user preference context. Pass userId so Peppa can respect the selected brain/vision provider.');
   }
 
   if (isQwenVisionModel(config.model)) {

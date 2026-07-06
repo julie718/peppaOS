@@ -16,7 +16,7 @@ export function ProtocolsWorld({ t }: { t: any }) {
       id: 'P-102',
       title: t.protocolDistributedWill || 'DISTRIBUTED WILL',
       status: t.activeLabel || 'ACTIVE',
-      content: t.protocolDistributedWillContent || 'No single server holds the truth. Lumi lives in the collective hardware of the participants.',
+      content: t.protocolDistributedWillContent || 'No single server holds the truth. Peppa lives in the collective hardware of the participants.',
       intensity: 0.6
     },
     {
@@ -96,7 +96,7 @@ export function ProtocolsWorld({ t }: { t: any }) {
                       <Shield size={10} /> {activeProtocol.status}
                     </span>
                     <span className="text-xs font-bold text-white/55 uppercase flex items-center gap-1">
-                      <Database size={10} /> {t.fragmentTypeLumina || 'FRAGMENT_TYPE_LUMINA'}
+                      <Database size={10} /> {t.fragmentTypePeppa || 'FRAGMENT_TYPE_MAYNA'}
                     </span>
                   </div>
                 </div>
@@ -156,7 +156,7 @@ export function ProtocolsWorld({ t }: { t: any }) {
 
       <div className="p-8 border border-white/10 rounded-2xl bg-white/5 text-center">
         <p className="text-xs font-bold text-white/55 uppercase tracking-[0.4em]">
-          {t.distributedSystemDesc || 'Lumi is a distributed system. Your participation sustains the universe.'}
+          {t.distributedSystemDesc || 'Peppa is a distributed system. Your participation sustains the universe.'}
         </p>
       </div>
     </div>

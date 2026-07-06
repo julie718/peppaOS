@@ -276,7 +276,7 @@ ${input}`);
             onChange={e => setInput(e.target.value)}
             placeholder={config.placeholder}
             rows={8}
-            className="lumi-field min-h-56 w-full resize-none focus:border-pink-500/50"
+            className="peppa-field min-h-56 w-full resize-none focus:border-pink-500/50"
           />
           <div className="flex flex-wrap items-center gap-2">
             {config.chips.map(chip => (
@@ -293,7 +293,7 @@ ${input}`);
           <button
             onClick={run}
             disabled={loading || !input.trim()}
-            className="lumi-button-primary border-pink-400/25 bg-pink-500/15 px-6 py-3 text-pink-100 hover:bg-pink-500/25 disabled:cursor-not-allowed disabled:opacity-40"
+            className="peppa-button-primary border-pink-400/25 bg-pink-500/15 px-6 py-3 text-pink-100 hover:bg-pink-500/25 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
             {loading ? ui('处理中...', 'Working...') : config.button}
@@ -317,7 +317,7 @@ ${input}`);
       </section>
 
       {result && (
-        <section className="lumi-panel custom-scrollbar max-h-[560px] overflow-y-auto p-5 text-sm leading-relaxed whitespace-pre-wrap text-white/80">
+        <section className="peppa-panel custom-scrollbar max-h-[560px] overflow-y-auto p-5 text-sm leading-relaxed whitespace-pre-wrap text-white/80">
           {result}
         </section>
       )}

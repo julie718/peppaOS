@@ -3,7 +3,7 @@ import { getSocketOrigin } from "./apiBridge";
 import { getStoredToken } from "./authService";
 
 function getDeviceFingerprint(): string {
-  const key = 'lumi_device_fingerprint';
+  const key = 'peppa_device_fingerprint';
   let fp: string | null = null;
   try { fp = localStorage.getItem(key); } catch {}
   if (!fp) {
@@ -15,7 +15,7 @@ function getDeviceFingerprint(): string {
 
 const DEVICE_FINGERPRINT = getDeviceFingerprint();
 
-const HEARTBEAT_KEY = 'lumi_page_heartbeat';
+const HEARTBEAT_KEY = 'peppa_page_heartbeat';
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let disconnectSince: number | null = null;
 const DISCONNECT_RELOAD_MS = 120_000; // 2 minutes disconnected → reload

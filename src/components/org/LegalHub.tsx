@@ -87,7 +87,7 @@ export function LegalHub() {
       setActiveCaseIdState(getActiveLegalCaseId());
     };
     const syncStorage = (event: StorageEvent) => {
-      if (!event.key || event.key.startsWith('lumi_legal_')) syncCases();
+      if (!event.key || event.key.startsWith('peppa_legal_')) syncCases();
     };
     window.addEventListener(LEGAL_CASES_CHANGED_EVENT, syncCases);
     window.addEventListener('storage', syncStorage);
@@ -104,9 +104,9 @@ export function LegalHub() {
       return;
     }
     void refreshCases();
-    window.addEventListener('lumi:org-legal-cases-changed', refreshCases);
+    window.addEventListener('peppa:org-legal-cases-changed', refreshCases);
     return () => {
-      window.removeEventListener('lumi:org-legal-cases-changed', refreshCases);
+      window.removeEventListener('peppa:org-legal-cases-changed', refreshCases);
     };
   }, [orgConnection?.orgId, refreshCases, useOrgCases]);
 
@@ -259,7 +259,7 @@ export function LegalHub() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || ui('案件计划创建失败', 'Failed to create case plan'));
       toast.success(ui('案件计划已创建', 'Case plan created'));
-      window.dispatchEvent(new CustomEvent('lumi:client-action', { detail: { action: 'open_plans' } }));
+      window.dispatchEvent(new CustomEvent('peppa:client-action', { detail: { action: 'open_plans' } }));
     } catch (err: any) {
       toast.error(err?.message || ui('案件计划创建失败', 'Failed to create case plan'));
     }
@@ -271,7 +271,7 @@ export function LegalHub() {
       return;
     }
     setLegalConsultationCaseId(activeCase.id);
-    window.dispatchEvent(new CustomEvent('lumi:client-action', {
+    window.dispatchEvent(new CustomEvent('peppa:client-action', {
       detail: {
         action: 'start_meeting_mode',
         confirmed: true,
@@ -288,7 +288,7 @@ export function LegalHub() {
   };
 
   const openMeetingNotes = () => {
-    window.dispatchEvent(new CustomEvent('lumi:client-action', {
+    window.dispatchEvent(new CustomEvent('peppa:client-action', {
       detail: { action: 'open_meeting_notes', respond: () => {} },
     }));
   };
@@ -540,7 +540,7 @@ function LegalCaseWorkspace({
           </p>
           <button
             onClick={onCreateCase}
-            className="lumi-button-primary mt-6 border-amber-400/25 bg-amber-500/15 px-5 py-3 text-amber-200 hover:bg-amber-500/25"
+            className="peppa-button-primary mt-6 border-amber-400/25 bg-amber-500/15 px-5 py-3 text-amber-200 hover:bg-amber-500/25"
           >
             <Plus size={16} />
             {ui('新建案件', 'New Case')}
@@ -569,7 +569,7 @@ function LegalCaseWorkspace({
         <LegalMeetingInlineButton className="ml-auto" label={ui('会议', 'Meeting')} onClick={onStartConsultation} />
         <button
           onClick={onCreateCase}
-          className="lumi-button h-10 px-4 text-sm"
+          className="peppa-button h-10 px-4 text-sm"
         >
           <Plus size={15} />
           {ui('新建案件', 'New Case')}
@@ -578,7 +578,7 @@ function LegalCaseWorkspace({
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[280px_minmax(0,1fr)]">
         <div className="space-y-3">
-          <div className="lumi-panel p-3">
+          <div className="peppa-panel p-3">
             <div className="mb-2 flex items-center justify-between gap-2">
               <div className="text-xs font-bold uppercase tracking-[0.14em] text-white/40">{ui('案件列表', 'Cases')}</div>
               {orgBacked && (
@@ -586,14 +586,14 @@ function LegalCaseWorkspace({
                   type="button"
                   onClick={onRefreshCases}
                   disabled={refreshing}
-                  className="lumi-icon-button h-7 w-7 rounded-lg"
+                  className="peppa-icon-button h-7 w-7 rounded-lg"
                   title={ui('刷新组织案件', 'Refresh organization cases')}
                 >
                   <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
                 </button>
               )}
             </div>
-            <div className="lumi-field mb-2 flex items-center gap-2 rounded-lg px-2 py-0">
+            <div className="peppa-field mb-2 flex items-center gap-2 rounded-lg px-2 py-0">
               <Search size={13} className="shrink-0 text-white/30" />
               <input
                 value={caseFilter}
@@ -624,7 +624,7 @@ function LegalCaseWorkspace({
             </div>
           </div>
 
-          <div className="lumi-panel border-amber-400/15 bg-amber-400/[0.045] p-3">
+          <div className="peppa-panel border-amber-400/15 bg-amber-400/[0.045] p-3">
             <div className="flex items-start gap-2 text-amber-200">
               <AlertTriangle size={15} className="mt-0.5 shrink-0" />
               <p className="text-xs leading-5 text-amber-100/70">
@@ -635,7 +635,7 @@ function LegalCaseWorkspace({
         </div>
 
         <div className="space-y-5">
-          <section className="lumi-panel p-4">
+          <section className="peppa-panel p-4">
             <div className="mb-4 flex items-center gap-2 text-white/78">
               <FolderOpen size={16} className="text-amber-300" />
               <h3 className="text-sm font-bold">{ui('案件档案', 'Case File')}</h3>
@@ -652,7 +652,7 @@ function LegalCaseWorkspace({
                 <select
                   value={activeCase.stage}
                   onChange={event => update({ stage: event.target.value as LegalCaseStage })}
-                  className="lumi-field h-10 w-full rounded-lg focus:border-amber-400/50"
+                  className="peppa-field h-10 w-full rounded-lg focus:border-amber-400/50"
                 >
                   {Object.entries(stageLabels).map(([value, label]) => (
                     <option key={value} value={value}>{label}</option>
@@ -666,7 +666,7 @@ function LegalCaseWorkspace({
                 value={activeCase.notes}
                 onChange={event => update({ notes: event.target.value })}
                 rows={4}
-                className="lumi-field w-full resize-none rounded-lg text-sm leading-6 focus:border-amber-400/50"
+                className="peppa-field w-full resize-none rounded-lg text-sm leading-6 focus:border-amber-400/50"
                 placeholder={ui('记录当事人陈述、争议焦点、证据缺口、下一步动作...', 'Record statements, issues, evidence gaps, and next actions...')}
               />
             </label>
@@ -679,7 +679,7 @@ function LegalCaseWorkspace({
             <LegalActionButton icon={<ClipboardList size={16} />} title={ui('案件计划', 'Case plan')} desc={ui('生成推进步骤', 'Create workflow')} onClick={onCreatePlan} />
           </section>
 
-          <section className="lumi-panel p-4">
+          <section className="peppa-panel p-4">
             <div className="mb-4 flex items-center gap-2 text-white/78">
               <Calendar size={16} className="text-cyan-300" />
               <h3 className="text-sm font-bold">{ui('期限与开庭', 'Deadlines and Hearings')}</h3>
@@ -690,18 +690,18 @@ function LegalCaseWorkspace({
               <DateField label={ui('上诉期限', 'Appeal deadline')} value={activeCase.appealDeadline} onChange={value => update({ appealDeadline: value })} onReminder={() => createDateReminder('appeal')} />
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button onClick={calculateAppealDeadline} className="lumi-button h-9 px-3 text-xs">
+              <button onClick={calculateAppealDeadline} className="peppa-button h-9 px-3 text-xs">
                 {ui('按判决日期计算上诉期限', 'Calculate appeal deadline')}
               </button>
               <LegalMeetingInlineButton label={ui('打开会谈笔记', 'Open meeting notes')} onClick={onOpenMeetingNotes} />
-              <button onClick={() => onSetView('import')} className="lumi-button h-9 px-3 text-xs">
+              <button onClick={() => onSetView('import')} className="peppa-button h-9 px-3 text-xs">
                 {ui('导入裁判文书', 'Import judgment')}
               </button>
             </div>
           </section>
 
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-            <div className="lumi-panel p-4">
+            <div className="peppa-panel p-4">
               <div className="mb-3 flex items-center gap-2 text-white/78">
                 <Gavel size={16} className="text-amber-300" />
                 <h3 className="text-sm font-bold">{ui('开庭短信/通知提取', 'Hearing Notice Extractor')}</h3>
@@ -710,14 +710,14 @@ function LegalCaseWorkspace({
                 value={noticeText}
                 onChange={event => setNoticeText(event.target.value)}
                 rows={5}
-                className="lumi-field w-full resize-none rounded-lg text-sm leading-6 focus:border-amber-400/50"
+                className="peppa-field w-full resize-none rounded-lg text-sm leading-6 focus:border-amber-400/50"
                 placeholder={ui('粘贴短信或法院通知，自动提取案号、法院、开庭日期...', 'Paste SMS or court notice to extract case number, court, and hearing date...')}
               />
               <div className="mt-3 flex items-center gap-3">
                 <button
                   onClick={extractNotice}
                   disabled={!noticeText.trim()}
-                  className="lumi-button-primary h-9 border-amber-400/25 bg-amber-500/15 px-4 text-xs text-amber-200 hover:bg-amber-500/25"
+                  className="peppa-button-primary h-9 border-amber-400/25 bg-amber-500/15 px-4 text-xs text-amber-200 hover:bg-amber-500/25"
                 >
                   {ui('提取到案件', 'Extract')}
                 </button>
@@ -725,7 +725,7 @@ function LegalCaseWorkspace({
               </div>
             </div>
 
-            <div className="lumi-panel p-4">
+            <div className="peppa-panel p-4">
               <div className="mb-3 flex items-center gap-2 text-white/78">
                 <FileText size={16} className="text-blue-300" />
                 <h3 className="text-sm font-bold">{ui('材料与文书', 'Materials and Documents')}</h3>
@@ -734,7 +734,7 @@ function LegalCaseWorkspace({
                 <button
                   onClick={generateEngagementLetter}
                   disabled={documentLoading === 'engagement'}
-                  className="lumi-button h-9 px-3 text-xs"
+                  className="peppa-button h-9 px-3 text-xs"
                 >
                   {documentLoading === 'engagement' ? ui('生成中...', 'Drafting...') : ui('生成委托书', 'Engagement letter')}
                 </button>
@@ -745,10 +745,10 @@ function LegalCaseWorkspace({
                     onStartConsultation();
                   }}
                 />
-                <button onClick={() => onSetView('contract-review')} className="lumi-button h-9 px-3 text-xs">
+                <button onClick={() => onSetView('contract-review')} className="peppa-button h-9 px-3 text-xs">
                   {ui('合同审查', 'Contract review')}
                 </button>
-                <button onClick={() => onSetView('asset-trace')} className="lumi-button h-9 px-3 text-xs">
+                <button onClick={() => onSetView('asset-trace')} className="peppa-button h-9 px-3 text-xs">
                   {ui('财产线索', 'Asset trace')}
                 </button>
               </div>
@@ -783,7 +783,7 @@ function LegalCaseWorkspace({
                 )}
               </div>
               {selectedMaterial?.content && (
-                <div className="lumi-panel mt-4 rounded-xl bg-black/24 p-3">
+                <div className="peppa-panel mt-4 rounded-xl bg-black/24 p-3">
                   <div className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-white/35">{ui('材料内容', 'Material Content')}</div>
                   <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap text-xs leading-6 text-white/68 custom-scrollbar">{selectedMaterial.content}</pre>
                 </div>
@@ -803,7 +803,7 @@ function CaseField({ label, value, onChange }: { label: string; value: string; o
       <input
         value={value}
         onChange={event => onChange(event.target.value)}
-        className="lumi-field h-10 w-full rounded-lg focus:border-amber-400/50"
+        className="peppa-field h-10 w-full rounded-lg focus:border-amber-400/50"
       />
     </label>
   );
@@ -818,10 +818,10 @@ function DateField({ label, value, onChange, onReminder }: { label: string; valu
           type="date"
           value={value}
           onChange={event => onChange(event.target.value)}
-          className="lumi-field h-10 min-w-0 flex-1 rounded-lg focus:border-amber-400/50"
+          className="peppa-field h-10 min-w-0 flex-1 rounded-lg focus:border-amber-400/50"
         />
         {onReminder && (
-          <button type="button" onClick={onReminder} className="lumi-button h-10 rounded-lg px-3 text-xs">
+          <button type="button" onClick={onReminder} className="peppa-button h-10 rounded-lg px-3 text-xs">
             +
           </button>
         )}
@@ -849,7 +849,7 @@ function LegalMeetingActionButton({ title, desc, onClick }: { title: string; des
     <button
       type="button"
       onClick={onClick}
-      className="lumi-panel group border-cyan-400/15 bg-cyan-400/[0.045] p-4 text-left transition-colors hover:border-cyan-300/30 hover:bg-cyan-400/[0.075]"
+      className="peppa-panel group border-cyan-400/15 bg-cyan-400/[0.045] p-4 text-left transition-colors hover:border-cyan-300/30 hover:bg-cyan-400/[0.075]"
     >
       <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-400/10 text-cyan-200 group-hover:bg-cyan-400/15">
         <FileText size={16} />
@@ -864,7 +864,7 @@ function LegalActionButton({ icon, title, desc, onClick }: { icon: React.ReactNo
   return (
     <button
       onClick={onClick}
-      className="lumi-panel group p-4 text-left transition-colors hover:border-amber-400/25 hover:bg-amber-400/[0.045]"
+      className="peppa-panel group p-4 text-left transition-colors hover:border-amber-400/25 hover:bg-amber-400/[0.045]"
     >
       <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-white/[0.08] text-amber-300 group-hover:bg-amber-400/[0.12]">
         {icon}
@@ -959,8 +959,8 @@ function LegalPacketView({
       left={(
         <>
           <div className="grid gap-3 md:grid-cols-2">
-            <input value={role} onChange={event => setRole(event.target.value)} placeholder={ui('我方身份：原告/被告', 'Role: plaintiff/defendant')} className="lumi-field h-10 rounded-lg" />
-            <input value={claims} onChange={event => setClaims(event.target.value)} placeholder={ui('诉请、抗辩目标或办理目标', 'Claims, defenses, or objective')} className="lumi-field h-10 rounded-lg" />
+            <input value={role} onChange={event => setRole(event.target.value)} placeholder={ui('我方身份：原告/被告', 'Role: plaintiff/defendant')} className="peppa-field h-10 rounded-lg" />
+            <input value={claims} onChange={event => setClaims(event.target.value)} placeholder={ui('诉请、抗辩目标或办理目标', 'Claims, defenses, or objective')} className="peppa-field h-10 rounded-lg" />
           </div>
           <textarea value={facts} onChange={event => setFacts(event.target.value)} placeholder={ui('案件事实、时间线、当事人信息...', 'Facts, timeline, parties...')} className="mt-3 min-h-[240px] w-full resize-none rounded-lg border border-white/10 bg-black/20 px-3 py-3 text-sm leading-6 text-white outline-none placeholder:text-white/35 focus:border-amber-400/35" />
           <textarea value={evidence} onChange={event => setEvidence(event.target.value)} placeholder={ui('已有证据、对方材料、缺证点...', 'Evidence, opponent materials, gaps...')} className="mt-3 min-h-[140px] w-full resize-none rounded-lg border border-white/10 bg-black/20 px-3 py-3 text-sm leading-6 text-white outline-none placeholder:text-white/35 focus:border-amber-400/35" />
@@ -1013,7 +1013,7 @@ function LegalExternalResearchView({
         `事实：\n${facts}`,
         `争议焦点：${issues}`,
         `公司/被执行人：${companies}`,
-        '要求：输出网页登录预设、检索顺序、检索词和来源登记表。不要要求把第三方平台数据导入 Lumi。',
+        '要求：输出网页登录预设、检索顺序、检索词和来源登记表。不要要求把第三方平台数据导入 Peppa。',
       ].join('\n\n');
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -1044,8 +1044,8 @@ function LegalExternalResearchView({
       desc={ui('生成打开外部法律网站的检索词、网页登录预设和来源登记表；内容由律师在网页内确认。', 'Generate search terms, login presets, and source logs for external legal sites.')}
       left={(
         <>
-          <input value={issues} onChange={event => setIssues(event.target.value)} placeholder={ui('争议焦点，多个用逗号分隔', 'Issues, comma-separated')} className="lumi-field h-10 w-full rounded-lg" />
-          <input value={companies} onChange={event => setCompanies(event.target.value)} placeholder={ui('公司/被执行人名称，多个用逗号分隔', 'Companies/debtors, comma-separated')} className="lumi-field mt-3 h-10 w-full rounded-lg" />
+          <input value={issues} onChange={event => setIssues(event.target.value)} placeholder={ui('争议焦点，多个用逗号分隔', 'Issues, comma-separated')} className="peppa-field h-10 w-full rounded-lg" />
+          <input value={companies} onChange={event => setCompanies(event.target.value)} placeholder={ui('公司/被执行人名称，多个用逗号分隔', 'Companies/debtors, comma-separated')} className="peppa-field mt-3 h-10 w-full rounded-lg" />
           <textarea value={facts} onChange={event => setFacts(event.target.value)} placeholder={ui('案件事实和检索背景...', 'Facts and research context...')} className="mt-3 min-h-[340px] w-full resize-none rounded-lg border border-white/10 bg-black/20 px-3 py-3 text-sm leading-6 text-white outline-none placeholder:text-white/35 focus:border-cyan-400/35" />
           <button onClick={generate} disabled={loading || (!facts.trim() && !issues.trim() && !companies.trim())} className="mt-3 inline-flex items-center justify-center gap-2 rounded-lg border border-cyan-400/20 bg-cyan-500/15 px-4 py-2.5 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/25 disabled:opacity-50">
             {loading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
@@ -1382,7 +1382,7 @@ function LegalImportView({
             <textarea
               value={content}
               onChange={e => setContent(e.target.value)}
-              placeholder={ui('粘贴裁判文书正文，或在聊天窗口上传 PDF/DOCX 文件后让 Lumi 导入...', 'Paste judgment document content here, or upload PDF/DOCX files in chat and ask Lumi to import them...')}
+              placeholder={ui('粘贴裁判文书正文，或在聊天窗口上传 PDF/DOCX 文件后让 Peppa 导入...', 'Paste judgment document content here, or upload PDF/DOCX files in chat and ask Peppa to import them...')}
               className="min-h-[420px] flex-1 resize-none rounded-lg border border-white/10 bg-black/20 px-3 py-3 font-mono text-sm leading-6 text-white outline-none placeholder:text-white/35 focus:border-blue-400/35"
             />
             <button

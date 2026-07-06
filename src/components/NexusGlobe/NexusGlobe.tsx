@@ -4,7 +4,7 @@ import { OrbitControls } from '@react-three/drei';
 import { StarField } from './StarField';
 import { ParticleGlobe } from './ParticleGlobe';
 import { NeuralNetwork } from './NeuralNetwork';
-import { type LumiNode, type LumiConnection } from './mockData';
+import { type PeppaNode, type PeppaConnection } from './mockData';
 
 interface NexusGlobeProps {
   theme: 'celestial' | 'nebula' | 'cyber';
@@ -51,7 +51,7 @@ export function NexusGlobe({ theme, syncRate }: NexusGlobeProps) {
   const { nodes, connections } = useMemo(() => {
     if (agents.length === 0) return { nodes: undefined, connections: undefined };
 
-    const nodes: LumiNode[] = agents.map(a => ({
+    const nodes: PeppaNode[] = agents.map(a => ({
       id: a.id,
       lat: hashLat(a.id),
       lng: hashLng(a.id),
@@ -61,7 +61,7 @@ export function NexusGlobe({ theme, syncRate }: NexusGlobeProps) {
     }));
 
     // Connections: agents sharing the same personality get linked
-    const connections: LumiConnection[] = [];
+    const connections: PeppaConnection[] = [];
     for (let i = 0; i < agents.length; i++) {
       for (let j = i + 1; j < agents.length; j++) {
         if (agents[i].personalityId === agents[j].personalityId && agents[i].personalityId) {

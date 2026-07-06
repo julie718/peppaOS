@@ -5,8 +5,8 @@ import type { LAPSession } from '../server/lap/types';
 
 const publicSession: LAPSession = {
   sessionId: 'lap_test_public',
-  peerA: { agentId: 'agent_a', userId: 'user_a', name: 'Alice Lumi', capabilities: ['chat'], publicKey: 'ed25519:a' },
-  peerB: { agentId: 'agent_b', userId: 'user_b', name: 'Bob Lumi', capabilities: ['chat'], publicKey: 'ed25519:b' },
+  peerA: { agentId: 'agent_a', userId: 'user_a', name: 'Alice Peppa', capabilities: ['chat'], publicKey: 'ed25519:a' },
+  peerB: { agentId: 'agent_b', userId: 'user_b', name: 'Bob Peppa', capabilities: ['chat'], publicKey: 'ed25519:b' },
   trustLevel: 'public',
   scope: ['share_context', 'delegate_task'],
   establishedAt: new Date().toISOString(),
@@ -24,7 +24,7 @@ describe('LAP policy and memory firewall', () => {
     const decision = evaluateLAPContextFirewall({
       type: 'knowledge',
       scope: 'session',
-      payload: 'This Lumi can review TypeScript pull requests.',
+      payload: 'This Peppa can review TypeScript pull requests.',
       confidence: 0.9,
     }, publicSession);
 
@@ -62,12 +62,12 @@ describe('LAP policy and memory firewall', () => {
     expect(decision.mayAffectPersonality).toBe(false);
   });
 
-  it('exposes LAP as Lumi inter-instance protocol in the self prompt', () => {
+  it('exposes LAP as Peppa inter-instance protocol in the self prompt', () => {
     const snapshot = getLAPPolicySnapshot();
     const prompt = formatLAPSelfPrompt();
 
     expect(snapshot.protocol).toBe('LAP');
-    expect(prompt).toContain('Inter-Lumi');
+    expect(prompt).toContain('Inter-Peppa');
     expect(prompt).toContain('Do not write it into local long-term memory');
   });
 });

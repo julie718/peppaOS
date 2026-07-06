@@ -15,7 +15,7 @@ export const MIGRATIONS: Migration[] = [
   { version: 5, description: 'Add mode to interactions', sql: `ALTER TABLE interactions ADD COLUMN mode TEXT DEFAULT ''` },
   { version: 6, description: 'Add toolCalls to interactions', sql: `ALTER TABLE interactions ADD COLUMN toolCalls TEXT DEFAULT ''` },
   { version: 7, description: 'Add conversationId to interactions', sql: `ALTER TABLE interactions ADD COLUMN conversationId TEXT DEFAULT ''` },
-  { version: 8, description: 'Add agent framework columns', sql: `ALTER TABLE agents ADD COLUMN personalityId TEXT DEFAULT 'lumi'` },
+  { version: 8, description: 'Add agent framework columns', sql: `ALTER TABLE agents ADD COLUMN personalityId TEXT DEFAULT 'peppa'` },
   { version: 9, description: 'Add modelPreference to agents', sql: `ALTER TABLE agents ADD COLUMN modelPreference TEXT DEFAULT ''` },
   { version: 10, description: 'Add memoryScope to agents', sql: `ALTER TABLE agents ADD COLUMN memoryScope TEXT DEFAULT 'shared'` },
   { version: 11, description: 'Add autonomyLevel to agents', sql: `ALTER TABLE agents ADD COLUMN autonomyLevel TEXT DEFAULT 'reactive'` },

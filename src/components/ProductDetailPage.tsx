@@ -66,7 +66,7 @@ export function ProductDetailPage({ t, product, onBack }: ProductDetailPageProps
         role: m.role === 'user' ? 'user' : 'assistant',
         content: m.text
       })),
-      personalityId: 'lumi'
+      personalityId: 'peppa'
     });
   };
 

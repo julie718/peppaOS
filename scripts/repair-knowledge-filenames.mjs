@@ -9,7 +9,7 @@ const sqlite3 = sqlite3Package.verbose();
 const apply = process.argv.includes('--apply');
 
 function dataRoot() {
-  return process.env.LUMI_DATA_DIR || path.join(os.homedir(), 'LumiOS');
+  return process.env.LUMI_DATA_DIR || path.join(os.homedir(), 'Peppa');
 }
 
 function stamp() {
@@ -250,7 +250,7 @@ function writeReport(reportPath, data) {
 async function main() {
   const root = dataRoot();
   const dataDir = path.join(root, 'data');
-  const dbPath = path.join(dataDir, 'lumi.db');
+  const dbPath = path.join(dataDir, 'peppa.db');
   const id = stamp();
   const plan = buildPlan(root);
   const reportPath = path.join(dataDir, `knowledge-filename-repair-${id}.json`);

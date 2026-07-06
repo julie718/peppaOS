@@ -188,7 +188,7 @@ export function AutonomousFeed({ expanded: initialExpanded }: { expanded?: boole
   ];
 
   return (
-    <div className="lumi-panel overflow-hidden bg-black/20">
+    <div className="peppa-panel overflow-hidden bg-black/20">
       <div
         role="button"
         tabIndex={0}
@@ -222,7 +222,7 @@ export function AutonomousFeed({ expanded: initialExpanded }: { expanded?: boole
                 void loadTasks();
               }
             }}
-            className="lumi-icon-button h-7 w-7 rounded-lg"
+            className="peppa-icon-button h-7 w-7 rounded-lg"
             title={ui('刷新自主任务', 'Refresh autonomous work')}
           >
             <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
@@ -257,12 +257,12 @@ export function AutonomousFeed({ expanded: initialExpanded }: { expanded?: boole
           <div className="max-h-80 overflow-y-auto custom-scrollbar px-2 pb-2 space-y-1">
             <AnimatePresence>
               {loading && allItems.length === 0 ? (
-                <div className="lumi-panel py-8 text-center text-xs text-white/30">
+                <div className="peppa-panel py-8 text-center text-xs text-white/30">
                   {ui('正在加载自主学习记录...', 'Loading autonomous learning...')}
                 </div>
               ) : allItems.length === 0 ? (
-                <div className="lumi-panel py-8 text-center text-xs text-white/30">
-                  {ui('暂无自主学习任务。进入自主模式并开启自动处理后，Lumi 会持续创建学习和吸收任务。', 'No autonomous learning tasks yet. In autonomous mode with auto processing enabled, Lumi will keep creating learning and absorption work.')}
+                <div className="peppa-panel py-8 text-center text-xs text-white/30">
+                  {ui('暂无自主学习任务。进入自主模式并开启自动处理后，Peppa 会持续创建学习和吸收任务。', 'No autonomous learning tasks yet. In autonomous mode with auto processing enabled, Peppa will keep creating learning and absorption work.')}
                 </div>
               ) : (
                 allItems.map(task => (

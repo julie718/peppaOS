@@ -34,7 +34,7 @@ const packageMeta = readPackageMeta();
 
 function getRuntimeVersionInfo() {
   return {
-    name: packageMeta.name || "lumiOS",
+    name: packageMeta.name || "peppaOS",
     version: process.env.LUMI_VERSION || packageMeta.version || "0.0.0",
     buildId: process.env.LUMI_BUILD_ID || process.env.GIT_COMMIT || null,
     pid: process.pid,
@@ -67,7 +67,7 @@ function collectRuntimeLogSources() {
     }
   };
 
-  addMatchingFiles(path.join(cwd, ".codex-run"), /^lumi-tauri-.*\.(out|err)\.log$/);
+  addMatchingFiles(path.join(cwd, ".codex-run"), /^peppa-tauri-.*\.(out|err)\.log$/);
   addMatchingFiles(path.join(cwd, "logs"), /\.log$/i);
   addFile(path.join(cwd, "server_output.log"));
   addFile(path.join(cwd, "server_startup.log"));
@@ -670,10 +670,10 @@ export function mountSystemRoutes(router: Router, jwtSecret: string, io?: any) {
     res.json([
       { id: 1, category: "核心设备", name: "全息显示载体", icon: "Hologram", price: "¥8999", description: "核心设备：打破屏幕限制，将 AI 实体化为三维全息影像。", specs: ["4K 全息投影", "实时神经合成", "手势交互"] },
       { id: 2, category: "核心设备", name: "智能桌面台灯", icon: "Lamp", price: "¥1299", description: "多模态交互：集成视觉传感器，根据环境与心情自动调节光谱。", specs: ["视觉追踪", "环境感知", "无级调光"] },
-      { id: 14, category: "核心设备", name: "Order 协调主机", icon: "Cpu", price: "¥5999", description: "Lumi 自研独立主机品牌", specs: ["L1 神经处理器", "200T AI 算力", "私有化部署"] },
+      { id: 14, category: "核心设备", name: "Order 协调主机", icon: "Cpu", price: "¥5999", description: "Peppa 自研独立主机品牌", specs: ["L1 神经处理器", "200T AI 算力", "私有化部署"] },
       { id: 4, category: "智能穿戴", name: "隐私保护眼镜", icon: "Glasses", price: "¥2499", description: "AR 增强现实，硬件级隐私遮蔽。", specs: ["AR 导航", "隐私滤镜", "超轻量"] },
       { id: 5, category: "智能穿戴", name: "生理健康戒指", icon: "Ring", price: "¥1599", description: "全天候监测血氧、心率与压力。", specs: ["钛合金", "7天续航", "医疗级传感器"] },
-      { id: 10, category: "AI 陪伴", name: "AI 毛绒伴侣", icon: "Rabbit", price: "¥499", description: "内置 Lumi 神经核心的睡前伴侣。", specs: ["深度语义理解", "多语言陪练", "情绪监控"] },
+      { id: 10, category: "AI 陪伴", name: "AI 毛绒伴侣", icon: "Rabbit", price: "¥499", description: "内置 Peppa 神经核心的睡前伴侣。", specs: ["深度语义理解", "多语言陪练", "情绪监控"] },
       { id: 3, category: "AI 陪伴", name: "桌面手机机器人", icon: "Base", price: "¥899", description: "让手机进化为物理载体。", specs: ["无线快充", "多模态拟人", "全向追踪"] },
     ]);
   });
@@ -682,7 +682,7 @@ export function mountSystemRoutes(router: Router, jwtSecret: string, io?: any) {
     res.json({
       title: "文档中心", sections: [
         { id: 2, title: "API 参考", content: "完整的 RESTful API，支持多种 AI 模型。所有请求通过本地加密隧道传输。" },
-        { id: 3, title: "最佳实践", content: "在提示词中包含具体上下文，LumiAI 自动结合本地知识库进行检索增强。" },
+        { id: 3, title: "最佳实践", content: "在提示词中包含具体上下文，MayOS 自动结合本地知识库进行检索增强。" },
         { id: 4, title: "分布式协议", content: "去中心化节点架构，桌面端作为算力中心，移动端作为感知终端。" },
         { id: 5, title: "数据共享协议", content: "严格本地优先数据共享协议，只有明确授权时才与对等节点共享。" }
       ]

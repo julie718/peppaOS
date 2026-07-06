@@ -157,7 +157,7 @@ export function mountSkillRoutes(
 
       if (source === 'git' && url) {
         const skillName = name || url.split('/').pop()?.replace('.git', '') || 'unnamed';
-        const tmpDir = path.join(os.tmpdir(), `lumi_skill_${Date.now()}`);
+        const tmpDir = path.join(os.tmpdir(), `peppa_skill_${Date.now()}`);
         execSync(`git clone "${url}" "${tmpDir}"`, { stdio: 'pipe', timeout: 30000 });
         const destDir = mcpManager.installSkill(skillName, tmpDir);
         fs.rmSync(tmpDir, { recursive: true, force: true });

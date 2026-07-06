@@ -96,7 +96,7 @@ export function LoginModal({ t, isOpen, onClose, onLoginSuccess, onGoogleLogin }
                 {isRegister ? t.register || 'Create Node' : t.loginTitle || 'Sync Node'}
               </h2>
               <p className="text-white/40 text-xs font-bold uppercase tracking-widest mt-1">
-                {t.authSubtitle || 'Lumi Network Authentication'}
+                {t.authSubtitle || 'Peppa Network Authentication'}
               </p>
             </div>
             <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full text-white/40 hover:text-white transition-colors">

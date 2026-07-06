@@ -32,7 +32,7 @@ const FALLBACK_EXTERNAL_APP_ADAPTERS: ExternalAppAdapter[] = [
     label: 'WeChat and messaging',
     status: 'draft_only',
     actions: ['wechat_prepare_reply', 'wechat_copy_reply_draft'],
-    safety: 'Lumi can prepare and copy a reply draft. Sending messages must stay user-confirmed.',
+    safety: 'Peppa can prepare and copy a reply draft. Sending messages must stay user-confirmed.',
     notes: 'This avoids brittle blind clicking while still making chat reply workflows useful.',
   },
   {
@@ -40,7 +40,7 @@ const FALLBACK_EXTERNAL_APP_ADAPTERS: ExternalAppAdapter[] = [
     label: 'CAD drafting',
     status: 'draft_only',
     actions: ['floorplan_extract_geometry', 'ocr_image_file', 'cad_generate_dxf'],
-    safety: 'Lumi generates DXF draft files first. Opening CAD or modifying production drawings needs confirmation.',
+    safety: 'Peppa generates DXF draft files first. Opening CAD or modifying production drawings needs confirmation.',
     notes: 'Good for image-to-CAD extraction, structured floor-plan drafts, simple outlines, layout sketches, and handoff files. Exact production drawings still need confirmed scale and review.',
   },
   {
@@ -49,7 +49,7 @@ const FALLBACK_EXTERNAL_APP_ADAPTERS: ExternalAppAdapter[] = [
     status: 'requires_setup',
     actions: ['external_app_list_adapters', 'capability_research', 'computer_use'],
     safety: 'Use explicit tool or MCP integrations when available. Full UI control needs desktop automation confirmation.',
-    notes: 'Lumi can research integration candidates, then coordinate other AI tools through browser, files, clipboard, MCP, or confirmed computer-use sessions.',
+    notes: 'Peppa can research integration candidates, then coordinate other AI tools through browser, files, clipboard, MCP, or confirmed computer-use sessions.',
   },
 ];
 
@@ -70,7 +70,7 @@ function toExternalAppAdapter(id: ExternalAppAdapterId, adapter: AdapterCapabili
     label: adapter.label,
     status: toLegacyStatus(adapter),
     actions: adapter.actions,
-    safety: adapter.safety || 'Use explicit Lumi tools and ask for confirmation before external side effects.',
+    safety: adapter.safety || 'Use explicit Peppa tools and ask for confirmation before external side effects.',
     notes: adapter.notes || '',
   };
 }

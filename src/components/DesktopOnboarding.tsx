@@ -40,7 +40,7 @@ export function DesktopOnboarding({ isOpen, onFinish, t }: OnboardingProps) {
     {
       eyebrow: ui('01 / 桌面入口', '01 / Desktop Entry'),
       title: ui('先从桌面开始', 'Start From The Desktop'),
-      description: ui('Lumi 的主要能力都放在桌面图标、Dock 和搜索里。打开一个入口后，窗口会像桌面应用一样停留在工作区。', 'Lumi keeps the main abilities in desktop icons, the dock, and search. Open an entry and its window stays in the workspace like a real desktop app.'),
+      description: ui('Peppa 的主要能力都放在桌面图标、Dock 和搜索里。打开一个入口后，窗口会像桌面应用一样停留在工作区。', 'Peppa keeps the main abilities in desktop icons, the dock, and search. Open an entry and its window stays in the workspace like a real desktop app.'),
       action: ui('试着打开 Chat 或 Skill Center', 'Try opening Chat or Skill Center'),
       bullets: [
         ui('双击桌面图标打开功能', 'Double-click desktop icons to open features'),
@@ -53,7 +53,7 @@ export function DesktopOnboarding({ isOpen, onFinish, t }: OnboardingProps) {
     },
     {
       eyebrow: ui('02 / 交代任务', '02 / Give A Task'),
-      title: ui('用一句话告诉 Lumi 要做什么', 'Tell Lumi What To Do In One Sentence'),
+      title: ui('用一句话告诉 Peppa 要做什么', 'Tell Peppa What To Do In One Sentence'),
       description: ui('你可以点中心球、打开 Chat，或者用麦克风说话。适合让它打开软件、处理文件、查信息、执行连续步骤。', 'Click the center orb, open Chat, or speak through the microphone. Use this for opening apps, handling files, checking information, and running multi-step work.'),
       action: ui('输入或说出一个明确任务', 'Type or speak a clear task'),
       bullets: [
@@ -67,8 +67,8 @@ export function DesktopOnboarding({ isOpen, onFinish, t }: OnboardingProps) {
     },
     {
       eyebrow: ui('03 / 执行模式', '03 / Execution Mode'),
-      title: ui('先看模式，再让 AI 动手', 'Check The Mode Before Lumi Acts'),
-      description: ui('模式会影响 Lumi 的执行方式。会议负责记录，聊天适合交流，助手会按任务调用能力，自主适合多步可见流程。', 'Modes affect how Lumi acts. Meeting records notes, Chat is conversation, Assistant chooses abilities for the task, and Autonomy handles visible multi-step work.'),
+      title: ui('先看模式，再让 AI 动手', 'Check The Mode Before Peppa Acts'),
+      description: ui('模式会影响 Peppa 的执行方式。会议负责记录，聊天适合交流，助手会按任务调用能力，自主适合多步可见流程。', 'Modes affect how Peppa acts. Meeting records notes, Chat is conversation, Assistant chooses abilities for the task, and Autonomy handles visible multi-step work.'),
       action: ui('根据任务切换会议 / 聊天 / 助手 / 自主', 'Switch between Meeting / Chat / Assistant / Autonomy'),
       bullets: [
         ui('聊天：只回答，不主动动手', 'Chat: answer only, no proactive actions'),
@@ -102,7 +102,7 @@ export function DesktopOnboarding({ isOpen, onFinish, t }: OnboardingProps) {
       return (
         <div className="relative h-full min-h-[280px] overflow-hidden rounded-2xl border border-white/10 bg-[#10131d] p-5">
           <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.22em] text-white/35">
-            <span>Lumi Desktop</span>
+            <span>Peppa Desktop</span>
             <span>09:41</span>
           </div>
           <div className="mt-7 grid grid-cols-3 gap-4">
@@ -180,7 +180,7 @@ export function DesktopOnboarding({ isOpen, onFinish, t }: OnboardingProps) {
           <div className="mt-5 rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4">
             <div className="text-sm font-black text-cyan-50">{ui('当前：助手模式', 'Current: Assistant Mode')}</div>
             <p className="mt-2 text-sm leading-relaxed text-cyan-50/68">
-              {ui('适合按任务选择工具、技能、团队、运行日志或键鼠操作。需要动手前，Lumi 会显示正在做什么。', 'Lumi can choose tools, skills, teams, run logs, or desktop control for the task. Before acting, Lumi shows what is happening.')}
+              {ui('适合按任务选择工具、技能、团队、运行日志或键鼠操作。需要动手前，Peppa 会显示正在做什么。', 'Peppa can choose tools, skills, teams, run logs, or desktop control for the task. Before acting, Peppa shows what is happening.')}
             </p>
           </div>
           <div className="mt-4 space-y-2">
@@ -252,7 +252,7 @@ export function DesktopOnboarding({ isOpen, onFinish, t }: OnboardingProps) {
 
           <aside className="border-b border-white/10 bg-white/[0.03] p-6 md:border-b-0 md:border-r">
             <div className="text-xs font-black uppercase tracking-[0.28em] text-white/32">First Run</div>
-            <h2 className="mt-3 text-2xl font-black text-white">{ui('Lumi 桌面教程', 'Lumi Desktop Tutorial')}</h2>
+            <h2 className="mt-3 text-2xl font-black text-white">{ui('Peppa 桌面教程', 'Peppa Desktop Tutorial')}</h2>
             <p className="mt-3 text-sm leading-relaxed text-white/50">
               {ui('跟着四步先摸清入口、对话、执行模式和搜索。', 'Follow four steps to understand entries, chat, execution modes, and search.')}
             </p>

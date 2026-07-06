@@ -12,7 +12,7 @@ export interface PublicNeteaseSong {
 }
 
 const MUSIC_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 LumiOS/1.0',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Peppa/1.0',
   Referer: 'https://music.163.com/',
   Accept: 'application/json',
 };

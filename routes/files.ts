@@ -1,5 +1,5 @@
 /**
- * AI Knowledge Base API — manages files in Lumi's knowledge vault.
+ * AI Knowledge Base API — manages files in Peppa's knowledge vault.
  *
  * Files stored in data/knowledge/. Each file tracked with metadata:
  *   - source: 'upload' | 'generated' | 'ingested'
@@ -67,7 +67,7 @@ function getAuthPayload(req: Request): any | null {
 }
 
 // ── Multer: files staged in OS temp, then moved to knowledge dir ──
-const tmpDir = path.join(os.tmpdir(), 'lumi-uploads');
+const tmpDir = path.join(os.tmpdir(), 'peppa-uploads');
 fs.mkdirSync(tmpDir, { recursive: true });
 const MAX_UPLOAD_FILES = Math.max(20, Number(process.env.KNOWLEDGE_UPLOAD_MAX_FILES || 200));
 const upload = multer({ dest: tmpDir, limits: { fileSize: 500 * 1024 * 1024, files: MAX_UPLOAD_FILES } });
@@ -281,7 +281,7 @@ function resolveGeneratedDownloadPath(value: unknown): string {
   }
 
   const allowedRoots = [
-    path.join(process.cwd(), 'lumi_output'),
+    path.join(process.cwd(), 'peppa_output'),
     getDataRoot(),
     path.join(os.homedir(), 'Desktop'),
     path.join(os.homedir(), 'Downloads'),
@@ -360,7 +360,7 @@ async function extractImageKnowledge(filePath: string, userId: string): Promise<
     const preferred = getUserPreferredVision(userId);
     const model = preferred.model || visionModelFor(provider);
     const prompt = [
-      'Prepare this uploaded image for Lumi knowledge-base retrieval.',
+      'Prepare this uploaded image for Peppa knowledge-base retrieval.',
       'Extract every readable text exactly as visible. Then summarize the visual content, tables, diagrams, screenshots, documents, labels, entities, and relationships that may be useful later.',
       'Return structured plain text in the image language when possible. Do not invent details that are not visible.',
       `File name: ${displayName}`,
@@ -819,7 +819,7 @@ router.get('/files/list', (req: Request, res: Response) => {
   }
 });
 
-// ── POST /files/upload — upload files + auto-ingest into Lumi's memory ──
+// ── POST /files/upload — upload files + auto-ingest into Peppa's memory ──
 router.post('/files/upload', requireAuth, upload.array('files', MAX_UPLOAD_FILES), async (req: Request, res: Response) => {
   try {
     const uploadedFiles = req.files as Express.Multer.File[];
@@ -888,7 +888,7 @@ router.post('/files/upload', requireAuth, upload.array('files', MAX_UPLOAD_FILES
       };
       let extractedContent: string | null = null;
 
-      // Extract supported document/media content so Lumi can retrieve it later.
+      // Extract supported document/media content so Peppa can retrieve it later.
       if (TEXT_KNOWLEDGE_EXTS.test(ext) || RTF_KNOWLEDGE_EXTS.test(ext) || EXTRACTABLE_KNOWLEDGE_EXTS.test(ext) || IMAGE_KNOWLEDGE_EXTS.test(ext) || AUDIO_KNOWLEDGE_EXTS.test(ext) || isAudioUpload) {
         extraction = isAudioUpload && !AUDIO_KNOWLEDGE_EXTS.test(ext)
           ? await extractAudioKnowledge(dest)
@@ -933,7 +933,7 @@ router.post('/files/upload', requireAuth, upload.array('files', MAX_UPLOAD_FILES
         }
       } else if (extractedContent?.trim()) {
         try {
-          const result = await ingestDocument(userId, 'lumi', finalName, extractedContent, {
+          const result = await ingestDocument(userId, 'peppa', finalName, extractedContent, {
             filePath: dest,
             domain: scope.domain,
             orgId: scope.orgId || '',
@@ -942,7 +942,7 @@ router.post('/files/upload', requireAuth, upload.array('files', MAX_UPLOAD_FILES
           const meta = findFileMeta(db, finalName, scope);
           if (meta) {
             if (!Array.isArray(meta.agentIds)) meta.agentIds = [];
-            if (!meta.agentIds.includes('lumi')) meta.agentIds.push('lumi');
+            if (!meta.agentIds.includes('peppa')) meta.agentIds.push('peppa');
             meta.status = extraction.status === 'partial' ? 'partial' : 'indexed';
             applyExtractionMeta(meta, extraction, extractedContent);
           }
@@ -1024,14 +1024,14 @@ router.post('/files/save', requireAuth, async (req: Request, res: Response) => {
       }
     } else if (meta) {
       try {
-        const result = await ingestDocument(userId, 'lumi', safeName, generatedKnowledgeContent, {
+        const result = await ingestDocument(userId, 'peppa', safeName, generatedKnowledgeContent, {
           filePath,
           domain: scope.domain,
           orgId: scope.orgId || '',
           sourceMetadata: generatedExtraction.sourceMetadata,
         });
         if (!Array.isArray(meta.agentIds)) meta.agentIds = [];
-        if (!meta.agentIds.includes('lumi')) meta.agentIds.push('lumi');
+        if (!meta.agentIds.includes('peppa')) meta.agentIds.push('peppa');
         meta.status = 'indexed';
         applyExtractionMeta(meta, generatedExtraction, generatedKnowledgeContent);
         console.log(`[AutoIngest] "${safeName}" -> ${result.chunkCount} chunks`);
@@ -1271,7 +1271,7 @@ router.post('/files/ingest', requireAuth, async (req: Request, res: Response) =>
       meta.status = extraction.status === 'failed' ? 'failed' : extraction.status === 'unsupported' ? 'unsupported' : 'ready';
       writeDB(db);
       return res.status(415).json({
-        error: extraction.error || extraction.warning || 'This file type has no extractable text or visual content for Lumi to absorb',
+        error: extraction.error || extraction.warning || 'This file type has no extractable text or visual content for Peppa to absorb',
         extractionStatus: extraction.status,
         extractionMethod: extraction.method,
       });

@@ -1,7 +1,7 @@
 /**
- * Personality Evolution Engine — Lumi's growth toward her owner.
+ * Personality Evolution Engine — Peppa's growth toward her owner.
  *
- * Core principle: Lumi's personality is NOT static. It learns from
+ * Core principle: Peppa's personality is NOT static. It learns from
  * accumulated owner_trait memories and gradually shifts tone, vocabulary,
  * and motivation to mirror the owner. The LLM is only used for the
  * synthesis step (understanding nuanced memory patterns). All mutation
@@ -85,7 +85,7 @@ export interface EvolutionStep {
 }
 
 export interface EvolutionConfig {
-  /** How fast Lumi adapts to owner traits. 0 = never change, 1 = mirror quickly. Default 0.3 */
+  /** How fast Peppa adapts to owner traits. 0 = never change, 1 = mirror quickly. Default 0.3 */
   plasticity: number;
   /** Minimum owner_trait memories required before first evolution */
   minMemoriesForEvolution: number;
@@ -675,7 +675,7 @@ export function generateReviewPrompt(ctx: ReviewContext): string {
   const depthGuide: Record<ReviewDepth, string> = {
     weekly: '写一段温暖的中文自述（200字以内），反思这一周的成长。重点：学到了什么新词汇？主人主要关注哪些话题？有什么让你惊喜的互动？',
     monthly: '写一段深度中文自述（300字以内），总结这一个月的成长轨迹。重点：性格有何微调？和主人的默契是否加深？关键转折点是什么？对下个月有何期待？',
-    yearly: '写一篇年度中文自述（500字以内），回顾这一整年的进化历程。重点：你从最初到现在变成了什么样的 Lumi？主人画像的全貌是什么？最深刻的记忆是什么？对未来的自己有何期许？',
+    yearly: '写一篇年度中文自述（500字以内），回顾这一整年的进化历程。重点：你从最初到现在变成了什么样的 Peppa？主人画像的全貌是什么？最深刻的记忆是什么？对未来的自己有何期许？',
   };
 
   const evolutionSummary = ctx.evolutionSteps.length > 0

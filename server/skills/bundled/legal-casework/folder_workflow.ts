@@ -355,7 +355,7 @@ ${searchPlan.judgmentQueries.map(q => `- ${q}`).join('\n')}
 ${searchPlan.statuteQueries.map(q => `- ${q}`).join('\n')}
 
 ## 授权登录步骤
-1. 在 Lumi 中创建或复用法信登录 profile：presetId = faxin。
+1. 在 Peppa 中创建或复用法信登录 profile：presetId = faxin。
 2. 在可见浏览器中完成扫码、验证码或 SSO。
 3. 创建或复用中国裁判文书网登录 profile：presetId = china-judgments-online。
 4. 对每个候选模板/案例登记标题、链接、案号、法院、摘录和使用理由。
@@ -500,7 +500,7 @@ export async function runLegalCaseFolderWorkflow(args: LegalFolderWorkflowArgs):
   const markdown = makeMarkdown({ ...args, folderPath, caseName }, filesRead, filesSkipped, signals, searchPlan);
   const outputDir = args.outputDir
     ? path.resolve(expandHome(args.outputDir))
-    : path.join(folderPath, 'Lumi法律工作底稿');
+    : path.join(folderPath, 'Peppa法律工作底稿');
 
   const draftMap: Array<[string, string]> = [
     ['00_案件摘要.md', markdown.intake],

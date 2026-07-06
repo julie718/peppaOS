@@ -254,7 +254,7 @@ export function BiometricsEnrollPanel() {
         <div>
           <p className="text-xs text-white/60">
             {voiceprints.length === 0 && faces.length === 0
-              ? ui('尚未录入生物特征 — 录入后可防止 Lumi 响应陌生人', 'No biometrics enrolled yet - enroll them to prevent Lumi from responding to strangers')
+              ? ui('尚未录入生物特征 — 录入后可防止 Peppa 响应陌生人', 'No biometrics enrolled yet - enroll them to prevent Peppa from responding to strangers')
               : ui(`已录入 ${voiceprints.length} 组声纹 + ${faces.length} 组人脸`, `${voiceprints.length} voiceprints + ${faces.length} faces enrolled`)
             }
           </p>

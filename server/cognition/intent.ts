@@ -1,8 +1,8 @@
 /**
- * Intent Classifier — Lumi's rule-based understanding layer.
+ * Intent Classifier — Peppa's rule-based understanding layer.
  *
  * Classifies user input into intent categories WITHOUT calling any LLM.
- * This is the first stage of Lumi's independent cognitive pipeline.
+ * This is the first stage of Peppa's independent cognitive pipeline.
  * The LLM is only invoked later for text generation, not for decision-making.
  */
 
@@ -133,7 +133,7 @@ export interface IntentResult {
 // ── Greeting / Small Talk Patterns ──
 const GREETINGS = [
   /^(hi|hey|hello|你好|嗨|您好|喂|在吗|早上好|下午好|晚上好|good\s*(morning|afternoon|evening|night))[!！。.]*$/i,
-  /^(lumi|Lumi)[!！。.]*$/,
+  /^(peppa|Peppa)[!！。.]*$/,
   /^你(好|在|在吗|是谁|叫什么)/,
 ];
 
@@ -212,7 +212,7 @@ export function classifyIntent(input: string): IntentResult {
         category: 'conversation',
         confidence: 0.95,
         entities: {},
-        needsLLM: true, // LLM generates the greeting response, but Lumi already knows it's a greeting
+        needsLLM: true, // LLM generates the greeting response, but Peppa already knows it's a greeting
       };
     }
   }
@@ -249,7 +249,7 @@ export function classifyIntent(input: string): IntentResult {
           name: tool,
           args: { target: target, url: urlPattern.test(target) ? target : undefined },
         };
-        result.needsLLM = false; // Lumi routes directly, no LLM needed
+        result.needsLLM = false; // Peppa routes directly, no LLM needed
       }
 
       if (tool && subIntent === 'list_files') {

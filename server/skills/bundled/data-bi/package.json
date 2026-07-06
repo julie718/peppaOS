@@ -1,12 +1,12 @@
 {
-  "name": "lumi-skill-data-bi",
+  "name": "peppa-skill-data-bi",
   "version": "1.0.0",
   "description": "Data analysis and BI pack for CSV/Excel cleaning plans, metric definitions, dashboard briefs, anomaly explanations, and weekly/monthly report outlines.",
   "type": "module",
   "main": "index.ts",
   "scripts": { "start": "npx tsx index.ts" },
   "dependencies": { "@modelcontextprotocol/sdk": "^1.0.0", "zod": "^3.22.0" },
-  "lumi": {
+  "peppa": {
     "displayName": "Data BI Analyst",
     "category": "Data",
     "icon": "TrendingUp",

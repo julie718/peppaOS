@@ -1,5 +1,5 @@
 /**
- * LumiOS Watchdog Launcher
+ * Peppa Watchdog Launcher
  *
  * Spawns server.ts as a child process and manages lifecycle:
  * - Exit code 42 → restart (self-upgrade)
@@ -125,11 +125,11 @@ function clearStaleProjectPortOwners(): void {
       }
 
       if (!AUTO_KILL_OLD_PROCESS) {
-        console.warn(`[Launcher] Port ${port} is occupied by old LumiOS PID ${pid}; auto-kill disabled.`);
+        console.warn(`[Launcher] Port ${port} is occupied by old Peppa PID ${pid}; auto-kill disabled.`);
         continue;
       }
 
-      console.warn(`[Launcher] Port ${port} is occupied by old LumiOS PID ${pid}; terminating it before restart.`);
+      console.warn(`[Launcher] Port ${port} is occupied by old Peppa PID ${pid}; terminating it before restart.`);
       killProcessTree(pid);
     }
   }

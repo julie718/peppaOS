@@ -7,7 +7,7 @@ import rehypeHighlight from 'rehype-highlight';
 
 export interface ChatMessage {
   id: string;
-  type: 'user-text' | 'user-voice' | 'lumi' | 'tool';
+  type: 'user-text' | 'user-voice' | 'peppa' | 'tool';
   content?: string;
   name?: string;
   args?: Record<string, any>;
@@ -73,7 +73,7 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
   const hasDesktop = installedSkillNames.some((n: string) => ['desktop', 'commander'].some(k => n.includes(k)));
 
   const quickSuggestions = [
-    { label: ui('随便聊聊', 'Just Chat'), prompt: ui('你好 Lumi，今天有什么有趣的发现吗？', 'Hi Lumi, any interesting discoveries today?'), show: true },
+    { label: ui('随便聊聊', 'Just Chat'), prompt: ui('你好 Peppa，今天有什么有趣的发现吗？', 'Hi Peppa, any interesting discoveries today?'), show: true },
     { label: ui('生成图片', 'Generate Image'), prompt: ui('帮我生成一张星空下的赛博朋克城市图片', 'Generate an image of a cyberpunk city under a starry sky'), show: hasCreativeSkill },
     { label: ui('总结网页', 'Summarize Webpage'), prompt: ui('帮我抓取这篇文章的内容并总结要点', 'Fetch this article and summarize the key points'), show: hasFetcher },
     { label: ui('桌面整理', 'Organize Desktop'), prompt: ui('帮我把桌面上的文件按日期整理一下', 'Organize the desktop files by date'), show: hasDesktop },
@@ -135,7 +135,7 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
       setStreamingText('');
       setMessages(prev => [...prev, {
         id: crypto.randomUUID().slice(0, 9),
-        type: 'lumi',
+        type: 'peppa',
         content: data.text,
         timestamp: new Date().toISOString(),
       }]);
@@ -163,7 +163,7 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
       const message = data.message || (t?.requestFailed || 'Request failed');
       setMessages(prev => [...prev, {
         id: `err-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        type: 'lumi',
+        type: 'peppa',
         content: `${t?.requestFailed || 'Request failed'}\n\n${message}\n\n${toolFailureHint}`,
         timestamp: new Date().toISOString(),
       }]);
@@ -320,7 +320,7 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
     return `${first[0]}: ${val.length > 50 ? val.slice(0, 50) + '...' : val}`;
   };
 
-  const toolFailureHint = t?.toolFailureHint || 'Check permission, adjust the request, or ask Lumi to retry.';
+  const toolFailureHint = t?.toolFailureHint || 'Check permission, adjust the request, or ask Peppa to retry.';
 
   const toolIcon = (name?: string) => {
     if (name?.startsWith('desktop_open')) return '🖥️';
@@ -504,7 +504,7 @@ export function ChatPanel({ socket, t, onVoiceToggle, isVoiceActive, transcript 
                   </div>
                 )}
 
-                {msg.type === 'lumi' && (
+                {msg.type === 'peppa' && (
                   <div className="flex justify-start group">
                     <div className="max-w-[85%] bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 relative">
                       <div className="markdown-body text-white/80 text-sm leading-relaxed">

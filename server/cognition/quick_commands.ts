@@ -160,15 +160,15 @@ const patterns: QuickPattern[] = [
     }),
   },
 
-  // ── Lumi Status / Health ──
+  // ── Peppa Status / Health ──
   {
-    patterns: [/^\/status$|^状态$|^系统状态$|^健康检查$|^lumi.*状态|^检查.*系统/i],
+    patterns: [/^\/status$|^状态$|^系统状态$|^健康检查$|^peppa.*状态|^检查.*系统/i],
     handler: async (_, userId) => {
       try {
         const { runHealthAudit } = await import('../agents/health_audit');
         const report = runHealthAudit(userId);
         const lines = [
-          `## Lumi 系统状态: ${report.overallStatus === 'healthy' ? '✅ 健康' : report.overallStatus === 'degraded' ? '⚠️ 部分降级' : '❌ 异常'}`,
+          `## Peppa 系统状态: ${report.overallStatus === 'healthy' ? '✅ 健康' : report.overallStatus === 'degraded' ? '⚠️ 部分降级' : '❌ 异常'}`,
           '',
           ...report.checks.map(c =>
             `- **${c.name}**: ${c.status === 'ok' ? '✅' : c.status === 'warn' ? '⚠️' : '❌'} ${c.detail}`
@@ -195,7 +195,7 @@ const patterns: QuickPattern[] = [
     handler: async (_, userId) => {
       try {
         const { personalityRegistry } = await import('../personality');
-        const personality = personalityRegistry.get('lumi');
+        const personality = personalityRegistry.get('peppa');
         if (!personality) return { responseText: '我还是出厂设置，还没开始学习呢。多和我互动吧！', matched: true };
 
         const history = (personality as any).evolutionHistory;
@@ -251,7 +251,7 @@ const patterns: QuickPattern[] = [
         }
 
         const version = personality.version || '2.3';
-        lines.push('', `*Lumi ${version} · 持续进化中*`);
+        lines.push('', `*Peppa ${version} · 持续进化中*`);
 
         return { responseText: lines.join('\n'), matched: true };
       } catch (e: any) {

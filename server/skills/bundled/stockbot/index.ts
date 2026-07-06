@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 // ── East Money public API helpers (no API key needed) ──────────────────────
 
-const UA = 'LumiOS/2.0';
+const UA = 'Peppa/2.0';
 
 function marketCode(code: string): string {
   const c = code.replace(/\D/g, '');

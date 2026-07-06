@@ -1,12 +1,12 @@
 {
-  "name": "lumi-skill-stockbot",
+  "name": "peppa-skill-stockbot",
   "version": "1.0.0",
   "description": "Chinese A-stock market assistant — real-time quotes, K-line charts, market indices, hot sectors, stock news, and smart search. Data sourced from public exchanges via East Money.",
   "type": "module",
   "main": "index.ts",
   "scripts": { "start": "npx tsx index.ts" },
   "dependencies": { "@modelcontextprotocol/sdk": "^1.0.0", "zod": "^3.22.0" },
-  "lumi": {
+  "peppa": {
     "displayName": "StockBot",
     "category": "Finance",
     "icon": "TrendingUp",

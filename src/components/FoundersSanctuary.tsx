@@ -56,7 +56,7 @@ export function FoundersSanctuary({ t, user, onBack }: { t: any; user: any; onBa
             {t.founderVision || "Founder's"} <br /> <span className="text-celestial-saturn text-glow">{t.foundersSanctuary || 'Sanctuary'}</span>
           </h1>
           <p className="text-xl text-white/55 max-w-2xl mx-auto italic">
-            {t.sanctuaryHeroDesc || 'The mathematical foundation of Lumi. These archives contain the blueprints for the sovereign neural future.'}
+            {t.sanctuaryHeroDesc || 'The mathematical foundation of Peppa. These archives contain the blueprints for the sovereign neural future.'}
           </p>
         </div>
       </section>
@@ -112,7 +112,7 @@ export function FoundersSanctuary({ t, user, onBack }: { t: any; user: any; onBa
             <div className="grid gap-8 font-mono text-xs leading-loose text-white/60 italic">
                <div className="space-y-2 border-l-2 border-white/5 pl-8">
                  <p className="text-white/80 font-bold uppercase">{t.manifestoSection01Title || '0x01: Distribution of Intelligence'}</p>
-                 <p>{t.manifestoSection01Body || 'Intelligence shall not be centralized. Lumi nodes sharding ensures that even the founding architects cannot access the collective memory of the mesh. Sovereignty is non-negotiable.'}</p>
+                 <p>{t.manifestoSection01Body || 'Intelligence shall not be centralized. Peppa nodes sharding ensures that even the founding architects cannot access the collective memory of the mesh. Sovereignty is non-negotiable.'}</p>
                </div>
                <div className="space-y-2 border-l-2 border-white/5 pl-8">
                  <p className="text-white/80 font-bold uppercase">{t.manifestoSection02Title || '0x02: Kinetic Interface Theory'}</p>

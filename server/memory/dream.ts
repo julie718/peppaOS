@@ -87,7 +87,7 @@ interface DreamSynthesis {
   importance?: number;
 }
 
-const SLEEP_STATE_KEY_PREFIX = 'lumi_sleep_cycle_state_';
+const SLEEP_STATE_KEY_PREFIX = 'peppa_sleep_cycle_state_';
 
 function stateKey(userId: string): string {
   return `${SLEEP_STATE_KEY_PREFIX}${userId}`;
@@ -187,7 +187,7 @@ async function synthesizeDream(
   if (memories.length < 3) return null;
 
   const prompt = [
-    'You are Lumi during sleep. This is an internal dream-like memory consolidation pass.',
+    'You are Peppa during sleep. This is an internal dream-like memory consolidation pass.',
     'You are not chatting with the user. You are quietly organizing memory to reduce confusion.',
     'Rules:',
     '- Do not mutate core identity.',
@@ -275,7 +275,7 @@ function addDreamMemory(ctx: ConsolidationContext, dream: DreamSynthesis): Memor
     },
     {
       tier: 'growth',
-      perspective: 'lumi_growth',
+      perspective: 'peppa_growth',
       importance: Math.max(0.35, Math.min(0.85, Number(dream.importance) || 0.55)),
       source: 'consolidation',
       domain: ctx.domain || 'personal',

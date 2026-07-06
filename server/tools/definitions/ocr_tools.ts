@@ -373,7 +373,7 @@ export function registerOCRTools(registry: ToolRegistry): void {
   registry.register({
     name: 'floorplan_extract_geometry',
     description:
-      'Extract structured CAD-ready geometry from a local floor plan, renovation sketch, layout photo, or requirement image. Use before cad_generate_dxf when the user asks Lumi to turn an image/folder of plans into CAD. Returns rooms, walls, doors, windows, dimensions, assumptions, missing precision inputs, and suggested cad_generate_dxf args. It does not guarantee production accuracy without confirmed scale/dimensions.',
+      'Extract structured CAD-ready geometry from a local floor plan, renovation sketch, layout photo, or requirement image. Use before cad_generate_dxf when the user asks Peppa to turn an image/folder of plans into CAD. Returns rooms, walls, doors, windows, dimensions, assumptions, missing precision inputs, and suggested cad_generate_dxf args. It does not guarantee production accuracy without confirmed scale/dimensions.',
     parameters: {
       type: 'object',
       properties: {

@@ -1,12 +1,12 @@
 {
-  "name": "lumi-skill-hr-recruiting",
+  "name": "peppa-skill-hr-recruiting",
   "version": "1.0.0",
   "description": "HR and recruiting pack for job descriptions, resume screening summaries, interview plans, candidate comparisons, and onboarding checklists.",
   "type": "module",
   "main": "index.ts",
   "scripts": { "start": "npx tsx index.ts" },
   "dependencies": { "@modelcontextprotocol/sdk": "^1.0.0", "zod": "^3.22.0" },
-  "lumi": {
+  "peppa": {
     "displayName": "HR Recruiting",
     "category": "HR",
     "icon": "Search",

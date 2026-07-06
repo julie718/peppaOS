@@ -10,7 +10,7 @@ export interface MessagingBinding {
   id: string;
   platform: MessagingPlatformId;
   platformUserId: string;
-  lumiUserId: string;
+  peppaUserId: string;
   orgId: string;
   createdAt: string;
   updatedAt: string;
@@ -19,7 +19,7 @@ export interface MessagingBinding {
 interface BindingCode {
   code: string;
   platform: MessagingPlatformId;
-  lumiUserId: string;
+  peppaUserId: string;
   orgId: string;
   expiresAt: string;
   createdAt: string;
@@ -63,14 +63,14 @@ function pruneExpiredCodes(store: StoreShape) {
   store.codes = store.codes.filter(item => item.expiresAt > ts);
 }
 
-export function createBindingCode(platform: MessagingPlatformId, lumiUserId: string, orgId = ''): BindingCode {
+export function createBindingCode(platform: MessagingPlatformId, peppaUserId: string, orgId = ''): BindingCode {
   if (orgId) {
-    const membership = getMember(orgId, lumiUserId);
+    const membership = getMember(orgId, peppaUserId);
     if (!membership || membership.status !== 'active') {
       throw new Error('User is not an active member of this organization');
     }
   } else {
-    const orgs = listUserOrgs(lumiUserId);
+    const orgs = listUserOrgs(peppaUserId);
     orgId = orgs[0]?.id || '';
   }
   if (!orgId || !getOrgById(orgId)) {
@@ -83,7 +83,7 @@ export function createBindingCode(platform: MessagingPlatformId, lumiUserId: str
   const bindingCode: BindingCode = {
     code,
     platform,
-    lumiUserId,
+    peppaUserId,
     orgId,
     createdAt: now(),
     expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
@@ -109,7 +109,7 @@ export function consumeBindingCode(platform: MessagingPlatformId, code: string, 
     id: existingIdx >= 0 ? store.bindings[existingIdx].id : randomUUID(),
     platform,
     platformUserId,
-    lumiUserId: found.lumiUserId,
+    peppaUserId: found.peppaUserId,
     orgId: found.orgId,
     createdAt: existingIdx >= 0 ? store.bindings[existingIdx].createdAt : ts,
     updatedAt: ts,
@@ -125,13 +125,13 @@ export function getBinding(platform: MessagingPlatformId, platformUserId: string
   return store.bindings.find(item => item.platform === platform && item.platformUserId === platformUserId) || null;
 }
 
-export function listBindingsForUser(lumiUserId: string): MessagingBinding[] {
-  return readStore().bindings.filter(item => item.lumiUserId === lumiUserId);
+export function listBindingsForUser(peppaUserId: string): MessagingBinding[] {
+  return readStore().bindings.filter(item => item.peppaUserId === peppaUserId);
 }
 
-export function deleteBindingForUser(lumiUserId: string, bindingId: string): boolean {
+export function deleteBindingForUser(peppaUserId: string, bindingId: string): boolean {
   const store = readStore();
-  const idx = store.bindings.findIndex(item => item.id === bindingId && item.lumiUserId === lumiUserId);
+  const idx = store.bindings.findIndex(item => item.id === bindingId && item.peppaUserId === peppaUserId);
   if (idx < 0) return false;
   store.bindings.splice(idx, 1);
   writeStore(store);

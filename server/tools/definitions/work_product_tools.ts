@@ -1,17 +1,17 @@
 import { createWorkProductPlan, verifyWorkProduct } from '../../work_product/supervisor';
-import { getLumiPersonalityConstitution } from '../../personality/constitution';
+import { getPeppaPersonalityConstitution } from '../../personality/constitution';
 import { ToolRegistry } from '../registry';
 
 export function registerWorkProductTools(registry: ToolRegistry): void {
   registry.register({
-    name: 'lumi_constitution',
-    description: 'Read Lumi Personality Constitution: stable identity, truth-about-work, owner sovereignty, memory/privacy firewall, action boundaries, work product supervision, self-extension consent, growth stability, and collaboration rules.',
+    name: 'peppa_constitution',
+    description: 'Read Peppa Personality Constitution: stable identity, truth-about-work, owner sovereignty, memory/privacy firewall, action boundaries, work product supervision, self-extension consent, growth stability, and collaboration rules.',
     parameters: {
       type: 'object',
       properties: {},
       required: [],
     },
-    handler: async () => JSON.stringify(getLumiPersonalityConstitution(), null, 2),
+    handler: async () => JSON.stringify(getPeppaPersonalityConstitution(), null, 2),
     permission: 'user',
     securityLevel: 'safe',
   });
@@ -26,7 +26,7 @@ export function registerWorkProductTools(registry: ToolRegistry): void {
         deliverableType: {
           type: 'string',
           enum: ['document', 'drawing', 'code', 'design', 'music', 'meeting_report', 'client_action', 'research', 'data', 'general'],
-          description: 'Optional deliverable type. If omitted, Lumi infers it.',
+          description: 'Optional deliverable type. If omitted, Peppa infers it.',
         },
         finalOutput: { type: 'string', description: 'Optional description of the expected final output.' },
         acceptanceCriteria: { type: 'array', items: { type: 'string' }, description: 'Optional explicit acceptance criteria.' },
@@ -74,7 +74,7 @@ export function registerWorkProductTools(registry: ToolRegistry): void {
         completedCriteria: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Acceptance criteria that Lumi has explicitly satisfied through prior tool results, final text, or domain checks.',
+          description: 'Acceptance criteria that Peppa has explicitly satisfied through prior tool results, final text, or domain checks.',
         },
         repairCycle: { type: 'number', description: 'Current repair cycle number, starting at 0.' },
       },

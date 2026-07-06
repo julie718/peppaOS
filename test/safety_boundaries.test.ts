@@ -32,7 +32,7 @@ describe('global Memory Firewall', () => {
   it('blocks external long-term memory without approval', () => {
     const decision = evaluateMemoryFirewall({
       userId: 'u1',
-      content: 'A community Lumi says the user prefers a new workflow.',
+      content: 'A community Peppa says the user prefers a new workflow.',
       source: 'community',
       retention: 'long_term',
     });

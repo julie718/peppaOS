@@ -51,6 +51,46 @@ export async function listVoices(provider: TTSProvider): Promise<VoiceListItem[]
   }
 }
 
+export function resolveVoiceTtsProvider(selection?: { provider?: string; voiceId?: string }): TTSProvider | null {
+  // Always consult the DB-configured provider first — it represents the user's
+  // explicit system preference (set in Settings → Voice Services). Frontend may
+  // send a stale provider from localStorage (e.g. cosyvoice picked before the
+  // user switched the backend to ark). DB preference wins unless it's "auto".
+  const dbProvider = getActiveProvider();
+  const pref = getVoicePreference();
+
+  // If DB has an explicit provider preference (not auto), use it — frontend's
+  // voiceProvider is just a hint from the voice picker and may be stale.
+  if (pref.tts !== 'auto' && dbProvider) {
+    return dbProvider;
+  }
+
+  // DB says "auto" — try the frontend's selection first, validated
+  if (selection?.provider) {
+    const normalized = selection.provider.toLowerCase();
+    if (normalized === 'cosyvoice' || normalized === 'gptsovits' || normalized === 'ark') {
+      // Validate the provider is actually available before using it
+      if (normalized === 'ark' && !hasDoubaoSpeech()) {
+        return dbProvider; // fall back to auto-detection
+      }
+      if (normalized === 'cosyvoice') {
+        const dashscopeKey = process.env.DASHSCOPE_API_KEY || process.env.QWEN_API_KEY || getKey('DASHSCOPE_API_KEY') || getKey('QWEN_API_KEY');
+        if (!dashscopeKey || !isCircuitClosed('qwen')) {
+          return dbProvider; // fall back to auto-detection
+        }
+      }
+      if (normalized === 'gptsovits') {
+        if (!process.env.GPTSOVITS_API_URL && process.env.GPTSOVITS_ENABLED !== 'true') {
+          return dbProvider; // fall back to auto-detection
+        }
+      }
+      return normalized as TTSProvider;
+    }
+  }
+
+  return dbProvider;
+}
+
 export function getActiveProvider(): TTSProvider | null {
   const pref = getVoicePreference();
   if (pref.tts === 'gptsovits' && (process.env.GPTSOVITS_API_URL || process.env.GPTSOVITS_ENABLED === 'true')) return 'gptsovits';

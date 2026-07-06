@@ -24,7 +24,7 @@ export function Docs({ t }: { t: any }) {
     <div className="max-w-6xl mx-auto space-y-12">
       <div className="text-center space-y-6">
         <h1 className="text-6xl font-bold tracking-tighter glow-text">{data?.title || t.docs}</h1>
-        <p className="text-xl text-white/60 max-w-2xl mx-auto">{t.docsTagline || 'Master the LumiAI protocol and build advanced Agent architectures.'}</p>
+        <p className="text-xl text-white/60 max-w-2xl mx-auto">{t.docsTagline || 'Master the PeppaAI protocol and build advanced Agent architectures.'}</p>
         <div className="max-w-md mx-auto relative">
           <Input placeholder={t.searchDocs || "Search documentation..."} className="bg-white/5 border-white/10 rounded-2xl p-6 h-auto text-lg pl-12" />
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40" size={20} />
@@ -87,19 +87,19 @@ export function Docs({ t }: { t: any }) {
             <div className="space-y-16">
               <div className="text-center space-y-4">
                 <h2 className="text-4xl font-bold tracking-tighter glow-text">{t.smartHostProgram}</h2>
-                <p className="text-white/60 max-w-2xl mx-auto italic">"{t.everythingCanBeLumi}"</p>
+                <p className="text-white/60 max-w-2xl mx-auto italic">"{t.everythingCanBePeppa}"</p>
               </div>
               
               <div className="grid md:grid-cols-2 gap-12 items-center">
                 <div className="space-y-6">
                   <h3 className="text-2xl font-bold text-celestial-saturn underline decoration-celestial-saturn/30 underline-offset-8">{t.hostArchitecture || 'Host Architecture'}</h3>
                   <p className="text-lg text-white/70 leading-relaxed">
-                    {t.hostArchitectureDesc || "The Smart Host Program defines a hardware-agnostic communication protocol that allows the Lumi Neural Core to 'inhabit' existing physical systems."}
+                    {t.hostArchitectureDesc || "The Smart Host Program defines a hardware-agnostic communication protocol that allows the Peppa Neural Core to 'inhabit' existing physical systems."}
                   </p>
                   <ul className="space-y-4">
                     <li className="flex gap-4">
                       <div className="w-6 h-6 rounded-full bg-celestial-saturn/20 flex items-center justify-center text-celestial-saturn font-bold text-xs mt-1">1</div>
-                      <p className="text-sm text-white/60"><strong className="text-white">{t.neuralEncapsulationLabel || 'Neural Encapsulation:'}</strong> {t.neuralEncapsulationDesc || 'Wrapping existing APIs into Lumi-compatible intent streams.'}</p>
+                      <p className="text-sm text-white/60"><strong className="text-white">{t.neuralEncapsulationLabel || 'Neural Encapsulation:'}</strong> {t.neuralEncapsulationDesc || 'Wrapping existing APIs into Peppa-compatible intent streams.'}</p>
                     </li>
                     <li className="flex gap-4">
                       <div className="w-6 h-6 rounded-full bg-celestial-saturn/20 flex items-center justify-center text-celestial-saturn font-bold text-xs mt-1">2</div>
@@ -208,7 +208,7 @@ export function Docs({ t }: { t: any }) {
               <DocCard
                 icon={<Globe className="text-celestial-glow" />}
                 title={t.ecosystemDoc || 'Ecosystem'}
-                desc={t.ecosystemDocDesc || 'Explore the LumiAI distributed network.'}
+                desc={t.ecosystemDocDesc || 'Explore the PeppaAI distributed network.'}
                 links={[t.meshBasicsDoc || 'Mesh Basics', t.p2pSyncDoc || 'P2P Sync', t.securityDoc || 'Security']}
               />
             </div>
@@ -219,14 +219,14 @@ export function Docs({ t }: { t: any }) {
               <DocCard
                 icon={<Code className="text-celestial-saturn" />}
                 title={t.apiReference || 'API Reference'}
-                desc={t.apiReferenceDesc || 'Deep dive into the LumiAI local SDK and neural synthesis API.'}
+                desc={t.apiReferenceDesc || 'Deep dive into the PeppaAI local SDK and neural synthesis API.'}
                 links={[t.authDoc || 'Authentication', t.dataStreamsDoc || 'Data Streams', t.memoryCoreDoc || 'Memory Core']}
               />
               <DocCard
                 icon={<Terminal className="text-celestial-glow" />}
                 title={t.cliCommands || 'CLI Commands'}
-                desc={t.cliCommandsDesc || 'Full reference for the LumiAI command line interface.'}
-                links={['lumi generate', 'lumi sync', 'lumi status']}
+                desc={t.cliCommandsDesc || 'Full reference for the PeppaAI command line interface.'}
+                links={['peppa generate', 'peppa sync', 'peppa status']}
               />
               <DocCard
                 icon={<Shield className="text-celestial-mars" />}
@@ -269,7 +269,7 @@ export function Docs({ t }: { t: any }) {
                   {section.id === 1 && (
                     <div className="p-6 bg-white/5 rounded-2xl border border-white/10 font-mono text-sm overflow-x-auto">
                       <code>
-                        lumi generate --name "MyAgent" --data ./docs/knowledge.pdf --privacy high
+                        peppa generate --name "MyAgent" --data ./docs/knowledge.pdf --privacy high
                       </code>
                     </div>
                   )}
@@ -282,10 +282,10 @@ export function Docs({ t }: { t: any }) {
                 <GlassCard className="space-y-6" hoverEffect={false}>
                   <h3 className="text-2xl font-bold tracking-tighter">{t.neuralSynthesisProtocol || 'Neural Synthesis Protocol'}</h3>
                   <div className="space-y-4 text-white/60 leading-relaxed">
-                    <p>{t.neuralSynthesisProtocolDesc || "The LumiAI protocol uses distributed neural synthesis to build Agent intelligence. This process is entirely local, ensuring that your data never leaves your node."}</p>
+                    <p>{t.neuralSynthesisProtocolDesc || "The PeppaAI protocol uses distributed neural synthesis to build Agent intelligence. This process is entirely local, ensuring that your data never leaves your node."}</p>
                     <div className="p-6 bg-white/5 rounded-2xl border border-white/10 font-mono text-sm overflow-x-auto">
                       <code>
-                        lumi generate --name "MyAgent" --data ./docs/knowledge.pdf --privacy high
+                        peppa generate --name "MyAgent" --data ./docs/knowledge.pdf --privacy high
                       </code>
                     </div>
                     <p>{t.neuralSynthesisPrivacyDesc || 'By defining a high privacy level, the protocol will use advanced encryption and local-only processing for all neural weight calculations.'}</p>
@@ -295,7 +295,7 @@ export function Docs({ t }: { t: any }) {
                 <GlassCard className="space-y-6" hoverEffect={false}>
                   <h3 className="text-2xl font-bold tracking-tighter">{t.securityPrivacy || 'Security & Privacy'}</h3>
                   <div className="space-y-4 text-white/60 leading-relaxed">
-                    <p>{t.securityPrivacyDesc || 'Privacy is the core of LumiAI. Our security architecture is built on three pillars:'}</p>
+                    <p>{t.securityPrivacyDesc || 'Privacy is the core of PeppaAI. Our security architecture is built on three pillars:'}</p>
                     <ul className="space-y-3">
                       <li className="flex items-center gap-3"><Zap size={16} className="text-celestial-saturn" /> {t.localFirstProcessing || 'Local-First Data Processing'}</li>
                       <li className="flex items-center gap-3"><Shield size={16} className="text-celestial-mars" /> {t.endToEndEncryption || 'End-to-End Node Encryption'}</li>

@@ -39,7 +39,7 @@ const BUILTIN_ZH_TRANSLATIONS: Record<string, TranslationEntry> = {
   },
   'skill-fetcher': {
     displayName: '网页读取专家',
-    description: '把网页 URL 转换成干净可读的内容，方便 Lumi 阅读、摘要和引用。',
+    description: '把网页 URL 转换成干净可读的内容，方便 Peppa 阅读、摘要和引用。',
   },
   'skill-finance-office': {
     displayName: '财税办公包',
@@ -135,7 +135,7 @@ const BUILTIN_ZH_TRANSLATIONS: Record<string, TranslationEntry> = {
   },
   'skill-hermes': {
     displayName: 'Hermes 助手',
-    description: '研究、写作和编码等通用智能体能力，可作为 Lumi 的团队成员接入。',
+    description: '研究、写作和编码等通用智能体能力，可作为 Peppa 的团队成员接入。',
   },
   'skill-image': {
     displayName: '图片处理',
@@ -146,7 +146,7 @@ const BUILTIN_ZH_TRANSLATIONS: Record<string, TranslationEntry> = {
     description: '面向律师办案流程的案件辅助能力，支持会谈纪要、期限规划、文书提纲和案件分析，最终结论由律师确认。',
   },
   'skill-melody': {
-    displayName: 'Lumi 旋律',
+    displayName: 'Peppa 旋律',
     description: '歌词创作、旋律构思和音乐主题设计工具。',
   },
   'skill-messaging-ops': {

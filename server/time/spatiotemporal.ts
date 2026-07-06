@@ -83,7 +83,7 @@ export function detectSpatiotemporalPatterns(userId: string): SpatiotemporalPatt
     if (morningInteractions.length >= 5 && morningInteractions.length > interactions.length * 0.3) {
       patterns.push({
         type: 'temporal_habit',
-        description: '你经常在早上与Lumi互动，可能是晨间例行的一部分。',
+        description: '你经常在早上与Peppa互动，可能是晨间例行的一部分。',
         confidence: Math.min(0.9, morningInteractions.length / 20),
         evidence: [`${morningInteractions.length}次早上(6-12点)的对话`],
       });
@@ -92,7 +92,7 @@ export function detectSpatiotemporalPatterns(userId: string): SpatiotemporalPatt
     if (lateNightInteractions.length >= 5) {
       patterns.push({
         type: 'temporal_habit',
-        description: '你有深夜工作的习惯，Lumi会在这个时段保持简洁和专注。',
+        description: '你有深夜工作的习惯，Peppa会在这个时段保持简洁和专注。',
         confidence: Math.min(0.9, lateNightInteractions.length / 15),
         evidence: [`${lateNightInteractions.length}次深夜(23点-5点)的对话`],
       });

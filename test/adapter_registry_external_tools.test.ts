@@ -13,7 +13,7 @@ afterEach(() => {
 
 describe('adapter registry external toolbox awareness', () => {
   it('surfaces staged CAD tools and Nano Banana as explicit adapters', async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lumi_external_tools_'));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'peppa_external_tools_'));
     try {
       const installers = path.join(root, 'installers');
       const catalog = path.join(root, 'catalog');
@@ -24,7 +24,7 @@ describe('adapter registry external toolbox awareness', () => {
       fs.writeFileSync(path.join(installers, 'sh3d-mcp-plugin-1.1.0.sh3p'), '');
       fs.writeFileSync(path.join(installers, 'FreeCAD_1.1.1.exe'), '');
       fs.writeFileSync(path.join(installers, 'blender_4.5.10.msi'), '');
-      fs.writeFileSync(path.join(catalog, 'lumi_external_tools_catalog.md'), '# catalog');
+      fs.writeFileSync(path.join(catalog, 'peppa_external_tools_catalog.md'), '# catalog');
 
       process.env.LUMI_EXTERNAL_TOOLS_DIR = root;
       vi.resetModules();

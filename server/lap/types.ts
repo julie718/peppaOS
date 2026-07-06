@@ -1,7 +1,7 @@
 /**
- * LAP (Lumi Agent Protocol) is Lumi's agent-to-agent collaboration protocol.
+ * LAP (Peppa Agent Protocol) is Peppa's agent-to-agent collaboration protocol.
  *
- * It is the Inter-Lumi layer: local-first Lumi instances can handshake, share
+ * It is the Inter-Peppa layer: local-first Peppa instances can handshake, share
  * scoped context, delegate tasks, negotiate, notify, revoke sessions, and keep a
  * heartbeat without exposing private user state by default.
  */
@@ -11,7 +11,7 @@
 export interface LAPAgentIdentity {
   agentId: string;        // e.g. "agent_abc123"
   userId: string;         // e.g. "user_alice"
-  name: string;           // human-readable, e.g. "Alice's Lumi"
+  name: string;           // human-readable, e.g. "Alice's Peppa"
   capabilities: string[]; // e.g. ["chat", "code", "search", "memory"]
   publicKey: string;      // ed25519 public key (hex or provider-prefixed)
   publicProfile?: {
@@ -67,7 +67,7 @@ export interface LAPHandshakeResponse {
 // 2. Context sharing
 
 export type LAPContextScope = 'one-time' | 'session' | 'permanent';
-export type LAPContextOrigin = 'local' | 'organization' | 'private_cloud' | 'community' | 'external_lumi';
+export type LAPContextOrigin = 'local' | 'organization' | 'private_cloud' | 'community' | 'external_peppa';
 export type LAPPrivacyClass = 'public' | 'shared' | 'private' | 'secret';
 
 export interface LAPContextEntry {

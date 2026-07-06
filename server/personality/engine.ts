@@ -5,7 +5,7 @@ import { EmotionalState, formatEmotionalStateForPrompt, resolveVerbosityFromStat
 import { generateSpatiotemporalContext } from '../time/spatiotemporal';
 import { getDesktopContext } from '../context/activity_stream';
 import { getModeConfig, ConversationMode } from '../cognition/modes';
-import { formatLumiConstitutionForPrompt } from './constitution';
+import { formatPeppaConstitutionForPrompt } from './constitution';
 import { buildResponseLanguageInstruction } from '../utils/language';
 
 const VERBOSITY_GUIDE: Record<ExpressionStyle['verbosity'], string> = {
@@ -243,7 +243,7 @@ export function generateSystemPrompt(
 
   // Core identity
   blocks.push(`You are ${config.name}, ${effective.expressionStyle.persona}.\n${config.coreMotivation}`);
-  blocks.push(formatLumiConstitutionForPrompt());
+  blocks.push(formatPeppaConstitutionForPrompt());
 
   if (config.growthState) {
     const growth = config.growthState;
@@ -266,7 +266,7 @@ export function generateSystemPrompt(
     blocks.push(growthLines.join('\n'));
   }
 
-  // Execution modes — Lumi's internal thinking-mode presets
+  // Execution modes — Peppa's internal thinking-mode presets
   if (config.executionModes && Object.keys(config.executionModes).length > 0) {
     blocks.push('\nWhen the task demands it, switch to the appropriate mode:');
     for (const [modeId, mode] of Object.entries(config.executionModes)) {
@@ -383,7 +383,7 @@ function resolveEffectiveConfig(
 
 /**
  * Generate a short self-description for streaming status messages.
- * e.g. "Lumi is thinking..."
+ * e.g. "Peppa is thinking..."
  */
 export function getStatusText(config: PersonalityConfig): string {
   return `${config.name} is thinking...`;

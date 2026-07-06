@@ -1,10 +1,10 @@
 {
-  "name": "lumi-skill-code-sandbox",
+  "name": "peppa-skill-code-sandbox",
   "version": "1.0.0",
   "description": "Secure code execution sandbox — run Python and JavaScript in isolated cloud containers. Powered by E2B.",
   "type": "module",
   "dependencies": { "@e2b/mcp-server": "^1.0.0" },
-  "lumi": {
+  "peppa": {
     "displayName": "Code Sandbox",
     "category": "Dev Tools",
     "icon": "Terminal",

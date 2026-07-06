@@ -5,7 +5,7 @@ import { translations } from '@/lib/translations';
 
 function getT() {
   try {
-    const lang = localStorage.getItem('lumi-lang') || 'zh';
+    const lang = localStorage.getItem('peppa-lang') || 'zh';
     return (translations as any)[lang] || (translations as any).zh;
   } catch {
     return (translations as any).zh;

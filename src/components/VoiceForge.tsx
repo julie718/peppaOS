@@ -151,7 +151,7 @@ export function VoiceForge({ t, compact, onCloneSuccess }: { t: any; compact?: b
   return (
     <div className="space-y-8 h-full flex flex-col">
       {!compact && (
-        <div className="lumi-panel flex items-start justify-between gap-4 p-5">
+        <div className="peppa-panel flex items-start justify-between gap-4 p-5">
           <div>
              <h3 className="text-3xl font-black italic uppercase tracking-tighter text-glow mb-2">{t.voiceForge || ui('声音工坊', 'Voice Forge')}</h3>
              <p className="text-xs text-white/40 uppercase tracking-widest leading-relaxed max-w-lg">
@@ -168,7 +168,7 @@ export function VoiceForge({ t, compact, onCloneSuccess }: { t: any; compact?: b
       <div className={`${compact ? '' : 'grid grid-cols-1 lg:grid-cols-2 gap-8'} flex-1 overflow-hidden`}>
         {/* Recording & Cloning */}
         <div className={`space-y-6 overflow-y-auto ${compact ? '' : 'pr-4 custom-scrollbar'}`}>
-           <div className="lumi-panel relative space-y-8 overflow-hidden p-8">
+           <div className="peppa-panel relative space-y-8 overflow-hidden p-8">
               <div className="text-center space-y-6 relative z-10">
                  <div className="text-xs font-black uppercase tracking-[0.4em] text-white/45">{t.audioVisualizer || ui('音频可视化', 'Neural Audio Visualizer')}</div>
                  
@@ -257,7 +257,7 @@ export function VoiceForge({ t, compact, onCloneSuccess }: { t: any; compact?: b
                     />
                     <Button
                       onClick={() => fileInputRef.current?.click()}
-                      className="lumi-button h-10 rounded-full px-6 text-xs"
+                      className="peppa-button h-10 rounded-full px-6 text-xs"
                     >
                       <Upload size={14} className="mr-1" />
                       {t.uploadAudioFile || ui('上传音频文件', 'Upload Audio File')}
@@ -271,7 +271,7 @@ export function VoiceForge({ t, compact, onCloneSuccess }: { t: any; compact?: b
              <motion.div 
                initial={{ opacity: 0, y: 20 }}
                animate={{ opacity: 1, y: 0 }}
-               className="lumi-panel space-y-6 p-8"
+               className="peppa-panel space-y-6 p-8"
              >
                 <div className="flex justify-between items-center">
                    <h4 className="text-xs font-black uppercase tracking-widest text-white/40 flex items-center gap-2">
@@ -283,7 +283,7 @@ export function VoiceForge({ t, compact, onCloneSuccess }: { t: any; compact?: b
 
                 <div className="grid grid-cols-1 gap-3">
                    {recordings.map((recording, i) => (
-                     <div key={i} className="lumi-panel group flex items-center justify-between p-4 transition-colors hover:bg-white/10">
+                     <div key={i} className="peppa-panel group flex items-center justify-between p-4 transition-colors hover:bg-white/10">
                         <div className="flex items-center gap-4">
                            <div className="w-10 h-10 rounded-xl bg-celestial-saturn/20 flex items-center justify-center text-celestial-saturn">
                               <Volume2 size={18} />
@@ -309,7 +309,7 @@ export function VoiceForge({ t, compact, onCloneSuccess }: { t: any; compact?: b
                         value={voiceName}
                         onChange={e => setVoiceName(e.target.value)}
                         placeholder="e.g. Master_Essence_v1"
-                        className="lumi-field h-12 rounded-2xl focus-visible:ring-celestial-saturn/50"
+                        className="peppa-field h-12 rounded-2xl focus-visible:ring-celestial-saturn/50"
                       />
                    </div>
 
@@ -357,7 +357,7 @@ export function VoiceForge({ t, compact, onCloneSuccess }: { t: any; compact?: b
                    <Button
                      onClick={handleClone}
                      disabled={cloneStatus === 'uploading' || cloneStatus === 'cloning' || !voiceName.trim()}
-                     className="lumi-button-primary h-14 w-full rounded-2xl bg-celestial-saturn/15 text-celestial-saturn hover:bg-celestial-saturn/25"
+                     className="peppa-button-primary h-14 w-full rounded-2xl bg-celestial-saturn/15 text-celestial-saturn hover:bg-celestial-saturn/25"
                    >
                      {isUploading || isCloning ? (
                         <div className="flex items-center gap-3">
@@ -394,7 +394,7 @@ export function VoiceForge({ t, compact, onCloneSuccess }: { t: any; compact?: b
                         isCloned
                       />
                     )) : (
-                      <div className="lumi-panel flex flex-col items-center justify-center space-y-4 border-dashed p-12 text-center">
+                      <div className="peppa-panel flex flex-col items-center justify-center space-y-4 border-dashed p-12 text-center">
                          <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center text-white/35">
                             <MicOff size={32} />
                          </div>
@@ -464,7 +464,7 @@ function VoiceCard({ voice, onDelete, isCloned = false }: { voice: any, onDelete
       initial={{ opacity: 0, x: 20 }}
       whileInView={{ opacity: 1, x: 0 }}
       viewport={{ once: true }}
-      className="lumi-panel group relative overflow-hidden p-6 transition-colors hover:border-white/20 hover:bg-white/10"
+      className="peppa-panel group relative overflow-hidden p-6 transition-colors hover:border-white/20 hover:bg-white/10"
     >
        <div className="flex items-center justify-between relative z-10">
           <div className="flex items-center gap-4">
@@ -486,14 +486,14 @@ function VoiceCard({ voice, onDelete, isCloned = false }: { voice: any, onDelete
              <button
                onClick={handlePlay}
                disabled={isLoading}
-               className="lumi-icon-button h-10 w-10"
+               className="peppa-icon-button h-10 w-10"
              >
                 {isLoading ? <Loader2 size={18} className="animate-spin" /> : isPlaying ? <Pause size={18} /> : <Play size={18} />}
              </button>
              {isCloned && onDelete && (
                <button 
                  onClick={onDelete}
-                 className="lumi-icon-button h-10 w-10 border-red-500/20 bg-red-500/10 text-red-400 opacity-0 transition-all hover:bg-red-500/20 group-hover:opacity-100"
+                 className="peppa-icon-button h-10 w-10 border-red-500/20 bg-red-500/10 text-red-400 opacity-0 transition-all hover:bg-red-500/20 group-hover:opacity-100"
                >
                   <Trash2 size={18} />
                </button>

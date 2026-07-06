@@ -20,12 +20,12 @@ interface SnapshotOptions {
   biometricsPrimerSeen?: boolean;
 }
 
-export const SENSOR_PERMISSIONS_CHANGED = 'lumi:sensor-permissions-changed';
-export const SENSOR_ACCESS_CHANGED = 'lumi:sensor-access-changed';
+export const SENSOR_PERMISSIONS_CHANGED = 'peppa:sensor-permissions-changed';
+export const SENSOR_ACCESS_CHANGED = 'peppa:sensor-access-changed';
 
 const SENSOR_ENABLED_KEYS: Record<SensorKind, string> = {
-  microphone: 'lumi_mic_enabled',
-  camera: 'lumi_camera_enabled',
+  microphone: 'peppa_mic_enabled',
+  camera: 'peppa_camera_enabled',
 };
 
 const activeStreams: Record<SensorKind, Set<MediaStream>> = {
@@ -181,7 +181,7 @@ export async function requestSensorPermission(kind: SensorKind): Promise<{
 
 export async function requestMicrophoneStream(audio: MediaStreamConstraints['audio'] = true): Promise<MediaStream> {
   if (!isSensorEnabled('microphone')) {
-    throw new Error('Microphone is disabled in Lumi settings.');
+    throw new Error('Microphone is disabled in Peppa settings.');
   }
 
   if (!hasNavigator() || !navigator.mediaDevices?.getUserMedia) {
@@ -203,7 +203,7 @@ export async function requestMicrophoneStream(audio: MediaStreamConstraints['aud
 
 export async function requestCameraStream(video: MediaStreamConstraints['video'] = true): Promise<MediaStream> {
   if (!isSensorEnabled('camera')) {
-    throw new Error('Camera is disabled in Lumi settings.');
+    throw new Error('Camera is disabled in Peppa settings.');
   }
 
   if (!hasNavigator() || !navigator.mediaDevices?.getUserMedia) {

@@ -104,7 +104,7 @@ export function registerWebLoginTools(registry: ToolRegistry): void {
   registry.register({
     name: 'web_login_profile_save',
     description: [
-      'Save or update an authorized website login profile for Lumi.',
+      'Save or update an authorized website login profile for Peppa.',
       'Use only when the user explicitly authorizes storing credentials or a login session.',
       'Passwords are encrypted locally and are never returned by list/fetch tools.',
       'For captcha, passkeys, QR login, or 2FA, save a profile without password and run web_login_run with visible browser for manual completion.',
@@ -167,7 +167,7 @@ export function registerWebLoginTools(registry: ToolRegistry): void {
     name: 'web_login_run',
     description: [
       'Open a real Chrome/Edge login session for a saved profile.',
-      'Lumi fills saved credentials when available, then waits for manual captcha/2FA/passkey completion if needed.',
+      'Peppa fills saved credentials when available, then waits for manual captcha/2FA/passkey completion if needed.',
       'The session is persisted locally for later authenticated browsing.',
     ].join(' '),
     parameters: {

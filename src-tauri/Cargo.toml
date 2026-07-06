@@ -1,12 +1,12 @@
 [package]
-name = "lumi-os"
+name = "peppa-os"
 version = "3.0.0"
-description = "Lumi Virtual Node OS"
-authors = ["LumiOS"]
+description = "Peppa Virtual Node OS"
+authors = ["Peppa"]
 edition = "2021"
 
 [lib]
-name = "lumi_os_lib"
+name = "peppa_os_lib"
 crate-type = ["lib", "staticlib"]
 
 [build-dependencies]

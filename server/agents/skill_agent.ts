@@ -2,7 +2,7 @@
  * Auto-create a team agent when a skill is installed.
  *
  * Layer 1 of the two-layer design:
- *   Skill install → team agent created → Lumi can dispatch tasks to it
+ *   Skill install → team agent created → Peppa can dispatch tasks to it
  *
  * Each installed skill becomes a named agent visible in the Skill Hall team tab.
  * The orchestrator's matchWorkers() finds them by skillTag overlap.
@@ -96,7 +96,7 @@ export function createAgentForSkill(
       createdAt: now,
       lastActiveAt: now,
       status: 'active',
-      personalityId: 'lumi',
+      personalityId: 'peppa',
       modelPreference: '',
       memoryScope: 'shared',
       autonomyLevel: 'reactive',
@@ -105,7 +105,7 @@ export function createAgentForSkill(
         connectionType: runtime === 'external' ? 'cli' : 'mcp',
       }),
       skillTags: tags,
-      executionMode: 'lumi',
+      executionMode: 'peppa',
       allowCrossPollination: true,
       territory: 'open',
       runtime,

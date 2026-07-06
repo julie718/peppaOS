@@ -86,6 +86,7 @@ interface AppContextType {
   visionConfig: VisionConfig;
   // Voice
   selectedVoiceId: string | undefined;
+  selectedVoiceProvider: string | undefined;
   setSelectedVoiceId: (id: string, provider?: string) => void;
   favoriteVoices: string[];
   toggleFavoriteVoice: (id: string) => void;
@@ -124,11 +125,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [aiConfig, setAiConfig] = useState<AIConfig>(() => {
-    const saved = localStorage.getItem('lumi_ai_config');
+    const saved = localStorage.getItem('peppa_ai_config');
     return saved ? JSON.parse(saved) : { provider: 'deepseek', model: 'deepseek-chat', apiKey: '' };
   });
   const [visionConfig, setVisionConfig] = useState<VisionConfig>(() => {
-    const saved = localStorage.getItem('lumi_vision_config');
+    const saved = localStorage.getItem('peppa_vision_config');
     return saved ? JSON.parse(saved) : { provider: 'openai', model: 'gpt-4o', apiKey: '' };
   });
 
@@ -143,8 +144,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             provider: pref.provider,
             model: pref.model || pref.models?.[pref.provider] || prev.model,
           };
-          localStorage.setItem('lumi_vision_config', JSON.stringify(next));
-          if (pref.models) localStorage.setItem('lumi_vision_models', JSON.stringify(pref.models));
+          localStorage.setItem('peppa_vision_config', JSON.stringify(next));
+          if (pref.models) localStorage.setItem('peppa_vision_models', JSON.stringify(pref.models));
           return next;
         });
       })
@@ -152,10 +153,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
   // Voice state
   const [selectedVoiceId, setSelectedVoiceIdState] = useState<string | undefined>(() => {
-    return localStorage.getItem('lumi_selected_voice_id') || undefined;
+    return localStorage.getItem('peppa_selected_voice_id') || undefined;
+  });
+  const [selectedVoiceProvider, setSelectedVoiceProviderState] = useState<string | undefined>(() => {
+    return localStorage.getItem('peppa_selected_voice_provider') || undefined;
   });
   const [favoriteVoices, setFavoriteVoices] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem('lumi_favorite_voices') || '[]'); } catch { return []; }
+    try { return JSON.parse(localStorage.getItem('peppa_favorite_voices') || '[]'); } catch { return []; }
   });
 
   // Notifications state
@@ -164,15 +168,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Tool overrides state
   const [toolOverrides, setToolOverrides] = useState<Record<string, ToolOverride>>(() => {
-    try { return JSON.parse(localStorage.getItem('lumi_tool_overrides') || '{}'); } catch { return {}; }
+    try { return JSON.parse(localStorage.getItem('peppa_tool_overrides') || '{}'); } catch { return {}; }
   });
 
   // Org state
   const [orgConnection, setOrgConnection] = useState<OrgConnection | null>(() => {
-    try { return JSON.parse(localStorage.getItem('lumi_org_connection') || 'null'); } catch { return null; }
+    try { return JSON.parse(localStorage.getItem('peppa_org_connection') || 'null'); } catch { return null; }
   });
   const [workDomain, setWorkDomain] = useState<'personal' | 'work'>(() => {
-    try { return (localStorage.getItem('lumi_work_domain') as 'personal' | 'work') || 'personal'; } catch { return 'personal'; }
+    try { return (localStorage.getItem('peppa_work_domain') as 'personal' | 'work') || 'personal'; } catch { return 'personal'; }
   });
 
   const switchDomain = async (domain: 'personal' | 'work'): Promise<DomainSwitchResult> => {
@@ -187,12 +191,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (res.ok) {
           const data = await res.json().catch(() => ({}));
           if (data.token) {
-            localStorage.setItem('lumi_auth_token', data.token);
+            localStorage.setItem('peppa_auth_token', data.token);
             socketService.refreshAuth();
           }
           setWorkDomain('personal');
-          localStorage.setItem('lumi_work_domain', 'personal');
-          window.dispatchEvent(new CustomEvent('lumi:domain-changed', {
+          localStorage.setItem('peppa_work_domain', 'personal');
+          window.dispatchEvent(new CustomEvent('peppa:domain-changed', {
             detail: { domain: 'personal', orgId: null, orgRole: null },
           }));
           return { success: true, domain: 'personal', message: '已切换到个人域', connection: orgConnection };
@@ -237,14 +241,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (data.orgId) {
           const conn = { orgId: data.orgId, orgRole: data.orgRole, orgName, connected: true };
           if (data.token) {
-            localStorage.setItem('lumi_auth_token', data.token);
+            localStorage.setItem('peppa_auth_token', data.token);
             socketService.refreshAuth();
           }
           setOrgConnection(conn);
           setWorkDomain('work');
-          localStorage.setItem('lumi_work_domain', 'work');
-          localStorage.setItem('lumi_org_connection', JSON.stringify(conn));
-          window.dispatchEvent(new CustomEvent('lumi:domain-changed', {
+          localStorage.setItem('peppa_work_domain', 'work');
+          localStorage.setItem('peppa_org_connection', JSON.stringify(conn));
+          window.dispatchEvent(new CustomEvent('peppa:domain-changed', {
             detail: { domain: 'work', orgId: conn.orgId, orgRole: conn.orgRole, orgName: conn.orgName },
           }));
           return { success: true, domain: 'work', message: '已切换到工作域', connection: conn };
@@ -257,13 +261,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const [operationMode, setOperationModeState] = useState<OperationMode>(() => {
-    try { return normalizeOperationMode(localStorage.getItem('lumi_operation_mode')); } catch { return 'assistant'; }
+    try { return normalizeOperationMode(localStorage.getItem('peppa_operation_mode')); } catch { return 'assistant'; }
   });
 
   const setOperationMode = async (mode: OperationMode) => {
     const normalizedMode = normalizeOperationMode(mode);
     setOperationModeState(normalizedMode);
-    localStorage.setItem('lumi_operation_mode', normalizedMode);
+    localStorage.setItem('peppa_operation_mode', normalizedMode);
     try {
       await apiFetch('/api/preferences/operation_mode', {
         method: 'PUT',
@@ -280,7 +284,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       let resolved = { ...newConfig };
       if (newConfig.provider && !newConfig.model) {
         const savedModels = (() => {
-          try { return JSON.parse(localStorage.getItem('lumi_llm_models') || '{}'); } catch { return {}; }
+          try { return JSON.parse(localStorage.getItem('peppa_llm_models') || '{}'); } catch { return {}; }
         })();
         const defaults: Record<string, string> = {
           qwen: 'qwen-plus', deepseek: 'deepseek-chat', openai: 'gpt-4o',
@@ -289,7 +293,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         resolved.model = savedModels[newConfig.provider] || defaults[newConfig.provider] || '';
       }
       const updated = { ...prev, ...resolved };
-      localStorage.setItem('lumi_ai_config', JSON.stringify(updated));
+      localStorage.setItem('peppa_ai_config', JSON.stringify(updated));
 
       // Also sync apiKey to server so LLM/STT/TTS providers can read it
       if (updated.apiKey && updated.provider) {
@@ -315,7 +319,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Sync LLM prefs (provider + per-provider models) to server for personality evolution
       if (updated.provider || updated.model) {
         const allModels = (() => {
-          try { return JSON.parse(localStorage.getItem('lumi_llm_models') || '{}'); } catch { return {}; }
+          try { return JSON.parse(localStorage.getItem('peppa_llm_models') || '{}'); } catch { return {}; }
         })();
         if (updated.model && updated.provider) {
           allModels[updated.provider] = updated.model;
@@ -337,7 +341,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       let resolved = { ...newConfig };
       if (newConfig.provider && !newConfig.model) {
         const savedModels = (() => {
-          try { return JSON.parse(localStorage.getItem('lumi_vision_models') || '{}'); } catch { return {}; }
+          try { return JSON.parse(localStorage.getItem('peppa_vision_models') || '{}'); } catch { return {}; }
         })();
         const defaults: Record<string, string> = {
           openai: 'gpt-4o',
@@ -352,7 +356,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       const updated = { ...prev, ...resolved };
-      localStorage.setItem('lumi_vision_config', JSON.stringify(updated));
+      localStorage.setItem('peppa_vision_config', JSON.stringify(updated));
 
       if (updated.apiKey && updated.provider) {
         const KEY_MAP: Record<string, string> = {
@@ -370,11 +374,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       const allModels = (() => {
-        try { return JSON.parse(localStorage.getItem('lumi_vision_models') || '{}'); } catch { return {}; }
+        try { return JSON.parse(localStorage.getItem('peppa_vision_models') || '{}'); } catch { return {}; }
       })();
       if (updated.provider && updated.model) {
         allModels[updated.provider] = updated.model;
-        localStorage.setItem('lumi_vision_models', JSON.stringify(allModels));
+        localStorage.setItem('peppa_vision_models', JSON.stringify(allModels));
       }
       apiFetch('/api/preferences/vision', {
         method: 'PUT',
@@ -398,7 +402,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (u?.orgId) {
           const conn: OrgConnection = { orgId: u.orgId, orgRole: u.orgRole || 'member', orgName: '', connected: true };
           setOrgConnection(conn);
-          localStorage.setItem('lumi_org_connection', JSON.stringify(conn));
+          localStorage.setItem('peppa_org_connection', JSON.stringify(conn));
         }
         try { setAgents(await agentService.listAgents()); } catch {}
         // Load persisted notifications from server
@@ -407,7 +411,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (notifData.notifications?.length > 0) {
             setNotifications(prev => {
               const existingIds = new Set(prev.map(n => n.id));
-              const proactiveGreetingEnabled = localStorage.getItem('lumi_allow_proactive_voice') === 'true';
+              const proactiveGreetingEnabled = localStorage.getItem('peppa_allow_proactive_voice') === 'true';
               const newNotifs = notifData.notifications.filter((n: any) =>
                 !existingIds.has(n.id) &&
                 (proactiveGreetingEnabled || n.type !== 'greeting')
@@ -423,7 +427,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             const serverOverrides = await toRes.json();
             if (serverOverrides && Object.keys(serverOverrides).length > 0) {
               setToolOverrides(serverOverrides);
-              localStorage.setItem('lumi_tool_overrides', JSON.stringify(serverOverrides));
+              localStorage.setItem('peppa_tool_overrides', JSON.stringify(serverOverrides));
             }
           }
         } catch {}
@@ -449,8 +453,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try { setAgents(await agentService.listAgents()); } catch {}
     };
 
-    window.addEventListener('lumi:agents-changed', handleAgentsChanged);
-    return () => window.removeEventListener('lumi:agents-changed', handleAgentsChanged);
+    window.addEventListener('peppa:agents-changed', handleAgentsChanged);
+    return () => window.removeEventListener('peppa:agents-changed', handleAgentsChanged);
   }, []);
 
   useEffect(() => {
@@ -459,25 +463,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setLoading(true);
       try {
         const me = await authService.getMe();
-        // Re-bootstrap if session exists but lacks orgId (stale token from before org creation)
-        const needsRebootstrap = !me || !(me.user as any)?.orgId;
-        if (needsRebootstrap && !cancelled) {
-          // Clear stale token so apiBridge sends fresh one after bootstrap
-          try { localStorage.removeItem('lumi_auth_token'); } catch {}
-          let result = await authService.bootstrap();
-          for (let retry = 0; !result.success && retry < 8 && !cancelled; retry++) {
-            const delay = 500 + retry * 500; // 0.5s, 1s, 1.5s, ..., 4s
-            console.log(`[Auth] Bootstrap retry ${retry + 1}/8 in ${delay}ms...`);
-            await new Promise(r => setTimeout(r, delay));
-            result = await authService.bootstrap();
-          }
-          if (result.success && !cancelled) {
-            console.log('[Auth] Auto-logged in via bootstrap as', result.user?.username);
-          } else if (!cancelled) {
-            console.warn('[Auth] Bootstrap failed after retries:', result.error);
+        if (!cancelled) {
+          if (me?.user) {
+            await refreshUser();
+          } else {
+            setUser(null);
+            setAgents([]);
           }
         }
-        if (!cancelled) await refreshUser();
+      } catch (error) {
+        console.error('Error initializing auth state:', error);
+        if (!cancelled) {
+          setUser(null);
+          setAgents([]);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -487,7 +486,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async () => {
-    window.dispatchEvent(new CustomEvent('lumi:open-login'));
+    window.dispatchEvent(new CustomEvent('peppa:open-login'));
   };
 
   const logout = async () => {
@@ -549,9 +548,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setSelectedVoiceId = (id: string, provider?: string) => {
     setSelectedVoiceIdState(id);
-    localStorage.setItem('lumi_selected_voice_id', id);
+    localStorage.setItem('peppa_selected_voice_id', id);
     if (provider) {
-      localStorage.setItem('lumi_selected_voice_provider', provider);
+      setSelectedVoiceProviderState(provider);
+      localStorage.setItem('peppa_selected_voice_provider', provider);
       // Auto-switch TTS provider to match the selected voice
       apiFetch('/api/voice/provider', {
         method: 'POST',
@@ -564,7 +564,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const toggleFavoriteVoice = (id: string) => {
     setFavoriteVoices(prev => {
       const next = prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id];
-      localStorage.setItem('lumi_favorite_voices', JSON.stringify(next));
+      localStorage.setItem('peppa_favorite_voices', JSON.stringify(next));
       return next;
     });
   };
@@ -590,7 +590,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setToolOverride = (name: string, override: ToolOverride) => {
     setToolOverrides(prev => {
       const next = { ...prev, [name]: override };
-      localStorage.setItem('lumi_tool_overrides', JSON.stringify(next));
+      localStorage.setItem('peppa_tool_overrides', JSON.stringify(next));
       // Sync to server for tool registry awareness
       apiFetch('/api/settings', {
         method: 'POST',
@@ -610,6 +610,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       aiConfig,
       visionConfig,
       selectedVoiceId,
+      selectedVoiceProvider,
       setSelectedVoiceId,
       favoriteVoices,
       toggleFavoriteVoice,

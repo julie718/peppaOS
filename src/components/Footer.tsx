@@ -18,7 +18,7 @@ export function Footer({ t }: FooterProps) {
               <div className="w-8 h-8 rounded-full mars-gradient flex items-center justify-center">
                 <Rocket className="text-white" size={16} />
               </div>
-              <span className="text-xl font-bold tracking-tighter glow-text">LumiAI</span>
+              <span className="text-xl font-bold tracking-tighter glow-text">PeppaAI</span>
             </div>
             <p className="text-sm text-white/40 leading-relaxed">
               {t.footerDesc || 'Building the future of holographic spatial computing and independent AI personalities.'}
@@ -70,7 +70,7 @@ export function Footer({ t }: FooterProps) {
         <div className="mt-16 pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="space-y-1">
             <p className="text-xs text-white/45">
-              © {currentYear} LumiAI Neural Systems. {t.allRightsReserved}
+              © {currentYear} PeppaAI Neural Systems. {t.allRightsReserved}
             </p>
             <p className="text-[12px] text-white/35 uppercase tracking-[0.2em] font-mono">
               {t.ethicalProtocol}

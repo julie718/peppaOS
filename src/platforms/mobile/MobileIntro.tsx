@@ -34,7 +34,7 @@ export function MobileIntro({ t, onBack, onPreview }: MobileIntroProps) {
         </button>
         <div className="flex items-center gap-3 px-4 py-2 bg-celestial-nebula/10 border border-celestial-nebula/20 rounded-full">
            <div className="w-2 h-2 rounded-full bg-celestial-nebula animate-pulse" />
-           <span className="text-xs font-black text-celestial-nebula uppercase tracking-widest text-white/80">{t.lumiMobileSyncActive || 'Lumi Mobile Sync v1.2.0 Active'}</span>
+           <span className="text-xs font-black text-celestial-nebula uppercase tracking-widest text-white/80">{t.lumiMobileSyncActive || 'Peppa Mobile Sync v1.2.0 Active'}</span>
         </div>
       </div>
 
@@ -185,7 +185,7 @@ export function MobileIntro({ t, onBack, onPreview }: MobileIntroProps) {
       <section className="pt-8 space-y-8">
         <div className="text-center">
           <h2 className="text-3xl font-black tracking-widest uppercase">{t.mobileBinaryPackages || 'Mobile Binary Packages'}</h2>
-          <p className="text-white/40 text-sm">{t.deployMobileClient || 'Deploy the Lumi client to your portable devices'}</p>
+          <p className="text-white/40 text-sm">{t.deployMobileClient || 'Deploy the Peppa client to your portable devices'}</p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-6">

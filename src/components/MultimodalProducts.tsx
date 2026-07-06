@@ -101,12 +101,12 @@ export function MultimodalProducts({ t, onSelectProduct }: { t: any; onSelectPro
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
           <ProductCard 
             icon={<Cpu size={40} className="text-celestial-saturn" />}
-            title="Lumi Core Node"
+            title="Peppa Core Node"
             price="$499"
             desc="The ultimate local processing unit. 128GB Unified Memory, 20-core Neural Engine."
             specs={['Local LLM Hosting', 'Encrypted Storage', 'Multi-Agent Sync']}
             t={t}
-            onClick={() => onSelectProduct({ name: "Lumi Core Node", price: "$499", description: "The ultimate local processing unit.", specs: ['Local LLM Hosting', 'Encrypted Storage', 'Multi-Agent Sync'] })}
+            onClick={() => onSelectProduct({ name: "Peppa Core Node", price: "$499", description: "The ultimate local processing unit.", specs: ['Local LLM Hosting', 'Encrypted Storage', 'Multi-Agent Sync'] })}
           />
           <ProductCard 
             icon={<Watch size={40} className="text-celestial-mars" />}
@@ -135,7 +135,7 @@ export function MultimodalProducts({ t, onSelectProduct }: { t: any; onSelectPro
           <div className="space-y-8">
             <div className="space-y-4">
               <h2 className="text-4xl font-bold tracking-tighter">{t.ecosystemAdvantage || 'The Ecosystem Advantage'}</h2>
-              <p className="text-white/60 leading-relaxed">{t.ecosystemAdvantageDesc || 'LumiAI hardware is built with a privacy-first philosophy. Unlike traditional smart devices, all data processing happens locally on your Core Node. Your voice, your biometric data, and your Agent\'s memory never leave your physical possession.'}</p>
+              <p className="text-white/60 leading-relaxed">{t.ecosystemAdvantageDesc || 'PeppaAI hardware is built with a privacy-first philosophy. Unlike traditional smart devices, all data processing happens locally on your Core Node. Your voice, your biometric data, and your Agent\'s memory never leave your physical possession.'}</p>
             </div>
             <div className="grid grid-cols-2 gap-6">
               <FeatureItem icon={<Shield size={20} />} title={t.zeroCloud || 'Zero Cloud'} desc={t.zeroCloudDesc || 'No data upload.'} />

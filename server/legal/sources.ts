@@ -1,7 +1,7 @@
 /**
  * External legal data source integrations.
  *
- * Official/API integrations are used only when Lumi has a documented endpoint
+ * Official/API integrations are used only when Peppa has a documented endpoint
  * and authorized credentials. Third-party legal databases and court websites
  * without a configured API are handled through authorized browser collaboration
  * plus user-confirmed material import into the knowledge base.
@@ -96,7 +96,7 @@ export function listLegalSourceCapabilities(): LegalSourceCapability[] {
       canAutoQuery: false,
       requiresAuthorization: true,
       boundary: '未发现稳定公开 API 配置；当前按律所账号授权网页登录协作，不复制平台数据库。',
-      nextAction: '使用 web_login_profile_save_from_preset / web_login_run 打开 Alpha，律师确认结果后导入 Lumi 知识库。',
+      nextAction: '使用 web_login_profile_save_from_preset / web_login_run 打开 Alpha，律师确认结果后导入 Peppa 知识库。',
     },
     {
       id: 'fachan',
@@ -106,7 +106,7 @@ export function listLegalSourceCapabilities(): LegalSourceCapability[] {
       canAutoQuery: false,
       requiresAuthorization: true,
       boundary: '当前按第三方法律平台授权网页登录协作处理，不绕过账号权限、验证码、付费墙或下载限制。',
-      nextAction: '使用授权浏览器检索，律师确认摘录后由 Lumi 导入知识库。',
+      nextAction: '使用授权浏览器检索，律师确认摘录后由 Peppa 导入知识库。',
     },
     {
       id: 'china-judgments-online',

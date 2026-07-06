@@ -13,7 +13,7 @@ const execAsync = promisify(exec);
 
 // ── Public API helpers (search, lyrics — no auth needed) ─────────────────────
 
-const UA = 'LumiOS/2.0';
+const UA = 'Peppa/2.0';
 const MUSIC_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
   'Referer': 'https://music.163.com/',

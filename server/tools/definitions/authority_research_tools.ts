@@ -263,7 +263,7 @@ async function fetchText(url: string, maxChars: number): Promise<ScoredSource['f
     const response = await fetch(url, {
       signal: controller.signal,
       headers: {
-        'User-Agent': 'LumiOS-AuthorityResearch/1.0',
+        'User-Agent': 'Peppa-AuthorityResearch/1.0',
         Accept: 'text/html,application/xhtml+xml,application/xml,text/plain,application/json;q=0.8,*/*;q=0.5',
       },
     });
@@ -490,7 +490,7 @@ async function authorityResearchHandler(args: Record<string, any>): Promise<stri
       'Answer from the strongest primary/official sources first; use secondary sources only as support.',
       'Cite URLs next to factual claims and mention publication/effective dates when available.',
       'Say what was verified, what remains uncertain, and what source would be needed for stronger certainty.',
-      'If the user asks to preserve the research, ask before writing it into Lumi knowledge base or memory.',
+      'If the user asks to preserve the research, ask before writing it into Peppa knowledge base or memory.',
     ],
     requiredChecks: profile.checks,
     cautions: profile.cautions,
@@ -566,7 +566,7 @@ function buildAuthorityMemoryText(args: Record<string, any>): { title: string; t
 
 async function authorityResearchSaveHandler(args: Record<string, any>, context?: any): Promise<string> {
   if (!context?.userConfirmed) {
-    throw new Error('Saving authority research into Lumi knowledge requires explicit user confirmation.');
+    throw new Error('Saving authority research into Peppa knowledge requires explicit user confirmation.');
   }
   const userId = String(args.userId || context?.userId || 'system').replace(/[^a-zA-Z0-9_-]/g, '_');
   const domain = args.domain === 'work' ? 'work' : 'personal';
@@ -588,7 +588,7 @@ async function authorityResearchSaveHandler(args: Record<string, any>, context?:
       },
       {
         tier: 'internalized',
-        perspective: 'lumi_self',
+        perspective: 'peppa_self',
         importance: 0.62,
         agentId,
         domain,
@@ -650,7 +650,7 @@ export function registerAuthorityResearchTools(registry: ToolRegistry): void {
   registry.register({
     name: 'authority_research_save',
     description:
-      'Save a verified authority_research packet, citation summary, or source bundle into Lumi long-term knowledge memory after explicit user confirmation. Use when the user says to remember, absorb, keep, deposit into knowledge base, or reuse the research later. Never call silently.',
+      'Save a verified authority_research packet, citation summary, or source bundle into Peppa long-term knowledge memory after explicit user confirmation. Use when the user says to remember, absorb, keep, deposit into knowledge base, or reuse the research later. Never call silently.',
     parameters: {
       type: 'object',
       properties: {

@@ -1,6 +1,6 @@
 /**
  * WebSocket Server Transport for MCP — allows MCP clients (e.g. xiaozhi device)
- * to connect to Lumi's MCP server over WebSocket.
+ * to connect to Peppa's MCP server over WebSocket.
  */
 import { WebSocketServer, WebSocket } from 'ws';
 import type { IncomingMessage } from 'http';
@@ -58,8 +58,8 @@ export class WebSocketServerTransport implements Transport {
 }
 
 /**
- * Connect Lumi's MCP server to a remote MCP client via an outbound WebSocket.
- * Used when the remote device (e.g. xiaozhi broker) expects Lumi to initiate
+ * Connect Peppa's MCP server to a remote MCP client via an outbound WebSocket.
+ * Used when the remote device (e.g. xiaozhi broker) expects Peppa to initiate
  * the connection, then acts as the MCP client on that connection.
  */
 export function connectMcpServerToRemote(

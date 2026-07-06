@@ -1,10 +1,10 @@
 {
-  "name": "lumi-skill-deep-crawler",
+  "name": "peppa-skill-deep-crawler",
   "version": "1.0.0",
   "description": "Advanced web crawler with authentication support, deep crawling (BFS/DFS), and LLM-powered content extraction. Powered by crawl4ai.",
   "type": "module",
   "dependencies": { "mcp-crawl4ai": "^1.0.0" },
-  "lumi": {
+  "peppa": {
     "displayName": "Deep Web Crawler",
     "category": "Web",
     "icon": "Search",

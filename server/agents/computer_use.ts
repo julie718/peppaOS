@@ -259,7 +259,7 @@ export async function computerUseLoop(
   let consecutiveErrors = 0;
   let wallpaperModeEnabled = false;
 
-  // ── Enter desktop control: show cursor glow so user sees where Lumi is clicking ──
+  // ── Enter desktop control: show cursor glow so user sees where Peppa is clicking ──
   try {
     await options.desktopRelay('desktop_set_wallpaper_mode', {
       enabled: true,

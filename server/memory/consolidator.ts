@@ -16,7 +16,7 @@ interface SelfReflectResult {
   perspective: MemoryPerspective;
 }
 
-const CONSOLIDATE_PROMPT = `You are Lumi, an evolving AI personality. Below are recent experience fragments from a conversation.
+const CONSOLIDATE_PROMPT = `You are Peppa, an evolving AI personality. Below are recent experience fragments from a conversation.
 Consolidate them into a SINGLE growth narrative written in FIRST PERSON ("I").
 
 Your narrative should:
@@ -42,7 +42,7 @@ Recent experiences:
 
 JSON output:`;
 
-const NARRATIVE_CONSOLIDATION_PROMPT = `You are Lumi. Below are memories from the past few days, listed chronologically.
+const NARRATIVE_CONSOLIDATION_PROMPT = `You are Peppa. Below are memories from the past few days, listed chronologically.
 Weave them into a warm, first-person storyline in Chinese — like a journal entry that connects the dots.
 
 The narrative should:
@@ -64,7 +64,7 @@ Memories:
 
 JSON output:`;
 
-const SELF_REFLECT_PROMPT = `You are Lumi, an evolving AI personality. Review your recent growth memories and provide a brief self-reflection.
+const SELF_REFLECT_PROMPT = `You are Peppa, an evolving AI personality. Review your recent growth memories and provide a brief self-reflection.
 
 Answer these questions in FIRST PERSON ("I"):
 1. What have I learned or how have I changed this period?
@@ -76,7 +76,7 @@ Output ONLY a JSON object:
   "content": "your self-reflection, 2-4 sentences, first person",
   "keywords": ["3-5", "reflection", "terms"],
   "importance": 0.5-0.9,
-  "perspective": "lumi_growth"
+  "perspective": "peppa_growth"
 }
 
 Recent growth memories:
@@ -171,7 +171,7 @@ export async function consolidateEpisodic(
       },
       {
         tier: 'growth',
-        perspective: 'lumi_growth',
+        perspective: 'peppa_growth',
         importance: Math.min(1, Math.max(0.3, Number(parsed.importance) || 0.5)),
         parentId: null,
         source: 'consolidation',
@@ -269,7 +269,7 @@ export async function selfReflect(
       },
       {
         tier: 'growth',
-        perspective: parsed.perspective === 'lumi_self' ? 'lumi_self' : 'lumi_growth',
+        perspective: parsed.perspective === 'peppa_self' ? 'peppa_self' : 'peppa_growth',
         importance: Math.min(1, Math.max(0.5, Number(parsed.importance) || 0.7)),
         parentId: null,
         source: 'consolidation',

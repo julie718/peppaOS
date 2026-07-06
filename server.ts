@@ -1,4 +1,4 @@
-// LumiOS Unified Server
+// Peppa Unified Server
 // / → personal AI OS desktop
 // /index.org.html → org workbench (create/manage orgs, legal tools)
 import "dotenv/config";
@@ -49,7 +49,7 @@ const { app, server, io, apiRouter, PORT, HOST, JWT_SECRET, getCookieOptions } =
 const llm = createLLMRuntime();
 
 // ── Static serve for lumi_output (charts, images, generated files) ──
-app.use('/lumi_output', express.static(path.join(process.cwd(), 'lumi_output')));
+app.use('/peppa_output', express.static(path.join(process.cwd(), 'peppa_output')));
 
 // ── Shared routes (both roles) ──
 mountAllRoutes({ apiRouter, jwtSecret: JWT_SECRET, llm, getCookieOptions, io });

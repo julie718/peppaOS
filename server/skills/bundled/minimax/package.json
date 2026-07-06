@@ -1,10 +1,10 @@
 {
-  "name": "lumi-skill-minimax",
+  "name": "peppa-skill-minimax",
   "version": "1.0.0",
   "description": "MiniMax multimodal AI — music generation, video creation, image synthesis, TTS, and voice cloning. A creative powerhouse.",
   "type": "module",
   "dependencies": { "@minimax/mcp-js": "^1.0.0" },
-  "lumi": {
+  "peppa": {
     "displayName": "MiniMax Studio",
     "category": "Creative",
     "icon": "Sparkles",

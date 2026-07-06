@@ -6,7 +6,7 @@ import { runRenovationFolderWorkflow } from '../server/skills/bundled/cad-drafti
 
 describe('cad renovation folder workflow', () => {
   it('extracts renovation signals and writes DXF/proposal deliverables', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lumi_cad_renovation_'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'peppa_cad_renovation_'));
     try {
       fs.writeFileSync(path.join(dir, '需求.txt'), `
 项目：两室一厅装修
@@ -53,7 +53,7 @@ describe('cad renovation folder workflow', () => {
   });
 
   it('returns previews without writing files when writeFiles is false', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lumi_cad_renovation_preview_'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'peppa_cad_renovation_preview_'));
     try {
       fs.writeFileSync(path.join(dir, '资料.txt'), '两室 户型 面积 65㎡ 客厅 厨房 主卧 次卧 卫生间 风格：奶油风', 'utf-8');
 

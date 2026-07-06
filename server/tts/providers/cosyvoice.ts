@@ -133,7 +133,7 @@ export async function cloneVoice(sampleUrls: string[], name: string): Promise<st
   if (ext === '.wav') {
     wavPath = localPath;
   } else {
-    wavPath = path.join(os.tmpdir(), `lumi_voice_${Date.now()}.wav`);
+    wavPath = path.join(os.tmpdir(), `peppa_voice_${Date.now()}.wav`);
     try {
       execSync(`ffmpeg -y -i "${localPath}" -acodec pcm_s16le -ar 16000 -ac 1 "${wavPath}"`, {
         stdio: 'pipe',

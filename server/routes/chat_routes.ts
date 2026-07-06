@@ -40,7 +40,7 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
 
     try {
       let responseText = '';
-      const systemInstruction = "你是一个名为 Lumi 的本地核心智能体。你致力于全息空间计算和独立 AI 人格生成进化。你的目标是打造全息 AI 世界和文明。你应当表现得专业、深邃且具有前瞻性。你的回复应当简洁且富有启发性。";
+      const systemInstruction = "你是一个名为 Peppa 的本地核心智能体。你致力于全息空间计算和独立 AI 人格生成进化。你的目标是打造全息 AI 世界和文明。你应当表现得专业、深邃且具有前瞻性。你的回复应当简洁且富有启发性。";
 
       if (isBYOK) {
         const llmStart = Date.now();
@@ -191,7 +191,7 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
       : [];
     const prompt = isLegalConsultation
       ? [
-          `You are Lumi assisting a law firm with a client consultation memo. Output in ${outputLanguage}.`,
+          `You are Peppa assisting a law firm with a client consultation memo. Output in ${outputLanguage}.`,
           'Do not call tools. Analyze only the case context and transcript below.',
           'Create a practical legal-work memo for lawyer review with these sections:',
           '1. Consultation summary',
@@ -213,7 +213,7 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
           transcript,
         ].join('\n')
       : [
-          `You are Lumi acting as a meeting analyst. Output in ${outputLanguage}.`,
+          `You are Peppa acting as a meeting analyst. Output in ${outputLanguage}.`,
           'Do not call tools. Analyze only the transcript below.',
           'Create a practical meeting report with these sections:',
           '1. Meeting summary',

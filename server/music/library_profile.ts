@@ -208,7 +208,7 @@ function buildInsights(profile: Omit<MusicPreferenceProfile, 'insights' | 'recom
   const total = profile.analyzedTracks;
   const insights = [
     `你的喜欢歌单里最突出的歌手是 ${artist}，说明你的听歌偏好不是完全随机的，而是会围绕熟悉声音形成稳定区域。`,
-    `整体情绪更偏向 ${mood}，Lumi 推荐音乐时应该先考虑当下状态，再在这个情绪底色里选歌。`,
+    `整体情绪更偏向 ${mood}，Peppa 推荐音乐时应该先考虑当下状态，再在这个情绪底色里选歌。`,
     `语种/来源上 ${lang} 占比最高，风格上 ${style} 更突出。`,
     `歌曲长度以 ${duration} 为主，适合用作日常陪伴和工作间隙的连续播放。`,
   ];

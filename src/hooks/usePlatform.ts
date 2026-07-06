@@ -12,7 +12,7 @@ export interface SensorData {
 export function usePlatform() {
   const [platform, setPlatform] = useState<Platform>(() => {
     if (typeof window !== 'undefined') {
-      if ((window as any).lumiElectron || navigator.userAgent.toLowerCase().includes('electron')) {
+      if ((window as any).peppaElectron || navigator.userAgent.toLowerCase().includes('electron')) {
         return 'electron';
       }
       if ((window as any).__TAURI_INTERNALS__ || (window as any).__TAURI_IPC__ || (window as any).__TAURI__) {
@@ -26,7 +26,7 @@ export function usePlatform() {
 
   useEffect(() => {
     // Check for Electron
-    if (window && (window as any).lumiElectron) {
+    if (window && (window as any).peppaElectron) {
       setPlatform('electron');
       return;
     }
@@ -101,7 +101,7 @@ export function usePlatform() {
     isDesktop: platform === 'electron' || platform === 'tauri',
     isMobile: platform === 'ios' || platform === 'android',
     isWeb: platform === 'web',
-    electronAPI: (window as any).lumiElectron || null,
+    electronAPI: (window as any).peppaElectron || null,
     startSensorSync,
     sensors,
     isSyncing

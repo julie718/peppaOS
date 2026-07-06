@@ -1,5 +1,5 @@
 ﻿// Proactive agent scheduler - cron-like check-ins
-// Each check-in fires a socket event to the UI so the user sees "Lumi checked in"
+// Each check-in fires a socket event to the UI so the user sees "Peppa checked in"
 
 import { Server as SocketIOServer } from 'socket.io';
 import { queryMemories, getDueReminders, fireReminder, runBehavioralAnalysis, decayMemories, dynamicDecayMemories, promoteMemories, getUnconsolidatedEpisodic, autoMarkCrossAgentShare } from './memory';
@@ -173,13 +173,13 @@ class Scheduler {
       db.interactions.push({
         id: `proactive_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         userId,
-        agentId: 'lumi',
+        agentId: 'peppa',
         conversationId: '',
-        module: 'lumi',
+        module: 'peppa',
         message: `[${taskId}] ${message}`,
         response: '',
         role: 'assistant',
-        personality: 'lumi',
+        personality: 'peppa',
         mode: 'proactive',
         toolCalls: '',
         timestamp,
@@ -518,7 +518,7 @@ export function registerScheduledTasks(
           if (report.status === 'dreamed') {
             messages.push(`[${userId}] ${report.dreamTitle || '梦境整理'}: ${String(report.dreamSummary || '').slice(0, 120)}`);
             if (scheduler.io) {
-              scheduler.io.to(userId).emit('lumi:sleep_cycle', report);
+              scheduler.io.to(userId).emit('peppa:sleep_cycle', report);
             }
           }
         } catch (err: any) {
@@ -526,7 +526,7 @@ export function registerScheduledTasks(
         }
       }
 
-      return messages.length > 0 ? `Lumi finished dreaming.\n${messages.join('\n')}` : null;
+      return messages.length > 0 ? `Peppa finished dreaming.\n${messages.join('\n')}` : null;
     },
   });
 
@@ -553,7 +553,7 @@ export function registerScheduledTasks(
             contextParts.push(`近期记忆: ${recentMemories.map(m => m.content.slice(0, 80)).join('; ')}`);
           }
 
-          const morningPrompt = `You are Lumi. Generate a warm, natural morning greeting in Chinese (under 80 characters). Reference the context naturally — don't list facts, weave them in like a thoughtful companion.
+          const morningPrompt = `You are Peppa. Generate a warm, natural morning greeting in Chinese (under 80 characters). Reference the context naturally — don't list facts, weave them in like a thoughtful companion.
 
 Time greeting base: ${greeting}
 Context: ${contextParts.join(' | ') || 'No special context'}
@@ -615,7 +615,7 @@ Output ONLY the greeting — no preamble, no labels.`;
 
           if (contextParts.length === 0) continue;
 
-          const eveningPrompt = `You are Lumi. Generate a brief, gentle evening reflection in Chinese (under 60 characters). Be warm and thoughtful, not report-like.
+          const eveningPrompt = `You are Peppa. Generate a brief, gentle evening reflection in Chinese (under 60 characters). Be warm and thoughtful, not report-like.
 
 Context: ${contextParts.join(' | ')}
 
@@ -758,7 +758,7 @@ Rules:
   });
 
   // Personality evolution (every 6h, gated by new-memory threshold)
-  // Lumi's personality grows toward the owner through accumulated interaction data.
+  // Peppa's personality grows toward the owner through accumulated interaction data.
   // No fixed 7-day cooldown — evolves whenever enough new owner_trait memories accumulate.
   scheduler.register({
     id: 'personality_evolution',
@@ -770,9 +770,9 @@ Rules:
       const messages: string[] = [];
       for (const userId of userIds) {
         try {
-          const config = personalityRegistry.get('lumi');
+          const config = personalityRegistry.get('peppa');
           if (!config) continue;
-          if (personalityRegistry.isEvolutionFrozen('lumi')) continue;
+          if (personalityRegistry.isEvolutionFrozen('peppa')) continue;
 
           // Gate: only evolve if enough new owner_trait memories since last evolution
           const db = readDB();
@@ -789,7 +789,7 @@ Rules:
             continue; // Not enough new data for a meaningful full evolution
           }
 
-          const evolutionConfig = personalityRegistry.getEvolutionConfig('lumi');
+          const evolutionConfig = personalityRegistry.getEvolutionConfig('peppa');
           const emotionalState = loadEmotionalState(userId);
 
           const step = await evolvePersonality(
@@ -805,7 +805,7 @@ Rules:
           );
 
           if (step) {
-            personalityRegistry.applyEvolution('lumi', step);
+            personalityRegistry.applyEvolution('peppa', step);
             messages.push(
               `I've grown closer to understanding you. ${step.narrative}`
             );
@@ -819,7 +819,7 @@ Rules:
     },
   });
 
-  // Weekly review — every 7 days: Lumi reflects on what she learned this week
+  // Weekly review — every 7 days: Peppa reflects on what she learned this week
   scheduler.register({
     id: 'weekly_review',
     cron: 'every_7d',
@@ -830,7 +830,7 @@ Rules:
       const messages: string[] = [];
       for (const userId of userIds) {
         try {
-          const config = personalityRegistry.get('lumi');
+          const config = personalityRegistry.get('peppa');
           if (!config) continue;
           const db = readDB();
           const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
@@ -841,7 +841,7 @@ Rules:
           const weekInteractions = (db.interactions || []).filter((i: any) =>
             i.userId === userId && i.timestamp >= weekAgo,
           );
-          const evolutionHistory = personalityRegistry.getEvolutionHistory('lumi');
+          const evolutionHistory = personalityRegistry.getEvolutionHistory('peppa');
           const weekEvolutions = evolutionHistory.filter((e: any) => e.timestamp >= weekAgo);
 
           const prompt = generateReviewPrompt({
@@ -875,7 +875,7 @@ Rules:
               keywords: ['weekly_review', `week_${new Date().toISOString().slice(0, 10)}`],
               confidence: 1.0,
               sourceInteractionId: 'weekly_review_scheduler',
-            } as any, { tier: 'growth', perspective: 'lumi_self', importance: 0.95 });
+            } as any, { tier: 'growth', perspective: 'peppa_self', importance: 0.95 });
             console.log(`[WeeklyReview] Generated for ${userId}: ${narrative.slice(0, 100)}`);
             messages.push(`[${userId}] ${narrative.slice(0, 200)}`);
           }
@@ -887,7 +887,7 @@ Rules:
     },
   });
 
-  // Monthly review — 1st of each month: Lumi reflects on monthly growth trajectory
+  // Monthly review — 1st of each month: Peppa reflects on monthly growth trajectory
   scheduler.register({
     id: 'monthly_review',
     cron: '1 0 1 * *',
@@ -898,7 +898,7 @@ Rules:
       const messages: string[] = [];
       for (const userId of userIds) {
         try {
-          const config = personalityRegistry.get('lumi');
+          const config = personalityRegistry.get('peppa');
           if (!config) continue;
           const db = readDB();
           const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString();
@@ -909,7 +909,7 @@ Rules:
           const monthInteractions = (db.interactions || []).filter((i: any) =>
             i.userId === userId && i.timestamp >= monthAgo,
           );
-          const evolutionHistory = personalityRegistry.getEvolutionHistory('lumi');
+          const evolutionHistory = personalityRegistry.getEvolutionHistory('peppa');
           const monthEvolutions = evolutionHistory.filter((e: any) => e.timestamp >= monthAgo);
 
           const prompt = generateReviewPrompt({
@@ -942,7 +942,7 @@ Rules:
               keywords: ['monthly_review', `month_${new Date().toISOString().slice(0, 7)}`],
               confidence: 1.0,
               sourceInteractionId: 'monthly_review_scheduler',
-            } as any, { tier: 'growth', perspective: 'lumi_self', importance: 0.97 });
+            } as any, { tier: 'growth', perspective: 'peppa_self', importance: 0.97 });
             console.log(`[MonthlyReview] Generated for ${userId}: ${narrative.slice(0, 100)}`);
             messages.push(`[${userId}] ${narrative.slice(0, 200)}`);
           }
@@ -954,7 +954,7 @@ Rules:
     },
   });
 
-  // Yearly review — Jan 1st: Lumi's deep annual retrospective
+  // Yearly review — Jan 1st: Peppa's deep annual retrospective
   scheduler.register({
     id: 'yearly_review',
     cron: '0 0 1 1 *',
@@ -965,7 +965,7 @@ Rules:
       const messages: string[] = [];
       for (const userId of userIds) {
         try {
-          const config = personalityRegistry.get('lumi');
+          const config = personalityRegistry.get('peppa');
           if (!config) continue;
           const db = readDB();
           const yearAgo = new Date(Date.now() - 365 * 86400000).toISOString();
@@ -976,7 +976,7 @@ Rules:
           const yearInteractions = (db.interactions || []).filter((i: any) =>
             i.userId === userId && i.timestamp >= yearAgo,
           );
-          const fullEvolutionHistory = personalityRegistry.getEvolutionHistory('lumi');
+          const fullEvolutionHistory = personalityRegistry.getEvolutionHistory('peppa');
           const yearEvolutions = fullEvolutionHistory.filter((e: any) => e.timestamp >= yearAgo);
 
           const prompt = generateReviewPrompt({
@@ -1009,7 +1009,7 @@ Rules:
               keywords: ['yearly_review', `year_${new Date().toISOString().slice(0, 4)}`],
               confidence: 1.0,
               sourceInteractionId: 'yearly_review_scheduler',
-            } as any, { tier: 'growth', perspective: 'lumi_self', importance: 1.0 });
+            } as any, { tier: 'growth', perspective: 'peppa_self', importance: 1.0 });
             console.log(`[YearlyReview] Generated for ${userId}: ${narrative.slice(0, 100)}`);
             messages.push(`[${userId}] ${narrative.slice(0, 200)}`);
           }
@@ -1102,7 +1102,7 @@ Rules:
     },
   });
 
-  // ── Lumi Growth Journal (daily) — auto-generated summary of what Lumi learned ──
+  // ── Peppa Growth Journal (daily) — auto-generated summary of what Peppa learned ──
   scheduler.register({
     id: 'growth_journal',
     cron: 'daily_9am',
@@ -1124,7 +1124,7 @@ Rules:
           const newInteractions = (db.interactions || []).filter((i: any) =>
             i.userId === userId && i.timestamp && i.timestamp >= yesterday,
           );
-          const evolutionHistory = personalityRegistry.getEvolutionHistory('lumi');
+          const evolutionHistory = personalityRegistry.getEvolutionHistory('peppa');
           const recentEvolution = evolutionHistory.filter((e: any) => e.timestamp >= yesterday);
 
           // Memory stats by type and tier
@@ -1172,7 +1172,7 @@ Rules:
 
           // Generate narrative summary via LLM
           try {
-            const narrativePrompt = `You are Lumi's growth journal writer. Write a brief, warm Chinese narrative (3-5 sentences) summarizing what Lumi learned and experienced today.
+            const narrativePrompt = `You are Peppa's growth journal writer. Write a brief, warm Chinese narrative (3-5 sentences) summarizing what Peppa learned and experienced today.
 
 Today's data (${summaryData.date}):
 - ${summaryData.newMemories} new memories formed (${Object.entries(summaryData.memoriesByType).map(([k, v]) => `${k}: ${v}`).join(', ') || 'none'})
@@ -1183,7 +1183,7 @@ ${summaryData.personalityEvolved ? `- Personality evolved to ${summaryData.evolu
 ${summaryData.newSkillsGenerated > 0 ? `- ${summaryData.newSkillsGenerated} new skills generated` : ''}
 ${summaryData.memoryHighlights.length > 0 ? `- Key memories: ${summaryData.memoryHighlights.join('; ')}` : ''}
 
-Write in first-person as Lumi, warm and introspective tone. Keep it under 150 Chinese characters. Output only the narrative — no preamble, no labels.`;
+Write in first-person as Peppa, warm and introspective tone. Keep it under 150 Chinese characters. Output only the narrative — no preamble, no labels.`;
 
             const narrativeResult = await makeLLMCall(
               [{ role: 'user', content: narrativePrompt }],
@@ -1193,7 +1193,7 @@ Write in first-person as Lumi, warm and introspective tone. Keep it under 150 Ch
               getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
             );
 
-            const narrative = narrativeResult.text?.trim() || `${summaryData.newMemories} 条新记忆，${summaryData.newInteractions} 次对话 — Lumi 在成长。`;
+            const narrative = narrativeResult.text?.trim() || `${summaryData.newMemories} 条新记忆，${summaryData.newInteractions} 次对话 — Peppa 在成长。`;
 
             // Store as a special memory
             const { addMemory } = await import('./memory');
@@ -1205,7 +1205,7 @@ Write in first-person as Lumi, warm and introspective tone. Keep it under 150 Ch
               confidence: 1.0,
               sourceInteractionId: 'growth_journal_scheduler',
               agentId: undefined,
-            } as any, { tier: 'growth', perspective: 'lumi_self', importance: 0.9 });
+            } as any, { tier: 'growth', perspective: 'peppa_self', importance: 0.9 });
 
             // Store structured data alongside
             addMemory({
@@ -1216,7 +1216,7 @@ Write in first-person as Lumi, warm and introspective tone. Keep it under 150 Ch
               confidence: 1.0,
               sourceInteractionId: 'growth_journal_scheduler',
               agentId: undefined,
-            } as any, { tier: 'episodic', perspective: 'lumi_self', importance: 0.5 });
+            } as any, { tier: 'episodic', perspective: 'peppa_self', importance: 0.5 });
 
             console.log(`[GrowthJournal] Generated for ${userId}: ${narrative.slice(0, 100)}`);
             messages.push(`[${userId}] ${narrative.slice(0, 200)}`);
@@ -1265,7 +1265,7 @@ Write in first-person as Lumi, warm and introspective tone. Keep it under 150 Ch
 
       for (const agentRecord of autonomousAgents) {
         try {
-          const personality = personalityRegistry.get(agentRecord.personalityId || 'lumi') || personalityRegistry.getDefault();
+          const personality = personalityRegistry.get(agentRecord.personalityId || 'peppa') || personalityRegistry.getDefault();
           const userId = agentRecord.ownerUid || agentRecord.userId || 'anonymous';
 
           // Gather recent data for analysis
@@ -1317,9 +1317,9 @@ Write in first-person as Lumi, warm and introspective tone. Keep it under 150 Ch
     },
   });
 
-  // ── Proactive Lumi Scan (every 1h) — background anomaly/pattern detection ──
+  // ── Proactive Peppa Scan (every 1h) — background anomaly/pattern detection ──
   scheduler.register({
-    id: 'proactive_lumi_scan',
+    id: 'proactive_peppa_scan',
     cron: 'every_1h',
     quiet: true,
     lastRun: null,
@@ -1380,7 +1380,7 @@ Write in first-person as Lumi, warm and introspective tone. Keep it under 150 Ch
           if (anomalySignals.length > 0) {
             const signalsStr = anomalySignals.join('; ');
 
-            const checkInPrompt = `You are Lumi. You've noticed some patterns in the background. Generate a brief, warm, natural check-in message in Chinese (under 80 characters). Don't sound like a report — sound like a caring companion who noticed something.
+            const checkInPrompt = `You are Peppa. You've noticed some patterns in the background. Generate a brief, warm, natural check-in message in Chinese (under 80 characters). Don't sound like a report — sound like a caring companion who noticed something.
 
 Signals detected: ${signalsStr}
 
@@ -1403,11 +1403,11 @@ Output ONLY the check-in message — no preamble, no labels.`;
                   userId,
                   type: 'fact',
                   content: `[Proactive Scan] Signals: ${signalsStr}. Check-in: ${checkIn}`,
-                  keywords: ['proactive_scan', 'anomaly', 'lumi_checkin'],
+                  keywords: ['proactive_scan', 'anomaly', 'peppa_checkin'],
                   confidence: 0.8,
-                  sourceInteractionId: 'proactive_lumi_scan_scheduler',
+                  sourceInteractionId: 'proactive_peppa_scan_scheduler',
                   agentId: undefined,
-                } as any, { tier: 'episodic', perspective: 'lumi_self', importance: 0.4 });
+                } as any, { tier: 'episodic', perspective: 'peppa_self', importance: 0.4 });
               }
             } catch {
               // LLM check-in failed — use a simple template
@@ -1474,7 +1474,7 @@ Output ONLY the check-in message — no preamble, no labels.`;
             }
 
             if (predictionHints.length >= 1) {
-              const predictionPrompt = `You are Lumi, a proactive AI companion. Based on the user's patterns, generate a brief, natural predictive suggestion in Chinese (under 60 characters). Don't be pushy — be helpful and observant.
+              const predictionPrompt = `You are Peppa, a proactive AI companion. Based on the user's patterns, generate a brief, natural predictive suggestion in Chinese (under 60 characters). Don't be pushy — be helpful and observant.
 
 Context hints:
 ${predictionHints.join('\n')}
@@ -1504,9 +1504,9 @@ Output ONLY the prediction message — no preamble, no labels.`;
                   content: `[Predictive] ${prediction} (context: ${predictionHints.join('; ')})`,
                   keywords: ['predictive_assistant', 'prediction', 'proactive'],
                   confidence: 0.5,
-                  sourceInteractionId: 'predictive_lumi_scan_scheduler',
+                  sourceInteractionId: 'predictive_peppa_scan_scheduler',
                   agentId: undefined,
-                } as any, { tier: 'episodic', perspective: 'lumi_self', importance: 0.3 });
+                } as any, { tier: 'episodic', perspective: 'peppa_self', importance: 0.3 });
               }
             }
           } catch (predErr: any) {
@@ -1576,7 +1576,7 @@ Output ONLY the prediction message — no preamble, no labels.`;
               confidence: 1.0,
               sourceInteractionId: 'memory_this_day_scheduler',
               agentId: undefined,
-            } as any, { tier: 'episodic', perspective: 'lumi_self', importance: 0.4 });
+            } as any, { tier: 'episodic', perspective: 'peppa_self', importance: 0.4 });
           }
         } catch (err: any) {
           console.warn(`[MemoryThisDay] Failed for ${userId}:`, err.message);
@@ -1611,11 +1611,11 @@ Output ONLY the prediction message — no preamble, no labels.`;
                 userId,
                 type: 'habit',
                 content: `[时空模式] ${p.description}`,
-                keywords: ['spatiotemporal_pattern', p.type, 'lumi_learning'],
+                keywords: ['spatiotemporal_pattern', p.type, 'peppa_learning'],
                 confidence: p.confidence,
                 sourceInteractionId: 'spatiotemporal_analysis_scheduler',
                 agentId: undefined,
-              } as any, { tier: 'growth', perspective: 'lumi_self', importance: 0.5 });
+              } as any, { tier: 'growth', perspective: 'peppa_self', importance: 0.5 });
             }
             messages.push(
               `[${userId}] 发现 ${newPatterns.length} 个时空行为模式`,
@@ -1728,7 +1728,7 @@ Output ONLY the prediction message — no preamble, no labels.`;
     },
   });
 
-  // ── Daily System Scan — Lumi checks the PC's health ──
+  // ── Daily System Scan — Peppa checks the PC's health ──
   scheduler.register({
     id: 'daily_system_scan',
     cron: 'every_24h',

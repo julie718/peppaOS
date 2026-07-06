@@ -103,7 +103,7 @@ function normalizeSkillKey(value?: string): string {
   return String(value || '')
     .toLowerCase()
     .replace(/^skill-/, '')
-    .replace(/^lumi official:\s*/, '')
+    .replace(/^peppa official:\s*/, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 }
@@ -143,7 +143,7 @@ function getSkillAvailability(
   if (installedSkill?.connected) {
     return {
       label: lang === 'zh' ? '可调用' : 'Callable',
-      detail: lang === 'zh' ? '已连接到 Lumi，聊天、运行日志和工具调度可使用。' : 'Connected to Lumi and available to chat, run logs, and tool routing.',
+      detail: lang === 'zh' ? '已连接到 Peppa，聊天、运行日志和工具调度可使用。' : 'Connected to Peppa and available to chat, run logs, and tool routing.',
       tone: 'green',
       installedSkill,
     };
@@ -202,7 +202,7 @@ function getDisplayAvailability(
   if (installedSkill?.startupError || (installedSkill?.enabled && !installedSkill.connected)) {
     return {
       label: lang === 'zh' ? '已安装未连接' : 'Installed, not connected',
-      detail: installedSkill.startupError || (lang === 'zh' ? '已安装，但本地服务还没有连上 Lumi。' : 'Installed, but its local service is not connected to Lumi yet.'),
+      detail: installedSkill.startupError || (lang === 'zh' ? '已安装，但本地服务还没有连上 Peppa。' : 'Installed, but its local service is not connected to Peppa yet.'),
       tone: 'amber',
       installedSkill,
     };
@@ -210,7 +210,7 @@ function getDisplayAvailability(
   if (installedSkill?.connected) {
     return {
       label: lang === 'zh' ? '可调用' : 'Callable',
-      detail: lang === 'zh' ? '已连接到 Lumi，可以在聊天、调度和工具调用中使用。' : 'Connected to Lumi and available for chat, orchestration, and tool calls.',
+      detail: lang === 'zh' ? '已连接到 Peppa，可以在聊天、调度和工具调用中使用。' : 'Connected to Peppa and available for chat, orchestration, and tool calls.',
       tone: 'green',
       installedSkill,
     };
@@ -227,14 +227,14 @@ function getDisplayAvailability(
     if (skill.runtime === 'external' && skill.externalHealthStatus === 'online') {
       return {
         label: lang === 'zh' ? '可调用' : 'Callable',
-        detail: lang === 'zh' ? '已在 Team 且连接测试通过，Lumi 可以把任务调度给它。' : 'In Team with a passing connection test, so Lumi can schedule work to it.',
+        detail: lang === 'zh' ? '已在 Team 且连接测试通过，Peppa 可以把任务调度给它。' : 'In Team with a passing connection test, so Peppa can schedule work to it.',
         tone: 'green',
       };
     }
     return {
       label: lang === 'zh' ? '已安装未连接' : 'Installed, not connected',
       detail: skill.runtime === 'external'
-        ? (lang === 'zh' ? '已加入 Team，需要在 Team 里通过连接测试后才会参与调度。' : 'Added to Team. Run a Team connection test before Lumi schedules it.')
+        ? (lang === 'zh' ? '已加入 Team，需要在 Team 里通过连接测试后才会参与调度。' : 'Added to Team. Run a Team connection test before Peppa schedules it.')
         : (lang === 'zh' ? '已安装，但当前连接状态还没变为可调用。' : 'Installed, but it has not reported a callable connection yet.'),
       tone: 'amber',
     };
@@ -257,7 +257,7 @@ function getDisplayAvailability(
   }
   return {
     label: lang === 'zh' ? '仅可安装' : 'Installable',
-    detail: lang === 'zh' ? '当前只是大厅里的可安装技能；安装并连接后 Lumi 才能调用。' : 'Available in the hall only; Lumi can call it after install and connection.',
+    detail: lang === 'zh' ? '当前只是大厅里的可安装技能；安装并连接后 Peppa 才能调用。' : 'Available in the hall only; Peppa can call it after install and connection.',
     tone: 'white',
   };
 }
@@ -274,7 +274,7 @@ function getInstalledSkillAvailability(skill: InstalledSkill, lang: 'en' | 'zh')
   if (skill.startupError || (skill.enabled && !skill.connected)) {
     return {
       label: lang === 'zh' ? '已安装未连接' : 'Installed, not connected',
-      detail: skill.startupError || (lang === 'zh' ? '本地服务还没有连上 Lumi。' : 'The local service is not connected to Lumi yet.'),
+      detail: skill.startupError || (lang === 'zh' ? '本地服务还没有连上 Peppa。' : 'The local service is not connected to Peppa yet.'),
       tone: 'amber',
       installedSkill: skill,
     };
@@ -282,7 +282,7 @@ function getInstalledSkillAvailability(skill: InstalledSkill, lang: 'en' | 'zh')
   if (skill.connected) {
     return {
       label: lang === 'zh' ? '可调用' : 'Callable',
-      detail: lang === 'zh' ? '已连接到 Lumi，可以参与工具调用。' : 'Connected to Lumi and available for tool calls.',
+      detail: lang === 'zh' ? '已连接到 Peppa，可以参与工具调用。' : 'Connected to Peppa and available for tool calls.',
       tone: 'green',
       installedSkill: skill,
     };
@@ -611,8 +611,8 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
       if (data.success) {
         if (externalRuntime || data.agentId) {
           toast.success(data.message || `"${skill.name}" ${lang === 'zh' ? '已加入 Team' : 'added to Team'}`);
-          window.dispatchEvent(new CustomEvent('lumi:agents-changed', { detail: { agentId: data.agentId, name: skill.name } }));
-          window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'team', agentId: data.agentId } }));
+          window.dispatchEvent(new CustomEvent('peppa:agents-changed', { detail: { agentId: data.agentId, name: skill.name } }));
+          window.dispatchEvent(new CustomEvent('peppa:navigate', { detail: { tab: 'team', agentId: data.agentId } }));
         } else {
           toast.success(`"${skill.name}" ${t.skillInstalledToast}`);
         }
@@ -845,21 +845,21 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
   const recommendationCopy = {
     title: lang === 'zh' ? '\u57fa\u4e8e\u4f60\u7684\u5de5\u4f5c\u63a8\u8350' : 'Recommended for your work',
     subtitle: lang === 'zh'
-      ? 'Lumi \u4f1a\u53c2\u8003\u804c\u4e1a\u753b\u50cf\u3001\u6700\u8fd1\u804a\u5929\u548c\u5df2\u5b89\u88c5 Skill\uff1b\u7ee7\u7eed\u548c Lumi \u804a\u5de5\u4f5c\uff0c\u63a8\u8350\u4f1a\u8d8a\u6765\u8d8a\u51c6\u3002'
-      : 'Lumi uses the work profile, recent chats, and installed skills. Keep talking about work and this gets sharper.',
+      ? 'Peppa \u4f1a\u53c2\u8003\u804c\u4e1a\u753b\u50cf\u3001\u6700\u8fd1\u804a\u5929\u548c\u5df2\u5b89\u88c5 Skill\uff1b\u7ee7\u7eed\u548c Peppa \u804a\u5de5\u4f5c\uff0c\u63a8\u8350\u4f1a\u8d8a\u6765\u8d8a\u51c6\u3002'
+      : 'Peppa uses the work profile, recent chats, and installed skills. Keep talking about work and this gets sharper.',
     profile: lang === 'zh' ? '\u5de5\u4f5c\u753b\u50cf' : 'Work profile',
     signals: lang === 'zh' ? '\u804a\u5929\u4fe1\u53f7' : 'Chat signals',
     recommendations: lang === 'zh' ? '\u63a8\u8350\u5b89\u88c5' : 'Recommended installs',
     installed: lang === 'zh' ? '\u5df2\u5177\u5907\u7684\u80fd\u529b' : 'Available capabilities',
     installedHint: lang === 'zh'
-      ? '\u8fd9\u91cc\u53ea\u505a\u72b6\u6001\u6982\u89c8\uff1b\u542f\u505c\u3001\u4fee\u590d\u3001\u5378\u8f7d\u8bf7\u5230\u7ba1\u7406\u9875\u3002\u5df2\u5b89\u88c5\u7684 Skill \u901a\u5e38\u4f1a\u901a\u8fc7\u672c\u5730 MCP server \u66b4\u9732\u5de5\u5177\u7ed9 Lumi \u8c03\u7528\u3002'
-      : 'This is a status overview. Enable, repair, and uninstall from Manage. Installed skills usually expose tools to Lumi through a local MCP server.',
+      ? '\u8fd9\u91cc\u53ea\u505a\u72b6\u6001\u6982\u89c8\uff1b\u542f\u505c\u3001\u4fee\u590d\u3001\u5378\u8f7d\u8bf7\u5230\u7ba1\u7406\u9875\u3002\u5df2\u5b89\u88c5\u7684 Skill \u901a\u5e38\u4f1a\u901a\u8fc7\u672c\u5730 MCP server \u66b4\u9732\u5de5\u5177\u7ed9 Peppa \u8c03\u7528\u3002'
+      : 'This is a status overview. Enable, repair, and uninstall from Manage. Installed skills usually expose tools to Peppa through a local MCP server.',
     noSignals: lang === 'zh'
       ? '\u6682\u65f6\u8fd8\u6ca1\u6709\u8db3\u591f\u7684\u804c\u4e1a\u6216\u5de5\u4f5c\u4fe1\u53f7\uff0c\u63a8\u8350\u4f1a\u5148\u4fdd\u6301\u4fdd\u5b88\u3002'
       : 'Not enough work signals yet, so recommendations stay conservative.',
     noRecommendations: lang === 'zh'
-      ? '\u8fd8\u6ca1\u6709\u660e\u786e\u63a8\u8350\u3002\u548c Lumi \u804a\u4e00\u804a\u4f60\u7684\u804c\u4e1a\u3001\u5e38\u505a\u7684\u4efb\u52a1\u6216\u5de5\u4f5c\u6d41\u7a0b\u540e\uff0c\u8fd9\u91cc\u4f1a\u81ea\u52a8\u53d8\u5f97\u6709\u7528\u3002'
-      : 'No strong recommendations yet. Talk with Lumi about your profession, recurring tasks, or workflows and this will populate automatically.',
+      ? '\u8fd8\u6ca1\u6709\u660e\u786e\u63a8\u8350\u3002\u548c Peppa \u804a\u4e00\u804a\u4f60\u7684\u804c\u4e1a\u3001\u5e38\u505a\u7684\u4efb\u52a1\u6216\u5de5\u4f5c\u6d41\u7a0b\u540e\uff0c\u8fd9\u91cc\u4f1a\u81ea\u52a8\u53d8\u5f97\u6709\u7528\u3002'
+      : 'No strong recommendations yet. Talk with Peppa about your profession, recurring tasks, or workflows and this will populate automatically.',
     noInstalled: lang === 'zh' ? '\u8fd8\u6ca1\u6709\u5df2\u5b89\u88c5\u7684 Skill\u3002' : 'No installed skills yet.',
     refresh: lang === 'zh' ? '\u5237\u65b0\u63a8\u8350' : 'Refresh recommendations',
     manage: lang === 'zh' ? '\u7ba1\u7406' : 'Manage',
@@ -873,7 +873,7 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Header */}
-      <div className="lumi-panel flex items-center justify-between gap-4 px-4 py-3">
+      <div className="peppa-panel flex items-center justify-between gap-4 px-4 py-3">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-celestial-saturn/20 bg-celestial-saturn/10">
             <Zap className="text-celestial-saturn" size={20} />
@@ -884,7 +884,7 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
           <span className="text-xs text-white/45 font-mono">{sortedMarket.length} {t.available || 'available'}</span>
           <button
             onClick={() => { setLoadError(''); fetchMarketplace(); fetchInstalled(); fetchCategories(); fetchRecommendationSignals(); }}
-            className="lumi-icon-button h-8 w-8"
+            className="peppa-icon-button h-8 w-8"
             title={t.refresh || 'Refresh'}
           >
             <RefreshCw size={14} />
@@ -893,7 +893,7 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
       </div>
 
       <p className="text-sm text-white/40 max-w-xl">
-        {t.skillMarketDesc || 'Browse, install and generate MCP skills. Each skill expands Lumi\'s capabilities with new tools, APIs, and automations. Installed skills appear in your MCP ecosystem.'}
+        {t.skillMarketDesc || 'Browse, install and generate MCP skills. Each skill expands Peppa\'s capabilities with new tools, APIs, and automations. Installed skills appear in your MCP ecosystem.'}
       </p>
 
       {loadError && (
@@ -912,7 +912,7 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
       )}
 
       {/* Tabs */}
-      <div className="lumi-panel flex w-fit gap-1 p-1">
+      <div className="peppa-panel flex w-fit gap-1 p-1">
         {tabs.map(tab => (
           <button
             key={tab.id}
@@ -936,7 +936,7 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
       <AnimatePresence>
         {activeTab === 'featured' && (
           <motion.div key="featured" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }} className="space-y-6">
-            <div className="lumi-panel p-5">
+            <div className="peppa-panel p-5">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <div className="flex items-center gap-2">
@@ -993,7 +993,7 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
               </div>
 
               {recommendedSkills.length === 0 ? (
-                <div className="lumi-panel p-8 text-center">
+                <div className="peppa-panel p-8 text-center">
                   <p className="text-sm text-white/45">{recommendationCopy.noRecommendations}</p>
                 </div>
               ) : (
@@ -1008,7 +1008,7 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
                         onClick={() => setDetailSkill(skill)}
-                        className="lumi-panel cursor-pointer p-5 transition-all hover:border-white/15 hover:bg-white/[0.06]"
+                        className="peppa-panel cursor-pointer p-5 transition-all hover:border-white/15 hover:bg-white/[0.06]"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex min-w-0 items-center gap-3">
@@ -1069,7 +1069,7 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
               </div>
 
               {installedSkillRows.length === 0 ? (
-                <div className="lumi-panel p-8 text-center">
+                <div className="peppa-panel p-8 text-center">
                   <p className="text-sm text-white/45">{recommendationCopy.noInstalled}</p>
                 </div>
               ) : (
@@ -1085,7 +1085,7 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
                           setActiveTab('installed');
                           setDetailSkill(skill);
                         }}
-                        className="lumi-panel cursor-pointer p-5 transition-all hover:border-white/15 hover:bg-white/[0.06]"
+                        className="peppa-panel cursor-pointer p-5 transition-all hover:border-white/15 hover:bg-white/[0.06]"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex min-w-0 items-center gap-3">
@@ -1150,7 +1150,7 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
             <div className="flex items-center gap-3 flex-wrap">
               <div className="relative flex-1 min-w-[200px]">
                 <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/45" />
-                <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={t.searchSkills || 'Search skills...'} className="lumi-field w-full py-2 pl-9 text-xs" />
+                <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={t.searchSkills || 'Search skills...'} className="peppa-field w-full py-2 pl-9 text-xs" />
               </div>
               {/* Category filter */}
               <div className="flex items-center gap-1.5 flex-wrap">
@@ -1198,7 +1198,7 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
                     onClick={() => setDetailSkill(skill)}
-                    className="lumi-panel cursor-pointer p-6 transition-all hover:border-white/15 hover:bg-white/[0.06]"
+                    className="peppa-panel cursor-pointer p-6 transition-all hover:border-white/15 hover:bg-white/[0.06]"
                   >
                     {/* Header */}
                     <div className="flex items-start justify-between mb-4">
@@ -1292,7 +1292,7 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
               </AnimatePresence>
             </div>
             {sortedMarket.length === 0 && (
-              <div className="lumi-panel p-16 text-center">
+              <div className="peppa-panel p-16 text-center">
                 <ShoppingBag size={40} className="text-white/45 mx-auto mb-4" />
                 <p className="text-white/40 font-bold uppercase tracking-widest text-sm">{t.noSkillsFound || 'No skills found'}</p>
                 <p className="text-white/45 text-xs mt-2">{search || activeCategory ? (t.skillNoResultsFilter || 'No results. Try different filters.') : (t.skillCheckBack || 'Check back soon or generate your own.')}</p>
@@ -1395,7 +1395,7 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
 
         {activeTab === 'installed' && (
           <motion.div key="installed" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }} className="space-y-6">
-            <div className="lumi-panel p-5">
+            <div className="peppa-panel p-5">
               <div className="flex items-center gap-2">
                 <Cpu size={17} className="text-cyan-200" />
                 <h4 className="text-sm font-black uppercase tracking-normal text-white/85">{recommendationCopy.managementTitle}</h4>
@@ -1421,11 +1421,11 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
               </div>
             )}
             {loading ? (
-              <div className="lumi-panel p-16 text-center">
+              <div className="peppa-panel p-16 text-center">
                 <p className="text-white/40 text-sm">{t.loading || 'Loading...'}</p>
               </div>
             ) : installedSkills.length === 0 ? (
-              <div className="lumi-panel p-16 text-center">
+              <div className="peppa-panel p-16 text-center">
                 <Wrench size={40} className="text-white/45 mx-auto mb-4" />
                 <p className="text-white/40 font-bold uppercase tracking-widest text-sm">{t.noSkillsInstalled || 'No skills installed'}</p>
                 <p className="text-white/45 text-xs mt-2">{t.skillBrowseMarketplace || 'Browse the marketplace or generate one.'}</p>
@@ -1442,7 +1442,7 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0 }}
                       onClick={() => setDetailSkill(skill)}
-                      className="lumi-panel cursor-pointer p-6 transition-all hover:border-white/15 hover:bg-white/[0.06]"
+                      className="peppa-panel cursor-pointer p-6 transition-all hover:border-white/15 hover:bg-white/[0.06]"
                     >
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex-1 min-w-0">
@@ -1528,21 +1528,21 @@ export function SkillCenter({ t, lang, initialTab = 'featured' }: { t: any; lang
 
         {activeTab === 'generate' && (
           <motion.div key="generate" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }} className="space-y-6">
-            <div className="lumi-panel p-6 space-y-4">
+            <div className="peppa-panel p-6 space-y-4">
               <div className="flex items-center gap-3">
                 <Sparkles className="text-celestial-saturn" size={18} />
                 <h4 className="text-sm font-bold uppercase tracking-tight text-white">{t.generateNewSkill || 'Generate a New Skill'}</h4>
               </div>
               <p className="text-xs text-white/55 leading-relaxed">
-                {t.skillGenerateDesc || 'Describe what the skill should do. Lumi generates a complete MCP server package.'}
+                {t.skillGenerateDesc || 'Describe what the skill should do. Peppa generates a complete MCP server package.'}
               </p>
               <div className="flex gap-2">
                 <Input value={genDescription} onChange={e => setGenDescription(e.target.value)}
                   placeholder={t.skillGeneratePlaceholder || 'e.g. Check if a website is down...'}
-                  className="lumi-field flex-1 py-2 text-xs"
+                  className="peppa-field flex-1 py-2 text-xs"
                   onKeyDown={e => e.key === 'Enter' && handleGenerate()} />
                 <Button onClick={handleGenerate} disabled={generating || !genDescription.trim()}
-                  className="lumi-button-primary bg-celestial-saturn text-black hover:bg-celestial-saturn/90">
+                  className="peppa-button-primary bg-celestial-saturn text-black hover:bg-celestial-saturn/90">
                   {generating ? (t.generating || '...') : (t.generateBtn || 'Generate')}
                 </Button>
               </div>
@@ -1621,7 +1621,7 @@ function SkillDetailPane({ detailSkill, setDetailSkill, t, lang, marketSkills, i
         exit={{ opacity: 0, y: 12, scale: 0.98 }}
         transition={{ duration: 0.16 }}
         onClick={(event) => event.stopPropagation()}
-        className="lumi-panel max-h-[min(760px,calc(100vh-48px))] w-full max-w-3xl overflow-y-auto p-6 space-y-5 shadow-2xl"
+        className="peppa-panel max-h-[min(760px,calc(100vh-48px))] w-full max-w-3xl overflow-y-auto p-6 space-y-5 shadow-2xl"
       >
         <button
           onClick={() => setDetailSkill(null)}
@@ -1787,8 +1787,8 @@ function SkillDetailPane({ detailSkill, setDetailSkill, t, lang, marketSkills, i
       {!isMarketSkill && detailSkill?.broken && (
         <div className="rounded-2xl border border-red-500/10 bg-red-500/5 p-4 text-xs leading-relaxed text-red-100/75">
           {lang === 'zh'
-            ? '这个技能包缺少可启动入口。Lumi 会先尝试从 npm、GitHub 或内置技能源重装；没有来源时需要清理后重新安装或重新生成。'
-            : 'This skill package has no runnable entry. Lumi will try npm, GitHub, or bundled reinstall sources first; otherwise clean it up and reinstall or regenerate it.'}
+            ? '这个技能包缺少可启动入口。Peppa 会先尝试从 npm、GitHub 或内置技能源重装；没有来源时需要清理后重新安装或重新生成。'
+            : 'This skill package has no runnable entry. Peppa will try npm, GitHub, or bundled reinstall sources first; otherwise clean it up and reinstall or regenerate it.'}
         </div>
       )}
 

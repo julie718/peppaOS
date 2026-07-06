@@ -167,7 +167,7 @@ export function updateEmotionalState(state: EmotionalState, event: EmotionEvent)
       break;
 
     case 'sentiment_analysis':
-      // User's message carries emotional charge — Lumi absorbs it
+      // User's message carries emotional charge — Peppa absorbs it
       if (event.sentiment) {
         updated.valence = updated.valence * 0.85 + (event.sentiment.valence || 0) * 0.15;
         if (event.sentiment.frustration > 0.5) {
@@ -213,11 +213,11 @@ export function updateEmotionalState(state: EmotionalState, event: EmotionEvent)
           userId: event.userId,
           type: 'fact',
           content: `I felt a ${direction} emotional shift during our interaction${event.timestamp ? ` on ${event.timestamp}` : ''}. Valence moved from ${state.valence.toFixed(2)} to ${updated.valence.toFixed(2)}.`,
-          keywords: ['emotion', 'valence', direction, 'lumi_state'],
+          keywords: ['emotion', 'valence', direction, 'peppa_state'],
           confidence: 0.9,
           sourceInteractionId: '',
         },
-        { tier: 'internalized', perspective: 'lumi_self', importance: 0.3 },
+        { tier: 'internalized', perspective: 'peppa_self', importance: 0.3 },
       );
     }
   }
@@ -339,7 +339,7 @@ export function generateContextualGreeting(state: EmotionalState, userId?: strin
 /**
  * CROSS-SYSTEM FUSION: intimacy modulates the personality vector on a per-interaction basis.
  * Higher intimacy → warmer, less formal, more playful. Called during prompt generation
- * so each user experiences a unique intimacy-tuned Lumi without modifying the base config.
+ * so each user experiences a unique intimacy-tuned Peppa without modifying the base config.
  */
 export function applyIntimacyToVector(
   v: PersonalityVector,
@@ -386,9 +386,9 @@ export function vectorMemoryBias(v: PersonalityVector): {
     perspectiveWeights: {
       // Warm: boosts shared_memory (our experiences)
       shared_memory: 1 + s.warmth * 0.5,
-      // High connection: boosts lumi_self and lumi_growth
-      lumi_self: 1 + s.warmth * 0.3,
-      lumi_growth: 1 + s.warmth * 0.2,
+      // High connection: boosts peppa_self and peppa_growth
+      peppa_self: 1 + s.warmth * 0.3,
+      peppa_growth: 1 + s.warmth * 0.2,
       // Analytical: slightly prefers owner_trait (observable facts about user)
       owner_trait: 1 + c.analytical * 0.1,
     },

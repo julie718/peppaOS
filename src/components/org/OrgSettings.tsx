@@ -159,7 +159,7 @@ export function OrgSettings() {
       setLlmProvider(data.provider || data.inheritedProvider || llmProvider);
       setLlmModels(data.models && typeof data.models === 'object' ? data.models : nextModels);
       setLlmInheritedModel(`${data.inheritedProvider || data.provider || llmProvider} / ${data.inheritedModel || data.model || selectedModel}`);
-      setFeedback({ type: 'success', text: ui('公司 Lumi 大模型策略已保存', 'Company Lumi model policy saved') });
+      setFeedback({ type: 'success', text: ui('公司 Peppa 大模型策略已保存', 'Company Peppa model policy saved') });
     } catch (err: any) {
       setFeedback({ type: 'error', text: err.message || String(err) });
     } finally {
@@ -215,7 +215,7 @@ export function OrgSettings() {
       setFeedback({ type: 'success', text: t.organizationDeleted || ui('组织已删除', 'Organization deleted') });
       setOrg(null);
       void switchDomain('personal').finally(() => {
-        window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'home' } }));
+        window.dispatchEvent(new CustomEvent('peppa:navigate', { detail: { tab: 'home' } }));
       });
     } catch (err: any) {
       setFeedback({ type: 'error', text: err.message || String(err) });
@@ -346,7 +346,7 @@ export function OrgSettings() {
         <section className="rounded-lg border border-white/10 bg-white/[0.04] p-5">
           <div className="mb-4 flex items-center gap-2">
             <BrainCircuit size={17} className="text-blue-300" />
-            <h3 className="text-sm font-medium text-white">{ui('公司 Lumi 大模型', 'Company Lumi Model')}</h3>
+            <h3 className="text-sm font-medium text-white">{ui('公司 Peppa 大模型', 'Company Peppa Model')}</h3>
           </div>
           <p className="mb-4 text-sm leading-6 text-white/50">
             {ui('组织域聊天、语音和子 agent 编排会优先使用这里的模型策略；选择继承时才使用当前成员的个人模型。', 'Work-domain chat, voice, and agent orchestration use this policy first; inheritance uses the current member personal model.')}
@@ -375,7 +375,7 @@ export function OrgSettings() {
               }`}
             >
               <div className="text-sm font-medium">{ui('使用组织独立模型', 'Use organization model')}</div>
-              <div className="mt-1 text-xs text-white/45">{ui('公司 Lumi 固定使用组织策略', 'Company Lumi uses a fixed organization policy')}</div>
+              <div className="mt-1 text-xs text-white/45">{ui('公司 Peppa 固定使用组织策略', 'Company Peppa uses a fixed organization policy')}</div>
             </button>
           </div>
 

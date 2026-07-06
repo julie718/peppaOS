@@ -1,5 +1,5 @@
 /**
- * Lumi Messaging — Unified message adapter types.
+ * Peppa Messaging — Unified message adapter types.
  * Supports: Feishu, Telegram, WeChat, Web Chat
  */
 

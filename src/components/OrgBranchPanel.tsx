@@ -65,7 +65,7 @@ export function OrgBranchPanel() {
     orgId: '',
     companyUrl: 'http://127.0.0.1:3000',
     token: (() => {
-      try { return localStorage.getItem('lumi_auth_token') || ''; } catch { return ''; }
+      try { return localStorage.getItem('peppa_auth_token') || ''; } catch { return ''; }
     })(),
   }));
   const [connecting, setConnecting] = useState(false);

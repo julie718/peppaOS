@@ -1259,14 +1259,14 @@ export function getDefaultPets(): PetConfig[] {
   if (_defaults) return _defaults;
 
   _defaults = [
-    { id: 'lumi-cat',    name: 'Lumi Cat',    author: 'LumiOS', spritesheet: '', atlas: DEFAULT_ATLAS, palette: BUILTIN_PALETTES.cat,    tags: { species: 'cat', color: BUILTIN_PALETTES.cat.body, eyeShape: 'round', mouthStyle: 'smile', size: 'normal' } },
-    { id: 'lumi-blob',   name: 'Lumi Blob',   author: 'LumiOS', spritesheet: '', atlas: DEFAULT_ATLAS, palette: BUILTIN_PALETTES.blob,   tags: { species: 'blob', color: BUILTIN_PALETTES.blob.body, eyeShape: 'round', mouthStyle: 'smile', size: 'normal' } },
-    { id: 'lumi-bird',   name: 'Lumi Bird',   author: 'LumiOS', spritesheet: '', atlas: DEFAULT_ATLAS, palette: BUILTIN_PALETTES.bird,   tags: { species: 'bird', color: BUILTIN_PALETTES.bird.body, eyeShape: 'round', mouthStyle: 'neutral', size: 'normal' } },
-    { id: 'lumi-dragon', name: 'Lumi Dragon', author: 'LumiOS', spritesheet: '', atlas: DEFAULT_ATLAS, palette: BUILTIN_PALETTES.dragon, tags: { species: 'dragon', color: BUILTIN_PALETTES.dragon.body, eyeShape: 'slit', mouthStyle: 'open', size: 'normal', hasWings: true, hasHorns: true } },
-    { id: 'lumi-fox',    name: 'Lumi Fox',    author: 'LumiOS', spritesheet: '', atlas: DEFAULT_ATLAS, palette: BUILTIN_PALETTES.fox,    tags: { species: 'fox', color: BUILTIN_PALETTES.fox.body, eyeShape: 'oval', mouthStyle: 'smile', size: 'normal' } },
-    { id: 'lumi-rabbit', name: 'Lumi Rabbit', author: 'LumiOS', spritesheet: '', atlas: DEFAULT_ATLAS, palette: BUILTIN_PALETTES.rabbit, tags: { species: 'rabbit', color: BUILTIN_PALETTES.rabbit.body, eyeShape: 'round', mouthStyle: 'smile', size: 'normal' } },
-    { id: 'lumi-bear',   name: 'Lumi Bear',   author: 'LumiOS', spritesheet: '', atlas: DEFAULT_ATLAS, palette: BUILTIN_PALETTES.bear,   tags: { species: 'bear', color: BUILTIN_PALETTES.bear.body, eyeShape: 'round', mouthStyle: 'neutral', size: 'large' } },
-    { id: 'lumi-hamster',name: 'Lumi Hamster',author: 'LumiOS', spritesheet: '', atlas: DEFAULT_ATLAS, palette: BUILTIN_PALETTES.hamster,tags: { species: 'hamster', color: BUILTIN_PALETTES.hamster.body, eyeShape: 'round', mouthStyle: 'smile', size: 'small' } },
+    { id: 'peppa-cat',    name: 'Peppa Cat',    author: 'Peppa', spritesheet: '', atlas: DEFAULT_ATLAS, palette: BUILTIN_PALETTES.cat,    tags: { species: 'cat', color: BUILTIN_PALETTES.cat.body, eyeShape: 'round', mouthStyle: 'smile', size: 'normal' } },
+    { id: 'peppa-blob',   name: 'Peppa Blob',   author: 'Peppa', spritesheet: '', atlas: DEFAULT_ATLAS, palette: BUILTIN_PALETTES.blob,   tags: { species: 'blob', color: BUILTIN_PALETTES.blob.body, eyeShape: 'round', mouthStyle: 'smile', size: 'normal' } },
+    { id: 'peppa-bird',   name: 'Peppa Bird',   author: 'Peppa', spritesheet: '', atlas: DEFAULT_ATLAS, palette: BUILTIN_PALETTES.bird,   tags: { species: 'bird', color: BUILTIN_PALETTES.bird.body, eyeShape: 'round', mouthStyle: 'neutral', size: 'normal' } },
+    { id: 'peppa-dragon', name: 'Peppa Dragon', author: 'Peppa', spritesheet: '', atlas: DEFAULT_ATLAS, palette: BUILTIN_PALETTES.dragon, tags: { species: 'dragon', color: BUILTIN_PALETTES.dragon.body, eyeShape: 'slit', mouthStyle: 'open', size: 'normal', hasWings: true, hasHorns: true } },
+    { id: 'peppa-fox',    name: 'Peppa Fox',    author: 'Peppa', spritesheet: '', atlas: DEFAULT_ATLAS, palette: BUILTIN_PALETTES.fox,    tags: { species: 'fox', color: BUILTIN_PALETTES.fox.body, eyeShape: 'oval', mouthStyle: 'smile', size: 'normal' } },
+    { id: 'peppa-rabbit', name: 'Peppa Rabbit', author: 'Peppa', spritesheet: '', atlas: DEFAULT_ATLAS, palette: BUILTIN_PALETTES.rabbit, tags: { species: 'rabbit', color: BUILTIN_PALETTES.rabbit.body, eyeShape: 'round', mouthStyle: 'smile', size: 'normal' } },
+    { id: 'peppa-bear',   name: 'Peppa Bear',   author: 'Peppa', spritesheet: '', atlas: DEFAULT_ATLAS, palette: BUILTIN_PALETTES.bear,   tags: { species: 'bear', color: BUILTIN_PALETTES.bear.body, eyeShape: 'round', mouthStyle: 'neutral', size: 'large' } },
+    { id: 'peppa-hamster',name: 'Peppa Hamster',author: 'Peppa', spritesheet: '', atlas: DEFAULT_ATLAS, palette: BUILTIN_PALETTES.hamster,tags: { species: 'hamster', color: BUILTIN_PALETTES.hamster.body, eyeShape: 'round', mouthStyle: 'smile', size: 'small' } },
   ];
 
   // Generate spritesheets

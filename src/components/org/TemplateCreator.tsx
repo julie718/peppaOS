@@ -13,7 +13,7 @@ export function TemplateCreator() {
   const [icon, setIcon] = useState('Bot');
   const [configStr, setConfigStr] = useState(JSON.stringify({
     initialPrompt: '',
-    personalityId: 'lumi',
+    personalityId: 'peppa',
     allowedTools: '*',
     memoryPolicy: { retrieveLimit: 10, autoExtract: true },
   }, null, 2));
@@ -21,7 +21,7 @@ export function TemplateCreator() {
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
 
-  const goBack = () => window.dispatchEvent(new CustomEvent('lumi:navigate', { detail: { tab: 'org', sub: 'templates' } }));
+  const goBack = () => window.dispatchEvent(new CustomEvent('peppa:navigate', { detail: { tab: 'org', sub: 'templates' } }));
 
   const handleSubmit = async () => {
     if (!name.trim() || !description.trim()) {
@@ -70,7 +70,7 @@ export function TemplateCreator() {
           </motion.div>
           <h3 className="mt-4 text-xl font-semibold text-white">{t.templateSubmitted || ui('智能体模板已提交', 'Agent Template Submitted')}</h3>
           <p className="mt-2 text-sm leading-6 text-white/50">
-            {t.templatePendingReview || ui('智能体模板已进入审核，通过后团队成员可安装到 Lumi 团队。', 'Your agent template is pending review. Once approved, members can install it into Lumi Team.')}
+            {t.templatePendingReview || ui('智能体模板已进入审核，通过后团队成员可安装到 Peppa 团队。', 'Your agent template is pending review. Once approved, members can install it into Peppa Team.')}
           </p>
           <button
             onClick={goBack}
