@@ -1701,7 +1701,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
               initial={{ opacity: 0, x: 40 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1], delay: 0.15 }}
-              className="w-96 flex-shrink-0 space-y-4 overflow-y-auto custom-scrollbar">
+              className="hidden xl:block w-96 flex-shrink-0 space-y-4 overflow-y-auto custom-scrollbar">
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1], delay: 0.2 }}>
           <GlassCard className="p-6 rounded-[2.5rem] space-y-4 border-celestial-saturn/20" hoverEffect={false}>
             <div className="flex items-center justify-between">

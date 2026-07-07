@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { motion } from 'motion/react';
 import { Rocket } from 'lucide-react';
 import { Toaster } from 'sonner';
@@ -6,16 +5,11 @@ import '@fontsource-variable/geist';
 import '../index.css';
 import { ProactiveNotifications } from '../components/ProactiveNotifications';
 import { LoginModal, LoginRequired } from '../core/components/Auth';
-import { MobilePlatform } from '../platforms/mobile/MobilePlatform';
-import { SkillHall } from '../components/SkillHall';
-import { PeppaEcosystem } from '../components/PeppaEcosystem';
 import { AgentChatPage } from '../components/AgentChatPage';
-import { Profile } from '../components/Profile';
 import { useAppShell } from './useAppShell';
 
 export function MobileApp() {
   const shell = useAppShell();
-  const [selectedAgent, setSelectedAgent] = useState<any>(null);
 
   if (shell.loading) {
     return (
@@ -28,33 +22,24 @@ export function MobileApp() {
     );
   }
 
-  const renderTabContent = (tab: string) => {
-    switch (tab) {
-      case 'generate':
-        return !shell.user ? <LoginRequired t={shell.t} onLogin={shell.handleLogin} /> : <SkillHall t={shell.t} lang={shell.lang} initialTab="generate" />;
-      case 'ecosystem':
-        return selectedAgent
-          ? <AgentChatPage t={shell.t} user={shell.user} agent={selectedAgent} isOpen={true} onClose={() => setSelectedAgent(null)} />
-          : <div className="space-y-8"><PeppaEcosystem t={shell.t} onChatAgent={(agent: any) => setSelectedAgent(agent)} /><SkillHall t={shell.t} lang={shell.lang} /></div>;
-      case 'profile':
-        return !shell.user ? <LoginRequired t={shell.t} onLogin={shell.handleLogin} /> : <Profile t={shell.t} />;
-      default:
-        return null;
-    }
-  };
+  if (!shell.user) {
+    return (
+      <>
+        <ProactiveNotifications />
+        <Toaster position="top-right" theme="dark" />
+        <div className="h-dvh flex items-center justify-center bg-black">
+          <LoginRequired t={shell.t} onLogin={shell.handleLogin} />
+        </div>
+        <LoginModal t={shell.t} isOpen={shell.isLoginModalOpen} onClose={() => shell.setIsLoginModalOpen(false)} onLoginSuccess={() => shell.refreshUser()} onGoogleLogin={shell.handleLogin} />
+      </>
+    );
+  }
 
   return (
     <>
       <ProactiveNotifications />
       <Toaster position="top-right" theme="dark" />
-      <MobilePlatform
-        t={shell.t}
-        user={shell.user}
-        lang={shell.lang}
-        setLang={shell.setLang}
-        onLogin={shell.handleLogin}
-        renderTabContent={renderTabContent}
-      />
+      <AgentChatPage t={shell.t} user={shell.user} agent={{ id: 'peppa', name: 'Peppa' }} isOpen={true} onClose={() => {}} />
       <LoginModal t={shell.t} isOpen={shell.isLoginModalOpen} onClose={() => shell.setIsLoginModalOpen(false)} onLoginSuccess={() => shell.refreshUser()} onGoogleLogin={shell.handleLogin} />
     </>
   );
