@@ -344,6 +344,30 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     }
   }, [setDraftText, t.speechNotSupported]);
 
+  // Listen for camera capture from VoiceCallButton
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.imageBase64 && socket) {
+        socket.emit('agent:chat', {
+          message: '[用户拍摄了一张照片，请描述你看到了什么]',
+          personalityId: 'peppa',
+          agentId: 'peppa',
+          mode: 'text',
+          images: [detail.imageBase64],
+        });
+        setMessages((prev: any[]) => [...prev, {
+          id: String(Date.now()),
+          type: 'user',
+          text: '📷 拍摄了一张照片',
+          timestamp: new Date().toISOString(),
+        }]);
+      }
+    };
+    window.addEventListener('peppa:camera-capture', handler);
+    return () => window.removeEventListener('peppa:camera-capture', handler);
+  }, [socket]);
+
   const handleCopyMessage = useCallback(async (text: string, id: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -1277,13 +1301,6 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
             </AnimatePresence>
           </div>
 
-          <VoiceCallButton
-            callState={callState}
-            audioLevel={audioLevel}
-            onStart={() => startCall(selectedVoiceId, 'peppa', agentId, { domain: activeDomain, orgId: activeOrgId, voiceProvider: selectedVoiceProvider })}
-            onEnd={endCall}
-            hasVoice={voices.length > 0}
-          />
           {activeDomain === 'personal' && (
             <button
               type="button"
@@ -1664,17 +1681,14 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                   placeholder={t.communicatePlaceholder || "Communicate with your essence..."}
                   className="bg-black/40 border-white/10 rounded-2xl py-6 pr-12 focus-visible:ring-celestial-saturn/50"
                 />
-                <Button
-                  type="button"
-                  onClick={toggleListening}
-                  variant="ghost"
-                  className={`absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0 rounded-full transition-colors ${
-                    isListening ? 'text-celestial-mars bg-celestial-mars/20 animate-pulse' : 'text-white/40 hover:text-white'
-                  }`}
-                >
-                  <Mic size={18} />
-                </Button>
               </div>
+              <VoiceCallButton
+                callState={callState}
+                audioLevel={audioLevel}
+                onStart={() => startCall(selectedVoiceId, 'peppa', agentId, { domain: activeDomain, orgId: activeOrgId, voiceProvider: selectedVoiceProvider })}
+                onEnd={endCall}
+                hasVoice={voices.length > 0}
+              />
               {isTyping ? (
                 <Button
                   type="button"
