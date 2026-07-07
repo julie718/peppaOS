@@ -36,11 +36,11 @@ export function MobileApp() {
   }
 
   return (
-    <>
+    <div className="fixed inset-0 bg-black overflow-hidden" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <ProactiveNotifications />
       <Toaster position="top-right" theme="dark" />
       <AgentChatPage t={shell.t} user={shell.user} agent={{ id: 'peppa', name: 'Peppa' }} isOpen={true} onClose={() => {}} />
       <LoginModal t={shell.t} isOpen={shell.isLoginModalOpen} onClose={() => shell.setIsLoginModalOpen(false)} onLoginSuccess={() => shell.refreshUser()} onGoogleLogin={shell.handleLogin} />
-    </>
+    </div>
   );
 }
