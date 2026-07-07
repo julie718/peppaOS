@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
     : target === 'mobile'
       ? { mobile: 'index.mobile.html' }
       : target === 'all'
-        ? { desktop: 'index.html', web: 'index.web.html', mobile: 'index.mobile.html', org: 'index.org.html', minimal: 'index.minimal.html' }
+        ? { desktop: 'index.html', web: 'index.web.html', mobile: 'index.mobile.html', org: 'index.org.html' }
         : { desktop: 'index.html' };
   const outDir = target === 'all' ? 'dist' : `dist/${target}`;
 
