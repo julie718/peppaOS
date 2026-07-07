@@ -39,7 +39,10 @@ export function installApiBridge(): void {
   if (typeof window === 'undefined' || window.__MAYOS_API_BRIDGE_INSTALLED__) return;
 
   const win = window as any;
-  win.__MAYOS_DESKTOP__ = true; // signal to getBackendOrigin that we're in a desktop shell
+  // Only set desktop flag in Tauri/Electron — normal browsers should use window.location.origin
+  if (isTauriRuntime()) {
+    win.__MAYOS_DESKTOP__ = true;
+  }
 
   const nativeFetch = window.fetch.bind(window);
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
