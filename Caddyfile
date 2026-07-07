@@ -1,3 +1,4 @@
-qweasd.top {
+qweasd.top:4043 {
+    tls internal
     reverse_proxy mayos:3000
 }

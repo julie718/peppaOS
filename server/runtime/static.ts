@@ -48,7 +48,7 @@ export async function setupStatic(app: express.Express, __filename: string, __di
     app.get("*", (req, res) => {
       const ua = (req.headers['user-agent'] || '').toLowerCase();
       const isMobile = /iphone|ipad|android|mobile/.test(ua) && !/tablet/.test(ua);
-      const file = isMobile ? 'index.minimal.html' : defaultFile;
+      const file = isMobile ? 'index.mobile.html' : defaultFile;
       const fullPath = path.join(distPath, file);
       if (fs.existsSync(fullPath)) {
         res.sendFile(fullPath);
