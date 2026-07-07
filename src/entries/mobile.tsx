@@ -1,7 +1,6 @@
 import { motion } from 'motion/react';
 import { Rocket } from 'lucide-react';
 import { Toaster } from 'sonner';
-import '@fontsource-variable/geist';
 import '../index.css';
 import { ProactiveNotifications } from '../components/ProactiveNotifications';
 import { LoginModal, LoginRequired } from '../core/components/Auth';
@@ -36,7 +35,10 @@ export function MobileApp() {
   }
 
   return (
-    <div className="fixed inset-0 bg-black overflow-hidden" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+    <div className="fixed inset-0 bg-black overflow-hidden overscroll-none touch-none" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <style>{`
+        html, body { font-family: system-ui, "PingFang SC", -apple-system, BlinkMacSystemFont, sans-serif !important; }
+      `}</style>
       <ProactiveNotifications />
       <Toaster position="top-right" theme="dark" />
       <AgentChatPage t={shell.t} user={shell.user} agent={{ id: 'peppa', name: 'Peppa' }} isOpen={true} onClose={() => {}} />
