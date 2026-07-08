@@ -14,6 +14,7 @@ services:
     environment:
       PORT: 3000
       HOST: 0.0.0.0
+      LUMI_DATA_DIR: /app
       NODE_ENV: production
       # LLM
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
@@ -29,7 +30,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       PEPPA_PASSWORD: ${PEPPA_PASSWORD:-peppa_2026}
     volumes:
-      - mayos_data:/app/data
+      - ./data:/app/data
     restart: unless-stopped
 
   caddy:
@@ -43,5 +44,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  mayos_data:
   caddy_data:
