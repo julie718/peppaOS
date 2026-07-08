@@ -38,6 +38,24 @@ export function MobileApp() {
     <div className="fixed inset-0 bg-black overflow-hidden overscroll-none touch-none" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <style>{`
         html, body { font-family: system-ui, "PingFang SC", -apple-system, BlinkMacSystemFont, sans-serif !important; }
+
+        /* ── 手机版聊天气泡文字 13px→17px ── */
+        [class*="max-w-[85%]"], [class*="max-w-[92%]"] {
+          max-width: 67% !important;
+        }
+        [class*="relative max-w-"][class*="rounded-2xl"][class*="text-xs"] {
+          font-size: 17px !important;
+          line-height: 1.35 !important;
+        }
+        [class*="text-sm leading-relaxed"] {
+          font-size: 17px !important;
+          line-height: 1.35 !important;
+        }
+
+        /* ── 输入框 34px→42px，字 13px→16px ── */
+        input[placeholder*="Communicate"], input[placeholder*="输入消息"] {
+          font-size: 16px !important;
+        }
       `}</style>
       <ProactiveNotifications />
       <Toaster position="top-right" theme="dark" />

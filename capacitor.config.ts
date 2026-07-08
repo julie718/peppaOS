@@ -1,12 +1,15 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
-// Before using: run `npx cap add android` or `npx cap add ios` to create platform directories
 const config: CapacitorConfig = {
-  appId: 'com.lumiai.app',
-  appName: 'LumiAI',
+  appId: 'com.mayos.app',
+  appName: 'MayOS',
   webDir: 'dist/mobile',
   server: {
-    androidScheme: 'https'
+    url: 'http://qweasd.top:3000',
+    cleartext: true
+  },
+  ios: {
+    contentInset: 'always'
   }
 };
 
