@@ -68,29 +68,8 @@ export async function bootstrap(ctx: BootstrapContext) {
     process.exit(1);
   }
 
-  // Auto-create peppa account for personal use
-  const peppaPassword = process.env.PEPPA_PASSWORD || 'peppa_2026';
-  if (peppaPassword) {
-    try {
-      const db = readDB();
-      const peppaExists = db.users.find((u: any) => u.username === 'peppa');
-      if (!peppaExists) {
-        db.users.push({
-          uid: Math.random().toString(36).substring(2, 15),
-          username: 'peppa',
-          password: await bcrypt.hash(peppaPassword, 10),
-          phone: '+00000000000',
-          role: 'admin',
-          balance: 999.0,
-          createdAt: new Date().toISOString(),
-        });
-        writeDB(db);
-        console.log('[Bootstrap] Peppa account created');
-      }
-    } catch (err) {
-      console.warn('[Bootstrap] Failed to ensure peppa account:', (err as Error).message);
-    }
-  }
+  // Peppa account is created via /api/auth/register or db migration.
+  // Server no longer auto-creates it — prevents random UID on every restart.
 
   // Register all agent tools
   registerAllTools(toolRegistry, { getDeepSeek: llm.getDeepSeek, getGemini: llm.getGemini, getOpenAI: llm.getOpenAI, getAnthropic: llm.getAnthropic, getQwen: llm.getQwen });
