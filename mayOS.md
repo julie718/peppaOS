@@ -674,6 +674,9 @@ DDNS 已有的前提下，从"部署到 NAS"到"外网 HTTPS 可用"的路径很
 | 2026-07-07 | 麦克风菜单：VoiceCallButton 改为点击弹出三选项（实时通话/对讲/拍照识别），挪到输入栏右侧 |
 | 2026-07-07 | 数据迁移：MacBook 603条记录迁移到 NAS，解决 luvsicos 容器删除导致的历史聊天丢失 |
 | 2026-07-07 | 密码问题排查：Python 旁路写 SQLite 导致 hash 不一致，最终从 MacBook 备份恢复 |
+| 2026-07-07 | iPhone 登录报 Load failed：apiBridge 误判桌面壳导致 API 连 127.0.0.1，修 installApiBridge |
+| 2026-07-07 | 恢复 Caddy 4043：端口被 git pull 覆盖，改回 4043+TLS internal |
+| 2026-07-08 | LUMI_DATA_DIR 丢失：docker-compose 被覆盖，数据写到容器内部，补回并重建 |
 | ⬜ 待办 | 定时备份：cron 每天自动备份 ~/mayos/data/peppa.db 到 NAS 另一存储位置 |
 
 ---
@@ -1114,30 +1117,98 @@ GPS 在超市 + 走路状态
 
 ---
 
-## 二十、数据迁移与持久化总结 (2026-07-07)
+## 二十、数据迁移、记忆、帐号问题全记录 (2026-07-07~08)
 
-### 时间线
+### 背景
 
-| 时间 | 事件 | 数据状态 |
-|------|------|----------|
-| 7/6 深夜 | luvsicos 容器删除 | ❌ 第一天聊天记录丢失 |
-| 7/7 上午 | 数据从 Docker 命名卷 → 绑定目录 | 部分保留（后来发现是空库） |
-| 7/7 下午 | MacBook 603条记录通过 SSH 管道传到 NAS | ✅ 完整恢复 |
-| 7/7 晚上 | 多次容器重启/重建，数据完好 | ✅ 绑定目录保住了 |
+MayOS 在 NAS 上运行了多天，期间经历了多次容器重建、数据库格式切换、密码修改。记忆和帐号问题贯穿始终。
 
-### 最终配置
+### 完整时间线
+
+| 时间 | 事件 | 数据状态 | 原因 |
+|------|------|----------|------|
+| 7/6 深夜 | 部署前删除 luvsicos 容器 | ❌ 第一天聊天全部丢失 | 未导出数据就删容器 |
+| 7/7 上午 | Docker 命名卷 → 绑定目录 `~/mayos/data/` | 数据看似迁移了 | 但迁移的是空库 |
+| 7/7 下午 | MacBook 本地 5.5MB/603条 peppa.db 通过 SSH 传到 NAS | ✅ 聊天记录恢复 | 先停容器→覆盖DB→重启 |
+| 7/7 晚上 | 多次 `docker compose up -d --build` | 数据完好 | 绑定目录已生效 |
+| 7/7 深夜 | git pull 覆盖了 NAS 本地修改的配置 | 数据完好，但配置丢了 | GitHub 上的 docker-compose.yml/Caddyfile/static.ts 是旧版 |
+
+### 帐号问题
+
+#### peppa 帐号登录失败（多次）
+
+**现象**：`peppa / peppa_2026` 登录报 "Invalid credentials"
+
+**根因 1**：MacBook 数据库迁移到 NAS 后，密码是用户自己在 MacBook 上改的，不是 `peppa_2026`
+
+**根因 2**：我后来用 Python 直接改 SQLite 的 `users.password` 字段，生成新的 bcrypt hash。但 `readDB()` 返回的是**内存缓存 memoryDB**，磁盘上的 hash 更新了、内存没刷新。`bcrypt.compare()` 比对的永远是旧 hash。
+
+**根因 3**：`readDB()` 是同步返回内存对象的，容器重启后才从 SQLite 重新加载。但我多次 Python 改 SQLite → 不重启 → 认为"改完了" → 实际没生效。
+
+**根因 4**：docker-compose.yml 在生产配置中漏掉了 `LUMI_DATA_DIR: /app`，导致部分重建时数据写到容器内部 `/root/Peppa/data/` 而非绑定目录。
+
+#### admin 帐号也登不上
+
+数据库 bootstrap 只创建 `admin / admin123`。但 MacBook 数据库迁来后 admin 的密码也被用户改过，`admin123` 失效。
+
+#### 最终解决
+
+- 从 MacBook 备份 `peppa.db.macbook` 恢复 → 用户用自己在 MacBook 上设的密码登录
+- docker-compose.yml 补上 `LUMI_DATA_DIR: /app`
+
+### 记忆问题
+
+#### 为什么 AI "不记得"昨天的事
+
+**原因 1**：第一天（7/6）在 luvsicos 容器里聊的所有内容，因为部署时直接停了容器没导出数据，永久丢失。
+
+**原因 2**：7/7 上午在 mayos 容器里聊的内容，在数据迁移过程中（命名卷→绑定目录）没有正确带上。旧命名卷里的 peppa.db 也是空库（479KB）。
+
+**原因 3**：MacBook 和 NAS 是两套独立数据库。用户在 MacBook `localhost:3000` 聊的内容存在 MacBook 本地，NAS 上完全不知道。
+
+#### 恢复方案
+
+1. MacBook 本地 peppa.db（5.5MB, 603条记录）通过 SSH 管道传到 NAS：`ssh cat > /tmp/peppa.db.macbook < ~/Peppa/data/peppa.db`
+2. 停 mayos 容器 → 复制覆盖 → 启动 → 603条记录完整恢复
+
+### 情绪相关
+
+AI 的"情绪"来源于交互中的数据积累。数据少 → 没有历史语境 → 回复缺乏个性化 → 用户感觉"没有记忆"、"不认识我了"。本质不是 AI 没有记忆能力，是数据管道断了。
+
+情绪相关的数据（emotionalState, HIM state）也存储在 peppa.db 中，数据完整迁移到 NAS 后，历史积累不需要重新开始。
+
+### 最终配置（已验证）
 
 ```
-NAS: ~/mayos/data/peppa.db   (5.5MB, 603条)
-     Docker: volumes: ./data:/app/data
-     Env:    LUMI_DATA_DIR=/app
+NAS: ~/mayos/data/peppa.db   (5.5MB, 603条, 7/8凌晨还在)
+     docker-compose.yml:
+       volumes: ./data:/app/data
+       environment: LUMI_DATA_DIR=/app
+     docker-compose.yml caddy: ports: 4043:4043
+     Caddyfile: qweasd.top:4043 { tls internal; reverse_proxy mayos:3000; }
+     static.ts: isMobile → index.mobile.html
      
-MacBook: ~/Peppa/data/peppa.db  (原始数据)
+MacBook: ~/Peppa/data/peppa.db (本地原始数据，NAS的来源)
 ```
 
-### 经验教训
+### 犯过的错
 
-1. **不要用 Python 直接改 SQLite 文件** — `readDB()` 读的是内存缓存 memoryDB，磁盘改了缓存不刷新，密码 hash 对不上
-2. **删容器前先备份数据** — luvsicos → mayos 迁移时没导出，第一天记忆永久丢失
-3. **MacBook 和 NAS 是两个独立数据库** — `qweasd.top:3000` ≠ `localhost:3000`，前者是 NAS，后者是 MacBook
-4. **绑定目录比命名卷安全** — `~/mayos/data/` 是普通文件夹，容器怎么删都不丢
+| 错误 | 后果 | 教训 |
+|------|------|------|
+| 删 luvsicos 前没备份数据 | 第一天记忆永久丢失 | **删容器前先导出 peppa.db** |
+| Python 旁路改 SQLite 密码 hash | hash 写了磁盘但内存缓存不更新，登录一直失败 | **账号通过 API 操作，不要直接改数据库** |
+| git pull 覆盖 NAS 手动改的配置 | Caddy 端口、Caddyfile、static.ts 全部回退到旧版 | **MacBook 上改 → git push → NAS git pull，不走反方向** |
+| docker-compose.yml 漏写 LUMI_DATA_DIR | 部分重建时数据写到容器内部分 `/root/Peppa/` | **环境变量要写进 GitHub 版本，不能只在 NAS 上手改** |
+| 混乱中多次覆盖 peppa.db（备份→改坏→恢复→再改坏） | 耗时排查密码问题 | **多保留备份，不在不确定时乱动数据** |
+
+### LUMI_DATA_DIR 丢失问题 (7/8 凌晨追加)
+
+**现象**：iPhone 登录后没有聊天记录，API 返回"对话ID: 无"
+
+**原因**：docker-compose.yml 中 `LUMI_DATA_DIR: /app` 被 git pull 覆盖回旧版（旧版没有这行）。容器用的是 `/root/Peppa/data/peppa.db`（容器内部），而非 `/app/data/peppa.db`（绑定目录）。
+
+**修复**：
+```bash
+sed -i '/# Auth/a \      LUMI_DATA_DIR: /app' ~/mayos/docker-compose.yml
+cd ~/mayos && docker compose up -d --build
+```
