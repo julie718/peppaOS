@@ -1690,14 +1690,6 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                   className="bg-black/40 border-white/10 rounded-2xl py-6 pr-12 focus-visible:ring-celestial-saturn/50"
                 />
               </div>
-              <VoiceCallButton
-                callState={callState}
-                audioLevel={audioLevel}
-                onStart={() => startCall(selectedVoiceId, 'peppa', agentId, { domain: activeDomain, orgId: activeOrgId, voiceProvider: selectedVoiceProvider })}
-                onEnd={endCall}
-                hasVoice={voices.length > 0}
-                className="md:hidden"
-              />
               {isTyping ? (
                 <Button
                   type="button"
@@ -1716,6 +1708,14 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                 </Button>
               )}
             </form>
+            <VoiceCallButton
+              callState={callState}
+              audioLevel={audioLevel}
+              onStart={() => startCall(selectedVoiceId, 'peppa', agentId, { domain: activeDomain, orgId: activeOrgId, voiceProvider: selectedVoiceProvider })}
+              onEnd={endCall}
+              hasVoice={voices.length > 0}
+              className="md:hidden"
+            />
           </div>
         </div>
 
