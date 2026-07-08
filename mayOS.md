@@ -680,6 +680,9 @@ DDNS 已有的前提下，从"部署到 NAS"到"外网 HTTPS 可用"的路径很
 | 2026-07-08 | Capacitor iOS App 生成：编译安装到 iPhone 17 Pro Max，图标暗底多彩渐变 |
 | 2026-07-08 | 手机端尺寸调整：CSS 覆盖 17px 正文/67% 气泡宽/16px 输入，禁止缩放拖动 |
 | 2026-07-08 | 幽灵 UID 修复：peppa 8wfm4t8630c 对话还给 66q3wpgbktt，重启刷新内存缓存 |
+| 2026-07-08 | **根因修复**：bootstrap.ts 删除自动创建随机UID peppa（Math.random每启动一次变一次） |
+| 2026-07-08 | docker-compose 命名卷 → 绑定目录，容器和磁盘同一份数据，MD5验证一致 |
+| 2026-07-08 | 数据永久稳定：peppa/fpj65njhjn 605条interactions，down+up+rebuild全不影响 |
 | ⬜ 待办 | 定时备份：cron 每天自动备份 ~/mayos/data/peppa.db 到 NAS 另一存储位置 |
 
 ---
@@ -1275,3 +1278,65 @@ cd ~/mayos && docker compose up -d --build
 | 2. 输入栏未靠底 | 已修 CSS，等验证 |
 | 3. 下拉加载历史 | AgentChatPage 自动拉 300 条，无下拉手势 |
 | 4. App 图标 | 自绘暗底多彩渐变，可后续走正式证书后替换 |
+
+---
+
+## 二十二、数据持久性最终验证 (2026-07-08)
+
+### 问题演变
+
+从 7/6 部署开始，数据经历多次危机：
+
+1. **luvsicos 容器删除** → 第一天聊天永久丢失
+2. **命名卷 → 绑定目录迁移** → 多次遗漏 `LUMI_DATA_DIR`
+3. **peppa UID 每重启变一次** → 根因是 `bootstrap.ts` 第79行 `Math.random()` 创建随机UID
+4. **MacBook/NAS/容器 三者看到三个不同数据库** → docker-compose 的命名卷与磁盘不一致
+5. **Python 旁路改密码** → hash 不一致，内存缓存没刷新
+
+### 根因（按发现顺序）
+
+| # | 根因 | 文件 | 行号 | 修复 |
+|---|------|------|------|------|
+| 1 | 每次启动自动创建 peppa，UID 随机 | `server/runtime/bootstrap.ts` | 79 | 删除整段，不再自动创建 |
+| 2 | 命名卷与磁盘分离 | `docker-compose.yml` | 32 | `mayos_data:/app/data` → `./data:/app/data` |
+| 3 | 数据写到容器内部 `/root/Peppa/` | 同上 | — | 加 `LUMI_DATA_DIR: /app` |
+| 4 | Caddy 端口 git pull 覆盖 | `docker-compose.yml` | 41 | GitHub 改好 4043 |
+| 5 | 停容器才能安全改 SQLite | — | — | 流程：`down` → 改DB → `up -d` |
+
+### 永久修复清单
+
+所有修复已推到 GitHub：
+
+| 文件 | 改动 |
+|------|------|
+| `server/runtime/bootstrap.ts` | 删除 23 行（自动创建 peppa） |
+| `docker-compose.yml` | 命名卷 → 绑定目录 + LUMI_DATA_DIR=/app |
+| `Caddyfile` | `qweasd.top:4043 { tls internal }` |
+| `server/runtime/static.ts` | `index.minimal.html` → `index.mobile.html` |
+
+### 持久性验证方法
+
+重启后跑以下检查，三项全部通过即安全：
+
+```bash
+# 1. 磁盘和容器同一份数据
+md5sum ~/mayos/data/peppa.db
+docker exec mayos md5sum /app/data/peppa.db
+# 两者MD5必须一致
+
+# 2. peppa登录UID不变
+curl -s -X POST http://localhost:3000/api/auth/login \
+  -d '{"username":"peppa","password":"peppa_2026"}' \
+  | python3 -c "import sys,json;d=json.load(sys.stdin);print(d['user']['uid'])"
+# 多次运行UID必须相同
+
+# 3. 对话数量
+# 应返回 2 个对话，605 条 interactions
+```
+
+### 当前最终状态 (2026-07-08)
+
+- peppa: `fpj65njhjn / peppa_2026 / admin` ✅
+- 2 对话 (121+343) + 605 interactions ✅
+- 容器 down/up/restart/rebuild 数据不丢 ✅
+- GitHub: `julie718/peppaOS` main 分支最新 ✅
