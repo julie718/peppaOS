@@ -1301,6 +1301,14 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
             </AnimatePresence>
           </div>
 
+          <VoiceCallButton
+            callState={callState}
+            audioLevel={audioLevel}
+            onStart={() => startCall(selectedVoiceId, 'peppa', agentId, { domain: activeDomain, orgId: activeOrgId, voiceProvider: selectedVoiceProvider })}
+            onEnd={endCall}
+            hasVoice={voices.length > 0}
+            className="hidden md:block"
+          />
           {activeDomain === 'personal' && (
             <button
               type="button"
@@ -1688,6 +1696,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                 onStart={() => startCall(selectedVoiceId, 'peppa', agentId, { domain: activeDomain, orgId: activeOrgId, voiceProvider: selectedVoiceProvider })}
                 onEnd={endCall}
                 hasVoice={voices.length > 0}
+                className="md:hidden"
               />
               {isTyping ? (
                 <Button

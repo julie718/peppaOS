@@ -56,6 +56,11 @@ export function MobileApp() {
         input[placeholder*="Communicate"], input[placeholder*="输入消息"] {
           font-size: 16px !important;
         }
+
+        /* ── 手机端隐藏状态框 ── */
+        [class*="uppercase tracking-widest text-white/40"] {
+          display: none !important;
+        }
       `}</style>
       <ProactiveNotifications />
       <Toaster position="top-right" theme="dark" />
