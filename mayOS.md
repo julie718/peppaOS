@@ -677,6 +677,9 @@ DDNS 已有的前提下，从"部署到 NAS"到"外网 HTTPS 可用"的路径很
 | 2026-07-07 | iPhone 登录报 Load failed：apiBridge 误判桌面壳导致 API 连 127.0.0.1，修 installApiBridge |
 | 2026-07-07 | 恢复 Caddy 4043：端口被 git pull 覆盖，改回 4043+TLS internal |
 | 2026-07-08 | LUMI_DATA_DIR 丢失：docker-compose 被覆盖，数据写到容器内部，补回并重建 |
+| 2026-07-08 | Capacitor iOS App 生成：编译安装到 iPhone 17 Pro Max，图标暗底多彩渐变 |
+| 2026-07-08 | 手机端尺寸调整：CSS 覆盖 17px 正文/67% 气泡宽/16px 输入，禁止缩放拖动 |
+| 2026-07-08 | 幽灵 UID 修复：peppa 8wfm4t8630c 对话还给 66q3wpgbktt，重启刷新内存缓存 |
 | ⬜ 待办 | 定时备份：cron 每天自动备份 ~/mayos/data/peppa.db 到 NAS 另一存储位置 |
 
 ---
@@ -1212,3 +1215,63 @@ MacBook: ~/Peppa/data/peppa.db (本地原始数据，NAS的来源)
 sed -i '/# Auth/a \      LUMI_DATA_DIR: /app' ~/mayos/docker-compose.yml
 cd ~/mayos && docker compose up -d --build
 ```
+
+---
+
+## 二十一、iOS App 生成与手机端优化 (2026-07-08)
+
+### 背景
+
+之前一直通过网页版访问 MayOS，iPhone 上需要浏览器打开。需要原生 App 提升体验。
+
+### Capacitor iOS App 生成
+
+1. Xcode 27 Beta 已安装，Apple ID `ggzzll718@163.com` 已登录
+2. 配置 `capacitor.config.ts`：appId `com.mayos.app`，App 从 `http://qweasd.top:3000/index.mobile.html` 加载
+3. `npx cap add ios` → `npx cap sync` → Xcode 编译 → `xcrun devicectl` 安装到 iPhone 17 Pro Max
+4. 签名用 Personal Team，自动 Provisioning Profile
+5. ATS 允许 HTTP + 禁止 WebView 弹性滚动
+
+**遇到问题：**
+- 自签名 HTTPS 证书在 WKWebView 中被拦 → 换 HTTP
+- 初始加载 `index.html`（桌面版）→ 改 URL 到 `index.mobile.html`
+- 多次 Team ID 不匹配 → 查证书 UID 修正
+
+### 手机端尺寸调整
+
+不改 AgentChatPage 源码，仅在 `mobile.tsx` 注入 `<style>` 标签：
+
+- 聊天气泡文字 13px → 17px
+- 气泡最大宽度 85% → 67%
+- 输入框占位文字 16px
+- 禁止用户缩放：`user-scalable=no`
+- 禁止页面拖动：`overscroll-none touch-none`
+
+### 已做减法（不改桌面端）
+
+| 删掉的 | 保留的 |
+|--------|--------|
+| 底部 Tab 导航 | 登录流程（LoginRequired + LoginModal） |
+| 侧边信息栏 | 聊天面板（AgentChatPage） |
+| Geist 字体 | 消息历史自动加载 |
+| 浏览器麦克风按钮 | 语音通话（Deepgram STT） |
+| 设备中心、内核监控等 | 多设备消息同步 |
+
+### 方案逻辑
+
+```
+手机版 mobile.tsx：
+  加载中 → 火箭动画
+  未登录 → 原版 LoginRequired + LoginModal
+  登录后 → AgentChatPage（桌面版聊天组件，CSS 覆盖尺寸）
+  所有 API/WebSocket 走同一套后端
+```
+
+### 未完成/已知问题
+
+| 问题 | 状态 |
+|------|:--:|
+| 1. 页面可拖动放大 | 已修 CSS，等 NAS 重建验证 |
+| 2. 输入栏未靠底 | 已修 CSS，等验证 |
+| 3. 下拉加载历史 | AgentChatPage 自动拉 300 条，无下拉手势 |
+| 4. App 图标 | 自绘暗底多彩渐变，可后续走正式证书后替换 |
