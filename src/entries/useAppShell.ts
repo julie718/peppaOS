@@ -4,7 +4,7 @@ import { translations } from '../lib/translations';
 import { useApp } from '../contexts/AppContext';
 
 export function useAppShell() {
-  const { user, loading, logout, refreshUser } = useApp();
+  const { user, loading, logout, refreshUser, operationMode, setOperationMode } = useApp();
   const [lang, setLangState] = useState<'en' | 'zh'>('zh');
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const t = translations[lang];
@@ -18,6 +18,7 @@ export function useAppShell() {
 
   return {
     user, loading, lang, setLang: setLangState, t,
+    operationMode, setOperationMode,
     handleLogin: () => setIsLoginModalOpen(true),
     handleLogout: async () => { await logout(); },
     isLoginModalOpen, setIsLoginModalOpen, refreshUser,
