@@ -37,7 +37,9 @@ export function MobileApp() {
   return (
     <div className="fixed inset-0 bg-black overflow-hidden overscroll-none touch-none" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <style>{`
-        html, body { font-family: system-ui, "PingFang SC", -apple-system, BlinkMacSystemFont, sans-serif !important; }
+        html, body {
+          font-family: system-ui, "PingFang SC", -apple-system, BlinkMacSystemFont, sans-serif !important;
+        }
 
         /* ── 手机版聊天气泡文字 13px→17px ── */
         [class*="max-w-[85%]"], [class*="max-w-[92%]"] {
@@ -57,9 +59,14 @@ export function MobileApp() {
           font-size: 16px !important;
         }
 
-        /* ── 手机端隐藏工具执行状态条(只藏WorkflowPanel) ── */
-        [class*="text-xs font-black uppercase tracking-widest"] {
+        /* ── 手机端隐藏 WorkflowPanel ── */
+        [class*="right-4"][class*="bottom-28"][class*="fixed"] {
           display: none !important;
+          visibility: hidden !important;
+          opacity: 0 !important;
+          pointer-events: none !important;
+          width: 0 !important;
+          height: 0 !important;
         }
       `}</style>
       <ProactiveNotifications />
