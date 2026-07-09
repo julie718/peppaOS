@@ -57,8 +57,8 @@ export function MobileApp() {
           font-size: 16px !important;
         }
 
-        /* ── 手机端隐藏工具执行状态条 ── */
-        [class*="uppercase tracking-widest"] {
+        /* ── 手机端隐藏工具执行状态条(只藏WorkflowPanel) ── */
+        [class*="text-xs font-black uppercase tracking-widest"] {
           display: none !important;
         }
       `}</style>
