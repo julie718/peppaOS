@@ -36,6 +36,7 @@ export function MobileApp() {
 
   return (
     <div className="fixed inset-0 bg-black overflow-hidden overscroll-none touch-none" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <div style={{position:'fixed',top:0,left:0,zIndex:9999,background:'lime',color:'black',padding:'4px 8px',fontSize:'14px',fontWeight:'bold'}}>MOBILE-TSX-LOADED</div>
       <style>{`
         html, body {
           font-family: system-ui, "PingFang SC", -apple-system, BlinkMacSystemFont, sans-serif !important;
@@ -65,7 +66,7 @@ export function MobileApp() {
       <Toaster position="top-right" theme="dark" />
       {/* 模式切换栏 */}
       {shell.user && (
-        <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/[0.06] shrink-0 overflow-x-auto relative z-10 bg-red-500 min-h-[44px]">
+        <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/[0.06] shrink-0 overflow-x-auto relative z-[220] bg-black">
           {([
             { mode: 'chat' as const, label: '💬 聊天' },
             { mode: 'assistant' as const, label: '⚡ 助手' },
