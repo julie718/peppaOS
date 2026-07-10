@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Rocket } from 'lucide-react';
+import { Rocket, Sparkles, Moon, Zap } from 'lucide-react';
 import { Toaster } from 'sonner';
 import '../index.css';
 import { ProactiveNotifications } from '../components/ProactiveNotifications';
@@ -87,11 +87,12 @@ export function MobileApp() {
       {shell.user && (
         <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/[0.06] shrink-0 overflow-x-auto relative z-[220] bg-black">
           {([
-            { mode: 'chat' as const, label: '聊天', icon: '💬' },
-            { mode: 'assistant' as const, label: '助手', icon: '⚡' },
-            { mode: 'autonomous' as const, label: '自主', icon: '🤖' },
+            { mode: 'chat' as const, label: '聊天', Icon: Sparkles },
+            { mode: 'assistant' as const, label: '助手', Icon: Moon },
+            { mode: 'autonomous' as const, label: '自主', Icon: Zap },
           ]).map(item => {
             const active = shell.operationMode === item.mode;
+            const Icon = item.Icon;
             return (
               <button
                 key={item.mode}
@@ -103,8 +104,8 @@ export function MobileApp() {
                     : 'bg-white/[0.06] text-white/60 hover:bg-white/10'
                 }`}
               >
-                <span className={`flex h-5 w-5 items-center justify-center rounded-md text-[11px] ${active ? 'bg-black/10' : 'bg-white/10'}`}>
-                  {item.icon}
+                <span className={`flex h-6 w-6 items-center justify-center rounded-lg ${active ? 'bg-black/10' : 'bg-white/10'}`}>
+                  <Icon size={14} />
                 </span>
                 {item.label}
               </button>
