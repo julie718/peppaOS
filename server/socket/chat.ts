@@ -439,7 +439,8 @@ export function registerChatHandler(
 
       // Inject GPS location context
       try {
-        const locSetting = (db.settings || []).find((s: any) => s.key === `location_${uid}`);
+        const ddb = readDB();
+        const locSetting = (ddb.settings || []).find((s: any) => s.key === `location_${uid}`);
         if (locSetting) {
           const loc = JSON.parse(locSetting.value);
           if (loc.lat && loc.lng) {
