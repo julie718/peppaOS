@@ -79,12 +79,12 @@ export function MobileApp() {
         }
 
         [class*=\"right-4\"][class*=\"bottom-28\"][class*=\"fixed\"]{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;width:0!important;height:0!important}
-        [class*=\"flex-1 max-w-\"][class*=\"flex-col\"]{padding-top:40px!important;padding-bottom:0!important}
+        [class*=\"flex-1 max-w-\"][class*=\"flex-col\"]{padding-top:80px!important;padding-bottom:0!important}
         input[class*=\"rounded-2xl\"]{height:42px!important;border-radius:14px!important}
         form button[type=\"submit\"],form button:has(svg){min-width:44px!important;min-height:44px!important}
         [class*=\"rounded-2xl\"][class*=\"text-xs\"]{line-height:1.2!important}
         [class*=\"rounded-2xl\"][class*=\"text-sm\"]{line-height:1.2!important}
-        [class*=\"flex-1 max-w-\"][class*=\"flex-col\"]{padding-top:40px!important;padding-bottom:0!important}
+        [class*=\"flex-1 max-w-\"][class*=\"flex-col\"]{padding-top:80px!important;padding-bottom:0!important}
       `}</style>
       <ProactiveNotifications />
       <Toaster position="top-right" theme="dark" />
