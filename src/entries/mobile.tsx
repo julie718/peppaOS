@@ -90,7 +90,7 @@ export function MobileApp() {
       <Toaster position="top-right" theme="dark" />
       {/* 模式切换栏 */}
       {shell.user && (
-        <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/[0.06] shrink-0 overflow-x-auto relative z-[220] bg-black">
+        <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/[0.06] shrink-0 overflow-x-auto absolute top-[70px] left-0 right-0 z-[220] bg-black">
           {([
             { mode: 'chat' as const, label: '聊天', Icon: Sparkles },
             { mode: 'assistant' as const, label: '助手', Icon: Moon },
