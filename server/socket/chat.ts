@@ -447,7 +447,6 @@ export function registerChatHandler(
           }
         }
       } catch {}
-      }
 
       // Inject profession context — adapt language and expertise to user's trade
       try {
