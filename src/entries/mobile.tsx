@@ -65,7 +65,7 @@ export function MobileApp() {
       <Toaster position="top-right" theme="dark" />
       {/* 模式切换栏 */}
       {shell.user && (
-        <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/[0.06] shrink-0 overflow-x-auto relative z-10 bg-red-500">
+        <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/[0.06] shrink-0 overflow-x-auto relative z-10 bg-red-500 min-h-[44px]">
           {([
             { mode: 'chat' as const, label: '💬 聊天' },
             { mode: 'assistant' as const, label: '⚡ 助手' },
@@ -75,7 +75,7 @@ export function MobileApp() {
               key={item.mode}
               type="button"
               onClick={() => shell.setOperationMode(item.mode)}
-              className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${
+              className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors min-w-[60px] ${
                 shell.operationMode === item.mode
                   ? 'bg-white text-black'
                   : 'bg-white/[0.06] text-white/60 hover:bg-white/10'
