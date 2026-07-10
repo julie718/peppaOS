@@ -59,21 +59,13 @@ export function MobileApp() {
           font-size: 16px !important;
         }
 
-        /* ── 手机端隐藏 WorkflowPanel ── */
-        [class*="right-4"][class*="bottom-28"][class*="fixed"] {
-          display: none !important;
-          visibility: hidden !important;
-          opacity: 0 !important;
-          pointer-events: none !important;
-          width: 0 !important;
-          height: 0 !important;
-        }
+        [class*=\"right-4\"][class*=\"bottom-28\"][class*=\"fixed\"]{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;width:0!important;height:0!important}
       `}</style>
       <ProactiveNotifications />
       <Toaster position="top-right" theme="dark" />
       {/* 模式切换栏 */}
       {shell.user && (
-        <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/[0.06] shrink-0 overflow-x-auto relative z-10 bg-black">
+        <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/[0.06] shrink-0 overflow-x-auto relative z-10 bg-red-500">
           {([
             { mode: 'chat' as const, label: '💬 聊天' },
             { mode: 'assistant' as const, label: '⚡ 助手' },
