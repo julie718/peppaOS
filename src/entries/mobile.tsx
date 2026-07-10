@@ -68,23 +68,29 @@ export function MobileApp() {
       {shell.user && (
         <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/[0.06] shrink-0 overflow-x-auto relative z-[220] bg-black">
           {([
-            { mode: 'chat' as const, label: '💬 聊天' },
-            { mode: 'assistant' as const, label: '⚡ 助手' },
-            { mode: 'autonomous' as const, label: '🤖 自主' },
-          ]).map(item => (
-            <button
-              key={item.mode}
-              type="button"
-              onClick={() => shell.setOperationMode(item.mode)}
-              className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors min-w-[60px] ${
-                shell.operationMode === item.mode
-                  ? 'bg-white text-black'
-                  : 'bg-white/[0.06] text-white/60 hover:bg-white/10'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
+            { mode: 'chat' as const, label: '聊天', icon: '💬' },
+            { mode: 'assistant' as const, label: '助手', icon: '⚡' },
+            { mode: 'autonomous' as const, label: '自主', icon: '🤖' },
+          ]).map(item => {
+            const active = shell.operationMode === item.mode;
+            return (
+              <button
+                key={item.mode}
+                type="button"
+                onClick={() => shell.setOperationMode(item.mode)}
+                className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                  active
+                    ? 'bg-white text-black'
+                    : 'bg-white/[0.06] text-white/60 hover:bg-white/10'
+                }`}
+              >
+                <span className={`flex h-5 w-5 items-center justify-center rounded-md text-[11px] ${active ? 'bg-black/10' : 'bg-white/10'}`}>
+                  {item.icon}
+                </span>
+                {item.label}
+              </button>
+            );
+          })}
         </div>
       )}
       <AgentChatPage t={shell.t} user={shell.user} agent={{ id: 'peppa', name: 'Peppa' }} isOpen={true} onClose={() => {}} />
