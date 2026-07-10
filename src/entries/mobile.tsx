@@ -11,6 +11,27 @@ import { useAppShell } from './useAppShell';
 export function MobileApp() {
   const shell = useAppShell();
 
+  // GPS 位置：启动时获取，定期更新
+  useEffect(() => {
+    if (!shell.user) return;
+    const updateLocation = () => {
+      navigator.geolocation?.getCurrentPosition(
+        pos => {
+          fetch('/api/preferences/location', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+            credentials: 'include',
+          }).catch(() => {});
+        },
+        () => {}, { enableHighAccuracy: false, timeout: 5000, maximumAge: 600000 }
+      );
+    };
+    updateLocation();
+    const timer = setInterval(updateLocation, 600000); // 每10分钟
+    return () => clearInterval(timer);
+  }, [shell.user]);
+
   // 自动检测更新：启动时对比服务器版本，有更新则清缓存刷新
   useEffect(() => {
     const KEY = 'mayos_server_started_at';

@@ -437,6 +437,18 @@ export function registerChatHandler(
         effectiveSystemPrompt += `\n\n## Company Knowledge Base\n${kbContext}\n\nUse the above company knowledge to inform your response. Cite article titles when referencing company policy.`;
       }
 
+      // Inject GPS location context
+      try {
+        const locSetting = (db.settings || []).find((s: any) => s.key === `location_${uid}`);
+        if (locSetting) {
+          const loc = JSON.parse(locSetting.value);
+          if (loc.lat && loc.lng) {
+            effectiveSystemPrompt += `\n\n## User Location\nThe user is currently at coordinates ${loc.lat}, ${loc.lng}. Use this to provide location-aware responses when relevant (e.g. weather, nearby places, commute times). Do NOT mention the coordinates directly — use them naturally.`;
+          }
+        }
+      } catch {}
+      }
+
       // Inject profession context — adapt language and expertise to user's trade
       try {
         const professionOverlay = buildProfessionOverlay();

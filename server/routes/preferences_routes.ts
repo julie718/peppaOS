@@ -80,4 +80,36 @@ export function mountPreferencesRoutes(router: Router, _jwtSecret: string) {
       res.status(500).json({ error: e.message });
     }
   });
+
+  // GPS location — stored per user, read by chat/voice system prompt
+  router.put("/preferences/location", requireAuth, (req, res) => {
+    try {
+      const uid = req.user!.uid;
+      const { lat, lng } = req.body || {};
+      if (lat == null || lng == null) return res.status(400).json({ error: 'lat and lng are required' });
+      const db = readDB();
+      if (!db.settings) db.settings = [];
+      const key = `location_${uid}`;
+      const value = JSON.stringify({ lat, lng, updatedAt: new Date().toISOString() });
+      const existing = db.settings.findIndex((s: any) => s.key === key);
+      if (existing >= 0) db.settings[existing].value = value;
+      else db.settings.push({ key, value });
+      writeDB(db);
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.get("/preferences/location", requireAuth, (req, res) => {
+    try {
+      const uid = req.user!.uid;
+      const db = readDB();
+      const setting = (db.settings || []).find((s: any) => s.key === `location_${uid}`);
+      if (setting) res.json(JSON.parse(setting.value));
+      else res.json({ lat: null, lng: null });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
 }
