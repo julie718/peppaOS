@@ -23,7 +23,7 @@ export function MobileApp() {
           localStorage.setItem(KEY, serverVer || '');
         } else if (serverVer && localVer !== serverVer) {
           localStorage.setItem(KEY, serverVer);
-          window.location.reload();
+          window.location.replace(window.location.href);
         }
       })
       .catch(() => {});
