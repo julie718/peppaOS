@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Rocket } from 'lucide-react';
 import { Toaster } from 'sonner';
@@ -9,6 +10,24 @@ import { useAppShell } from './useAppShell';
 
 export function MobileApp() {
   const shell = useAppShell();
+
+  // 自动检测更新：启动时对比服务器版本，有更新则清缓存刷新
+  useEffect(() => {
+    const KEY = 'mayos_server_started_at';
+    fetch('/api/version')
+      .then(r => r.json())
+      .then(data => {
+        const serverVer = data.startedAt;
+        const localVer = localStorage.getItem(KEY);
+        if (!localVer) {
+          localStorage.setItem(KEY, serverVer || '');
+        } else if (serverVer && localVer !== serverVer) {
+          localStorage.setItem(KEY, serverVer);
+          window.location.reload();
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   if (shell.loading) {
     return (
