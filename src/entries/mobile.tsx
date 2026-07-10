@@ -55,7 +55,6 @@ export function MobileApp() {
 
   return (
     <div className="fixed inset-0 bg-black overflow-hidden overscroll-none touch-none" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
-      <div style={{position:'fixed',top:0,left:0,zIndex:9999,background:'lime',color:'black',padding:'4px 8px',fontSize:'14px',fontWeight:'bold'}}>MOBILE-TSX-LOADED</div>
       <style>{`
         html, body {
           font-family: system-ui, "PingFang SC", -apple-system, BlinkMacSystemFont, sans-serif !important;
@@ -80,6 +79,12 @@ export function MobileApp() {
         }
 
         [class*=\"right-4\"][class*=\"bottom-28\"][class*=\"fixed\"]{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;width:0!important;height:0!important}
+        [class*=\"flex-1 max-w-\"][class*=\"flex-col\"]{padding-top:8px!important;padding-bottom:0!important}
+        input[class*=\"rounded-2xl\"]{height:42px!important;border-radius:14px!important}
+        form button[type=\"submit\"],form button:has(svg){min-width:44px!important;min-height:44px!important}
+        [class*=\"rounded-2xl\"][class*=\"text-xs\"]{line-height:1.2!important}
+        [class*=\"rounded-2xl\"][class*=\"text-sm\"]{line-height:1.2!important}
+        [class*=\"flex-1 max-w-\"][class*=\"flex-col\"]{padding-top:8px!important;padding-bottom:0!important}
       `}</style>
       <ProactiveNotifications />
       <Toaster position="top-right" theme="dark" />
