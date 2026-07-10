@@ -683,6 +683,11 @@ DDNS 已有的前提下，从"部署到 NAS"到"外网 HTTPS 可用"的路径很
 | 2026-07-08 | **根因修复**：bootstrap.ts 删除自动创建随机UID peppa（Math.random每启动一次变一次） |
 | 2026-07-08 | docker-compose 命名卷 → 绑定目录，容器和磁盘同一份数据，MD5验证一致 |
 | 2026-07-08 | 数据永久稳定：peppa/fpj65njhjn 605条interactions，down+up+rebuild全不影响 |
+| 2026-07-09 | 手机端：WorkflowPanel隐藏成功、模式切换按钮增加（被z-index盖住，修了三天） |
+| 2026-07-10 | 模式按钮z-index修复（z-10→z-[220]）；图标改用Lucide星星/月亮/闪电；自动更新检测 |
+| 2026-07-10 | 手机端尺寸优化：输入框42px、触摸目标44pt、行间距1.2、搜索栏下移、输入栏贴底 |
+| 2026-07-10 | Docker缓存死锁解决：system prune -af + rmi强制清理，构建失败后流程文档化 |
+| 2026-07-10 | MayOS+Hermes+HA三容器互通：same shared-net网络 |
 | ⬜ 待办 | 定时备份：cron 每天自动备份 ~/mayos/data/peppa.db 到 NAS 另一存储位置 |
 
 ---
@@ -1340,3 +1345,63 @@ curl -s -X POST http://localhost:3000/api/auth/login \
 - 2 对话 (121+343) + 605 interactions ✅
 - 容器 down/up/restart/rebuild 数据不丢 ✅
 - GitHub: `julie718/peppaOS` main 分支最新 ✅
+
+---
+
+## 二十三、手机端 UI 优化历程 (2026-07-09~10)
+
+### 问题与修复
+
+| 问题 | 根因 | 修复 | 耗时 |
+|------|------|------|:--:|
+| 模式按钮不显示 | AgentChatPage 用 `fixed inset-0 z-[210]` 全覆盖，按钮 z-10 被压住 | 提到 z-[220] | 3天 |
+| 图标太丑 | emoji 在 Lucide 风格中不协调 | 改 Sparkles/Moon/Zap | 1次 |
+| 每次改代码要重装 App | Capacitor WebView 缓存旧 JS | `/api/version` + localStorage 对比，自动 `replace` 刷新 | 1次 |
+| Docker 构建缓存死锁 | `--no-cache` 进程不生效 | `system prune -af` + `rmi -f` 强制清 | - |
+| 桌面端发不了消息 | VoiceCallButton 在 form 里拦截回车 | 还原 AgentChatPage，手机端 CSS 覆盖 | - |
+
+### 手机端 CSS 覆盖清单
+
+所有覆盖在 `mobile.tsx` 的 `<style>` 块，不改 AgentChatPage 源码：
+
+| 覆盖项 | 效果 |
+|--------|------|
+| 字体 | SF Pro + 苹方 |
+| 气泡字 | 17px |
+| 气泡宽 | 67% |
+| 输入字 | 16px |
+| 输入框高 | 42px |
+| 触摸目标 | ≥44pt |
+| 行间距 | 1.2 |
+| WorkflowPanel | 全隐藏 |
+| 模式按钮 | z-[220] 覆盖 |
+
+### App 自动更新机制
+
+1. 服务端 `/api/version` 返回 `startedAt`（每次构建都变）
+2. App 启动时 fetch → 对比 localStorage → 不同则 `location.replace` 刷新
+3. 从此改代码只需 NAS 重建，App 自动感知，不用重装
+
+---
+
+## 二十四、Docker 三容器互通 (2026-07-10)
+
+### 背景
+
+MayOS、Hermes、HomeAssistant 都在 NAS Docker 中，原处不同网络，无法直接用容器名互访。
+
+### 网络拓扑
+
+| 容器 | 原网络 | 操作 | 结果 |
+|------|--------|------|------|
+| mayos | mayos_default | `docker network connect shared-net mayos` | mayos_default + shared-net |
+| hermes | shared-net | 不动 | shared-net |
+| homeassistant | bridge | `docker network connect shared-net homeassistant` | bridge + shared-net |
+
+### 验证结果
+
+| 通路 | 状态 |
+|------|:--:|
+| mayos → homeassistant (http://homeassistant:8123) | ✅ |
+| mayos → hermes | ❌ Hermes 不接 HTTP 入站 |
+| mayos → hermes MCP | ✅ (http://hermes:3000/mcp/sse 200 OK) |
