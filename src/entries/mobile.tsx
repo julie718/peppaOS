@@ -12,29 +12,26 @@ import { useAppShell } from './useAppShell';
 export function MobileApp() {
   const shell = useAppShell();
 
-  // GPS 诊断模式
+  // GPS：获取坐标上报服务端
   useEffect(() => {
     if (!shell.user) return;
-    const log = (msg: string) => {
-      const el = document.getElementById('gps-debug');
-      if (el) el.textContent += msg + '\n';
+    const send = (lat: number, lng: number) => {
+      const token = localStorage.getItem('peppa_auth_token');
+      fetch('/api/preferences/location', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ lat, lng }),
+      }).catch(() => {});
     };
-    const div = document.createElement('div');
-    div.id = 'gps-debug';
-    div.style.cssText = 'position:fixed;top:50px;left:0;right:0;z-index:9999;background:rgba(0,255,0,0.9);color:#000;font-size:10px;padding:8px;max-height:200px;overflow:auto;';
-    document.body.appendChild(div);
-    log('GPS诊断开始...');
     Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 30000 })
-      .then(pos => {
-        log(`getCurrentPosition OK: lat=${pos.coords.latitude.toFixed(6)} lng=${pos.coords.longitude.toFixed(6)} acc=${pos.coords.accuracy}m`);
-        const token = localStorage.getItem('peppa_auth_token');
-        fetch('/api/preferences/location', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        }).then(r => log('发送结果: ' + r.status)).catch(e => log('发送失败: ' + e.message));
-      })
-      .catch(e => log('getCurrentPosition 错误: ' + (e.message || JSON.stringify(e))));
+      .then(pos => send(pos.coords.latitude, pos.coords.longitude))
+      .catch(() => {});
+    const timer = setInterval(() => {
+      Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 30000 })
+        .then(pos => send(pos.coords.latitude, pos.coords.longitude))
+        .catch(() => {});
+    }, 300000);
+    return () => clearInterval(timer);
   }, [shell.user]);
 
   // 自动检测更新：启动时对比服务器版本，有更新则清缓存刷新
