@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Rocket, Sparkles, Moon, Zap } from 'lucide-react';
 import { Toaster } from 'sonner';
+import { Geolocation } from '@capacitor/geolocation';
 import '../index.css';
 import { ProactiveNotifications } from '../components/ProactiveNotifications';
 import { LoginModal, LoginRequired } from '../core/components/Auth';
@@ -14,21 +15,19 @@ export function MobileApp() {
   // GPS 位置：启动时获取，定期更新
   useEffect(() => {
     if (!shell.user) return;
-    const updateLocation = () => {
-      navigator.geolocation?.getCurrentPosition(
-        pos => {
-          const token = localStorage.getItem('peppa_auth_token');
-          fetch('/api/preferences/location', {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-          }).catch(() => {});
-        },
-        () => {}, { enableHighAccuracy: false, timeout: 5000, maximumAge: 600000 }
-      );
+    const updateLocation = async () => {
+      try {
+        const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 5000, maximumAge: 600000 });
+        const token = localStorage.getItem('peppa_auth_token');
+        fetch('/api/preferences/location', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        }).catch(() => {});
+      } catch {}
     };
     updateLocation();
     const timer = setInterval(updateLocation, 600000); // 每10分钟
