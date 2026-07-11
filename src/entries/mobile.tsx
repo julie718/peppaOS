@@ -19,7 +19,7 @@ export function MobileApp() {
       try {
         const perm = await Geolocation.requestPermissions({ permissions: ['location'] });
         if (perm.location !== 'granted') return;
-        const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 10000, maximumAge: 600000 });
+        const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
         const token = localStorage.getItem('peppa_auth_token');
         fetch('/api/preferences/location', {
           method: 'PUT',
@@ -143,6 +143,21 @@ export function MobileApp() {
           })}
         </div>
       )}
+      <button
+        onClick={async () => {
+          try {
+            const perm = await Geolocation.requestPermissions({ permissions: ['location'] });
+            alert('权限: ' + JSON.stringify(perm));
+            const pos = await Geolocation.getCurrentPosition();
+            alert('坐标: ' + pos.coords.latitude + ', ' + pos.coords.longitude);
+          } catch(e: any) {
+            alert('错误: ' + e.message);
+          }
+        }}
+        className="bg-yellow-500 text-black px-3 py-1 rounded m-2 text-xs font-bold shrink-0 relative z-[999]"
+      >
+        📍 测试GPS
+      </button>
       <AgentChatPage t={shell.t} user={shell.user} agent={{ id: 'peppa', name: 'Peppa' }} isOpen={true} onClose={() => {}} />
       <LoginModal t={shell.t} isOpen={shell.isLoginModalOpen} onClose={() => shell.setIsLoginModalOpen(false)} onLoginSuccess={() => shell.refreshUser()} onGoogleLogin={shell.handleLogin} />
     </div>
