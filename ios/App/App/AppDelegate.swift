@@ -6,10 +6,10 @@ import CoreLocation
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
+    let locationManager = CLLocationManager()
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        let manager = CLLocationManager()
-        manager.requestTemporaryFullAccuracyAuthorization(withPurposeKey: "LocationAccuracy")
+        locationManager.requestTemporaryFullAccuracyAuthorization(withPurposeKey: "LocationAccuracy")
         return true
     }
 
