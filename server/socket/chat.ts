@@ -444,7 +444,7 @@ export function registerChatHandler(
         if (locSetting) {
           const loc = JSON.parse(locSetting.value);
           if (loc.lat && loc.lng) {
-            effectiveSystemPrompt += `\n\n## User Location\nThe user is currently at coordinates ${loc.lat}, ${loc.lng}. Use this to provide location-aware responses when relevant (e.g. weather, nearby places, commute times). Do NOT mention the coordinates directly — use them naturally.`;
+            effectiveSystemPrompt += `\n\n## Your Location (Real-Time GPS)\nYou are currently at coordinates ${loc.lat}, ${loc.lng} (accuracy ~20m, live GPS from the user's iPhone). This is NOT a static or cached location — it updates whenever the user moves more than 50 meters. Use your current location to answer location questions naturally. When asked where you are, describe the actual location based on these coordinates.`;
           }
         }
       } catch {}

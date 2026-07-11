@@ -36,6 +36,8 @@
 		<key>LocationAccuracy</key>
 		<string>MayOS 需要精确位置来提供附近推荐和路线规划服务。</string>
 	</dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>MayOS 需要麦克风来进行语音对话。</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

@@ -12,9 +12,11 @@ import { useAppShell } from './useAppShell';
 export function MobileApp() {
   const shell = useAppShell();
 
-  // GPS：获取坐标上报服务端
+  // GPS实时追踪：watchPosition持续监听，位移>50m上报
   useEffect(() => {
     if (!shell.user) return;
+    let watchId: string | null = null;
+    let lastLat = 0, lastLng = 0;
     const send = (lat: number, lng: number) => {
       const token = localStorage.getItem('peppa_auth_token');
       fetch('/api/preferences/location', {
@@ -23,15 +25,24 @@ export function MobileApp() {
         body: JSON.stringify({ lat, lng }),
       }).catch(() => {});
     };
-    Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 30000 })
-      .then(pos => send(pos.coords.latitude, pos.coords.longitude))
-      .catch(() => {});
-    const timer = setInterval(() => {
-      Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 30000 })
-        .then(pos => send(pos.coords.latitude, pos.coords.longitude))
-        .catch(() => {});
-    }, 300000);
-    return () => clearInterval(timer);
+    Geolocation.requestPermissions({ permissions: ['location'] }).then(async perm => {
+      if (perm.location !== 'granted') return;
+      watchId = await Geolocation.watchPosition(
+        { enableHighAccuracy: true, timeout: 60000 },
+        (pos, err) => {
+          if (err || !pos?.coords) return;
+          const dLat = pos.coords.latitude - lastLat;
+          const dLng = pos.coords.longitude - lastLng;
+          const dist = Math.sqrt(dLat*dLat + dLng*dLng) * 111000;
+          if (lastLat === 0 || dist > 50) {
+            lastLat = pos.coords.latitude;
+            lastLng = pos.coords.longitude;
+            send(lastLat, lastLng);
+          }
+        }
+      );
+    }).catch(() => {});
+    return () => { if (watchId) Geolocation.clearWatch({ id: watchId }).catch(() => {}); };
   }, [shell.user]);
 
   // 自动检测更新：启动时对比服务器版本，有更新则清缓存刷新
