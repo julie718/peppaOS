@@ -17,7 +17,9 @@ export function MobileApp() {
     if (!shell.user) return;
     const updateLocation = async () => {
       try {
-        const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 5000, maximumAge: 600000 });
+        console.log('[GPS] 开始获取位置...');
+        const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 10000, maximumAge: 600000 });
+        console.log('[GPS] 获取成功:', pos.coords.latitude, pos.coords.longitude);
         const token = localStorage.getItem('peppa_auth_token');
         fetch('/api/preferences/location', {
           method: 'PUT',
@@ -26,8 +28,8 @@ export function MobileApp() {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
           body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        }).catch(() => {});
-      } catch {}
+        }).then(r => console.log('[GPS] 发送结果:', r.status)).catch(e => console.log('[GPS] 发送失败:', e.message));
+      } catch (e: any) { console.log('[GPS] 获取失败:', e.message); }
     };
     updateLocation();
     const timer = setInterval(updateLocation, 600000); // 每10分钟
