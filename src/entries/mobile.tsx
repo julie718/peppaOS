@@ -17,7 +17,7 @@ export function MobileApp() {
     if (!shell.user) return;
     const updateLocation = async () => {
       try {
-        const perm = await Geolocation.requestPermissions();
+        const perm = await Geolocation.requestPermissions({ permissions: ['location'] });
         if (perm.location !== 'granted') return;
         const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 10000, maximumAge: 600000 });
         const token = localStorage.getItem('peppa_auth_token');
