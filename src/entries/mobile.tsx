@@ -17,11 +17,14 @@ export function MobileApp() {
     const updateLocation = () => {
       navigator.geolocation?.getCurrentPosition(
         pos => {
+          const token = localStorage.getItem('peppa_auth_token');
           fetch('/api/preferences/location', {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
             body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-            credentials: 'include',
           }).catch(() => {});
         },
         () => {}, { enableHighAccuracy: false, timeout: 5000, maximumAge: 600000 }
