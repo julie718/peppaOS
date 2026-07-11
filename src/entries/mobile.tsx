@@ -12,28 +12,32 @@ import { useAppShell } from './useAppShell';
 export function MobileApp() {
   const shell = useAppShell();
 
-  // GPS 位置：启动时获取，定期更新
+  // GPS：watchPosition持续监听，精度<65米才用
   useEffect(() => {
     if (!shell.user) return;
-    const updateLocation = async () => {
-      try {
-        const perm = await Geolocation.requestPermissions({ permissions: ['location'] });
-        if (perm.location !== 'granted') return;
-        const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
-        const token = localStorage.getItem('peppa_auth_token');
-        fetch('/api/preferences/location', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        }).catch(() => {});
-      } catch {}
+    let watchId: string | null = null;
+    const sendCoord = (lat: number, lng: number) => {
+      const token = localStorage.getItem('peppa_auth_token');
+      fetch('/api/preferences/location', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ lat, lng }),
+      }).catch(() => {});
     };
-    updateLocation();
-    const timer = setInterval(updateLocation, 600000); // 每10分钟
-    return () => clearInterval(timer);
+    Geolocation.requestPermissions({ permissions: ['location'] }).then(async perm => {
+      if (perm.location !== 'granted') return;
+      watchId = await Geolocation.watchPosition(
+        { enableHighAccuracy: true, timeout: 30000 },
+        (pos, err) => {
+          if (err || !pos?.coords?.accuracy) return;
+          if (pos.coords.accuracy <= 10) {
+            sendCoord(pos.coords.latitude, pos.coords.longitude);
+            if (watchId) Geolocation.clearWatch({ id: watchId });
+          }
+        }
+      );
+    }).catch(() => {});
+    return () => { if (watchId) Geolocation.clearWatch({ id: watchId }).catch(() => {}); };
   }, [shell.user]);
 
   // 自动检测更新：启动时对比服务器版本，有更新则清缓存刷新
