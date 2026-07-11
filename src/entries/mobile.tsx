@@ -30,7 +30,7 @@ export function MobileApp() {
         { enableHighAccuracy: true, timeout: 30000 },
         (pos, err) => {
           if (err || !pos?.coords?.accuracy) return;
-          if (pos.coords.accuracy <= 10) {
+          if (pos.coords.accuracy <= 65) {
             sendCoord(pos.coords.latitude, pos.coords.longitude);
             if (watchId) Geolocation.clearWatch({ id: watchId });
           }
