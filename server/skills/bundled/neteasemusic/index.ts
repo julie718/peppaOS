@@ -43,7 +43,13 @@ async function ncm(args: string, opts?: { timeout?: number }): Promise<{ stdout:
 }
 
 function tryParseJSON(text: string): any {
-  try { return JSON.parse(text); } catch { return null; }
+  try { return JSON.parse(text); } catch {}
+  // Version banner may precede JSON — try to extract the JSON object
+  const match = text.match(/\{[\s\S]*\}/);
+  if (match) {
+    try { return JSON.parse(match[0]); } catch {}
+  }
+  return null;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
