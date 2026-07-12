@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mic, Phone, Camera, Loader2, Volume2 } from 'lucide-react';
+import { Mic, Phone, Loader2, Volume2 } from 'lucide-react';
 import { CallState } from '../hooks/useVoiceCall';
 import { useT } from '../lib/useT';
 
@@ -13,16 +13,7 @@ interface VoiceCallButtonProps {
   className?: string;
 }
 
-type Mode = 'idle' | 'call';
-
-const MENU_ITEMS = [
-  { id: 'call',   icon: Phone,  label: '实时通话' },
-  { id: 'camera', icon: Camera, label: '拍照识别'  },
-];
-
 export function VoiceCallButton({ callState, audioLevel, onStart, onEnd, hasVoice = false, className = '' }: VoiceCallButtonProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [mode, setMode] = useState<Mode>('idle');
   const isActive = callState !== 'idle' && callState !== 'passive';
   const isOn = callState !== 'idle';
   const t = useT();
@@ -38,34 +29,7 @@ export function VoiceCallButton({ callState, audioLevel, onStart, onEnd, hasVoic
   };
 
   const config = stateConfig[callState];
-  const icon = mode === 'call' ? <Phone size={20} /> : config.icon;
-
-  const handleClick = () => {
-    if (isOn) { onEnd(); setMode('idle'); return; }
-    setMenuOpen(true);
-  };
-
-  const handleMenuItem = (id: string) => {
-    setMenuOpen(false);
-    if (id === 'call') { setMode('call'); onStart(); }
-    else if (id === 'camera') { openCamera(); }
-  };
-
-  const openCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-      const video = document.createElement('video');
-      video.srcObject = stream; video.play();
-      video.onloadeddata = () => {
-        const c = document.createElement('canvas');
-        c.width = video.videoWidth; c.height = video.videoHeight;
-        c.getContext('2d')!.drawImage(video, 0, 0);
-        const b64 = c.toDataURL('image/jpeg', 0.8);
-        stream.getTracks().forEach(t => t.stop());
-        window.dispatchEvent(new CustomEvent('peppa:camera-capture', { detail: { imageBase64: b64 } }));
-      };
-    } catch {}
-  };
+  const icon = isOn ? <Phone size={20} /> : config.icon;
 
   return (
     <div className={`relative ${className}`}>
@@ -86,10 +50,10 @@ export function VoiceCallButton({ callState, audioLevel, onStart, onEnd, hasVoic
       <motion.button
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        onClick={handleClick}
+        onClick={isOn ? onEnd : onStart}
         type="button"
         className={`relative w-12 h-12 rounded-2xl border flex items-center justify-center transition-all cursor-pointer ${config.color}`}
-        title="语音功能"
+        title={isOn ? '挂断' : '语音通话'}
       >
         {icon}
       </motion.button>
@@ -104,32 +68,6 @@ export function VoiceCallButton({ callState, audioLevel, onStart, onEnd, hasVoic
           >
             <span className="text-[12px] font-bold uppercase tracking-widest text-white/40">{config.label}</span>
           </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {menuOpen && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 8 }}
-              className="absolute bottom-full mb-2 right-0 z-50 bg-zinc-900 border border-white/10 rounded-2xl p-1.5 shadow-2xl min-w-[130px]"
-            >
-              {MENU_ITEMS.map(item => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => handleMenuItem(item.id)}
-                  className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-medium text-white/80 hover:bg-white/10 transition-colors whitespace-nowrap"
-                >
-                  <item.icon size={17} className="text-white/50" />
-                  {item.label}
-                </button>
-              ))}
-            </motion.div>
-          </>
         )}
       </AnimatePresence>
     </div>
