@@ -247,7 +247,7 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
             return next;
           }
           const alwaysOn = localStorage.getItem('peppa_always_on_voice') === 'true';
-          const passiveDelay = alwaysOn ? 5 * 60 * 1000 : 15 * 1000;   // 5min in always-on, 15s default
+          const passiveDelay = alwaysOn ? 5 * 60 * 1000 : 120 * 1000;  // 5min always-on, 2min default
           passiveTimer.current = setTimeout(() => {
             setCallState('passive');
             if (!alwaysOn) {
