@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+			<key>NSAllowsArbitraryLoadsInWebContent</key>
+			<true/>
 	<key>CAPACITOR_DEBUG</key>
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
@@ -26,6 +28,8 @@
 	<true/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
+			<key>NSAllowsArbitraryLoadsInWebContent</key>
+			<true/>
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
@@ -33,6 +37,8 @@
 	<string>MayOS 需要您的位置来提供更智能的回复，例如天气、附近推荐和路线规划。</string>
 	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
 	<dict>
+			<key>NSAllowsArbitraryLoadsInWebContent</key>
+			<true/>
 		<key>LocationAccuracy</key>
 		<string>MayOS 需要精确位置来提供附近推荐和路线规划服务。</string>
 	</dict>
