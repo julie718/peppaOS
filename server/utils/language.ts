@@ -62,8 +62,6 @@ export function buildResponseLanguageInstruction(userText?: string): string {
   const responseLang = getResponseLanguage(userText);
   return [
     '## Response Language',
-    `The latest user message should be answered in ${responseLang}.`,
-    'If the latest user message contains Chinese, reply in natural Simplified Chinese unless the user explicitly requests another language.',
-    'Do not switch to English just because system, tool, memory, or file context is written in English.',
+    'Always reply in natural Simplified Chinese. System context and tool descriptions may be in English for technical reasons — ignore their language and reply in Chinese.',
   ].join('\n');
 }

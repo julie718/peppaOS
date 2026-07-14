@@ -62,10 +62,25 @@ export function isDiagnosticOrRepairRequest(text: string): boolean {
   return DIAGNOSTIC_OR_REPAIR_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
+const LOOKUP_PATTERNS: RegExp[] = [
+  // Chinese lookup phrases: 查一下 / 搜一下 / 找找 / 看看 / 告诉我 / 帮我查
+  /(?:查一下|查查|帮我查|查.*?(?:吗|呢|的)|搜一下|搜搜|帮我搜|搜.*?(?:吗|呢|的)|找一下|找找|帮我找|找.*?(?:吗|呢|的)|看一下|看看|给我看看|告诉我|知不知道|知不知道|知道吗|了解吗|听说|听说过)/u,
+  // Time-sensitive queries: 今天 / 最近 / 现在 / 最新
+  /(?:今天|最近|现在|最新|实时|当前|刚刚|刚才|这一周|本周|这个月).*(?:天气|比赛|新闻|价格|行情|事件|消息|动态|情况)/u,
+  // Specific content queries needing search
+  /(?:天气|世界杯|比赛|新闻|股价|汇率|热搜|热点).*(?:吗|呢|怎么样|如何|是什么|多少)/u,
+];
+
+function hasLookupIntent(text: string): boolean {
+  const normalized = text.trim();
+  if (!normalized) return false;
+  return LOOKUP_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
 export function shouldAllowToolUseForTurn(text: string, source?: string, operationMode?: string): boolean {
   const mode = normalizeOperationMode(operationMode);
   if (isDiagnosticOrRepairRequest(text)) return true;
-  if (mode === 'chat') return hasClientActionIntent(text) || hasExplicitToolIntent(text) || hasVisionIntent(text);
+  if (mode === 'chat') return hasLookupIntent(text) || hasClientActionIntent(text) || hasExplicitToolIntent(text) || hasVisionIntent(text);
   if (mode === 'meeting') return hasClientActionIntent(text);
   if (hasVisionIntent(text)) return true;
   if (mode === 'autonomous' && AUTONOMOUS_TASK_PATTERNS.some((pattern) => pattern.test(text.trim()))) return true;

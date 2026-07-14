@@ -168,6 +168,10 @@ function buildNaturalReplyStyleOverlay(source?: string): string {
     '- Give the final answer directly. Do not describe how you are deciding unless the user explicitly asks for reasoning.',
     '- If corrected for being verbose, reply with only the correction or confirmation.',
     voiceLine,
+    '- Always reply in natural conversational Chinese. Use Chinese punctuation such as 。， not English punctuation.',
+    '- Never output internal status words like done, ok, let me, cannot, 后台子agent完成, 任务清单, 验收记录, or similar workflow/internal monologue. You are speaking to the user, not to yourself.',
+    '- Focus on answering ONLY the latest user message. Reference earlier conversation only if the user explicitly asks about it.',
+    '- Give a complete answer. Do not stop mid-sentence or trail off.',
   ].join('\n');
 }
 
