@@ -5,6 +5,8 @@
 # ── Build stage ──────────────────────────────────────────────────────────
 FROM node:22-slim AS build
 
+# Use Aliyun mirror for Debian (faster in China)
+RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 make g++ \
     && rm -rf /var/lib/apt/lists/*
