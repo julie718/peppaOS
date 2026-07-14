@@ -205,8 +205,17 @@ const ROUTES: RouteDefinition[] = [
       /搜索|查询|查找|联网|浏览|网页|网址|链接|资料来源|出处|引用|官方|验证|调研/u,
       /\b(search|look\s*up|browse|fetch|research|source|citation|official|verify)\b/i,
     ],
-    prefixes: ['mcp_fetcher_', 'mcp_web-fetcher-pro_'],
+    prefixes: ['mcp_fetcher_', 'mcp_web-fetcher-pro_', 'mcp_firecrawl-mcp_'],
     groups: ['web', 'authenticatedWeb'],
+  },
+  {
+    category: 'general',
+    reason: 'everyday utility — weather, translation, calculation, time, notes',
+    patterns: [
+      /天气|温度|下雨|刮风|湿度|预报|翻译|计算|算一下|等于|多少|几点了|闹钟|倒计时|提醒|记一下|笔记|备忘|写下来/u,
+      /\b(weather|temperature|rain|forecast|translate|calculate|math|timer|alarm|remind|note|memo)\b/i,
+    ],
+    prefixes: ['mcp_weather_', 'mcp_translator_', 'mcp_calculator_', 'mcp_timer_', 'mcp_notes_'],
   },
   {
     category: 'code_git',
@@ -243,7 +252,7 @@ const ROUTES: RouteDefinition[] = [
       /技能|技能大厅|MCP|工具|智能体|agent|外部agent|外部应用|连接.*agent|接入|插件|能力/u,
       /\b(skill|mcp|tool|agent|adapter|external\s+app|plugin|capability)\b/i,
     ],
-    prefixes: ['mcp_hermes_'],
+    prefixes: ['mcp_hermes_', 'mcp_superpowers-mcp_', 'mcp_karpathy-guidelines-mcp_', 'mcp_skill-doc-generator_'],
     groups: ['skills'],
   },
   {
@@ -253,7 +262,7 @@ const ROUTES: RouteDefinition[] = [
       /飞书|微信|企业微信|WeCom|消息|回消息|远程协作|绑定码/u,
       /\b(feishu|lark|wechat|wecom|message|reply)\b/i,
     ],
-    prefixes: ['mcp_messaging-ops_', 'mcp_wechat-launcher_'],
+    prefixes: ['mcp_messaging-ops_', 'mcp_wechat-launcher_', 'mcp_email-assistant_'],
     groups: ['messaging', 'files', 'documents'],
   },
   {
@@ -264,6 +273,27 @@ const ROUTES: RouteDefinition[] = [
       /\b(calendar|schedule|event|email|mail)\b/i,
     ],
     groups: ['calendar', 'files', 'documents'],
+    prefixes: ['mcp_email-assistant_'],
+  },
+  {
+    category: 'finance_market',
+    reason: 'stock, market, or financial data request',
+    patterns: [
+      /股票|股价|行情|K线|大盘|指数|涨停|跌停|板块|上市公司|财报/u,
+      /\b(stock|market|price|kline|index|finance|ticker)\b/i,
+    ],
+    prefixes: ['mcp_stockbot_'],
+    groups: ['web'],
+  },
+  {
+    category: 'media_image',
+    reason: 'image processing, PDF, or media request',
+    patterns: [
+      /图片|图像|照片|修改.*图|缩放|裁切|格式转换|PDF|合并.*PDF|拆分.*PDF/u,
+      /\b(image|picture|photo|resize|crop|pdf|merge|split)\b/i,
+    ],
+    prefixes: ['mcp_image_', 'mcp_pdftools_'],
+    groups: ['documents'],
   },
 ];
 
