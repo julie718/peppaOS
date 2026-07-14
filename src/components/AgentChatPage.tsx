@@ -26,6 +26,23 @@ import { WeChatSettings } from './WeChatSettings';
 const CHAT_HISTORY_LIMIT = 300;
 const CHAT_RENDER_LIMIT = 80;
 const CHAT_SEARCH_LIMIT = 200;
+const msgId = (prefix = '') => `${prefix}${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+/** Filter out internal noise that should never be shown to the user */
+function isInternalNoise(text: string): boolean {
+  if (!text || !text.trim()) return true;
+  const t = text.trim().toLowerCase();
+  // Single-word confirmations
+  if (/^(done|ok|okay|yes|no|fine|good|great|sure|right|alright)$/i.test(t)) return true;
+  // Internal monologue / self-check
+  if (/^i (cannot|cannot|can'?t|don'?t|won'?t|should|will|must|need to|have to)/i.test(t)) return true;
+  // Tool execution errors / status
+  if (/^maximum tool call iterations/i.test(t)) return true;
+  if (/^no firecrawl_api_key/i.test(t)) return true;
+  if (/^error[: ]/i.test(t) && t.length < 50) return true;
+  return false;
+}
+
 type WorkflowStatus = 'idle' | 'thinking' | 'background' | 'executing' | 'waiting_confirmation' | 'done' | 'error';
 
 type ChatAttachment = {
@@ -174,7 +191,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     onTranscript: (text, isFinal) => {
       if (isFinal) {
         setMessages(prev => [...prev, {
-          id: Date.now().toString(),
+          id: msgId(),
           text,
           userName: user?.displayName || user?.username || 'You',
           timestamp: new Date().toISOString(),
@@ -357,7 +374,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
           images: [detail.imageBase64],
         });
         setMessages((prev: any[]) => [...prev, {
-          id: String(Date.now()),
+          id: msgId(),
           type: 'user',
           text: '📷 拍摄了一张照片',
           timestamp: new Date().toISOString(),
@@ -593,7 +610,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
           m.id === streamingMsgId.current ? { ...m, text: m.text + data.text } : m
         ));
       } else {
-        const id = Date.now().toString();
+        const id = msgId();
         streamingMsgId.current = id;
         setMessages(prev => [...prev, {
           id,
@@ -716,7 +733,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
       } else if (data.text && data.text.trim()) {
         // No streaming; add as new message only if non-empty.
         setMessages(prev => [...prev, {
-          id: Date.now().toString(),
+          id: msgId(),
           text: data.text,
           userName: data.agentName,
           timestamp: new Date().toISOString(),
@@ -951,7 +968,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     const outgoingText = trimmedText || ui('请帮我看看这些附件。', 'Please review these attachments.');
 
     const userMsg = {
-      id: Date.now().toString(),
+      id: msgId(),
       text: outgoingText,
       attachments: outgoingAttachments,
       userName: user.displayName || user.username || (t.chatUserFallback || 'User'),
@@ -1040,7 +1057,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
         resolve();
         setAgentMetadata(response);
         setMessages(prev => [...prev, {
-          id: Date.now().toString(),
+          id: msgId(),
           text: response.text,
           userName: agentName,
           timestamp: new Date().toISOString(),
@@ -1175,11 +1192,12 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
   const workflowPanelVisible =
     isOpen &&
     (workflowStatus !== 'idle' || workflowSteps.length > 0 || workflowHasExecution || backgroundWorkflowTasks.length > 0);
-  const displayMessages = searchQuery.trim()
+  const displayMessages = (searchQuery.trim()
     ? searchDisplayMessages
     : messages.length > CHAT_RENDER_LIMIT
       ? messages.slice(-CHAT_RENDER_LIMIT)
-      : messages;
+      : messages
+  ).filter(m => m.type !== 'agent' || !isInternalNoise(m.text));
   const hiddenMessageCount = searchQuery.trim()
     ? 0
     : Math.max(0, messages.length - displayMessages.length);

@@ -3,9 +3,9 @@
  * and silently installs/upgrades them so Peppa can use them immediately.
  */
 import path from 'path';
-import os from 'os';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { getDataPath } from '../config/data_path';
 import { mcpManager } from '../mcp';
 import { getMarketplaceSkills, recordInstall } from '../marketplace/registry';
 import { createAgentForSkill } from './skill_agent';
@@ -13,7 +13,7 @@ import { createAgentForSkill } from './skill_agent';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const BUNDLED_DIR = path.join(__dirname, '..', 'skills', 'bundled');
-const SKILLS_DIR = path.join(os.homedir(), 'peppa_skills');
+const SKILLS_DIR = getDataPath('skills');
 
 export interface InstallResult {
   skillId: string;

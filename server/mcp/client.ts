@@ -69,7 +69,7 @@ interface MCPConfigFile {
   [key: string]: any;
 }
 
-const SKILLS_DIR = path.join(os.homedir(), 'peppa_skills');
+const SKILLS_DIR = getDataPath('skills');
 const DEFAULT_RUNTIME_CONFIG = 'mcp_config.json';
 const LEGACY_REPO_CONFIG = path.join(process.cwd(), 'server', 'mcp', 'config.json');
 const FACTORY_CONFIG = path.join(process.cwd(), 'server', 'mcp', 'config.example.json');
@@ -114,7 +114,7 @@ function expandPortablePath(value: string): string {
 function toPortableSkillPath(filePath: string): string {
   const relative = path.relative(SKILLS_DIR, filePath);
   if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) {
-    return `~/peppa_skills/${relative.split(path.sep).join('/')}`;
+    return `${SKILLS_DIR}/${relative.split(path.sep).join('/')}`;
   }
   return filePath;
 }
