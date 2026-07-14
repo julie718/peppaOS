@@ -1696,6 +1696,12 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                   ref={messageInputRef}
                   defaultValue=""
                   onChange={(e) => updateDraftText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      sendText(draftTextRef.current.trim(), pendingAttachments);
+                    }
+                  }}
                   placeholder={t.communicatePlaceholder || "Communicate with your essence..."}
                   className="bg-black/40 border-white/10 rounded-2xl py-6 pr-12 focus-visible:ring-celestial-saturn/50"
                 />
@@ -1717,7 +1723,8 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
                 </Button>
               ) : (
                 <Button
-                  type="submit"
+                  type="button"
+                  onClick={() => sendText(draftTextRef.current.trim(), pendingAttachments)}
                   disabled={!hasDraftText && pendingAttachments.length === 0}
                   className="bg-celestial-saturn text-black rounded-2xl px-6 hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100"
                 >
