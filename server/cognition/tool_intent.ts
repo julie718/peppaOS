@@ -63,12 +63,8 @@ export function isDiagnosticOrRepairRequest(text: string): boolean {
 }
 
 const LOOKUP_PATTERNS: RegExp[] = [
-  // Chinese lookup phrases: 查一下 / 搜一下 / 找找 / 看看 / 告诉我 / 帮我查
-  /(?:查一下|查查|帮我查|查.*?(?:吗|呢|的)|搜一下|搜搜|帮我搜|搜.*?(?:吗|呢|的)|找一下|找找|帮我找|找.*?(?:吗|呢|的)|看一下|看看|给我看看|告诉我|知不知道|知不知道|知道吗|了解吗|听说|听说过)/u,
-  // Time-sensitive queries: 今天 / 最近 / 现在 / 最新
-  /(?:今天|最近|现在|最新|实时|当前|刚刚|刚才|这一周|本周|这个月).*(?:天气|比赛|新闻|价格|行情|事件|消息|动态|情况)/u,
-  // Specific content queries needing search
-  /(?:天气|世界杯|比赛|新闻|股价|汇率|热搜|热点).*(?:吗|呢|怎么样|如何|是什么|多少)/u,
+  // Any Chinese lookup command — the user is asking the agent to find/look/check/search something
+  /(?:查|搜|找|看|去查|去搜|去找|去看|帮我查|帮我搜|帮我找|帮我看|给我查|给我找|给我看看|搜搜|查查|找找|看看|搜一下|查一下|找一下|看一下|你去|你去查|知不知道|知道吗|知道不|了解吗|了解不|听说过|听说过吗|告诉我|介绍|有什么|有哪些|什么是|怎么.*的|怎么样|如何|是谁|在哪里|什么时候|多少钱)/u,
 ];
 
 function hasLookupIntent(text: string): boolean {
