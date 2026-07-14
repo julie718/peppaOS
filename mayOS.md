@@ -1491,3 +1491,118 @@ Capacitor App 的 WKWebView 拒绝自签名证书，导致 HTTPS 黑屏、麦克
 ### 经验
 
 自签名证记书记在 Capacitor WKWebView 中绝对不可行。正经 SSL 证记书记是唯一出路。Let's Encrypt + DNS 验证（阿里云）完全免费，配置一次性。
+
+---
+
+## 二十七、NAS 技能系统搭建 (2026-07-12~14)
+
+### 背景
+
+MayOS 在 NAS 上运行时，Agent 没有任何外部工具。需要在技能大厅为 Agent 安装常用技能，让它可以搜索、翻译、查天气、处理文件等。
+
+同时也发现技能安装路径 (`~/peppa_skills/`) 在 Docker 容器内不持久化，`docker compose up -d --build` 后所有已安装技能丢失。
+
+### 技能持久化修复
+
+**根因**：`SKILLS_DIR = path.join(os.homedir(), 'peppa_skills')` — 容器临时文件系统，重建即丢。
+
+**修复**：`SKILLS_DIR` 改为 `getDataPath('skills')`，统一存到 `/app/data/skills/`（bind mount → NAS `~/mayos/data/skills/`）。
+
+**修改文件**：
+| 文件 | 改动 |
+|------|------|
+| `server/mcp/client.ts:72` | `SKILLS_DIR` → `getDataPath('skills')` |
+| `server/marketplace/registry.ts:19` | 同上 |
+| `server/agents/auto_installer.ts:16` | 同上 |
+| `server/skills/bundled/notes/index.ts:8` | `NOTES_DIR` → 优先用 `LUMI_DATA_DIR` |
+
+### NAS 安装的 14 个技能
+
+#### 外部 MCP 技能（npx 启动）
+| 技能 | 工具数 | 用途 |
+|------|--------|------|
+| `firecrawl-mcp` | 26 | 网页抓取、搜索、爬取、AI 提取 |
+| `superpowers-mcp` | 2 | TDD/计划/代码审查/验证 |
+| `karpathy-guidelines-mcp` | 2 | 编程四铁律：先思考、简洁、手术式改动、目标驱动 |
+| `skill-doc-generator` | 5 | 从文档 URL 自动生成新技能 |
+| `filesystem` | 14 | 文件系统读写 |
+
+#### 内置技能（从 bundled 目录拷贝到 `/app/data/skills/`）
+| 技能 | 工具数 | 用途 |
+|------|--------|------|
+| `weather` | 1 | 全球天气查询 |
+| `translator` | 1 | 多语言翻译 |
+| `stockbot` | 6 | A股行情/K线/板块/新闻 |
+| `notes` | 4 | 笔记创建/搜索/管理 |
+| `timer` | 3 | 倒计时/闹钟 |
+| `calculator` | 2 | 数学计算/单位换算 |
+| `email-assistant` | 1 | 邮件解析/撰写 |
+| `image` | 1 | 图片缩放/格式转换 |
+| `pdftools` | 1 | PDF 合并/拆分 |
+
+#### cn-search（自建中文搜索技能）
+**基于 SearXNG 公共实例，免费无需 API Key。**
+
+| 文件 | 内容 |
+|------|------|
+| `server/skills/bundled/cn-search/index.ts` | MCP 服务器：`search_cn` 工具，搜索中文网页 |
+| `server/skills/bundled/cn-search/package.json` | 技能元数据 |
+
+### 容器内技能安装技巧
+
+Docker 容器没有 `tsx` 全局命令，需用完整路径 `/app/node_modules/.bin/tsx`。bundled 目录未打包进镜像，需从 MacBook 打包 scp 到 NAS 再 `docker cp` 进容器。
+
+### 技能启动时序问题
+
+重启后 MCP 客户端立即尝试连接技能，但文件可能还没拷进容器。首次失败后进入指数退避重试，不会自动恢复。解决方案：先拷文件，再重启容器。
+
+---
+
+## 二十八、对话体验优化 (2026-07-14)
+
+### 问题
+1. Agent 回复英文（系统提示词 95% 英文，语言指令为否定式）
+2. 回复机械化（风格指令太干，只有三行英文）
+3. 聊天模式下 Agent 说"我没有搜索权限"（工具意图识别太严）
+4. 聊天界面漏出内部噪声（"done"、"I cannot honestly..."、"后台子 agent 完成"）
+5. Safari 回车/发送按钮不生效
+6. 新消息内容串到旧消息位置（ID 碰撞）
+
+### 修复清单
+
+| 文件 | 修复内容 |
+|------|---------|
+| `server/socket/chat.ts` | `buildNaturalReplyStyleOverlay` 加中文自然对话指导 + 聚焦最新消息指令 |
+| `server/utils/language.ts` | 语言指令从否定式改为肯定式："始终用中文回复" |
+| `server/cognition/tool_intent.ts` | 新增 `hasLookupIntent`：查/搜/找/看/帮我查 等自然中文指令触发只读工具 |
+| `server/cognition/tool_router.ts` | 14 个新技能加入路由表 + 扩大中文搜索关键词覆盖 |
+| `src/components/AgentChatPage.tsx` | `msgId()` 替代裸 `Date.now()` 解决 ID 碰撞；`isInternalNoise` 过滤中英文内部噪声；Input 加 `onKeyDown` Enter 处理；发送按钮改为直接 onClick |
+
+### Dockerfile 国内适配
+`apt-get` 源换阿里云镜像，修复构建时 deb.debian.org 连接超时。
+
+### 提交历史
+```
+717ba0d fix: Safari回车+发送按钮不生效
+8bd80bc fix: 技能持久化 + 消息ID碰撞修复 + 噪声过滤
+07b192f fix: 补充中文内部独白噪声过滤
+1e79bc8 fix: Prompt优化-中文自然风格+聚焦最新消息+聊天模式放开查搜工具
+cbbdd32 fix: 新技能路由 — 14个MCP技能加入工具路由表
+1d64548 fix: 扩大查搜关键词覆盖 — 查/搜/找/看/帮我查等自然中文指令
+94fc48f feat: 新增 cn-search 中文搜索技能
+```
+
+## 十二、开发日志（续）
+
+| 日期 | 事件 |
+|------|------|
+| 2026-07-12 傍晚 | 技能持久化修复：SKILLS_DIR 改为 getDataPath('skills')，笔记 NOTES_DIR 同步修复 |
+| 2026-07-12 晚上 | NAS 14个技能安装调试：5个外部 MCP + 9个内置技能，解决 tsx 路径、npx、git 缺失等问题 |
+| 2026-07-13 凌晨 | 清理 NAS 上 70+ 个自动生成的诊断技能残留，mcp_config.json 从 75→5 再装回 14 |
+| 2026-07-13 下午 | 前端修复：消息 ID 碰撞（Date.now → msgId）、内部噪声过滤、Safari 回车发送 |
+| 2026-07-13 晚上 | Prompt 优化：中文自然风格 + 语言指令肯定式 + 聊天模式放开查搜工具 |
+| 2026-07-13 深夜 | 工具路由修复：14 个 MCP 工具前缀加入路由表，扩大中文查搜关键词 |
+| 2026-07-14 凌晨 | Dockerfile 阿里云镜像源适配，解决 apt-get 被墙 |
+| 2026-07-14 上午 | cn-search 中文搜索技能：基于 SearXNG 公共实例，免费无 Key，支持中文搜索结果 |
+| ⬜ 待办 | NAS Dockerfile Caddy 统一端口 4043，不用 HTTP 3000 |
+| ⬜ 待办 | 定时备份：cron 每天自动备份 ~/mayos/data/peppa.db |
