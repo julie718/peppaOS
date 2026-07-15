@@ -65,6 +65,9 @@ export function isDiagnosticOrRepairRequest(text: string): boolean {
 const LOOKUP_PATTERNS: RegExp[] = [
   // Any Chinese lookup command — the user is asking the agent to find/look/check/search something
   /(?:查|搜|找|看|去查|去搜|去找|去看|帮我查|帮我搜|帮我找|帮我看|给我查|给我找|给我看看|搜搜|查查|找找|看看|搜一下|查一下|找一下|看一下|你去|你去查|知不知道|知道吗|知道不|了解吗|了解不|听说过|听说过吗|告诉我|介绍|有什么|有哪些|什么是|怎么.*的|怎么样|如何|是谁|在哪里|什么时候|多少钱)/u,
+  // Content-based: user mentions something that clearly needs real-time lookup
+  /(?:股价|价格|行情|走势|实时|最新|今天|现在|当前|最近).*(?:多少|怎么样|如何|什么|哪个)/u,
+  /(?:股票|港股|A股|美股|代码|上市).*(?:0\d{4}|6\d{5}|\d{6})/u,
 ];
 
 function hasLookupIntent(text: string): boolean {
