@@ -1590,7 +1590,60 @@ Docker 容器没有 `tsx` 全局命令，需用完整路径 `/app/node_modules/.
 cbbdd32 fix: 新技能路由 — 14个MCP技能加入工具路由表
 1d64548 fix: 扩大查搜关键词覆盖 — 查/搜/找/看/帮我查等自然中文指令
 94fc48f feat: 新增 cn-search 中文搜索技能
+fdbf345 fix: stockbot支持港股 — marketCode增加HK前缀116
+4ad035a fix: hasLookupIntent支持内容类查询 — 股价/行情/实时/股票代码自动放行工具
 ```
+
+### Docker 构建缓存问题
+
+`docker compose up -d --build` 使用缓存层，即使源码变了也可能不重新编译。需要 `docker compose build --no-cache && docker compose up -d` 或 `docker compose down && docker compose build --no-cache && docker compose up -d`。
+
+### Caddy DNS 故障 (2026-07-15)
+
+Caddy 偶尔无法解析 `mayos` 容器名（`lookup mayos on 127.0.0.11:53: no such host`），导致 HTTPS 4043 返回 502。根因是 Docker DNS 缓存失效，`docker restart caddy` 即可恢复。
+
+---
+
+## 二十九、stockbot 港股支持 (2026-07-15)
+
+### 背景
+
+用户查询小米（01810.HK）时，stockbot 只能返回 A 股数据。根因：`marketCode` 函数只处理沪深代码（6xx→上海，其他→深圳），不支持港股。
+
+### 修复
+
+`server/skills/bundled/stockbot/index.ts` 的 `marketCode` 函数增加 `market` 参数和港股自动识别：
+
+```typescript
+function marketCode(code: string, market?: string): string {
+  const c = code.replace(/\D/g, '');
+  // HK: 5-digit codes starting with 0, or explicitly HK market
+  if (market === 'HK' || market === 'hk' || (c.length >= 5 && /^0/.test(c))) {
+    return `116.${c}`;  // 东方财富港股前缀
+  }
+  if (/^6/.test(c)) return `1.${c}`;  // 上海
+  return `0.${c}`;  // 深圳
+}
+```
+
+### 已知问题
+
+`server/skills/bundled/` 目录未打包进 Docker 镜像，每次 `--no-cache` 重建后需手动从 MacBook 拷贝技能文件到 `/app/data/skills/`。
+
+---
+
+## 十二、开发日志（续）
+
+| 日期 | 事件 |
+|------|------|
+| 2026-07-14 晚上 | HTTPS 4043 故障：Caddy DNS 解析 mayos 失败，`docker restart caddy` 修复 |
+| 2026-07-15 凌晨 | cn-search 集成到 NAS：文件打包 scp + docker cp + npm install |
+| 2026-07-15 上午 | stockbot 港股支持：marketCode 增加 HK 前缀 116 |
+| 2026-07-15 中午 | hasLookupIntent 扩展：支持内容类查询（股价/行情/实时）自动放行工具 |
+| 2026-07-15 下午 | Docker --no-cache 重编译使 prompt 优化生效；手机 App 重装修复"不再可用" |
+| 2026-07-15 下午 | GitHub 间歇性被墙，多次阻断推送和拉取；改用 sed 直接修改容器文件作为临时方案 |
+| ⬜ 待办 | 将 `server/skills/bundled/` 加入 Docker 镜像，消除每次重建后手动拷技能 |
+| ⬜ 待办 | 定时备份：cron 每天自动备份 ~/mayos/data/peppa.db |
 
 ## 十二、开发日志（续）
 
