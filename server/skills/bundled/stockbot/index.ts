@@ -6,8 +6,13 @@ import { z } from 'zod';
 
 const UA = 'Peppa/2.0';
 
-function marketCode(code: string): string {
+function marketCode(code: string, market?: string): string {
   const c = code.replace(/\D/g, '');
+  // HK stock: 5-digit codes starting with 0, or explicitly HK market
+  if (market === 'HK' || market === 'hk' || (c.length >= 5 && /^0/.test(c))) {
+    return `116.${c}`;
+  }
+  // A-share: 6xx = Shanghai, others = Shenzhen
   if (/^6/.test(c)) return `1.${c}`;
   return `0.${c}`;
 }
@@ -45,9 +50,10 @@ async function searchStocks(args: any) {
 
 async function getQuote(args: any) {
   const raw = String(args.code || '').trim();
-  if (!raw) return err('code is required (e.g. 600519 or 000001)');
+  if (!raw) return err('code is required (e.g. 600519 or 000001 or 01810 for HK)');
   try {
-    const secid = raw.includes('.') ? raw : marketCode(raw);
+    const market = args.market || '';
+    const secid = raw.includes('.') ? raw : marketCode(raw, market);
     const fields = 'f43,f44,f45,f46,f47,f48,f50,f51,f52,f57,f58,f60,f116,f117,f162,f167,f169,f170,f171';
     const data = await fetchJSON(
       `https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=${fields}`
@@ -247,8 +253,11 @@ server.registerTool('stock_search', {
 }, searchStocks);
 
 server.registerTool('stock_quote', {
-  description: 'Get real-time quote for a stock: price, change%, volume, PE, PB, market cap, limit up/down, etc.',
-  inputSchema: { code: z.string().describe('Stock code, e.g. "600519" or "000001"') },
+  description: 'Get real-time quote for a stock: price, change%, volume, PE, PB, market cap. Supports A-share (600519, 000001) and HK stocks (01810, market:"HK").',
+  inputSchema: {
+    code: z.string().describe('Stock code, e.g. "600519" (A-share) or "01810" (HK)'),
+    market: z.string().optional().describe('Market: "HK" for Hong Kong stocks, omit for A-share'),
+  },
 }, getQuote);
 
 server.registerTool('stock_kline', {
