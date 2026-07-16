@@ -1,5 +1,6 @@
 import express from "express";
 import { logger } from '../lib/logger';
+import { httpRequestsTotal, httpRequestDuration, getMetricsText } from '../lib/metrics';
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import http from "http";
@@ -51,6 +52,21 @@ export function createApp(): AppContext {
     next();
   });
 
+  // HTTP metrics middleware — record all API requests
+  app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+      const duration = (Date.now() - start) / 1000;
+      const route = req.route?.path || req.path?.split('?')[0] || '/';
+      // Dynamic import to avoid circular deps
+      try {
+        httpRequestsTotal.inc({ method: req.method, route, status_code: String(res.statusCode) });
+        httpRequestDuration.observe({ method: req.method, route }, duration);
+      } catch {}
+    });
+    next();
+  });
+
   // Middleware to log API requests for debugging
   apiRouter.use((req, res, next) => {
     logger.info(`[API_ROUTER] ${req.method} ${req.path}`);
@@ -69,6 +85,15 @@ export function createApp(): AppContext {
   // Health check endpoint
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: Date.now() });
+  });
+
+  app.get('/metrics', async (_req, res) => {
+    try {
+      res.set('Content-Type', 'text/plain; version=0.0.4');
+      res.send(await getMetricsText());
+    } catch {
+      res.status(500).send('metrics unavailable');
+    }
   });
 
   const JWT_SECRET = process.env.JWT_SECRET || 'peppaOS_default_jwt_secret_2026_local';
