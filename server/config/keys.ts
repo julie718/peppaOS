@@ -1,8 +1,42 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { getDataPath } from './data_path';
 
 const KEYS_FILE = getDataPath('keys.json');
+const ENC_KEY_HEX = process.env.OXOG_ENV_KEY || '';
+
+function getEncryptionKey(): Buffer | null {
+  if (!ENC_KEY_HEX || ENC_KEY_HEX.length !== 64) return null;
+  return Buffer.from(ENC_KEY_HEX, 'hex');
+}
+
+function encrypt(plaintext: string): string {
+  const key = getEncryptionKey();
+  if (!key) return plaintext; // no key configured, skip encryption
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+  return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted.toString('hex')}`;
+}
+
+function decrypt(payload: string): string | null {
+  const key = getEncryptionKey();
+  if (!key) return null;
+  try {
+    const parts = payload.split(':');
+    if (parts.length !== 3) return null;
+    const iv = Buffer.from(parts[0], 'hex');
+    const authTag = Buffer.from(parts[1], 'hex');
+    const encrypted = Buffer.from(parts[2], 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(authTag);
+    return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8');
+  } catch {
+    return null;
+  }
+}
 
 export interface KeyStore {
   [key: string]: string | undefined;
@@ -57,7 +91,16 @@ const KEY_TO_CIRCUIT: Partial<Record<keyof KeyStore, string[]>> = {
 export function loadKeys(): KeyStore {
   try {
     if (fs.existsSync(KEYS_FILE)) {
-      return JSON.parse(fs.readFileSync(KEYS_FILE, 'utf-8'));
+      const raw = fs.readFileSync(KEYS_FILE, 'utf-8');
+      // Try decrypt first (encrypted format: IV:AUTH_TAG:CIPHERTEXT)
+      const decrypted = decrypt(raw);
+      if (decrypted !== null) return JSON.parse(decrypted);
+      // Plaintext — migrate to encrypted on the fly
+      const keys = JSON.parse(raw);
+      if (getEncryptionKey()) {
+        fs.writeFileSync(KEYS_FILE, encrypt(raw));
+      }
+      return keys;
     }
   } catch {}
   return {};
@@ -132,7 +175,8 @@ export function saveKeys(keys: Partial<KeyStore>): void {
       delete (merged as Record<string, unknown>)[k];
     }
   }
-  fs.writeFileSync(KEYS_FILE, JSON.stringify(merged, null, 2));
+  const payload = JSON.stringify(merged, null, 2);
+  fs.writeFileSync(KEYS_FILE, encrypt(payload));
 
   for (const [key, value] of Object.entries(keys)) {
     if (value && typeof value === 'string' && value.trim().length > 0) {
