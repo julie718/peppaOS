@@ -1,5 +1,6 @@
 // Vite dev middleware / production static file serving
 import express from "express";
+import { logger } from '../lib/logger';
 import path from "path";
 import fs from "fs";
 
@@ -18,7 +19,7 @@ export async function setupStatic(app: express.Express, __filename: string, __di
   const defaultFile = role === 'org' ? 'index.org.html' : 'index.html';
 
   if (!isProduction) {
-    console.log(`Starting in DEVELOPMENT mode (Vite)...`);
+    logger.info(`Starting in DEVELOPMENT mode (Vite)...`);
     const { createServer: createViteServer } = await import("vite");
     const hmrPort = Number.parseInt(process.env.LUMI_HMR_PORT || '', 10);
     const serverOptions: Record<string, any> = { middlewareMode: true };
@@ -33,7 +34,7 @@ export async function setupStatic(app: express.Express, __filename: string, __di
     });
     app.use(vite.middlewares);
   } else {
-    console.log(`Starting in PRODUCTION mode (Static) as ${role}, frontend=${frontendTarget}...`);
+    logger.info(`Starting in PRODUCTION mode (Static) as ${role}, frontend=${frontendTarget}...`);
     const explicitDist = process.env.LUMI_FRONTEND_DIST;
     const candidates = [
       explicitDist,

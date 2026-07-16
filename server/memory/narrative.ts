@@ -1,4 +1,5 @@
 import { makeLLMCall, NormalizedMessage } from '../llm/providers';
+import { logger } from '../lib/logger';
 import { queryMemories, addMemory, getAssociatedMemories } from './store';
 import { Memory } from './types';
 
@@ -138,7 +139,7 @@ export async function buildNarrativeChain(params: {
       storedAsMemoryId: stored.id,
     };
   } catch (err: any) {
-    console.error('[Memory] Narrative chain generation failed:', err.message);
+    logger.error('[Memory] Narrative chain generation failed:', err.message);
     return {
       narrative: '',
       sourceMemoryIds: [],

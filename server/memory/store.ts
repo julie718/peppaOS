@@ -1,4 +1,5 @@
 import { readDB, writeDB } from '../../db_layer';
+import { logger } from '../lib/logger';
 import { Memory, MemoryQuery, MemoryType, MemoryTier, MemoryPerspective } from './types';
 import { applyMemoryFirewallMetadata, evaluateMemoryFirewall } from './firewall';
 
@@ -588,7 +589,7 @@ export function addMemory(
     // Reduce confidence of the older memory — it may be outdated
     conflicted.confidence = Math.max(0.1, +(conflicted.confidence - 0.15).toFixed(2));
     conflicted.updatedAt = new Date().toISOString();
-    console.log(
+    logger.info(
       `[Memory] Contradiction detected: new="${memory.content.slice(0, 50)}..." ` +
       `vs existing="${conflicted.content.slice(0, 50)}..." (confidence: ${(conflicted.confidence + 0.15).toFixed(2)}→${conflicted.confidence.toFixed(2)})`,
     );
@@ -838,13 +839,13 @@ export function promoteMemories(userId: string, intimacy: number = 0): number {
       m.tier = 'internalized';
       m.importance = Math.min(1, m.importance + 0.15);
       m.updatedAt = new Date().toISOString();
-      console.log(`[Memory] Promoted episodic→internalized: "${m.content.slice(0, 50)}..." (value: ${value.toFixed(2)}, intimacy: ${intimacy.toFixed(2)})`);
+      logger.info(`[Memory] Promoted episodic→internalized: "${m.content.slice(0, 50)}..." (value: ${value.toFixed(2)}, intimacy: ${intimacy.toFixed(2)})`);
       promoted++;
     } else if (m.tier === 'internalized' && value >= growthThreshold && m.retrieveCount >= 5) {
       m.tier = 'growth';
       m.importance = Math.min(1, m.importance + 0.2);
       m.updatedAt = new Date().toISOString();
-      console.log(`[Memory] Promoted internalized→growth: "${m.content.slice(0, 50)}..." (value: ${value.toFixed(2)}, intimacy: ${intimacy.toFixed(2)})`);
+      logger.info(`[Memory] Promoted internalized→growth: "${m.content.slice(0, 50)}..." (value: ${value.toFixed(2)}, intimacy: ${intimacy.toFixed(2)})`);
       promoted++;
     }
   }

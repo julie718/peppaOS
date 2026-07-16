@@ -3,6 +3,7 @@
  * Executes tasks via runWithTools with tighter safety policy than user-initiated autonomous mode.
  */
 import { dequeue, markRunning, markCompleted, markFailed, getRunningTask } from './task_queue';
+import { logger } from '../lib/logger';
 import { isAutonomousWorkAllowed, isExternalAppAutomationAllowed, recordAutonomousTokens } from './safety_gate';
 import { runWithTools } from '../llm/adapter';
 import { toolRegistry } from '../tools/registry';
@@ -250,7 +251,7 @@ export async function executeNextAutonomousTask(
       timestamp: new Date().toISOString(),
     });
 
-    console.log(`[AutoExecutor] Task "${task.title}" completed: ${toolCallCount} tools, ${tokensUsed} tokens`);
+    logger.info(`[AutoExecutor] Task "${task.title}" completed: ${toolCallCount} tools, ${tokensUsed} tokens`);
     return { executed: true, taskId: task.id, result: summary };
   } catch (err: any) {
     const errorMsg = err.message || 'Unknown error';
@@ -264,7 +265,7 @@ export async function executeNextAutonomousTask(
       timestamp: new Date().toISOString(),
     });
 
-    console.warn(`[AutoExecutor] Task "${task.title}" failed:`, errorMsg);
+    logger.warn(`[AutoExecutor] Task "${task.title}" failed:`, errorMsg);
     return { executed: true, taskId: task.id, result: `Failed: ${errorMsg}` };
   }
 }

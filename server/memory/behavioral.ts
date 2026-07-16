@@ -1,4 +1,5 @@
 import { readDB } from '../../db_layer';
+import { logger } from '../lib/logger';
 import { addMemory } from './store';
 
 export interface BehavioralPattern {
@@ -146,6 +147,6 @@ export function runBehavioralAnalysis(userId: string = 'anonymous'): number {
     }
   }
 
-  console.log(`[Behavioral] Analysis complete: ${saved} patterns saved for user ${userId}`);
+  logger.info(`[Behavioral] Analysis complete: ${saved} patterns saved for user ${userId}`);
   return saved;
 }

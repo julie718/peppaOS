@@ -12,6 +12,7 @@
  */
 
 import { readDB, writeDB } from "../../db_layer";
+import { logger } from '../lib/logger';
 import { NormalizedMessage, makeLLMCall } from "../llm/providers";
 import { runWithTools } from "../llm/adapter";
 import { toolRegistry } from "../tools/registry";
@@ -448,7 +449,7 @@ export async function decomposeTask(
       dependsOn: item.dependsOn || [],
     }));
   } catch (err) {
-    console.error('[Orchestrator] Decomposition failed, treating as simple:', err);
+    logger.error('[Orchestrator] Decomposition failed, treating as simple: ' + err.message);
     // Fallback: single sub-task = the original request
     return [{
       id: 'sub_1',
@@ -530,7 +531,7 @@ function promoteEphemeralAgent(agentId: string, skillTag: string): void {
   }
 
   writeDB(db);
-  console.log(`[Orchestrator] Promoted ephemeral agent "${agentId}" → "${newId}" (${skillTag} specialist)`);
+  logger.info(`[Orchestrator] Promoted ephemeral agent "${agentId}" → "${newId}" (${skillTag} specialist)`);
   if (onAgentPromoted) onAgentPromoted(agent);
 }
 
@@ -868,7 +869,7 @@ async function executeWorkerTask(
       }
 
       if (isRetry) {
-        console.log(`[Orchestrator] Worker '${agent.name}' failed on attempt ${attempt}, succeeded with '${currentAgent.name}'`);
+        logger.info(`[Orchestrator] Worker '${agent.name}' failed on attempt ${attempt}, succeeded with '${currentAgent.name}'`);
       }
 
       return {
@@ -879,7 +880,7 @@ async function executeWorkerTask(
     } catch (err) {
       throwIfCancelled(context);
       if (attempt < agentsToTry.length - 1) {
-        console.warn(`[Orchestrator] Worker '${currentAgent.name}' failed (attempt ${attempt + 1}/${agentsToTry.length}), trying next...`, String(err).slice(0, 80));
+        logger.warn(`[Orchestrator] Worker '${currentAgent.name}' failed (attempt ${attempt + 1}/${agentsToTry.length}), trying next...`, String(err).slice(0, 80));
         continue;
       }
       return {
@@ -1051,7 +1052,7 @@ export async function aggregateWithLLM(
     }
     return result.text.trim();
   } catch (err) {
-    console.error('[Orchestrator] LLM aggregation failed:', err);
+    logger.error('[Orchestrator] LLM aggregation failed: ' + err.message);
     return workflowResult.aggregatedOutput;
   }
 }
@@ -1253,11 +1254,11 @@ export function cleanupEphemeralAgents(ttlHours: number = 6): number {
         });
       }
       writeDB(db);
-      console.log(`[Orchestrator] Cleaned up ${removed} ephemeral agents`);
+      logger.info(`[Orchestrator] Cleaned up ${removed} ephemeral agents`);
     }
     return removed;
   } catch (err) {
-    console.warn('[Orchestrator] Ephemeral cleanup failed:', err);
+    logger.warn('[Orchestrator] Ephemeral cleanup failed: ' + err.message);
     return 0;
   }
 }

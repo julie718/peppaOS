@@ -1,4 +1,5 @@
 import { makeLLMCall, NormalizedMessage } from '../llm/providers';
+import { logger } from '../lib/logger';
 import { ExtractedMemory } from './types';
 import type { UserLLMProvider } from '../llm/user_preferences';
 
@@ -182,7 +183,7 @@ export async function extractMemories(
 
     return { memories, reminders };
   } catch (err) {
-    console.error('[Memory Extractor] Extraction failed:', err);
+    logger.error('[Memory Extractor] Extraction failed:', err);
     return { memories: [], reminders: [] };
   }
 }

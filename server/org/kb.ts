@@ -3,6 +3,7 @@
  */
 
 import * as EDB from './db';
+import { logger } from '../lib/logger';
 import { logAudit } from './db';
 import { generateEmbedding, cosineSimilarity } from '../memory/store';
 
@@ -73,7 +74,7 @@ export function createArticle(
     details: { title: article.title, category: article.category, status: article.status },
   });
   indexArticle(orgId, article.id).catch(err => {
-    console.error(`[KB] Failed to index article ${article.id}:`, err.message);
+    logger.error(`[KB] Failed to index article ${article.id}:`, err.message);
   });
   return article;
 }
@@ -99,7 +100,7 @@ export function updateArticle(
     if (updates.content || updates.title || updates.category || updates.tags) {
       EDB.deleteKbEmbeddings(articleId);
       indexArticle(orgId, articleId).catch(err => {
-        console.error(`[KB] Failed to re-index article ${articleId}:`, err.message);
+        logger.error(`[KB] Failed to re-index article ${articleId}:`, err.message);
       });
     }
   }
@@ -244,7 +245,7 @@ export async function indexArticle(orgId: string, articleId: string): Promise<nu
         await new Promise(r => setTimeout(r, 200));
       }
     } catch (err) {
-      console.error(`[KB] Failed to embed chunk ${i} of article ${articleId}:`, err);
+      logger.error(`[KB] Failed to embed chunk ${i} of article ${articleId}:`, err);
     }
   }
 

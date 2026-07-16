@@ -8,6 +8,7 @@
  */
 
 import { readDB, writeDB } from '../../db_layer';
+import { logger } from '../lib/logger';
 import * as EDB from './db';
 
 // ── Connection state ────────────────────────────────────────────────────
@@ -113,7 +114,7 @@ export function disconnectFromOrg(): void {
 export function switchDomain(domain: 'personal' | 'work'): void {
   bs().currentDomain = domain;
   saveBranchState();
-  console.log(`[Branch] Domain switched to: ${domain}`);
+  logger.info(`[Branch] Domain switched to: ${domain}`);
 }
 
 export function getCurrentDomain(): 'personal' | 'work' {

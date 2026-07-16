@@ -4,6 +4,7 @@
  * renders the mood layer.
  */
 import { Socket } from 'socket.io';
+import { logger } from '../lib/logger';
 import { getNcmPlaybackStateAsync, runNcmCliAsync } from '../music/ncm_cli';
 import { getNeteaseLyricText } from '../music/netease_public';
 
@@ -236,10 +237,10 @@ function socketGuard(fn: (...args: any[]) => void | Promise<void>) {
     try {
       const ret = fn(...args);
       if (ret && typeof (ret as any).catch === 'function') {
-        (ret as any).catch((e: any) => console.error('[Music] Handler error:', e.message || String(e)));
+        (ret as any).catch((e: any) => logger.error('[Music] Handler error:', e.message || String(e)));
       }
     } catch (e: any) {
-      console.error('[Music] Handler error:', e.message || String(e));
+      logger.error('[Music] Handler error:', e.message || String(e));
     }
   };
 }
@@ -410,7 +411,7 @@ export function registerMusicHandlers(
       stopStatePoller(uid);
       stopStatePoller(roomName);
       stopNativePlayback().catch((e: any) => {
-        console.warn('[Music] Failed to stop native playback after client disconnect:', e?.message || String(e));
+        logger.warn('[Music] Failed to stop native playback after client disconnect:', e?.message || String(e));
       });
     }, 1500);
   });

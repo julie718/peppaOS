@@ -1,4 +1,5 @@
 import os from "os";
+import { logger } from '../lib/logger';
 import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
@@ -422,7 +423,7 @@ function scanSoftwareProfile(): SoftwareProfile {
 }
 
 export function runFirstBootExploration(): SystemSnapshot {
-  console.log("[Explorer] First-boot exploration starting...");
+  logger.info("[Explorer] First-boot exploration starting...");
 
   const snapshot: SystemSnapshot = {
     id: `explore_${Date.now()}`,
@@ -442,9 +443,9 @@ export function runFirstBootExploration(): SystemSnapshot {
     if (profiles.length > 0) {
       saveProfessionProfile(profiles);
       professionSummary = ` | Professions: ${profiles.map(p => `${p.profession}(${Math.round(p.confidence * 100)}%)`).join(', ')}`;
-      console.log(`[Explorer] Detected professions:`, profiles.map(p => `${p.profession} (${Math.round(p.confidence * 100)}%)`).join(', '));
+      logger.info(`[Explorer] Detected professions:`, profiles.map(p => `${p.profession} (${Math.round(p.confidence * 100)}%)`).join(', '));
     }
-  } catch (err) { console.warn('[Explorer] Profession detection failed:', (err as Error).message); }
+  } catch (err) { logger.warn('[Explorer] Profession detection failed:', (err as Error).message); }
 
   // Persist
   const db = readDB();
@@ -458,12 +459,12 @@ export function runFirstBootExploration(): SystemSnapshot {
 
   writeDB(db);
 
-  console.log(`[Explorer] First-boot complete. Host: ${snapshot.hardware.hostname}, Apps: ${snapshot.software.installedApps.length}, Disks: ${snapshot.hardware.disks.length}${professionSummary}`);
+  logger.info(`[Explorer] First-boot complete. Host: ${snapshot.hardware.hostname}, Apps: ${snapshot.software.installedApps.length}, Disks: ${snapshot.hardware.disks.length}${professionSummary}`);
   return snapshot;
 }
 
 export function runDailyScan(): SystemSnapshot | null {
-  console.log("[Explorer] Daily scan starting...");
+  logger.info("[Explorer] Daily scan starting...");
 
   const db = readDB();
   const lastSnapshot = ((db as any).systemSnapshots || [])
@@ -528,7 +529,7 @@ export function runDailyScan(): SystemSnapshot | null {
 
   writeDB(db);
 
-  console.log(`[Explorer] Daily scan complete. ${snapshot.changeSummary}`);
+  logger.info(`[Explorer] Daily scan complete. ${snapshot.changeSummary}`);
   return snapshot;
 }
 

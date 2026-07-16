@@ -1,5 +1,6 @@
 // Polyfill WebSocket for Node.js (required by MCP SDK's WebSocket transport)
 import { WebSocket } from 'ws';
+import { logger } from '../lib/logger';
 globalThis.WebSocket = WebSocket as any;
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -269,7 +270,7 @@ class MCPClientManager {
         if (srcVersion === installedVersion) {
           return destDir; // Already up to date
         }
-        console.log(`[MCP] Upgrading "${name}" ${installedVersion} → ${srcVersion}`);
+        logger.info(`[MCP] Upgrading "${name}" ${installedVersion} → ${srcVersion}`);
         fs.rmSync(destDir, { recursive: true, force: true });
       } else {
         throw new Error(`Skill "${name}" already exists. Uninstall it first.`);
@@ -603,17 +604,17 @@ async function main() {
   if (mod.server) {
     const transport = new StdioServerTransport();
     await mod.server.connect(transport);
-    console.error('[npm-skill] ${packageName} ready');
+    logger.error('[npm-skill] ${packageName} ready');
   } else if (mod.default?.server) {
     const transport = new StdioServerTransport();
     await mod.default.server.connect(transport);
-    console.error('[npm-skill] ${packageName} ready (default export)');
+    logger.error('[npm-skill] ${packageName} ready (default export)');
   } else {
     // Fallback: let the package's entry point handle it (it should be self-booting)
-    console.error('[npm-skill] ${packageName} loaded (self-booting)');
+    logger.error('[npm-skill] ${packageName} loaded (self-booting)');
   }
 }
-main().catch((err) => { console.error('[npm-skill] Fatal:', err); process.exit(1); });
+main().catch((err) => { logger.error('[npm-skill] Fatal:', err); process.exit(1); });
 `;
       fs.writeFileSync(path.join(skillDir, 'index.ts'), wrapper);
       workspacePkg.peppa.toolCount = peppa.toolCount || 1;
@@ -651,7 +652,7 @@ main().catch((err) => { console.error('[npm-skill] Fatal:', err); process.exit(1
       }
     }
 
-    console.log(`[MCP] Cloning ${repoUrl} → ${skillDir}`);
+    logger.info(`[MCP] Cloning ${repoUrl} → ${skillDir}`);
     await new Promise<void>((resolve, reject) => {
       exec(`git clone --depth 1 "${repoUrl}" "${skillDir}"`, { timeout: 60000 }, (err) => {
         err ? reject(new Error(`Git clone failed: ${err.message}`)) : resolve();
@@ -686,10 +687,10 @@ main().catch((err) => { console.error('[npm-skill] Fatal:', err); process.exit(1
         cwd: dir,
       }, (error, _stdout, stderr) => {
         if (error) {
-          console.warn(`[MCP] npm install failed in ${path.basename(dir)}:`, stderr.trim() || error.message);
+          logger.warn(`[MCP] npm install failed in ${path.basename(dir)}:`, stderr.trim() || error.message);
           reject(new Error(stderr.trim() || error.message));
         } else {
-          console.log(`[MCP] Dependencies installed in ${path.basename(dir)}`);
+          logger.info(`[MCP] Dependencies installed in ${path.basename(dir)}`);
           resolve();
         }
       });
@@ -788,9 +789,9 @@ main().catch((err) => { console.error('[npm-skill] Fatal:', err); process.exit(1
       cwd: dir,
     }, (error, _stdout, stderr) => {
       if (error) {
-        console.warn(`[MCP] npm install failed in ${dir}:`, stderr.trim() || error.message);
+        logger.warn(`[MCP] npm install failed in ${dir}:`, stderr.trim() || error.message);
       } else {
-        console.log(`[MCP] Dependencies installed in ${path.basename(dir)}`);
+        logger.info(`[MCP] Dependencies installed in ${path.basename(dir)}`);
       }
     });
   }
@@ -842,7 +843,7 @@ main().catch((err) => { console.error('[npm-skill] Fatal:', err); process.exit(1
     for (const [serverName, serverConfig] of Object.entries(finalConfig)) {
       if (!serverConfig.enabled) continue;
       if (this.isMissingRequiredApiKey(serverConfig)) {
-        console.log(`[MCP] ${serverName}: skipped (missing ${serverConfig.apiKeyEnv})`);
+        logger.info(`[MCP] ${serverName}: skipped (missing ${serverConfig.apiKeyEnv})`);
         continue;
       }
 
@@ -856,12 +857,12 @@ main().catch((err) => { console.error('[npm-skill] Fatal:', err); process.exit(1
           this.saveConfig(finalConfig);
         }
 
-        console.log(`[MCP] ${serverName}: ${tools.length} tools discovered (${serverConfig.source || 'external'})`);
+        logger.info(`[MCP] ${serverName}: ${tools.length} tools discovered (${serverConfig.source || 'external'})`);
       } catch (err: any) {
-        console.warn(`[MCP] Failed to connect to ${serverName}: ${err.message}`);
+        logger.warn(`[MCP] Failed to connect to ${serverName}: ${err.message}`);
         if (serverConfig.source === 'local') {
           this.recordStartupFailure(serverName, err);
-          console.warn(`[MCP] Local skill "${serverName}" failed to start. Keeping it enabled and marking health for repair.`);
+          logger.warn(`[MCP] Local skill "${serverName}" failed to start. Keeping it enabled and marking health for repair.`);
         }
       }
     }
@@ -949,7 +950,7 @@ main().catch((err) => { console.error('[npm-skill] Fatal:', err); process.exit(1
       }
       // If server still in map, this is an unexpected crash
       if (self.servers.has(name)) {
-        console.log(`[MCP] CRASH DETECTED: "${name}" process exited unexpectedly`);
+        logger.info(`[MCP] CRASH DETECTED: "${name}" process exited unexpectedly`);
         self.servers.delete(name);
         const tracker = self.crashTrackers.get(name);
         if (tracker) {
@@ -961,7 +962,7 @@ main().catch((err) => { console.error('[npm-skill] Fatal:', err); process.exit(1
     };
 
     transport.onerror = (error: Error) => {
-      console.error(`[MCP] Error in "${name}" transport:`, error.message);
+      logger.error(`[MCP] Error in "${name}" transport:`, error.message);
     };
 
     // Reset crash counter on successful connect
@@ -1054,14 +1055,14 @@ main().catch((err) => { console.error('[npm-skill] Fatal:', err); process.exit(1
 
     // Max 5 consecutive crashes before giving up
     if (tracker.consecutiveCrashes >= 5) {
-      console.error(`[MCP] "${name}" crashed ${tracker.consecutiveCrashes} times — giving up. Manual intervention required.`);
+      logger.error(`[MCP] "${name}" crashed ${tracker.consecutiveCrashes} times — giving up. Manual intervention required.`);
       return;
     }
 
     const delay = Math.min(1000 * Math.pow(2, tracker.consecutiveCrashes), 60000);
     tracker.consecutiveCrashes++;
 
-    console.log(`[MCP] Scheduling restart for "${name}" in ${delay}ms (crash #${tracker.consecutiveCrashes})`);
+    logger.info(`[MCP] Scheduling restart for "${name}" in ${delay}ms (crash #${tracker.consecutiveCrashes})`);
 
     tracker.restartTimer = setTimeout(async () => {
       tracker.restartTimer = null;
@@ -1069,12 +1070,12 @@ main().catch((err) => { console.error('[npm-skill] Fatal:', err); process.exit(1
         const config = this.getConfig();
         const serverConfig = config[name];
         if (!serverConfig || !serverConfig.enabled) {
-          console.log(`[MCP] Server "${name}" is now disabled, skipping restart`);
+          logger.info(`[MCP] Server "${name}" is now disabled, skipping restart`);
           return;
         }
 
         const tools = await this.connectServer(name, serverConfig);
-        console.log(`[MCP] "${name}" restarted successfully with ${tools.length} tools`);
+        logger.info(`[MCP] "${name}" restarted successfully with ${tools.length} tools`);
 
         tracker.consecutiveCrashes = 0;
         tracker.lastSuccessfulConnect = new Date().toISOString();
@@ -1082,7 +1083,7 @@ main().catch((err) => { console.error('[npm-skill] Fatal:', err); process.exit(1
         this.onServerRecovered?.(name, tools);
       } catch (err: any) {
         tracker.lastError = String(err?.message || err);
-        console.error(`[MCP] Restart attempt for "${name}" failed: ${err.message}`);
+        logger.error(`[MCP] Restart attempt for "${name}" failed: ${err.message}`);
       }
       this.broadcastHealth();
     }, delay);

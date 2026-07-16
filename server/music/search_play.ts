@@ -4,6 +4,7 @@
  * and VIP access are respected. The frontend mood layer mirrors state/control.
  */
 import { loadEmotionalState } from '../personality/state';
+import { logger } from '../lib/logger';
 import { emitMusicAtmosphere } from '../socket/music';
 import { getFallbackScene, MusicScene } from './scene_generator';
 import { getNcmPlaybackStateAsync, runNcmCliAsync } from './ncm_cli';
@@ -69,7 +70,7 @@ function tryParse(text: string): any {
 
 async function ncmExec(args: string[], timeout = 15000): Promise<string> {
   const result = await runNcmCliAsync(args, timeout);
-  if (!result.ok) console.warn('[Music] ncm-cli error:', result.error || result.stderr || result.stdout);
+  if (!result.ok) logger.warn('[Music] ncm-cli error:', result.error || result.stderr || result.stdout);
   return result.stdout;
 }
 
@@ -126,7 +127,7 @@ async function queueNcmSongs(songs: any[]): Promise<void> {
   if (!queueCandidates.length) return;
 
   if (queueAddTask) {
-    console.log('[Music] Skipping native queue add because a previous queue task is still running');
+    logger.info('[Music] Skipping native queue add because a previous queue task is still running');
     return;
   }
 
@@ -141,7 +142,7 @@ async function queueNcmSongs(songs: any[]): Promise<void> {
         item.ids.originalId,
       ], 8000);
       if (!result.ok) {
-        console.warn('[Music] Failed to add queue candidate:', result.error || result.stderr || result.stdout);
+        logger.warn('[Music] Failed to add queue candidate:', result.error || result.stderr || result.stdout);
       }
       await delay(250);
     }
@@ -329,7 +330,7 @@ async function pickAndPlay(
 
   const playableWithIds = await hydrateNcmPlayableSongs(playable, 20);
   if (playableWithIds.length === 0) return { success: false, reason: '没有找到带网易云播放 ID 的候选歌曲。' };
-  console.log(`[Music] ${source}: ${playableWithIds.length} account-playable candidates from ${candidates.length} candidates`);
+  logger.info(`[Music] ${source}: ${playableWithIds.length} account-playable candidates from ${candidates.length} candidates`);
 
   const pick = playableWithIds[Math.floor(Math.random() * playableWithIds.length)];
   const { encryptedId, originalId } = getSongIds(pick);
@@ -351,7 +352,7 @@ async function pickAndPlay(
     return items;
   }, [] as Array<{ track: ReturnType<typeof normalizeTrack>; encryptedId: string; originalId: string }>);
 
-  console.log(`[Music] Selected and started through NetEase account playback: "${trackInfo.name}"`);
+  logger.info(`[Music] Selected and started through NetEase account playback: "${trackInfo.name}"`);
 
   const emotionalState = loadEmotionalState(userId);
   let lyricsData: any[] = [];
@@ -376,7 +377,7 @@ async function pickAndPlay(
   const moodReason = moodReasonMap[mood] || '根据你现在的状态';
   const peppaReason = `${moodReason}，给你放一首《${trackInfo.name}》，希望你喜欢。`;
 
-  console.log(`[Music] Scene: ${scene.scene}, particles=${scene.particles}, nativePlayback=true`);
+  logger.info(`[Music] Scene: ${scene.scene}, particles=${scene.particles}, nativePlayback=true`);
   emitMusicAtmosphere(socket, {
     track: trackInfo,
     mood,
@@ -444,7 +445,7 @@ export async function searchAndPlay(
   if (userText) {
     const target = extractTarget(userText);
     if (target) {
-      console.log(`[Music] User target: "${target}"`);
+      logger.info(`[Music] User target: "${target}"`);
       const songs = await searchSongsByKeyword(target, 20);
       if (songs.length > 0) return pickAndPlay(socket, userId, mood, songs, 'search');
       return { success: false, reason: `没有搜索到“${target}”的可播放结果。` };

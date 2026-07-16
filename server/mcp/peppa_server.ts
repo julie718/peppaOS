@@ -6,6 +6,7 @@
  * and receive responses via SSE at /mcp/sse
  */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { logger } from '../lib/logger';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { z } from 'zod';
 import { queryMemories, addMemory, getDueReminders, buildNarrativeChain, borrowAgentMemories } from '../memory';
@@ -22,7 +23,6 @@ import { formatLAPSelfPrompt } from '../lap/policy';
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
-import { logger } from '../../logger';
 import type { Request, Response } from 'express';
 
 // Track active transports per session
@@ -126,7 +126,7 @@ export function createPeppaMcpServer(llmGetters?: {
           response = await Promise.race([responsePromise, timeoutPromise]);
         } catch (e: any) {
           if (e.message === 'MCP_TIMEOUT') {
-            console.log('[MCP peppa_chat] Timeout — continuing in background');
+            logger.info('[MCP peppa_chat] Timeout — continuing in background');
             bc('mcp:activity', { device: 'xiaozhi', action: 'chat', status: 'timeout' });
             bc('agent:status', { status: 'idle', agentName: 'Peppa' });
             responsePromise.then(() => {
@@ -169,7 +169,7 @@ export function createPeppaMcpServer(llmGetters?: {
         bc('mcp:activity', { device: 'xiaozhi', action: 'chat', status: 'responded', toolCalls: response.toolCalls.length });
         bc('agent:response', { text: response.text, agentName: 'Peppa' });
         bc('agent:status', { status: 'idle', agentName: 'Peppa' });
-        console.log('[MCP peppa_chat] Response length:', response.text.length, 'chars, toolCalls:', response.toolCalls.length);
+        logger.info('[MCP peppa_chat] Response length:', response.text.length, 'chars, toolCalls:', response.toolCalls.length);
 
         // Synthesize TTS audio so xiaozhi can speak with Peppa's voice
         let audioBase64: string | undefined;
@@ -182,7 +182,7 @@ export function createPeppaMcpServer(llmGetters?: {
           audioFormat = ttsResult.format;
           bc('mcp:activity', { device: 'xiaozhi', action: 'tts', status: 'synthesized', bytes: ttsResult.audioBuffer.length });
         } catch (ttsErr: any) {
-          console.error('[MCP TTS] Synthesis failed:', ttsErr.message);
+          logger.error('[MCP TTS] Synthesis failed:', ttsErr.message);
         }
 
         return {

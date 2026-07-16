@@ -1,6 +1,7 @@
 // Spatiotemporal unification — cross-analyze time + location for pattern detection
 
 import { readDB } from '../../db_layer';
+import { logger } from '../lib/logger';
 import { getUserNow, getDateString, getDayOfWeekCN, getTimeOfDay, getSeasonInfo, getNearbyHoliday, getMonthDay, isWeekend, hoursSince, formatDuration } from './utils';
 import { queryMemories } from '../memory/store';
 
@@ -122,7 +123,7 @@ export function detectSpatiotemporalPatterns(userId: string): SpatiotemporalPatt
       }
     }
   } catch (err) {
-    console.warn('[Spatiotemporal] Pattern detection failed:', err);
+    logger.warn('[Spatiotemporal] Pattern detection failed:', err);
   }
 
   return patterns;

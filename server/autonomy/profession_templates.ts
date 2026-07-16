@@ -3,6 +3,7 @@
  * Each template creates a domain-specialist agent with tailored tools and knowledge.
  */
 import { readDB, writeDB } from "../../db_layer";
+import { logger } from '../lib/logger';
 
 interface AgentTemplate {
   name: string;
@@ -253,6 +254,6 @@ export function installProfessionAgents(orgId?: string): number {
   (db as any).installedProfessions = installed;
   writeDB(db);
 
-  if (total > 0) console.log(`[Profession] Installed ${total} profession agents`);
+  if (total > 0) logger.info(`[Profession] Installed ${total} profession agents`);
   return total;
 }

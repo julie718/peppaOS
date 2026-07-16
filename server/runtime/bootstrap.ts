@@ -1,4 +1,5 @@
 import path from "path";
+import { logger } from '../lib/logger';
 import fs from "fs";
 import { spawn, ChildProcess } from "child_process";
 import { readDB, writeDB, flushDB, ensureDatabaseInitialized, isDbDirty, pruneOldData } from "../../db_layer";
@@ -27,14 +28,14 @@ function scheduleFirstBootExploration(delayMs = 30000) {
   const timer = setTimeout(() => {
     try {
       if (!isFirstBootComplete()) {
-        console.log('[Bootstrap] First boot detected - running system exploration after server startup...');
+        logger.info('[Bootstrap] First boot detected - running system exploration after server startup...');
         const snapshot = runFirstBootExploration();
-        console.log(`[Bootstrap] Exploration complete: ${snapshot.hardware.cpus.model}, ${snapshot.hardware.totalMemoryGB}GB RAM, ${snapshot.software.installedApps.length} apps, ${snapshot.filesystem.totalUserFiles} user files`);
+        logger.info(`[Bootstrap] Exploration complete: ${snapshot.hardware.cpus.model}, ${snapshot.hardware.totalMemoryGB}GB RAM, ${snapshot.software.installedApps.length} apps, ${snapshot.filesystem.totalUserFiles} user files`);
         const installed = installProfessionAgents();
-        if (installed > 0) console.log(`[Bootstrap] Installed ${installed} profession agents`);
+        if (installed > 0) logger.info(`[Bootstrap] Installed ${installed} profession agents`);
       }
     } catch (err) {
-      console.warn('[Bootstrap] System exploration failed:', (err as Error).message);
+      logger.warn('[Bootstrap] System exploration failed:', (err as Error).message);
     }
   }, delayMs);
   if (typeof (timer as any).unref === 'function') (timer as any).unref();
@@ -44,8 +45,8 @@ function schedulePostStartupFlush(delayMs: number) {
   const timer = setTimeout(() => {
     if (!isDbDirty()) return;
     flushDB()
-      .then(() => console.log(`[Bootstrap] Database flushed after startup writes (${delayMs}ms)`))
-      .catch((err: any) => console.warn('[Bootstrap] Post-startup database flush failed:', err?.message || err));
+      .then(() => logger.info(`[Bootstrap] Database flushed after startup writes (${delayMs}ms)`))
+      .catch((err: any) => logger.warn('[Bootstrap] Post-startup database flush failed:', err?.message || err));
   }, delayMs);
   if (typeof (timer as any).unref === 'function') (timer as any).unref();
 }
@@ -54,17 +55,17 @@ export async function bootstrap(ctx: BootstrapContext) {
   const { server, io, PORT, HOST, jwtSecret, llm, __dirname } = ctx;
 
   if (!jwtSecret) {
-    console.error('FATAL: JWT_SECRET environment variable is not set.');
+    logger.error('FATAL: JWT_SECRET environment variable is not set.');
     process.exit(1);
   }
 
   try {
     await ensureDatabaseInitialized();
-    console.log('Database initialized successfully');
+    logger.info('Database initialized successfully');
     pruneOldData();
     await flushDB();
   } catch (error) {
-    console.error('Failed to initialize database:', error);
+    logger.error('Failed to initialize database:', error);
     process.exit(1);
   }
 
@@ -73,15 +74,15 @@ export async function bootstrap(ctx: BootstrapContext) {
 
   // Register all agent tools
   registerAllTools(toolRegistry, { getDeepSeek: llm.getDeepSeek, getGemini: llm.getGemini, getOpenAI: llm.getOpenAI, getAnthropic: llm.getAnthropic, getQwen: llm.getQwen });
-  console.log(`[Tools] Registered ${toolRegistry.list().length} built-in tools`);
+  logger.info(`[Tools] Registered ${toolRegistry.list().length} built-in tools`);
 
   // Register MCP tools (non-blocking)
   registerMCPTools(io).then(mcpTools => {
     if (mcpTools.length > 0) {
-      console.log(`[MCP] Registered ${mcpTools.length} MCP tools (total: ${toolRegistry.list().length})`);
+      logger.info(`[MCP] Registered ${mcpTools.length} MCP tools (total: ${toolRegistry.list().length})`);
     }
   }).catch(err => {
-    console.warn('[MCP] Tool registration warning:', err.message);
+    logger.warn('[MCP] Tool registration warning:', err.message);
   });
 
   // Start GPT-SoVITS API server (optional)
@@ -90,7 +91,7 @@ export async function bootstrap(ctx: BootstrapContext) {
   const pythonExe = path.join(gptSovitsDir, 'venv/Scripts/python.exe');
   const apiPy = path.join(gptSovitsDir, 'api_v2.py');
   if (fs.existsSync(pythonExe) && fs.existsSync(apiPy)) {
-    console.log('[GPT-SoVITS] Starting API server...');
+    logger.info('[GPT-SoVITS] Starting API server...');
     gptSovitsProcess = spawn(pythonExe, [
       apiPy,
       '-a', '127.0.0.1',
@@ -102,35 +103,35 @@ export async function bootstrap(ctx: BootstrapContext) {
     });
     gptSovitsProcess.stdout?.on('data', (d: Buffer) => {
       const line = d.toString().trim();
-      if (line) console.log(`[GPT-SoVITS] ${line}`);
+      if (line) logger.info(`[GPT-SoVITS] ${line}`);
     });
     gptSovitsProcess.stderr?.on('data', (d: Buffer) => {
       const line = d.toString().trim();
-      if (line) console.warn(`[GPT-SoVITS] ${line}`);
+      if (line) logger.warn(`[GPT-SoVITS] ${line}`);
     });
     gptSovitsProcess.on('error', (err) => {
-      console.warn('[GPT-SoVITS] Process error:', err.message);
+      logger.warn('[GPT-SoVITS] Process error:', err.message);
       gptSovitsProcess = null;
     });
     gptSovitsProcess.on('exit', (code) => {
-      if (code && code !== 0) console.warn(`[GPT-SoVITS] Exited with code ${code}`);
+      if (code && code !== 0) logger.warn(`[GPT-SoVITS] Exited with code ${code}`);
       gptSovitsProcess = null;
     });
   } else {
-    console.log('[GPT-SoVITS] Not found — TTS will use cloud providers only.');
+    logger.info('[GPT-SoVITS] Not found — TTS will use cloud providers only.');
   }
 
   server.on('error', (err: NodeJS.ErrnoException) => {
     if (err.code === 'EADDRINUSE') {
-      console.error(`[FATAL] Port ${PORT} is already in use. Please close the other process and try again.`);
+      logger.error(`[FATAL] Port ${PORT} is already in use. Please close the other process and try again.`);
     } else {
-      console.error('[FATAL] Server error:', err.message);
+      logger.error('[FATAL] Server error:', err.message);
     }
     process.exit(1);
   });
 
   server.listen(PORT, HOST, () => {
-    console.log(`Server running on http://${HOST}:${PORT}`);
+    logger.info(`Server running on http://${HOST}:${PORT}`);
     scheduler.setIO(io);
     registerScheduledTasks(llm.getDeepSeek, llm.getGemini, llm.getOpenAI, llm.getAnthropic, llm.getQwen, llm.getOllama, llm.getLmStudio, llm.getArk, llm.getXiaomi, llm.getKimi, llm.getGlm, llm.getRelay);
 
@@ -142,7 +143,7 @@ export async function bootstrap(ctx: BootstrapContext) {
         db.agents = db.agents.filter((a: any) => !a.id.startsWith('ephemeral_'));
         if (before !== db.agents.length) {
           writeDB(db);
-          console.log(`[Bootstrap] Cleaned ${before - db.agents.length} ephemeral agents`);
+          logger.info(`[Bootstrap] Cleaned ${before - db.agents.length} ephemeral agents`);
         }
       }
     } catch {}
@@ -155,9 +156,9 @@ export async function bootstrap(ctx: BootstrapContext) {
       for (const org of orgs) {
         total += installLegalTemplates(org.id);
       }
-      if (total > 0) console.log(`[Org] Installed ${total} legal agent templates across ${orgs.length} org(s)`);
+      if (total > 0) logger.info(`[Org] Installed ${total} legal agent templates across ${orgs.length} org(s)`);
     }).catch((err: any) => {
-      console.warn('[Org] Failed to install legal templates:', err.message);
+      logger.warn('[Org] Failed to install legal templates:', err.message);
     });
 
     import('../design/templates').then(({ installDesignTemplates }) => {
@@ -167,9 +168,9 @@ export async function bootstrap(ctx: BootstrapContext) {
       for (const org of orgs) {
         total += installDesignTemplates(org.id);
       }
-      if (total > 0) console.log(`[Org] Installed ${total} design agent templates across ${orgs.length} org(s)`);
+      if (total > 0) logger.info(`[Org] Installed ${total} design agent templates across ${orgs.length} org(s)`);
     }).catch((err: any) => {
-      console.warn('[Org] Failed to install design templates:', err.message);
+      logger.warn('[Org] Failed to install design templates:', err.message);
     });
 
     scheduleFirstBootExploration();
@@ -182,20 +183,20 @@ export async function bootstrap(ctx: BootstrapContext) {
   const cleanup = async () => {
     if (cleaningUp) return;
     cleaningUp = true;
-    console.log('[Shutdown] Cleaning up...');
+    logger.info('[Shutdown] Cleaning up...');
     scheduler.stop();
     try {
       await flushDB();
-      console.log('[Shutdown] Database flushed');
+      logger.info('[Shutdown] Database flushed');
     } catch {}
     try {
       await mcpManager.disconnectAll();
-      console.log('[MCP] All servers disconnected');
+      logger.info('[MCP] All servers disconnected');
     } catch (err: any) {
-      console.warn('[MCP] Disconnect error:', err.message);
+      logger.warn('[MCP] Disconnect error:', err.message);
     }
     if (gptSovitsProcess && !gptSovitsProcess.killed) {
-      console.log('[GPT-SoVITS] Stopping API server...');
+      logger.info('[GPT-SoVITS] Stopping API server...');
       gptSovitsProcess.kill();
     }
   };

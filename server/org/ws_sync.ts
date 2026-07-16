@@ -7,6 +7,7 @@
  */
 
 import { Server as SocketIOServer, Socket } from 'socket.io';
+import { logger } from '../lib/logger';
 import jwt from 'jsonwebtoken';
 import { getMember } from './db';
 import { removeBranchHeartbeat } from './main_api';
@@ -35,7 +36,7 @@ export function attachOrgWs(server: SocketIOServer) {
       socket.join(`org:${orgId}`);
       socket.data.orgId = orgId;
       socket.data.userId = userId;
-      console.log(`[WS:Org] ${userId} joined org:${orgId} on socket ${socket.id}`);
+      logger.info(`[WS:Org] ${userId} joined org:${orgId} on socket ${socket.id}`);
     }
 
     // ── Branch heartbeat ──────────────────────────────────────────────
@@ -82,7 +83,7 @@ export function attachOrgWs(server: SocketIOServer) {
         }
       }
       if (socket.data.orgId) {
-        console.log(`[WS:Org] ${userId} left org:${socket.data.orgId}`);
+        logger.info(`[WS:Org] ${userId} left org:${socket.data.orgId}`);
       }
     });
   });

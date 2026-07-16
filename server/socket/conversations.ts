@@ -1,4 +1,5 @@
 import { Socket } from "socket.io";
+import { logger } from '../lib/logger';
 import jwt from "jsonwebtoken";
 import { readDB } from "../../db_layer";
 
@@ -55,7 +56,7 @@ export function registerConversationHandlers(socket: Socket, getUserId: (s: Sock
 
       socket.emit("chat:conversations", { conversations: list });
     } catch (err) {
-      console.error("[chat:conversations] Error:", err);
+      logger.error("[chat:conversations] Error:", err);
       socket.emit("chat:conversations", { conversations: [] });
     }
   });
@@ -112,7 +113,7 @@ export function registerConversationHandlers(socket: Socket, getUserId: (s: Sock
       }
       socket.emit("chat:messages", { conversationId: data.conversationId, messages });
     } catch (err) {
-      console.error("[chat:messages] Error:", err);
+      logger.error("[chat:messages] Error:", err);
       socket.emit("chat:messages", { conversationId: data.conversationId, messages: [] });
     }
   });

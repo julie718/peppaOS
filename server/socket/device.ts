@@ -1,4 +1,5 @@
 import { Socket, Server } from "socket.io";
+import { logger } from '../lib/logger';
 import { deviceRegistry } from "../devices";
 import { registerUserSocket, unregisterUserSocket } from "../memory";
 
@@ -7,10 +8,10 @@ function socketGuard(fn: (...args: any[]) => void | Promise<void>) {
     try {
       const ret = fn(...args);
       if (ret && typeof (ret as any).catch === 'function') {
-        (ret as any).catch((e: any) => console.error('[Device] Handler error:', e.message || String(e)));
+        (ret as any).catch((e: any) => logger.error('[Device] Handler error:', e.message || String(e)));
       }
     } catch (e: any) {
-      console.error('[Device] Handler error:', e.message || String(e));
+      logger.error('[Device] Handler error:', e.message || String(e));
     }
   };
 }

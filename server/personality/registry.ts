@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { logger } from '../lib/logger';
 import path from 'path';
 import { PersonalityConfig, PersonalityContext, PersonalityEvolutionAudit } from './types';
 import { generateSystemPrompt, initVectorFromStyle, vectorToTone, vectorToVerbosity, constrainVectorPairs } from './engine';
@@ -40,7 +41,7 @@ class PersonalityRegistry {
     }
 
     if (!loadedFrom) {
-      console.warn('[Personality] Config not found, using built-in defaults');
+      logger.warn('[Personality] Config not found, using built-in defaults');
       this.loadBuiltins();
       this.loaded = true;
       return;
@@ -51,9 +52,9 @@ class PersonalityRegistry {
       for (const config of configs) {
         this.personalities.set(config.id, config);
       }
-      console.log(`[Personality] Loaded ${this.personalities.size} personalities`);
+      logger.info(`[Personality] Loaded ${this.personalities.size} personalities`);
     } catch (err) {
-      console.error('[Personality] Failed to parse config:', err);
+      logger.error('[Personality] Failed to parse config:', err);
       this.loadBuiltins();
     }
 
@@ -92,7 +93,7 @@ class PersonalityRegistry {
       },
     };
     this.personalities.set('peppa', peppa);
-    console.log('[Personality] Loaded built-in fallback personality');
+    logger.info('[Personality] Loaded built-in fallback personality');
   }
 
   /** Force-reload personalities from disk */
@@ -174,7 +175,7 @@ class PersonalityRegistry {
       });
     }
 
-    console.log(`[Personality] ${config.name} evolved to ${step.version}: ${step.mutations.length} mutation(s)`);
+    logger.info(`[Personality] ${config.name} evolved to ${step.version}: ${step.mutations.length} mutation(s)`);
     return config;
   }
 
@@ -338,7 +339,7 @@ class PersonalityRegistry {
         return;
       } catch {}
     }
-    console.error('[Personality] Failed to save config');
+    logger.error('[Personality] Failed to save config');
   }
 
   /**
@@ -419,7 +420,7 @@ class PersonalityRegistry {
       changes,
       newVersion: config.version,
     });
-    console.log(`[Personality] ${config.name} identity corrected to ${config.version}`);
+    logger.info(`[Personality] ${config.name} identity corrected to ${config.version}`);
     return true;
   }
 

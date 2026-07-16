@@ -1,4 +1,5 @@
 import { readDB, writeDB } from '../../db_layer';
+import { logger } from '../lib/logger';
 import { DeviceInfo, DeviceType, DeviceCapabilities } from './types';
 
 class DeviceRegistry {
@@ -75,7 +76,7 @@ class DeviceRegistry {
 
     this.devices.set(id, device);
     this.broadcastCb?.('devices:update', device);
-    console.log(`[Devices] Registered: ${device.name} (${device.type}) for user ${userId}`);
+    logger.info(`[Devices] Registered: ${device.name} (${device.type}) for user ${userId}`);
     return device;
   }
 
@@ -86,7 +87,7 @@ class DeviceRegistry {
         device.socketId = null;
         device.lastSeen = new Date().toISOString();
         this.broadcastCb?.('devices:update', device);
-        console.log(`[Devices] Disconnected: ${device.name}`);
+        logger.info(`[Devices] Disconnected: ${device.name}`);
         return;
       }
     }
@@ -161,7 +162,7 @@ class DeviceRegistry {
 
     this.devices.set(id, device);
     this.broadcastCb?.('devices:update', device);
-    console.log(`[Devices] MCP device registered: ${name}`);
+    logger.info(`[Devices] MCP device registered: ${name}`);
     return device;
   }
 
@@ -173,7 +174,7 @@ class DeviceRegistry {
       device.status = 'offline';
       device.lastSeen = new Date().toISOString();
       this.broadcastCb?.('devices:update', device);
-      console.log(`[Devices] MCP device offline: ${name}`);
+      logger.info(`[Devices] MCP device offline: ${name}`);
     }
   }
 

@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { logger } from '../lib/logger';
 
 let supabaseClient: SupabaseClient | null = null;
 
@@ -52,12 +53,12 @@ export async function syncUserToSupabase(uid: string, username: string, password
       .single();
 
     if (error) {
-      console.error('[Supabase] Sync user failed:', error.message);
+      logger.error('[Supabase] Sync user failed:', error.message);
       return null;
     }
     return data.id;
   } catch (err: any) {
-    console.error('[Supabase] Sync error:', err.message);
+    logger.error('[Supabase] Sync error:', err.message);
     return null;
   }
 }

@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { logger } from '../lib/logger';
 import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getKey } from "../config/keys";
@@ -148,7 +149,7 @@ async function detectOllama(): Promise<boolean> {
         !m.name.includes('embed') && !m.name.includes('whisper')
       );
       ollamaDetected = hasLLM;
-      console.log(`[LLM] Ollama detected — ${models.length} models (${hasLLM ? 'LLM available' : 'no LLM models found'})`);
+      logger.info(`[LLM] Ollama detected — ${models.length} models (${hasLLM ? 'LLM available' : 'no LLM models found'})`);
       return hasLLM;
     }
   } catch {
@@ -229,7 +230,7 @@ async function detectLmStudio(): Promise<boolean> {
       const models = data.data || [];
       const hasLLM = models.length > 0;
       lmstudioDetected = hasLLM;
-      console.log(`[LLM] LM Studio detected — ${models.length} models`);
+      logger.info(`[LLM] LM Studio detected — ${models.length} models`);
       return hasLLM;
     }
   } catch { /* LM Studio not running */ }

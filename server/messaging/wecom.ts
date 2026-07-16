@@ -9,6 +9,7 @@
  *   5. Subscribe to message events in app permissions
  */
 import crypto from 'crypto';
+import { logger } from '../lib/logger';
 import type {
   MessageAdapter,
   IncomingMessage,
@@ -87,7 +88,7 @@ export class WeComAdapter implements MessageAdapter {
     const receiveid = content.subarray(4 + msgLen).toString('utf-8');
     // Verify receiveid matches corpId (handles both corpId format: plain ID or with wx prefix)
     if (receiveid && !receiveid.includes(this.config.corpId) && !this.config.corpId.includes(receiveid)) {
-      console.warn('[WeCom] receiveid mismatch — expected:', this.config.corpId, 'got:', receiveid);
+      logger.warn('[WeCom] receiveid mismatch — expected:', this.config.corpId, 'got:', receiveid);
     }
     return xml;
   }
@@ -104,8 +105,8 @@ export class WeComAdapter implements MessageAdapter {
     const expected = this.sha1(this.config.token, timestamp, nonce, echostr || '');
     const match = expected === msg_signature;
     if (!match) {
-      console.log('[WeCom] SIG MISMATCH — expected:', expected.slice(0, 20), 'got:', msg_signature.slice(0, 20));
-      console.log('[WeCom] token:', this.config.token?.slice(0, 5) + '***', 'ts:', timestamp, 'nonce:', nonce);
+      logger.info('[WeCom] SIG MISMATCH — expected:', expected.slice(0, 20), 'got:', msg_signature.slice(0, 20));
+      logger.info('[WeCom] token:', this.config.token?.slice(0, 5) + '***', 'ts:', timestamp, 'nonce:', nonce);
     }
     return match;
   }
@@ -117,7 +118,7 @@ export class WeComAdapter implements MessageAdapter {
     // Validate corpId is in the decrypted message
     const parsed = this.extractXml(plaintext);
     const appId = parsed && this.getTag(parsed, 'ToUserName');
-    console.log('[WeCom] Decrypted — appId/ToUserName:', appId, 'corpId:', this.config.corpId);
+    logger.info('[WeCom] Decrypted — appId/ToUserName:', appId, 'corpId:', this.config.corpId);
     return plaintext;
   }
 
@@ -186,7 +187,7 @@ export class WeComAdapter implements MessageAdapter {
 
     const data: any = await res.json();
     if (data.errcode !== 0) {
-      console.error(`[WeCom] Send error [${data.errcode}]: ${data.errmsg}`);
+      logger.error(`[WeCom] Send error [${data.errcode}]: ${data.errmsg}`);
       throw new Error(`WeCom send failed: ${data.errmsg}`);
     }
     return data.msgid || '';
@@ -214,7 +215,7 @@ export class WeComAdapter implements MessageAdapter {
 
     const data: any = await res.json();
     if (data.errcode !== 0) {
-      console.error(`[WeCom] Card send error [${data.errcode}]: ${data.errmsg}`);
+      logger.error(`[WeCom] Card send error [${data.errcode}]: ${data.errmsg}`);
       throw new Error(`WeCom card send failed: ${data.errmsg}`);
     }
     return data.msgid || '';

@@ -8,6 +8,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../lib/logger';
 import jwt from 'jsonwebtoken';
 
 export interface AuthUser {
@@ -150,6 +151,6 @@ export function requireBiometric(req: Request, res: Response, next: NextFunction
   }
   // Phase 3+: check biometric session token / presence heartbeat
   // For now: log and pass through (soft enforcement)
-  console.log(`[Biometric] requireBiometric check for ${req.user.uid} — soft pass (not yet enforced)`);
+  logger.info(`[Biometric] requireBiometric check for ${req.user.uid} — soft pass (not yet enforced)`);
   next();
 }

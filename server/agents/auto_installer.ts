@@ -3,6 +3,7 @@
  * and silently installs/upgrades them so Peppa can use them immediately.
  */
 import path from 'path';
+import { logger } from '../lib/logger';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { getDataPath } from '../config/data_path';
@@ -141,16 +142,16 @@ export async function autoInstallForTask(userText: string, io?: { emit: (event: 
 
     try {
       const actionVerb = action === 'upgraded' ? '升级' : '安装';
-      console.log(`[AutoInstall] ${actionVerb} "${displayName}" for task: "${userText.slice(0, 80)}"`);
+      logger.info(`[AutoInstall] ${actionVerb} "${displayName}" for task: "${userText.slice(0, 80)}"`);
 
 
       // Install or upgrade — allowUpgrade=true handles both cases
       const installDir = mcpManager.installSkill(dirName, bundledPath, true);
-      console.log(`[AutoInstall] ${actionVerb}完成: ${installDir}`);
+      logger.info(`[AutoInstall] ${actionVerb}完成: ${installDir}`);
 
       // Restart MCP server to pick up changed tools
       const tools = await mcpManager.restartServer(dirName);
-      console.log(`[AutoInstall] Server ready with ${tools.length} tools`);
+      logger.info(`[AutoInstall] Server ready with ${tools.length} tools`);
 
       // Record install (even for upgrades, to update stats)
       recordInstall(entry.skillId);
@@ -170,9 +171,9 @@ export async function autoInstallForTask(userText: string, io?: { emit: (event: 
         reason: action === 'upgraded' ? `已自动升级 ${displayName}` : `已自动安装 ${displayName}`,
       });
 
-      console.log(`[AutoInstall] Done: ${displayName} (${action})`);
+      logger.info(`[AutoInstall] Done: ${displayName} (${action})`);
     } catch (err: any) {
-      console.warn(`[AutoInstall] Failed: "${displayName}": ${err.message}`);
+      logger.warn(`[AutoInstall] Failed: "${displayName}": ${err.message}`);
       results.push({
         skillId: entry.skillId,
         skillName: displayName,

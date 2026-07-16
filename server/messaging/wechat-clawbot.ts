@@ -11,6 +11,7 @@
  */
 
 import crypto from 'crypto';
+import { logger } from '../lib/logger';
 import type {
   MessageAdapter,
   IncomingMessage,
@@ -134,21 +135,21 @@ export class WeChatClawBotAdapter implements MessageAdapter {
         body: JSON.stringify({ ilink_user_id: this.config.botId }),
       });
       const cfgText = await cfgRes.text();
-      console.log('[WeChat] getconfig raw:', cfgText.slice(0, 200));
+      logger.info('[WeChat] getconfig raw:', cfgText.slice(0, 200));
       let cfg: any = {};
       try { cfg = JSON.parse(cfgText); } catch {}
       const ticket = cfg?.typing_ticket || cfg?.ticket || '';
-      console.log('[WeChat] getconfig — ticket:', ticket ? `${ticket.slice(0, 6)}...` : 'none');
+      logger.info('[WeChat] getconfig — ticket:', ticket ? `${ticket.slice(0, 6)}...` : 'none');
 
       if (ticket) {
         await fetch(`${base}/ilink/bot/sendtyping`, {
           method: 'POST', headers: this.makeHeaders(),
           body: JSON.stringify({ ticket, to_user_id: this.config.botId }),
         });
-        console.log('[WeChat] sendtyping ok');
+        logger.info('[WeChat] sendtyping ok');
       }
     } catch (err: any) {
-      console.warn('[WeChat] Activation:', err.message);
+      logger.warn('[WeChat] Activation:', err.message);
     }
   }
 
@@ -183,19 +184,19 @@ export class WeChatClawBotAdapter implements MessageAdapter {
           });
 
           const data: GetUpdatesResponse = await res.json();
-          console.log('[WeChat] Poll response — ok:', data.ok, 'messages:', data.messages?.length || 0, 'buf:', data.get_updates_buf?.slice(0, 20));
+          logger.info('[WeChat] Poll response — ok:', data.ok, 'messages:', data.messages?.length || 0, 'buf:', data.get_updates_buf?.slice(0, 20));
           if (data.get_updates_buf) this.cursor = data.get_updates_buf;
 
           if (data.messages && data.messages.length > 0) {
             for (const msg of data.messages) {
               const parsed = this.parseEvent(msg);
-              console.log('[WeChat] Message from:', parsed?.userId, 'type:', msg.message_type, 'text:', parsed?.text?.slice(0, 50));
+              logger.info('[WeChat] Message from:', parsed?.userId, 'type:', msg.message_type, 'text:', parsed?.text?.slice(0, 50));
               if (parsed && this.onMessage) {
                 const reply = await this.onMessage(parsed).catch(() => null);
                 if (reply) {
                   // Must carry the context_token from the inbound message to the outbound reply
                   (reply as any).context_token = (parsed.raw as any)?.context_token || msg.context_token || '';
-                  await this.sendMessage(parsed.userId, reply).catch(e => console.error('[WeChat] Send error:', e));
+                  await this.sendMessage(parsed.userId, reply).catch(e => logger.error('[WeChat] Send error:', e));
                 }
               }
             }
@@ -206,7 +207,7 @@ export class WeChatClawBotAdapter implements MessageAdapter {
             // Expected on long-poll timeout — reconnect immediately
             continue;
           }
-          console.error('[WeChat] Poll error:', err.message);
+          logger.error('[WeChat] Poll error:', err.message);
           await new Promise(r => setTimeout(r, 3000));
         } finally {
           if (timeout) clearTimeout(timeout);
@@ -272,7 +273,7 @@ export class WeChatClawBotAdapter implements MessageAdapter {
 
     const data = await res.json();
     if (!data.ok && data.ok !== undefined) {
-      console.error('[WeChat] Send error:', data);
+      logger.error('[WeChat] Send error:', data);
       throw new Error(`WeChat send failed: ${JSON.stringify(data)}`);
     }
     return data.message_id || crypto.randomUUID();

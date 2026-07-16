@@ -2,6 +2,7 @@
  * PDF Tools — read, create, merge, split, and convert PDF documents.
  */
 import fs from 'fs';
+import { logger } from '../../lib/logger';
 import path from 'path';
 import { ToolRegistry } from '../registry';
 
@@ -99,7 +100,7 @@ async function createPdf(args: Record<string, any>): Promise<string> {
           }
           if (fontLoaded) break;
         } catch (e) {
-          console.warn(`[createPdf] Failed to load font ${fontPath}:`, e);
+          logger.warn(`[createPdf] Failed to load font ${fontPath}:`, e);
         }
       }
     }

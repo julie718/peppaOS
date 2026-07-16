@@ -5,6 +5,7 @@
  * Plan-first, execute-next — more reliable than iterative tool calling for office workflows.
  */
 import { NormalizedMessage, makeLLMCall } from '../llm/providers';
+import { logger } from '../lib/logger';
 import { toolRegistry } from '../tools/registry';
 import { ToolExecutionRecord, ToolContext } from '../tools/types';
 import { routeToolsForTurn } from '../cognition/tool_router';
@@ -137,7 +138,7 @@ async function planTask(
     throw new Error(`No JSON found in plan response: ${text.slice(0, 200)}`);
   } catch (err: any) {
     // Fallback: create a single-step plan from the task
-    console.warn('[NLChainer] Plan fallback:', err.message);
+    logger.warn('[NLChainer] Plan fallback: ' + err.message);
     return {
       goal: userTask,
       steps: [],
@@ -181,12 +182,12 @@ async function executePlan(
     }
 
     try {
-      console.log(`[NLChainer] Step ${i + 1}/${plan.steps.length}: ${step.toolName}`, JSON.stringify(enrichedArgs).slice(0, 200));
+      logger.info(`[NLChainer] Step ${i + 1}/${plan.steps.length}: ${step.toolName} ${JSON.stringify(enrichedArgs).slice(0, 200)}`);
       const output = await executeTool(step.toolName, enrichedArgs);
       results.push({ step: i + 1, tool: step.toolName, output: compactChainerOutput(output, 12000), success: true });
       accumulatedContext += `\n## Step ${i + 1}: ${step.description}\n${compactChainerOutput(output)}\n`;
     } catch (err: any) {
-      console.warn(`[NLChainer] Step ${i + 1} failed:`, err.message);
+      logger.warn(`[NLChainer] Step ${i + 1} failed: ${err.message}`);
 
       let recovered = false;
       if (replanFn) {
@@ -197,14 +198,14 @@ async function executePlan(
             error: err.message,
           });
           if (alternative?.toolName) {
-            console.log(`[NLChainer] Replan: trying "${alternative.toolName}" instead of "${step.toolName}"`);
+            logger.info(`[NLChainer] Replan: trying "${alternative.toolName}" instead of "${step.toolName}"`);
             const altOutput = await executeTool(alternative.toolName, { ...enrichedArgs, ...alternative.args });
             results.push({ step: i + 1, tool: alternative.toolName, output: compactChainerOutput(altOutput, 12000), success: true });
             accumulatedContext += `\n## Step ${i + 1}: ${step.description} (recovered via ${alternative.toolName})\n${compactChainerOutput(altOutput)}\n`;
             recovered = true;
           }
         } catch (replanErr: any) {
-          console.warn(`[NLChainer] Replan also failed:`, replanErr.message);
+          logger.warn(`[NLChainer] Replan also failed: ${replanErr.message}`);
         }
       }
 
@@ -313,7 +314,7 @@ export async function runNLChainer(
     for (const [domain, hints] of Object.entries(DOMAIN_TOOL_HINTS)) {
       const ghosts = hints.filter(h => !registeredNames.has(h));
       if (ghosts.length > 0) {
-        console.warn(`[NLChainer] Ghost tools in DOMAIN_TOOL_HINTS.${domain}:`, ghosts);
+        logger.warn(`[NLChainer] Ghost tools in DOMAIN_TOOL_HINTS: ` + ghosts.join(", "));
       }
     }
   }

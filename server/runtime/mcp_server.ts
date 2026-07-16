@@ -1,6 +1,7 @@
 // MCP Server + LAP + remote device setup
 // Shared between personal and org servers
 import express from "express";
+import { logger } from '../lib/logger';
 import http from "http";
 import { Server } from "socket.io";
 import { createPeppaMcpServer, handleMcpSSE, handleMcpMessage } from "../mcp/peppa_server";
@@ -25,22 +26,22 @@ export function setupMcpServer(
   attachMcpWebSocket(server, async (transport) => {
     try {
       await peppaMcp.connect(transport);
-      console.log(`[MCP Server] WebSocket client connected: ${transport.sessionId}`);
+      logger.info(`[MCP Server] WebSocket client connected: ${transport.sessionId}`);
     } catch (err: any) {
-      console.error(`[MCP Server] WebSocket connection error:`, err.message);
+      logger.error(`[MCP Server] WebSocket connection error:`, err.message);
     }
   });
 
-  console.log('[MCP Server] Peppa MCP server ready at /mcp/sse + /mcp/ws');
+  logger.info('[MCP Server] Peppa MCP server ready at /mcp/sse + /mcp/ws');
 
   attachLAPWebSocket(server);
-  console.log('[LAP] Agent protocol ready at /lap');
+  logger.info('[LAP] Agent protocol ready at /lap');
 
   // Connect to remote devices from the runtime MCP config in the user data dir.
   const remoteDevices = mcpManager.getRemoteDevices();
   for (const [name, url] of Object.entries(remoteDevices)) {
     if (!url) continue;
-    console.log(`[MCP Server] Connecting to remote device: ${name}`);
+    logger.info(`[MCP Server] Connecting to remote device: ${name}`);
     connectMcpServerToRemote(
       url as string, peppaMcp, name as string,
       () => { deviceRegistry.registerMcpDevice(name as string, 'mcp_remote', { audio: true, video: false, spatial: false, haptic: false, holographic: false }); },

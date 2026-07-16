@@ -1,4 +1,5 @@
 import { ToolRegistry } from '../registry';
+import { logger } from '../../lib/logger';
 import { computerUseLoop } from '../../agents/computer_use';
 
 async function computerUse(args: Record<string, any>, context?: any): Promise<string> {
@@ -23,7 +24,7 @@ async function computerUse(args: Record<string, any>, context?: any): Promise<st
     llmGetters: context.llmGetters,
     maxIterations: Math.min(maxIterations, 15),
     onProgress: context.onProgress || ((step: string) => {
-      console.log(`[ComputerUse] ${step}`);
+      logger.info(`[ComputerUse] ${step}`);
     }),
     isCancelled: context.isCancelled,
   });

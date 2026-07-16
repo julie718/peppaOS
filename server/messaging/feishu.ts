@@ -9,6 +9,7 @@
  *   5. Copy App ID + App Secret → .env as FEISHU_APP_ID / FEISHU_APP_SECRET
  */
 import crypto from 'crypto';
+import { logger } from '../lib/logger';
 import type {
   MessageAdapter,
   IncomingMessage,
@@ -178,7 +179,7 @@ export class FeishuAdapter implements MessageAdapter {
 
     const data: any = await res.json();
     if (data.code !== 0) {
-      console.error(`[Feishu] Send error:`, data.msg);
+      logger.error(`[Feishu] Send error:`, data.msg);
       throw new Error(`Feishu send failed: ${data.msg}`);
     }
     return data.data?.message_id || '';
@@ -227,7 +228,7 @@ export class FeishuAdapter implements MessageAdapter {
 
     const data: any = await res.json();
     if (data.code !== 0) {
-      console.error(`[Feishu] Card send error:`, data.msg);
+      logger.error(`[Feishu] Card send error:`, data.msg);
       throw new Error(`Feishu card send failed: ${data.msg}`);
     }
     return data.data?.message_id || '';
@@ -253,7 +254,7 @@ export class FeishuAdapter implements MessageAdapter {
 
     const data: any = await res.json();
     if (data.code !== 0) {
-      console.error(`[Feishu] Reply error:`, data.msg);
+      logger.error(`[Feishu] Reply error:`, data.msg);
       throw new Error(`Feishu reply failed: ${data.msg}`);
     }
     return data.data?.message_id || '';

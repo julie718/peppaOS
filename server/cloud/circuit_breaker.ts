@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 /**
  * Circuit Breaker for cloud API providers.
  *
@@ -57,7 +58,7 @@ export function isCircuitClosed(provider: string, model?: string): boolean {
       // Transition to half-open — allow a probe
       entry.state = 'half-open';
       entry.lastStateChange = Date.now();
-      console.log(`[CircuitBreaker] ${key} → half-open (cooldown elapsed)`);
+      logger.info(`[CircuitBreaker] ${key} → half-open (cooldown elapsed)`);
       return true; // Allow one probe request
     }
     return false;
@@ -85,7 +86,7 @@ export function recordSuccess(provider: string, model?: string): void {
       entry.failureCount = 0;
       entry.successCount = 0;
       entry.lastStateChange = Date.now();
-      console.log(`[CircuitBreaker] ${key} → closed (recovered)`);
+      logger.info(`[CircuitBreaker] ${key} → closed (recovered)`);
     }
   } else if (entry.state === 'closed') {
     // Reset failure window on success
@@ -118,7 +119,7 @@ export function recordFailure(provider: string, model?: string, error?: Error): 
     entry.state = 'open';
     entry.lastStateChange = now;
     entry.successCount = 0;
-    console.log(`[CircuitBreaker] ${key} → OPEN (${entry.failureCount} failures)${error ? ` — ${error.message}` : ''}`);
+    logger.info(`[CircuitBreaker] ${key} → OPEN (${entry.failureCount} failures)${error ? ` — ${error.message}` : ''}`);
   }
 }
 

@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from "express";
+import { logger } from '../lib/logger';
 import path from "path";
 import fs from "fs";
 import os from "os";
@@ -133,7 +134,7 @@ export function mountSkillRoutes(
           }
           writeDB(db);
         } catch (e) {
-          console.warn('[SkillGen] Failed to save to knowledge base:', e);
+          logger.warn('[SkillGen] Failed to save to knowledge base:', e);
         }
         io.emit('skill:updated', { name: result.skillName });
         createAgentForSkill(result.skillName, {

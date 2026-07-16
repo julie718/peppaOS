@@ -14,6 +14,7 @@
  */
 
 import { PersonalityConfig, ExpressionStyle, PersonalityGrowthState } from './types';
+import { logger } from '../lib/logger';
 import { Memory } from '../memory/types';
 import { queryMemories } from '../memory/store';
 import { NormalizedMessage, makeLLMCall } from '../llm/providers';
@@ -276,7 +277,7 @@ ${memoryTexts}`;
 
     return profile;
   } catch (err) {
-    console.error('[Evolution] Failed to synthesize owner profile:', err);
+    logger.error('[Evolution] Failed to synthesize owner profile:', err);
     return null;
   }
 }
@@ -535,7 +536,7 @@ export async function evolvePersonality(
 ): Promise<EvolutionStep | null> {
   // Gate: connection score
   if (connectionScore < evolutionConfig.minConnectionForEvolution) {
-    console.log(`[Evolution] Connection ${connectionScore.toFixed(2)} below threshold ${evolutionConfig.minConnectionForEvolution}, skipping`);
+    logger.info(`[Evolution] Connection ${connectionScore.toFixed(2)} below threshold ${evolutionConfig.minConnectionForEvolution}, skipping`);
     return null;
   }
 
@@ -543,7 +544,7 @@ export async function evolvePersonality(
   // handled externally via the scheduler's memory-count gate, not a fixed timer)
   const profile = await synthesizeOwnerProfile(userId, getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen);
   if (!profile) {
-    console.log(`[Evolution] Insufficient owner_trait memories for ${userId}`);
+    logger.info(`[Evolution] Insufficient owner_trait memories for ${userId}`);
     return null;
   }
 
@@ -553,13 +554,13 @@ export async function evolvePersonality(
   if (prevConnectionAfterEvolve != null && connectionScore < prevConnectionAfterEvolve) {
     const damping = 0.5; // halve plasticity if connection regressed
     effectiveConfig = { ...evolutionConfig, plasticity: evolutionConfig.plasticity * damping };
-    console.log(`[Evolution] Connection regressed (${prevConnectionAfterEvolve.toFixed(2)} → ${connectionScore.toFixed(2)}), damping plasticity to ${effectiveConfig.plasticity.toFixed(2)}`);
+    logger.info(`[Evolution] Connection regressed (${prevConnectionAfterEvolve.toFixed(2)} → ${connectionScore.toFixed(2)}), damping plasticity to ${effectiveConfig.plasticity.toFixed(2)}`);
   }
 
   // Compute mutations
   const mutations = computeMutations(config, profile, effectiveConfig);
   if (mutations.length === 0) {
-    console.log(`[Evolution] No mutations needed — personality already aligned`);
+    logger.info(`[Evolution] No mutations needed — personality already aligned`);
     return null;
   }
 

@@ -9,6 +9,7 @@
  */
 
 import { readDB, writeDB } from "../../db_layer";
+import { logger } from '../lib/logger';
 
 export function createAgentForSkill(
   skillName: string,
@@ -117,7 +118,7 @@ export function createAgentForSkill(
     });
 
     writeDB(db);
-    console.log(`[SkillAgent] Created team agent for skill "${skillName}" (id: ${agentId}, tags: ${tags.join(', ')})`);
+    logger.info(`[SkillAgent] Created team agent for skill "${skillName}" (id: ${agentId}, tags: ${tags.join(', ')})`);
     io?.emit('agent:created', {
       id: agentId,
       name: skillName,
@@ -128,7 +129,7 @@ export function createAgentForSkill(
     });
     return agentId;
   } catch (err) {
-    console.warn(`[SkillAgent] Failed to create agent for "${skillName}":`, (err as Error).message);
+    logger.warn(`[SkillAgent] Failed to create agent for "${skillName}":`, (err as Error).message);
     return null;
   }
 }

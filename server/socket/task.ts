@@ -2,6 +2,7 @@
  * agent:task socket handler — multi-turn tool-augmented AI pipeline
  */
 import { Socket } from "socket.io";
+import { logger } from '../lib/logger';
 import { readDB, writeDB } from "../../db_layer";
 import { pushNotification } from "../routes/notifications";
 import { recordTokenUsage } from "../llm/token_tracker";
@@ -130,7 +131,7 @@ export function registerTaskHandler(
     // Support interrupting a running task via agent:task_cancel
     const onCancel = () => {
       cancelled = true;
-      console.log(`[Task] Cancelled by user for ${uid}`);
+      logger.info(`[Task] Cancelled by user for ${uid}`);
     };
     socket.once('agent:task_cancel', onCancel);
 
@@ -161,10 +162,10 @@ export function registerTaskHandler(
       } else if (activeProvider === 'openai') {
         activeModel = isComplex ? 'gpt-4o' : 'gpt-4o-mini';
       }
-      console.log(`[Task] Model auto-selected: ${activeProvider}/${activeModel} for category: ${cognition.intent.category}`);
+      logger.info(`[Task] Model auto-selected: ${activeProvider}/${activeModel} for category: ${cognition.intent.category}`);
 
       if (cognition.directToolExecuted && cognition.responseText) {
-        console.log(`[Cognition] Task handled directly: ${cognition.intent.category}/${cognition.intent.subIntent}`);
+        logger.info(`[Cognition] Task handled directly: ${cognition.intent.category}/${cognition.intent.subIntent}`);
         socket.emit("agent:response", { text: cognition.responseText, agentName: personality.name });
         socket.emit("agent:status", { status: "idle" });
 
@@ -238,7 +239,7 @@ export function registerTaskHandler(
               socket.emit("task:chunk", { text: `\n[Orchestrator] Workflow complete — ${workflowResult.totalAgentsUsed} agent(s) used\n`, agentName: "Peppa" });
               }
             } catch (orchErr: any) {
-              console.error('[Orchestrator] Task workflow failed, falling back to normal execution:', orchErr.message);
+              logger.error('[Orchestrator] Task workflow failed, falling back to normal execution:', orchErr.message);
             }
           }
         }
@@ -407,9 +408,9 @@ export function registerTaskHandler(
         }
         const totalExtracted = extracted.memories.length + extracted.reminders.length;
         if (totalExtracted > 0) {
-          console.log(`[Memory] Extracted ${extracted.memories.length} memories + ${extracted.reminders.length} reminders for user ${uid}`);
+          logger.info(`[Memory] Extracted ${extracted.memories.length} memories + ${extracted.reminders.length} reminders for user ${uid}`);
         }
-      }).catch(err => console.error('[Memory] Extraction failed:', err));
+      }).catch(err => logger.error('[Memory] Extraction failed:', err));
 
       // Update emotional state with sentiment analysis + HIM
       const sentiment = extractSentiment(data.text);
@@ -452,7 +453,7 @@ export function registerTaskHandler(
       }
 
     } catch (err: any) {
-      console.error("[Agent Task Error]:", err);
+      logger.error("[Agent Task Error]:", err);
       const cf = handleLLMFailure(cognition?.intent || { category: 'unknown', confidence: 0, entities: {}, needsLLM: true }, err);
       socket.emit("agent:response", { text: cf.responseText, agentName: personality.name });
       socket.emit("agent:status", { status: "error" });

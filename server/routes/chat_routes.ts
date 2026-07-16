@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { logger } from '../lib/logger';
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -28,7 +29,7 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
     const provider = isBYOK ? reqProvider : preferred.provider;
     const model = isBYOK ? reqModel : preferred.model;
     if (!isBYOK && reqProvider && reqProvider !== provider) {
-      console.warn(`[Chat] Ignoring request provider ${reqProvider}; using primary brain ${provider}/${model} for user ${userId}`);
+      logger.warn(`[Chat] Ignoring request provider ${reqProvider}; using primary brain ${provider}/${model} for user ${userId}`);
     }
 
     if (!isBYOK) {
@@ -137,7 +138,7 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
 
       res.json({ text: responseText });
     } catch (error: any) {
-      console.error("AI Proxy Error:", error);
+      logger.error("AI Proxy Error:", error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -152,7 +153,7 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
     const provider = preferred.provider;
     const model = preferred.model;
     if (reqProvider && reqProvider !== provider) {
-      console.warn(`[Meeting] Ignoring request provider ${reqProvider}; using primary brain ${provider}/${model} for user ${userId}`);
+      logger.warn(`[Meeting] Ignoring request provider ${reqProvider}; using primary brain ${provider}/${model} for user ${userId}`);
     }
     const noteItems = Array.isArray(notes) ? notes : [];
     const transcript = noteItems

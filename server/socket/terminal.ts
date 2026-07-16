@@ -1,4 +1,5 @@
 import { spawn, ChildProcess } from 'child_process';
+import { logger } from '../lib/logger';
 import os from 'os';
 
 interface TerminalSession {
@@ -24,10 +25,10 @@ function socketGuard(fn: (...args: any[]) => void | Promise<void>) {
     try {
       const ret = fn(...args);
       if (ret && typeof (ret as any).catch === 'function') {
-        (ret as any).catch((e: any) => console.error('[Terminal] Handler error:', e.message || String(e)));
+        (ret as any).catch((e: any) => logger.error('[Terminal] Handler error:', e.message || String(e)));
       }
     } catch (e: any) {
-      console.error('[Terminal] Handler error:', e.message || String(e));
+      logger.error('[Terminal] Handler error:', e.message || String(e));
     }
   };
 }
@@ -78,7 +79,7 @@ export function registerTerminalHandlers(socket: any, _getUserId: (s: any) => st
     });
 
     socket.emit('terminal:ready', { sessionId });
-    console.log(`[Terminal] Session created for socket ${socket.id}, shell: ${cmd}`);
+    logger.info(`[Terminal] Session created for socket ${socket.id}, shell: ${cmd}`);
   }));
 
   // User input from xterm
@@ -119,7 +120,7 @@ export function registerTerminalHandlers(socket: any, _getUserId: (s: any) => st
     if (session) {
       try { session.proc.kill(); } catch {}
       sessions.delete(socket.id);
-      console.log(`[Terminal] Session destroyed for socket ${socket.id}`);
+      logger.info(`[Terminal] Session destroyed for socket ${socket.id}`);
     }
   }));
 
@@ -128,7 +129,7 @@ export function registerTerminalHandlers(socket: any, _getUserId: (s: any) => st
     if (session) {
       try { session.proc.kill(); } catch {}
       sessions.delete(socket.id);
-      console.log(`[Terminal] Cleaned up session for disconnected socket ${socket.id}`);
+      logger.info(`[Terminal] Cleaned up session for disconnected socket ${socket.id}`);
     }
   }));
 }

@@ -2,6 +2,7 @@
 // Each check-in fires a socket event to the UI so the user sees "Peppa checked in"
 
 import { Server as SocketIOServer } from 'socket.io';
+import { logger } from './lib/logger';
 import { queryMemories, getDueReminders, fireReminder, runBehavioralAnalysis, decayMemories, dynamicDecayMemories, promoteMemories, getUnconsolidatedEpisodic, autoMarkCrossAgentShare } from './memory';
 import { consolidateEpisodic, consolidateNarrative, ConsolidationContext } from './memory/consolidator';
 import { runDreamCycle } from './memory/dream';
@@ -113,7 +114,7 @@ class Scheduler {
     this.disabledTasks.add(id);
     this.clearTimer(id);
     this.persistDisabledState();
-    console.log(`[Scheduler] Task "${id}" disabled`);
+    logger.info(`[Scheduler] Task "${id}" disabled`);
     return true;
   }
 
@@ -124,7 +125,7 @@ class Scheduler {
     this.disabledTasks.delete(id);
     this.scheduleTask(task);
     this.persistDisabledState();
-    console.log(`[Scheduler] Task "${id}" enabled`);
+    logger.info(`[Scheduler] Task "${id}" enabled`);
     return true;
   }
 
@@ -186,13 +187,13 @@ class Scheduler {
       });
       writeDB(db);
     } catch (err: any) {
-      console.warn(`[Scheduler] Failed to persist proactive message:`, err.message);
+      logger.warn(`[Scheduler] Failed to persist proactive message:`, err.message);
     }
   }
 
   private scheduleTask(task: ScheduledTask) {
     if (task.enabled === false) {
-      console.log(`[Scheduler] Task "${task.id}" is disabled — skipping schedule`);
+      logger.info(`[Scheduler] Task "${task.id}" is disabled — skipping schedule`);
       return;
     }
     const parsed = this.parseCron(task.cron);
@@ -214,11 +215,11 @@ class Scheduler {
             }
           }
         } catch (err: any) {
-          console.warn(`[Scheduler] Task "${task.id}" failed:`, err.message);
+          logger.warn(`[Scheduler] Task "${task.id}" failed:`, err.message);
         }
       }, parsed.intervalMs);
       this.timers.set(task.id, timer);
-      console.log(`[Scheduler] Registered task "${task.id}" every ${parsed.intervalMs / 1000}s${task.quiet ? ' (quiet)' : ''}`);
+      logger.info(`[Scheduler] Registered task "${task.id}" every ${parsed.intervalMs / 1000}s${task.quiet ? ' (quiet)' : ''}`);
     } else {
       // Real cron expression — use recursive setTimeout to hit exact times
       const runAndReschedule = async () => {
@@ -236,7 +237,7 @@ class Scheduler {
             }
           }
         } catch (err: any) {
-          console.warn(`[Scheduler] Task "${task.id}" failed:`, err.message);
+          logger.warn(`[Scheduler] Task "${task.id}" failed:`, err.message);
         }
         // Schedule next run
         const nextMs = this.nextCronTime(parsed.fields!);
@@ -245,7 +246,7 @@ class Scheduler {
       const firstMs = this.nextCronTime(parsed.fields!);
       this.setTaskTimeout(task.id, runAndReschedule, firstMs);
       const [m, h, dom, mon, dow] = parsed.fields!;
-      console.log(`[Scheduler] Registered cron task "${task.id}" — ${m} ${h} ${dom} ${mon} ${dow} (next in ${Math.round(firstMs / 1000)}s)`);
+      logger.info(`[Scheduler] Registered cron task "${task.id}" — ${m} ${h} ${dom} ${mon} ${dow} (next in ${Math.round(firstMs / 1000)}s)`);
     }
   }
 
@@ -478,7 +479,7 @@ export function registerScheduledTasks(
             messages.push(`[${userId}] 记忆叙事已生成: "${title}"`);
           }
         } catch (err: any) {
-          console.warn(`[NarrativeConsolidation] Failed for ${userId}:`, err.message);
+          logger.warn(`[NarrativeConsolidation] Failed for ${userId}:`, err.message);
         }
       }
 
@@ -522,7 +523,7 @@ export function registerScheduledTasks(
             }
           }
         } catch (err: any) {
-          console.warn(`[SleepDreamCycle] Failed for ${userId}:`, err.message);
+          logger.warn(`[SleepDreamCycle] Failed for ${userId}:`, err.message);
         }
       }
 
@@ -584,7 +585,7 @@ Output ONLY the greeting — no preamble, no labels.`;
             messages.push(`[${userId}] ${parts.join(' - ')}`);
           }
         } catch (err: any) {
-          console.warn(`[DailySummary] Failed for ${userId}:`, err.message);
+          logger.warn(`[DailySummary] Failed for ${userId}:`, err.message);
         }
       }
 
@@ -638,7 +639,7 @@ Output ONLY the reflection — no preamble, no labels.`;
             messages.push(`[${userId}] 晚间回顾 — ${contextParts.join(' - ')}`);
           }
         } catch (err: any) {
-          console.warn(`[EveningWrapup] Failed for ${userId}:`, err.message);
+          logger.warn(`[EveningWrapup] Failed for ${userId}:`, err.message);
         }
       }
 
@@ -725,7 +726,7 @@ Rules:
             const json = (llmResult.text || '').replace(/```json|```/g, '').trim();
             plan = JSON.parse(json);
           } catch {
-            console.warn(`[Scheduler] Auto-organize: LLM returned invalid JSON for ${userId}`);
+            logger.warn(`[Scheduler] Auto-organize: LLM returned invalid JSON for ${userId}`);
             continue;
           }
 
@@ -740,13 +741,13 @@ Rules:
           }
 
           if (plan.branches.length > 0) {
-            console.log(
+            logger.info(
               `[Scheduler] Auto-organized ${userId}: ${plan.branches.length} branches, ` +
               `${plan.branches.reduce((s, b) => s + b.memoryIds.length, 0)} memories`,
             );
           }
         } catch (err: any) {
-          console.warn(`[Scheduler] Auto-organize failed for ${userId}:`, err.message);
+          logger.warn(`[Scheduler] Auto-organize failed for ${userId}:`, err.message);
         }
       }
 
@@ -809,10 +810,10 @@ Rules:
             messages.push(
               `I've grown closer to understanding you. ${step.narrative}`
             );
-            console.log(`[Scheduler] Personality evolution complete for ${userId}: ${step.version}`);
+            logger.info(`[Scheduler] Personality evolution complete for ${userId}: ${step.version}`);
           }
         } catch (err: any) {
-          console.error(`[Scheduler] Personality evolution failed for ${userId}:`, err.message);
+          logger.error(`[Scheduler] Personality evolution failed for ${userId}:`, err.message);
         }
       }
       return messages.length > 0 ? messages.join('\n') : null;
@@ -876,11 +877,11 @@ Rules:
               confidence: 1.0,
               sourceInteractionId: 'weekly_review_scheduler',
             } as any, { tier: 'growth', perspective: 'peppa_self', importance: 0.95 });
-            console.log(`[WeeklyReview] Generated for ${userId}: ${narrative.slice(0, 100)}`);
+            logger.info(`[WeeklyReview] Generated for ${userId}: ${narrative.slice(0, 100)}`);
             messages.push(`[${userId}] ${narrative.slice(0, 200)}`);
           }
         } catch (err: any) {
-          console.error(`[WeeklyReview] Failed for ${userId}:`, err.message);
+          logger.error(`[WeeklyReview] Failed for ${userId}:`, err.message);
         }
       }
       return messages.length > 0 ? messages.join('\n') : null;
@@ -943,11 +944,11 @@ Rules:
               confidence: 1.0,
               sourceInteractionId: 'monthly_review_scheduler',
             } as any, { tier: 'growth', perspective: 'peppa_self', importance: 0.97 });
-            console.log(`[MonthlyReview] Generated for ${userId}: ${narrative.slice(0, 100)}`);
+            logger.info(`[MonthlyReview] Generated for ${userId}: ${narrative.slice(0, 100)}`);
             messages.push(`[${userId}] ${narrative.slice(0, 200)}`);
           }
         } catch (err: any) {
-          console.error(`[MonthlyReview] Failed for ${userId}:`, err.message);
+          logger.error(`[MonthlyReview] Failed for ${userId}:`, err.message);
         }
       }
       return messages.length > 0 ? messages.join('\n') : null;
@@ -1010,11 +1011,11 @@ Rules:
               confidence: 1.0,
               sourceInteractionId: 'yearly_review_scheduler',
             } as any, { tier: 'growth', perspective: 'peppa_self', importance: 1.0 });
-            console.log(`[YearlyReview] Generated for ${userId}: ${narrative.slice(0, 100)}`);
+            logger.info(`[YearlyReview] Generated for ${userId}: ${narrative.slice(0, 100)}`);
             messages.push(`[${userId}] ${narrative.slice(0, 200)}`);
           }
         } catch (err: any) {
-          console.error(`[YearlyReview] Failed for ${userId}:`, err.message);
+          logger.error(`[YearlyReview] Failed for ${userId}:`, err.message);
         }
       }
       return messages.length > 0 ? messages.join('\n') : null;
@@ -1066,7 +1067,7 @@ Rules:
           return `Created ${created} new workflow(s) from repeated patterns`;
         }
       } catch (err) {
-        console.error('[Scheduler] auto_workflow_gen failed:', err);
+        logger.error('[Scheduler] auto_workflow_gen failed:', err);
       }
       return null;
     },
@@ -1096,7 +1097,7 @@ Rules:
           }
         }
       } catch (err) {
-        console.error('[Scheduler] health_audit failed:', err);
+        logger.error('[Scheduler] health_audit failed:', err);
       }
       return null;
     },
@@ -1218,10 +1219,10 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
               agentId: undefined,
             } as any, { tier: 'episodic', perspective: 'peppa_self', importance: 0.5 });
 
-            console.log(`[GrowthJournal] Generated for ${userId}: ${narrative.slice(0, 100)}`);
+            logger.info(`[GrowthJournal] Generated for ${userId}: ${narrative.slice(0, 100)}`);
             messages.push(`[${userId}] ${narrative.slice(0, 200)}`);
           } catch (llmErr: any) {
-            console.warn(`[GrowthJournal] LLM generation failed for ${userId}:`, llmErr.message);
+            logger.warn(`[GrowthJournal] LLM generation failed for ${userId}:`, llmErr.message);
             // Fallback: simple stats summary
             const fallback = `${summaryData.date}: ${summaryData.newMemories} 条新记忆, ${summaryData.newInteractions} 次互动, ${summaryData.activeConversations} 个活跃对话。`;
             const { addMemory } = await import('./memory');
@@ -1236,7 +1237,7 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
             } as any, { tier: 'growth' });
           }
         } catch (err: any) {
-          console.warn(`[GrowthJournal] Failed for ${userId}:`, err.message);
+          logger.warn(`[GrowthJournal] Failed for ${userId}:`, err.message);
         }
       }
 
@@ -1511,10 +1512,10 @@ Output ONLY the prediction message — no preamble, no labels.`;
             }
           } catch (predErr: any) {
             // Predictive assistant failure is non-critical
-            console.warn(`[PredictiveAssistant] Failed for ${userId}:`, predErr.message);
+            logger.warn(`[PredictiveAssistant] Failed for ${userId}:`, predErr.message);
           }
         } catch (err: any) {
-          console.warn(`[ProactiveScan] Failed for ${userId}:`, err.message);
+          logger.warn(`[ProactiveScan] Failed for ${userId}:`, err.message);
         }
       }
 
@@ -1579,7 +1580,7 @@ Output ONLY the prediction message — no preamble, no labels.`;
             } as any, { tier: 'episodic', perspective: 'peppa_self', importance: 0.4 });
           }
         } catch (err: any) {
-          console.warn(`[MemoryThisDay] Failed for ${userId}:`, err.message);
+          logger.warn(`[MemoryThisDay] Failed for ${userId}:`, err.message);
         }
       }
 
@@ -1622,7 +1623,7 @@ Output ONLY the prediction message — no preamble, no labels.`;
             );
           }
         } catch (err: any) {
-          console.warn(`[SpatiotemporalAnalysis] Failed for ${userId}:`, err.message);
+          logger.warn(`[SpatiotemporalAnalysis] Failed for ${userId}:`, err.message);
         }
       }
 
@@ -1717,7 +1718,7 @@ Output ONLY the prediction message — no preamble, no labels.`;
             totalExecuted++;
           }
         } catch (err: any) {
-          console.warn(`[AutoWorkCycle] Failed for ${userId}:`, err.message);
+          logger.warn(`[AutoWorkCycle] Failed for ${userId}:`, err.message);
         }
       }
 

@@ -1,4 +1,5 @@
 import type { PresenceState, PresenceHeartbeat, DetectedUser } from './types';
+import { logger } from '../lib/logger';
 import { readDB } from '../../db_layer';
 
 const AWAY_TIMEOUT_MS = 5000; // 5s without face or voice → away
@@ -48,7 +49,7 @@ export function updatePresence(userId: string, heartbeat: PresenceHeartbeat): Pr
 
   // Track state transition
   if (prev.isAway !== next.isAway) {
-    console.log(`[Presence] User ${userId}: ${next.isAway ? 'AWAY' : 'PRESENT'}`);
+    logger.info(`[Presence] User ${userId}: ${next.isAway ? 'AWAY' : 'PRESENT'}`);
   }
 
   presenceByUser.set(userId, next);

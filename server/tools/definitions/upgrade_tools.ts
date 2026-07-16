@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { logger } from '../../lib/logger';
 import path from 'path';
 import { execSync } from 'child_process';
 import { ToolRegistry } from '../registry';
@@ -126,12 +127,12 @@ async function selfUpgradeHandler(args: Record<string, any>): Promise<string> {
     });
   } catch (gitErr: any) {
     // Non-critical — the files are written and verified, git is just a safety net
-    console.warn('[self_upgrade] Git commit failed (non-critical):', gitErr.message?.slice(0, 200));
+    logger.warn('[self_upgrade] Git commit failed (non-critical):', gitErr.message?.slice(0, 200));
   }
 
   // Phase 6: Schedule restart
   const summary = validated.map(v => `  - ${v.relPath} (${v.content.length} bytes)`).join('\n');
-  console.log(`[self_upgrade] Upgrade applied:\n${summary}\nRestarting with exit code 42...`);
+  logger.info(`[self_upgrade] Upgrade applied:\n${summary}\nRestarting with exit code 42...`);
 
   setTimeout(() => {
     process.exit(42);

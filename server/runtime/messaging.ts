@@ -1,5 +1,6 @@
 // Messaging integrations (Feishu, WeCom, etc.)
 import { Router } from "express";
+import { logger } from '../lib/logger';
 import { createMessagingRoutes, createWeComRoutes } from "../messaging";
 import { createWeChatRoutes } from "../messaging/wechat-routes";
 import { getMessagingConfig } from "../messaging/config";
@@ -22,7 +23,7 @@ export function setupMessaging(
     queryMemories,
     loadEmotionalState,
   }));
-  console.log(cfg.feishu?.appId && cfg.feishu?.appSecret ? '[Feishu] Active' : '[Feishu] Mounted (not configured)');
+  logger.info(cfg.feishu?.appId && cfg.feishu?.appSecret ? '[Feishu] Active' : '[Feishu] Mounted (not configured)');
 
   // WeCom
   apiRouter.use("/", createWeComRoutes(cfg.wecom, {
@@ -31,7 +32,7 @@ export function setupMessaging(
     queryMemories,
     loadEmotionalState,
   }));
-  console.log(cfg.wecom?.corpId && cfg.wecom?.appSecret ? '[WeCom] Active' : '[WeCom] Mounted (not configured)');
+  logger.info(cfg.wecom?.corpId && cfg.wecom?.appSecret ? '[WeCom] Active' : '[WeCom] Mounted (not configured)');
 
   // WeChat ClawBot — always mounted so UI can manage QR login + config
   apiRouter.use("/", createWeChatRoutes(cfg.wechat, {
@@ -40,5 +41,5 @@ export function setupMessaging(
     queryMemories,
     loadEmotionalState,
   }));
-  console.log(cfg.wechat?.botToken && cfg.wechat?.botId ? '[WeChat] Active' : '[WeChat] Mounted (not configured)');
+  logger.info(cfg.wechat?.botToken && cfg.wechat?.botId ? '[WeChat] Active' : '[WeChat] Mounted (not configured)');
 }

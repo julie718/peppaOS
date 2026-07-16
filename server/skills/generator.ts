@@ -5,6 +5,7 @@
  * and generates a complete, installable MCP server package in ~/peppa_skills/.
  */
 import fs from 'fs';
+import { logger } from '../lib/logger';
 import path from 'path';
 import os from 'os';
 import { exec } from 'child_process';
@@ -110,11 +111,11 @@ async function main() {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('[Peppa Skill] {skillName} ready');
+  logger.error('[Peppa Skill] {skillName} ready');
 }
 
 main().catch((err) => {
-  console.error('[Peppa Skill] Fatal:', err);
+  logger.error('[Peppa Skill] Fatal:', err);
   process.exit(1);
 });
 `;
@@ -216,7 +217,7 @@ ${topTools(allTools).map(t => `- ${t.name} (${t.count}x)`).join('\n')}
     if (!parsed.handlerCode || typeof parsed.handlerCode !== 'string' || parsed.handlerCode.trim().length === 0) {
       // If LLM returned old field name (handlerLogic), retry with explicit conversion prompt
       if (parsed.handlerLogic && typeof parsed.handlerLogic === 'string') {
-        console.warn('[SkillGen] LLM returned handlerLogic instead of handlerCode — retrying with conversion prompt');
+        logger.warn('[SkillGen] LLM returned handlerLogic instead of handlerCode — retrying with conversion prompt');
         const conversionMessages: NormalizedMessage[] = [
           { role: 'user', content: `Turn this handler logic description into a TypeScript body for an async function handler(args). The function sets a variable named "result" to the output string. Use try/catch. You have access to 'args' (Record<string, any>), fetch(), and 'fs/promises' (imported as 'fs').\n\nLogic:\n${parsed.handlerLogic}\n\nReturn ONLY a JSON object: {"handlerCode": "// the executable code here"}` },
         ];
@@ -232,11 +233,11 @@ ${topTools(allTools).map(t => `- ${t.name} (${t.count}x)`).join('\n')}
             const convParsed = JSON.parse(convJson[0]);
             if (convParsed.handlerCode && typeof convParsed.handlerCode === 'string') {
               parsed.handlerCode = convParsed.handlerCode;
-              console.log('[SkillGen] Successfully converted handlerLogic → handlerCode');
+              logger.info('[SkillGen] Successfully converted handlerLogic → handlerCode');
             }
           }
         } catch (e: any) {
-          console.warn('[SkillGen] handlerLogic conversion retry failed:', e.message);
+          logger.warn('[SkillGen] handlerLogic conversion retry failed:', e.message);
         }
       }
 
@@ -298,23 +299,23 @@ ${topTools(allTools).map(t => `- ${t.name} (${t.count}x)`).join('\n')}
     fs.writeFileSync(path.join(skillDir, 'index.ts'), indexTs);
     fs.writeFileSync(path.join(skillDir, 'README.md'), readme);
 
-    console.log(`[SkillGen] Generated skill "${skillName}" at ${skillDir}`);
+    logger.info(`[SkillGen] Generated skill "${skillName}" at ${skillDir}`);
 
     let warnings: string[] = [];
 
     // Install dependencies so the skill can actually run
     try {
       await installSkillDeps(skillDir);
-      console.log(`[SkillGen] Dependencies installed for "${skillName}"`);
+      logger.info(`[SkillGen] Dependencies installed for "${skillName}"`);
     } catch (e: any) {
-      console.warn(`[SkillGen] npm install failed for "${skillName}":`, e.message);
+      logger.warn(`[SkillGen] npm install failed for "${skillName}":`, e.message);
       warnings.push(`npm install failed: ${e.message}`);
     }
 
     // Runtime smoke test — verify the process can start
     const runtimeCheck = await validateSkillRuntime(skillDir);
     if (!runtimeCheck.valid) {
-      console.warn(`[SkillGen] Runtime check failed for "${skillName}":`, runtimeCheck.error);
+      logger.warn(`[SkillGen] Runtime check failed for "${skillName}":`, runtimeCheck.error);
       warnings.push(`Runtime check failed: ${runtimeCheck.error}`);
     }
 
@@ -322,7 +323,7 @@ ${topTools(allTools).map(t => `- ${t.name} (${t.count}x)`).join('\n')}
     let validation = await validateSkillTypeScript(skillDir);
 
     if (!validation.valid) {
-      console.warn(`[SkillGen] Type-check failed for "${skillName}", retrying with error feedback...`);
+      logger.warn(`[SkillGen] Type-check failed for "${skillName}", retrying with error feedback...`);
       warnings.push(`First attempt type errors: ${validation.errors.slice(0, 500)}`);
 
       // Retry: feed errors back to LLM
@@ -368,7 +369,7 @@ Return ONLY a JSON object with "handlerCode" (the fixed code body).`;
 
             validation = await validateSkillTypeScript(skillDir);
             if (validation.valid) {
-              console.log(`[SkillGen] Type-check passed after retry for "${skillName}"`);
+              logger.info(`[SkillGen] Type-check passed after retry for "${skillName}"`);
               warnings = [];
               // Use the fixed code in the return
               indexTs = fixedIndexTs;
@@ -377,7 +378,7 @@ Return ONLY a JSON object with "handlerCode" (the fixed code body).`;
               try {
                 await installSkillDeps(skillDir);
               } catch (e: any) {
-                console.warn(`[SkillGen] npm install failed after retry for "${skillName}":`, e.message);
+                logger.warn(`[SkillGen] npm install failed after retry for "${skillName}":`, e.message);
                 warnings.push(`npm install failed: ${e.message}`);
               }
 
@@ -388,7 +389,7 @@ Return ONLY a JSON object with "handlerCode" (the fixed code body).`;
               }
             } else {
               warnings.push(`Retry still failing: ${validation.errors.slice(0, 300)}`);
-              console.warn(`[SkillGen] Type-check still failing after retry for "${skillName}":`, validation.errors.slice(0, 200));
+              logger.warn(`[SkillGen] Type-check still failing after retry for "${skillName}":`, validation.errors.slice(0, 200));
             }
           }
         }
@@ -416,7 +417,7 @@ Return ONLY a JSON object with "handlerCode" (the fixed code body).`;
       generatedCode: indexTs,
     };
   } catch (err: any) {
-    console.error('[SkillGen] Generation failed:', err);
+    logger.error('[SkillGen] Generation failed:', err);
     return { success: false, error: err.message };
   }
 }
@@ -441,7 +442,7 @@ export async function autoGenerateSkill(
   if (clusters.length === 0) return null;
 
   for (const cluster of clusters) {
-    console.log(
+    logger.info(
       `[SkillGen] Auto-detected cluster: "${cluster.representativeIntent.slice(0, 40)}" ` +
       `(${cluster.workflows.length}x, avg similarity: ${cluster.avgSimilarity.toFixed(2)})`,
     );
@@ -454,11 +455,11 @@ export async function autoGenerateSkill(
       // Install the generated skill
       try {
         mcpManager.installSkill(result.skillName, result.directory!);
-        console.log(`[SkillGen] Auto-installed skill "${result.skillName}"`);
+        logger.info(`[SkillGen] Auto-installed skill "${result.skillName}"`);
         // Clear processed workflows so they don't re-trigger
         removeWorkflows(cluster.workflows.map(w => w.id));
       } catch (err: any) {
-        console.warn(`[SkillGen] Auto-install failed: ${err.message}`);
+        logger.warn(`[SkillGen] Auto-install failed: ${err.message}`);
       }
 
       return result;

@@ -1,4 +1,5 @@
 import { Socket, Server } from "socket.io";
+import { logger } from '../lib/logger';
 import { perceptionEvents, MAX_PERCEPTION_EVENTS } from "./shared";
 import { loadEmotionalState, saveEmotionalState, updateEmotionalState } from "../personality/state";
 
@@ -7,10 +8,10 @@ function socketGuard(fn: (...args: any[]) => void | Promise<void>) {
     try {
       const ret = fn(...args);
       if (ret && typeof (ret as any).catch === 'function') {
-        (ret as any).catch((e: any) => console.error('[Perception] Handler error:', e.message || String(e)));
+        (ret as any).catch((e: any) => logger.error('[Perception] Handler error:', e.message || String(e)));
       }
     } catch (e: any) {
-      console.error('[Perception] Handler error:', e.message || String(e));
+      logger.error('[Perception] Handler error:', e.message || String(e));
     }
   };
 }

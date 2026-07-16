@@ -8,6 +8,7 @@
  *   3. Message events: parse → process via LLM with Peppa personality → reply
  */
 import { Router } from 'express';
+import { logger } from '../lib/logger';
 import fs from 'fs';
 import path from 'path';
 import { FeishuAdapter } from './feishu';
@@ -72,7 +73,7 @@ export function createMessagingRoutes(
       if (body.type === 'url_verification' || body.event?.type === 'url_verification') {
         const challenge = body.challenge || body.event?.challenge;
         if (challenge) {
-          console.log('[Feishu] URL verification challenge received');
+          logger.info('[Feishu] URL verification challenge received');
           return res.json({ challenge });
         }
         return res.status(400).json({ error: 'Missing challenge token' });
@@ -85,11 +86,11 @@ export function createMessagingRoutes(
 
       // Dedup: Feishu retries events if no ack, but we process async below
       if (isDuplicate(msg.messageId)) {
-        console.log(`[Feishu] Ignoring duplicate: ${msg.messageId}`);
+        logger.info(`[Feishu] Ignoring duplicate: ${msg.messageId}`);
         return res.json({ code: 0 });
       }
 
-      console.log(`[Feishu] ${msg.userName} (${msg.chatType}): ${msg.text.slice(0, 80)}`);
+      logger.info(`[Feishu] ${msg.userName} (${msg.chatType}): ${msg.text.slice(0, 80)}`);
 
       // Respond to Feishu IMMEDIATELY (must be < 1s), process AI reply async
       res.json({ code: 0 });
@@ -123,7 +124,7 @@ export function createMessagingRoutes(
           adapter.sendMessage(msg.chatId, { text: replyText, platform: 'feishu' }));
       }
     } catch (err: any) {
-      console.error('[Feishu] Event error:', err.message);
+      logger.error('[Feishu] Event error:', err.message);
       if (!res.headersSent) {
         res.json({ code: -1, msg: err.message });
       }
@@ -146,7 +147,7 @@ export function createMessagingRoutes(
 
       res.json({ success: true, messageId });
     } catch (err: any) {
-      console.error('[Feishu] Send error:', err.message);
+      logger.error('[Feishu] Send error:', err.message);
       res.status(500).json({ error: err.message });
     }
   });
@@ -757,7 +758,7 @@ async function processWithPersonality(
       personality = result.config;
       systemPrompt = result.systemPrompt;
     } catch (err: any) {
-      console.warn('[Feishu] Personality build failed, using fallback:', err.message);
+      logger.warn('[Feishu] Personality build failed, using fallback:', err.message);
     }
   }
 
@@ -815,7 +816,7 @@ async function processWithPersonality(
         if (text) return text;
       }
     } catch (err: any) {
-      console.warn(`[Feishu] Model ${model} failed:`, err.message);
+      logger.warn(`[Feishu] Model ${model} failed:`, err.message);
     }
   }
 
@@ -886,7 +887,7 @@ export function createWeComRoutes(
 
       if (!echostr) return res.status(400).send('Missing echostr');
 
-      console.log('[WeCom] URL verify — k/v:',
+      logger.info('[WeCom] URL verify — k/v:',
         'sig:', msg_signature?.slice(0, 12),
         'ts:', timestamp,
         'nonce:', nonce,
@@ -897,10 +898,10 @@ export function createWeComRoutes(
 
       // echostr may have + that Express turned into space
       const plaintext = adapter.verifyUrl(fix(echostr), { msg_signature, timestamp, nonce });
-      console.log('[WeCom] URL verified OK — returning plaintext');
+      logger.info('[WeCom] URL verified OK — returning plaintext');
       res.type('text/plain').send(plaintext);
     } catch (err: any) {
-      console.error('[WeCom] URL verify FAILED:', err.message);
+      logger.error('[WeCom] URL verify FAILED:', err.message);
       res.status(403).send('Verification failed');
     }
   });
@@ -922,27 +923,27 @@ export function createWeComRoutes(
         // Verify signature if possible
         if (msg_signature && timestamp && nonce) {
           if (!adapter.verifyWebhook({ msg_signature, timestamp, nonce, echostr })) {
-            console.log('[WeCom] POST signature verification failed');
+            logger.info('[WeCom] POST signature verification failed');
             return res.status(403).send('signature mismatch');
           }
         }
         try {
           decryptedXml = (adapter as any).decrypt(echostr);
-          console.log('[WeCom] XML decrypted:', decryptedXml.slice(0, 200));
+          logger.info('[WeCom] XML decrypted:', decryptedXml.slice(0, 200));
         } catch (err: any) {
-          console.error('[WeCom] Decrypt failed:', err.message);
+          logger.error('[WeCom] Decrypt failed:', err.message);
           return res.status(403).send('decrypt failed');
         }
       }
 
       const msg = adapter.parseEvent({ rawBody: decryptedXml });
       if (!msg) {
-        console.log('[WeCom] parseEvent returned null — msgType may not be text, or XML parse failed');
-        console.log('[WeCom] XML was:', decryptedXml.slice(0, 300));
+        logger.info('[WeCom] parseEvent returned null — msgType may not be text, or XML parse failed');
+        logger.info('[WeCom] XML was:', decryptedXml.slice(0, 300));
         return res.send('success');
       }
 
-      console.log(`[WeCom] ${msg.userName}: ${msg.text.slice(0, 80)}`);
+      logger.info(`[WeCom] ${msg.userName}: ${msg.text.slice(0, 80)}`);
 
       // Respond IMMEDIATELY (WeCom requires < 5s)
       res.type('text/plain').send('success');
@@ -958,7 +959,7 @@ export function createWeComRoutes(
         await adapter.sendMessage(msg.chatId, { text: replyText, platform: 'wechat' });
       }
     } catch (err: any) {
-      console.error('[WeCom] Event error:', err.message);
+      logger.error('[WeCom] Event error:', err.message);
       if (!res.headersSent) {
         res.status(500).send('error');
       }

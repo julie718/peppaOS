@@ -6,6 +6,7 @@
  * pattern is discovered. They can be run by name: "run my morning routine".
  */
 import { readDB, writeDB } from '../../db_layer';
+import { logger } from '../lib/logger';
 import { SubTask } from './orchestrator';
 
 export interface WorkflowDefinition {
@@ -163,7 +164,7 @@ export async function autoGenerateWorkflows(): Promise<number> {
       const autoDesc = `Auto-generated from ${cluster.workflows.length} similar sessions. Average similarity: ${(cluster.avgSimilarity * 100).toFixed(0)}%`;
 
       saveWorkflow(userId, nameBase, autoDesc, steps, undefined, 'auto');
-      console.log(`[WorkflowGen] Auto-created workflow "${nameBase}" from ${cluster.workflows.length} sessions (similarity: ${cluster.avgSimilarity.toFixed(2)})`);
+      logger.info(`[WorkflowGen] Auto-created workflow "${nameBase}" from ${cluster.workflows.length} sessions (similarity: ${cluster.avgSimilarity.toFixed(2)})`);
       created++;
 
       // Remove processed workflows so they don't re-trigger
@@ -172,7 +173,7 @@ export async function autoGenerateWorkflows(): Promise<number> {
 
     return created;
   } catch (err) {
-    console.error('[WorkflowGen] Auto-generation failed:', err);
+    logger.error('[WorkflowGen] Auto-generation failed:', err);
     return 0;
   }
 }

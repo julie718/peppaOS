@@ -1,4 +1,5 @@
 import { ToolDefinition, ToolPermission, SecurityLevel, ToolContext } from './types';
+import { logger } from '../lib/logger';
 import { ToolPolicy } from '../personality/types';
 import { evaluateActionConstitution } from './action_constitution';
 
@@ -39,7 +40,7 @@ export class ToolRegistry {
 
   register(tool: ToolDefinition): boolean {
     if (this.tools.has(tool.name)) {
-      console.warn(`[ToolRegistry] "${tool.name}" already registered — skipping duplicate`);
+      logger.warn(`[ToolRegistry] "${tool.name}" already registered — skipping duplicate`);
       return false;
     }
     this.tools.set(tool.name, tool);
@@ -63,7 +64,7 @@ export class ToolRegistry {
       }
     }
     if (removed.length > 0) {
-      console.log(`[ToolRegistry] Unregistered ${removed.length} tools with prefix "${prefix}"`);
+      logger.info(`[ToolRegistry] Unregistered ${removed.length} tools with prefix "${prefix}"`);
     }
     return removed;
   }
@@ -149,7 +150,7 @@ export class ToolRegistry {
       } else if (effective.level === 'safe' && constitutional.requiresUserConfirmation) {
         throw new Error(`Tool "${name}" requires user confirmation: ${constitutional.reason}.`);
       }
-      console.log(`[Tool] Executing confirmation-level tool: ${name} (${constitutional.reason})`);
+      logger.info(`[Tool] Executing confirmation-level tool: ${name} (${constitutional.reason})`);
     }
 
     // Wrap with timeouts to prevent hanging. Vision/CAD extraction needs more room than simple tools.

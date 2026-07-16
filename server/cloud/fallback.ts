@@ -7,6 +7,7 @@
  */
 
 import { isCircuitClosed, recordFailure, recordSuccess } from './circuit_breaker';
+import { logger } from '../lib/logger';
 import { isCloudRetryable } from './retry';
 import { getKey } from '../config/keys';
 
@@ -103,7 +104,7 @@ export async function withFallback<T>(
         error: 'Circuit breaker open',
         durationMs: 0,
       });
-      console.log(`[Fallback] ${label} circuit is OPEN — skipping`);
+      logger.info(`[Fallback] ${label} circuit is OPEN — skipping`);
       continue;
     }
 
@@ -136,7 +137,7 @@ export async function withFallback<T>(
         durationMs,
       });
 
-      console.log(`[Fallback] ${label} failed (${err.message?.slice(0, 80)}) — ${isRetryable ? 'retryable' : 'non-retryable'}`);
+      logger.info(`[Fallback] ${label} failed (${err.message?.slice(0, 80)}) — ${isRetryable ? 'retryable' : 'non-retryable'}`);
 
       // Decide whether to cascade to next provider
       if (isRetryable && !cascadeOnRetryable) {

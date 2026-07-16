@@ -3,6 +3,7 @@
  * Inputs emotional state + memories + time + track → outputs a MusicScene for the frontend.
  */
 import { loadEmotionalState } from '../personality/state';
+import { logger } from '../lib/logger';
 import { queryMemories } from '../memory/store';
 import { getTimeOfDay } from '../time/utils';
 import { getMessagesForAgent } from '../conversation/manager';
@@ -111,22 +112,22 @@ export async function generateMusicScene(
     // Extract JSON from response
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.warn('[SceneGenerator] No JSON in response:', text.slice(0, 100));
+      logger.warn('[SceneGenerator] No JSON in response:', text.slice(0, 100));
       return null;
     }
 
     const scene: MusicScene = JSON.parse(jsonMatch[0]);
     if (!scene.colors?.bg || !scene.colors?.accent || !scene.scene) {
-      console.warn('[SceneGenerator] Missing required fields:', scene);
+      logger.warn('[SceneGenerator] Missing required fields:', scene);
       return null;
     }
     // Inject emotion data for frontend lyric coloring
     scene.emotion = { valence: es.valence, arousal: es.arousal };
 
-    console.log(`[SceneGenerator] Generated scene: ${scene.scene}, particles: ${scene.particles}, intensity: ${scene.intensity}`);
+    logger.info(`[SceneGenerator] Generated scene: ${scene.scene}, particles: ${scene.particles}, intensity: ${scene.intensity}`);
     return scene;
   } catch (e: any) {
-    console.warn('[SceneGenerator] Failed, using fallback:', e.message);
+    logger.warn('[SceneGenerator] Failed, using fallback:', e.message);
     return null;
   }
 }

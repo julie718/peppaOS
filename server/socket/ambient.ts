@@ -1,4 +1,5 @@
 import { Socket, Server } from "socket.io";
+import { logger } from '../lib/logger';
 import { readDB } from "../../db_layer";
 import { pushActivityEvent, setIdleState, getIdleState, getLastEvent, clearActivityStream } from "../context/activity_stream";
 import { detectClipboardChange } from "../context/clipboard_monitor";
@@ -25,16 +26,16 @@ export function registerAmbientHandlers(socket: Socket, getUserId: (s: Socket) =
       if (activeConv && activeConv.messageCount >= 10 && !activeConv.summary) {
         const { checkAutoSummary } = await import('../conversation/manager');
         checkAutoSummary(activeConv.id);
-        console.log(`[IdleProcessing] Triggered auto-summary for conversation ${activeConv.id}`);
+        logger.info(`[IdleProcessing] Triggered auto-summary for conversation ${activeConv.id}`);
       }
     } catch (err: any) {
-      console.warn(`[IdleProcessing] Summarize failed: ${err.message}`);
+      logger.warn(`[IdleProcessing] Summarize failed: ${err.message}`);
     }
 
     try {
       const { cleanupEphemeralAgents } = await import('../agents/orchestrator');
       const cleaned = cleanupEphemeralAgents(6);
-      if (cleaned > 0) console.log(`[IdleProcessing] Cleaned up ${cleaned} ephemeral agents`);
+      if (cleaned > 0) logger.info(`[IdleProcessing] Cleaned up ${cleaned} ephemeral agents`);
     } catch {}
   }
 
@@ -43,10 +44,10 @@ export function registerAmbientHandlers(socket: Socket, getUserId: (s: Socket) =
       try {
         const ret = fn(...args);
         if (ret && typeof (ret as any).catch === 'function') {
-          (ret as any).catch((e: any) => console.error('[Ambient] Handler error:', e.message || String(e)));
+          (ret as any).catch((e: any) => logger.error('[Ambient] Handler error:', e.message || String(e)));
         }
       } catch (e: any) {
-        console.error('[Ambient] Handler error:', e.message || String(e));
+        logger.error('[Ambient] Handler error:', e.message || String(e));
       }
     };
   }
@@ -77,7 +78,7 @@ export function registerAmbientHandlers(socket: Socket, getUserId: (s: Socket) =
     socket.emit("ambient:idle_echo", data);
     if (isIdle && !wasIdle) {
       triggerIdleProcessing(uid, io).catch(err =>
-        console.warn(`[IdleProcessing] Background task failed for ${uid}:`, err.message)
+        logger.warn(`[IdleProcessing] Background task failed for ${uid}:`, err.message)
       );
     }
 

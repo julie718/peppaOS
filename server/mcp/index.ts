@@ -2,6 +2,7 @@ export { mcpManager, SKILLS_DIR } from './client';
 export type { MCPServerConfig, MCPToolDef, SkillPackage } from './client';
 
 import { toolRegistry } from '../tools/registry';
+import { logger } from '../lib/logger';
 import { mcpManager, MCPToolDef, MCPServerConfig } from './client';
 import type { ToolDefinition, ToolContext } from '../tools/types';
 
@@ -48,7 +49,7 @@ export async function recoverServerTools(name: string, tools: MCPToolDef[]): Pro
     registerTool(tool);
     registered.push(tool.name);
   }
-  console.log(`[MCP] Re-registered ${registered.length} tools for recovered server "${name}"`);
+  logger.info(`[MCP] Re-registered ${registered.length} tools for recovered server "${name}"`);
   return registered;
 }
 

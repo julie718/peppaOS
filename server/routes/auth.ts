@@ -1,4 +1,5 @@
 import { Router, Request } from "express";
+import { logger } from '../lib/logger';
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
@@ -61,7 +62,7 @@ export function mountAuthRoutes(router: Router, jwtSecret: string, getCookieOpti
     const { password: _, ...userWithoutPassword } = newUser;
     return res.json({ success: true, user: userWithoutPassword, token });
     } catch (err: any) {
-      console.error('[Auth] register error:', err.message);
+      logger.error('[Auth] register error:', err.message);
       return res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -87,7 +88,7 @@ export function mountAuthRoutes(router: Router, jwtSecret: string, getCookieOpti
     }
     res.status(401).json({ error: "Invalid credentials" });
     } catch (err: any) {
-      console.error('[Auth] login error:', err.message);
+      logger.error('[Auth] login error:', err.message);
       return res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -132,7 +133,7 @@ export function mountAuthRoutes(router: Router, jwtSecret: string, getCookieOpti
       const { password: _, ...userWithoutPassword } = user;
       return res.json({ success: true, user: userWithoutPassword });
     } catch (err: any) {
-      console.error('[Auth] bootstrap error:', err.message);
+      logger.error('[Auth] bootstrap error:', err.message);
       return res.status(401).json({ success: false, error: 'Not authenticated' });
     }
   });
@@ -168,7 +169,7 @@ export function mountAuthRoutes(router: Router, jwtSecret: string, getCookieOpti
 
     res.json({ success: true });
     } catch (err: any) {
-      console.error('[Auth] change-password error:', err.message);
+      logger.error('[Auth] change-password error:', err.message);
       return res.status(500).json({ error: 'Internal server error' });
     }
   });

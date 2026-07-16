@@ -16,6 +16,7 @@
  */
 
 import { classifyIntent, classifyIntentLLM, extractSentiment, IntentResult, SentimentResult } from './intent';
+import { logger } from '../lib/logger';
 import { generateFallback, isLLMDown } from './fallback';
 import { toolRegistry } from '../tools/registry';
 import { getModeConfig, ConversationMode, ModeConfig } from './modes';
@@ -93,7 +94,7 @@ export async function processInput(
       };
     } catch (err: any) {
       // Direct tool failed — fall through to LLM path
-      console.log(`[Cognition] Direct tool '${intent.directToolCall.name}' failed: ${err.message}, falling through to LLM`);
+      logger.info(`[Cognition] Direct tool '${intent.directToolCall.name}' failed: ${err.message}, falling through to LLM`);
       return {
         responseText: '',
         intent,

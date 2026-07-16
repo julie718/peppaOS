@@ -2,6 +2,7 @@
  * agent:chat socket handler — the core conversational AI pipeline
  */
 import { Socket } from "socket.io";
+import { logger } from '../lib/logger';
 import jwt from "jsonwebtoken";
 import { readDB, writeDB } from "../../db_layer";
 import { pushNotification } from "../routes/notifications";
@@ -245,7 +246,7 @@ export function registerChatHandler(
   });
 
   socket.on("agent:chat", async (data: { text?: string; history?: any[]; attachments?: any[]; personalityId?: string; category?: string; agentId?: string; domain?: string; orgId?: string | null; mode?: string; source?: string; requestId?: string }) => {
-    console.log('[ChatHandler] agent:chat RECEIVED:', JSON.stringify(data).slice(0, 300));
+    logger.info('[ChatHandler] agent:chat RECEIVED:', JSON.stringify(data).slice(0, 300));
     const { history, personalityId = "peppa", category, agentId, mode: payloadMode, source } = data;
     const attachments = normalizeIncomingAttachments(data.attachments);
     const rawUserText = typeof data.text === 'string' ? data.text.trim() : '';
@@ -267,7 +268,7 @@ export function registerChatHandler(
     const conversationAgentId = agentId || 'peppa';
     const uid = userIdFn(socket);
     const sessionKey = `${uid}:${eventSource}`;
-    console.log('[ChatHandler] uid:', uid, 'agentId:', agentId, 'source:', source);
+    logger.info('[ChatHandler] uid:', uid, 'agentId:', agentId, 'source:', source);
 
     // Work context comes from the authenticated socket token. Personal mode can be
     // explicitly requested by the desktop UI to avoid a stale org token leaking into
@@ -298,7 +299,7 @@ export function registerChatHandler(
         }
       }
     } catch {}
-    console.log('[ChatHandler] domain:', resolvedDomain, 'orgId:', resolvedOrgId);
+    logger.info('[ChatHandler] domain:', resolvedDomain, 'orgId:', resolvedOrgId);
 
     // Abort any previous chat session for this user
     const prevController = chatSessionMap.get(sessionKey);
@@ -311,14 +312,14 @@ export function registerChatHandler(
       const agentRecord = agentId
         ? readDB().agents.find((a: any) => a.id === agentId) || null
         : null;
-      console.log('[ChatHandler] agentRecord found:', !!agentRecord);
+      logger.info('[ChatHandler] agentRecord found:', !!agentRecord);
       const memoryScope = agentRecord?.memoryScope || 'shared';
       const agentMemoryFilter = memoryScope === 'private' ? agentId : undefined;
       const isSanctuary = agentRecord?.territory === 'sanctuary';
 
       // Retrieve personality vector early to bias memory retrieval (cross-system fusion: vector→memory)
       const personalityConfig = personalityRegistry.get(personalityId);
-      console.log('[ChatHandler] personalityConfig:', !!personalityConfig);
+      logger.info('[ChatHandler] personalityConfig:', !!personalityConfig);
       const retrievalBiases = personalityConfig?.personalityVector
         ? vectorMemoryBias(personalityConfig.personalityVector)
         : { typeWeights: {}, perspectiveWeights: {} };
@@ -332,7 +333,7 @@ export function registerChatHandler(
         orgId: resolvedOrgId,
         useVector: true,
       });
-      console.log('[ChatHandler] relevantMemories (vector):', relevantMemories.length);
+      logger.info('[ChatHandler] relevantMemories (vector):', relevantMemories.length);
 
       // RAG: retrieve relevant knowledge chunks from agent-scoped and Peppa knowledge.
       let ragChunks: string[] = [];
@@ -359,17 +360,17 @@ export function registerChatHandler(
             kbContext = kbResults
               .map(r => `[${r.title}] ${r.chunk}`)
               .join('\n');
-            console.log('[ChatHandler] KB search results:', kbResults.length, 'articles found');
+            logger.info('[ChatHandler] KB search results:', kbResults.length, 'articles found');
           }
         } catch (err: any) {
-          console.warn('[ChatHandler] KB search failed:', err.message);
+          logger.warn('[ChatHandler] KB search failed:', err.message);
         }
       }
 
       const emotionKey = agentMemoryFilter ? `${uid}_agent_${agentId}` : uid;
       const emotionalState = loadEmotionalState(emotionKey);
       const himState = loadHIMState(emotionKey);
-      console.log('[ChatHandler] emotionalState loaded');
+      logger.info('[ChatHandler] emotionalState loaded');
       const isNovel = relevantMemories.length < 2;
 
       // ── Conversation mode: get/create conversation, apply mode from payload ──
@@ -390,10 +391,10 @@ export function registerChatHandler(
       if (conversation && payloadMode && payloadMode !== conversation.mode) {
         setConversationMode(conversation.id, payloadMode);
       }
-      console.log('[ChatHandler] conversationId:', conversationId, 'mode:', conversationMode);
+      logger.info('[ChatHandler] conversationId:', conversationId, 'mode:', conversationMode);
 
       const sensory = sensoryFn(uid);
-      console.log('[ChatHandler] sensory loaded');
+      logger.info('[ChatHandler] sensory loaded');
       const { config: personality, systemPrompt: systemInstruction } = personalityRegistry.buildSystemPrompt(
         personalityId,
         { mode: 'chat', sensory },
@@ -405,7 +406,7 @@ export function registerChatHandler(
           userText: text,
         },
       );
-      console.log('[ChatHandler] systemPrompt built, personality name:', personality?.name);
+      logger.info('[ChatHandler] systemPrompt built, personality name:', personality?.name);
 
       // Inject conversation summary chain for long-running conversations (anti-entropy)
       let effectiveSystemPrompt = systemInstruction;
@@ -531,7 +532,7 @@ export function registerChatHandler(
       });
 
       emitAgent("agent:status", { status: "thinking", agentName: personality.name });
-      console.log('[ChatHandler] emitted agent:status thinking');
+      logger.info('[ChatHandler] emitted agent:status thinking');
 
       // Read user's operation mode from DB
       const operationMode = (() => {
@@ -588,7 +589,7 @@ export function registerChatHandler(
         : baseRoutedToolPolicy;
       const exposeAgentWork = shouldExposeAgentWork(text);
       effectiveSystemPrompt += '\n\n' + formatClientSelfPrompt(uid);
-      console.log('[ChatHandler] tool gate:', allowToolUseForTurn ? 'enabled' : 'chat-only', 'operationMode:', operationMode, 'clientActionOnly:', clientActionOnlyTurn, 'selfRepair:', selfRepairTurn, 'route:', toolRoute ? `${toolRoute.toolNames.length}/${toolRoute.totalAvailable} ${toolRoute.categories.join(',') || 'fallback'}` : 'none');
+      logger.info('[ChatHandler] tool gate:', allowToolUseForTurn ? 'enabled' : 'chat-only', 'operationMode:', operationMode, 'clientActionOnly:', clientActionOnlyTurn, 'selfRepair:', selfRepairTurn, 'route:', toolRoute ? `${toolRoute.toolNames.length}/${toolRoute.totalAvailable} ${toolRoute.categories.join(',') || 'fallback'}` : 'none');
       if (toolRoute) {
         socket.emit('agent:tool_route', {
           categories: toolRoute.categories,
@@ -638,7 +639,7 @@ export function registerChatHandler(
       if (llmGetters.isOllamaAvailable() && userLLMPrefs.provider === 'auto') {
         activeProvider = 'auto';
         activeModel = 'qwen2.5:7b';
-        console.log('[Chat] Hybrid mode enabled — local Ollama → cloud DeepSeek');
+        logger.info('[Chat] Hybrid mode enabled — local Ollama → cloud DeepSeek');
       }
 
       // ── Subscription enforcement: never switch the user's selected brain silently ──
@@ -660,7 +661,7 @@ export function registerChatHandler(
         const allWfs = listWorkflows(uid);
         const matched = allWfs.find(w => w.name.toLowerCase().includes(wfName));
         if (matched) {
-          console.log('[ChatHandler] Workflow quick-path matched:', matched.name);
+          logger.info('[ChatHandler] Workflow quick-path matched:', matched.name);
           const steps: string[] = [];
           for (let i = 0; i < matched.steps.length; i++) {
             const step = matched.steps[i];
@@ -692,7 +693,7 @@ export function registerChatHandler(
       try {
         const quickResult = await matchQuickCommand(text, uid);
         if (quickResult?.matched) {
-          console.log('[ChatHandler] Quick command:', text.slice(0, 60));
+          logger.info('[ChatHandler] Quick command:', text.slice(0, 60));
           if (quickResult.toolCall) {
             const toolCid = `qc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
             const shouldEmitQuickTool = !isDirectDesktopTool(quickResult.toolCall.name);
@@ -745,7 +746,7 @@ export function registerChatHandler(
           return;
         }
       } catch (qcErr: any) {
-        console.warn('[ChatHandler] Quick command check failed, falling through:', qcErr.message);
+        logger.warn('[ChatHandler] Quick command check failed, falling through:', qcErr.message);
       }
 
       if (isMusicProfileAnalysisRequest(text)) {
@@ -797,12 +798,12 @@ export function registerChatHandler(
       };
 
       const cognition = await processInput(text, cognitiveCtx, llmClassifier);
-      console.log('[ChatHandler] cognition result:', cognition.intent.category, 'directToolExecuted:', cognition.directToolExecuted, 'responseText:', cognition.responseText?.slice(0, 100));
+      logger.info('[ChatHandler] cognition result:', cognition.intent.category, 'directToolExecuted:', cognition.directToolExecuted, 'responseText:', cognition.responseText?.slice(0, 100));
 
       // ── Sentiment analysis: detect emotional charge in user input ──
       const sentiment = extractSentiment(text);
       if (sentiment.valence !== 0 || sentiment.urgency > 0 || sentiment.frustration > 0) {
-        console.log('[ChatHandler] sentiment:', sentiment);
+        logger.info('[ChatHandler] sentiment:', sentiment);
       }
 
       // Auto-select model: flash for simple chat, pro for complex tasks
@@ -817,7 +818,7 @@ export function registerChatHandler(
       } else if (activeProvider === 'openai') {
         activeModel = isComplex ? 'gpt-4o' : 'gpt-4o-mini';
       }
-      console.log('[ChatHandler] Model auto-selected:', activeProvider, '/', activeModel, 'for category:', cognition.intent.category);
+      logger.info('[ChatHandler] Model auto-selected:', activeProvider, '/', activeModel, 'for category:', cognition.intent.category);
 
       let responseText = '';
       let llmWasCalled = false;
@@ -851,7 +852,7 @@ export function registerChatHandler(
       if (cognition.directToolExecuted && cognition.responseText) {
         // Path A: Peppa handled this directly — no LLM needed
         responseText = cognition.responseText;
-        console.log(`[Cognition] Direct tool '${cognition.intent.directToolCall?.name}' handled without LLM`);
+        logger.info(`[Cognition] Direct tool '${cognition.intent.directToolCall?.name}' handled without LLM`);
       }
 
       // Path A2: music intent. Handle before the generic tool loop so Peppa
@@ -870,7 +871,7 @@ export function registerChatHandler(
             socket.emit('music:error', { message: responseText });
           }
         } catch (musicErr: any) {
-          console.warn('[Music Intent] Failed:', musicErr.message);
+          logger.warn('[Music Intent] Failed:', musicErr.message);
           responseText = getMusicFailureMessage(musicErr?.message);
           socket.emit('music:error', { message: responseText });
         }
@@ -980,7 +981,7 @@ export function registerChatHandler(
                 } as any);
                 writeDB(db);
               } catch (persistErr: any) {
-                console.warn('[BackgroundDelegation] Persist failed:', persistErr?.message || persistErr);
+                logger.warn('[BackgroundDelegation] Persist failed:', persistErr?.message || persistErr);
               }
             };
 
@@ -1115,7 +1116,7 @@ export function registerChatHandler(
                 });
               }
             })().catch((err) => {
-              console.error('[BackgroundDelegation] Unhandled error:', err);
+              logger.error('[BackgroundDelegation] Unhandled error:', err);
             });
           }, 30);
         }
@@ -1163,7 +1164,7 @@ export function registerChatHandler(
             // Check if this pattern should be auto-distilled into a skill
             if (shouldDistillSkill(text) && orchResult.workflowResult.totalAgentsUsed >= 2) {
               const skillDesc = buildSkillDescription(text, orchResult.workflowResult);
-              console.log('[Orchestrator] Pattern detected — candidate for skill distillation:', skillDesc.slice(0, 100));
+              logger.info('[Orchestrator] Pattern detected — candidate for skill distillation:', skillDesc.slice(0, 100));
               emitAgent("agent:proactive", {
                 type: 'distill_hint',
                 message: 'I notice this type of task is recurring. I can create an automated skill for this — would you like me to?',
@@ -1174,7 +1175,7 @@ export function registerChatHandler(
             }
           }
         } catch (orchErr: any) {
-          console.error('[Orchestrator] Workflow failed, falling back to normal chat:', orchErr.message);
+          logger.error('[Orchestrator] Workflow failed, falling back to normal chat:', orchErr.message);
         }
       }
 
@@ -1216,10 +1217,10 @@ export function registerChatHandler(
           if (chainerResult.finalResponse) {
             responseText = chainerResult.finalResponse;
             llmWasCalled = true;
-            console.log('[NLChainer] Completed with', chainerResult.stepResults.length, 'steps. Goal:', chainerResult.plan.goal);
+            logger.info('[NLChainer] Completed with', chainerResult.stepResults.length, 'steps. Goal:', chainerResult.plan.goal);
           }
         } catch (chainErr: any) {
-          console.error('[NLChainer] Failed, falling back to normal chat:', chainErr.message);
+          logger.error('[NLChainer] Failed, falling back to normal chat:', chainErr.message);
         }
       }
 
@@ -1249,7 +1250,7 @@ export function registerChatHandler(
         ];
 
         try {
-          console.log('[ChatHandler] Calling Path C with provider:', activeProvider, 'model:', activeModel, 'tools:', allowToolUseForTurn && !isSanctuary ? 'enabled' : 'off');
+          logger.info('[ChatHandler] Calling Path C with provider:', activeProvider, 'model:', activeModel, 'tools:', allowToolUseForTurn && !isSanctuary ? 'enabled' : 'off');
           const streamChunks: string[] = [];
           const onChunk: StreamCallback = (chunk) => {
             streamChunks.push(chunk);
@@ -1399,7 +1400,7 @@ export function registerChatHandler(
           }
           }
         } catch (llmErr: any) {
-          console.error(`[Cognition] LLM '${activeProvider}/${activeModel}' failed: ${llmErr.message}`);
+          logger.error(`[Cognition] LLM '${activeProvider}/${activeModel}' failed: ${llmErr.message}`);
           // Do not silently switch to another paid provider. The selected model should run or fail visibly.
           if (false && llmErr.message?.includes('not configured') && activeProvider !== 'gemini') {
             try {
@@ -1511,7 +1512,7 @@ export function registerChatHandler(
         source: 'chat',
       });
       if (completionGuard.blocked) {
-        console.warn('[ChatHandler] Completion claim blocked:', completionGuard.reason);
+        logger.warn('[ChatHandler] Completion claim blocked:', completionGuard.reason);
         responseText = completionGuard.text;
         emitAgent("agent:notification", { type: 'work_product_guard', level: 'warning', message: completionGuard.reason });
       }
@@ -1586,7 +1587,7 @@ export function registerChatHandler(
               sourceInteractionId: interactionId, agentId: agentId || '',
             } as any, { domain: resolvedDomain, orgId: resolvedOrgId, source: 'chat' });
           }
-          console.log(`[ChatHandler] Correction learned: ${corrected.memories.length} memories with boosted confidence`);
+          logger.info(`[ChatHandler] Correction learned: ${corrected.memories.length} memories with boosted confidence`);
 
           // Real-time identity correction: when user contradicts a claim Peppa makes about the user
           // (e.g. "我不做自动驾驶" → remove from coreMotivation immediately, no 7-day wait)
@@ -1611,13 +1612,13 @@ export function registerChatHandler(
                 newMotivation: identityResult.rewriteMotivation || undefined,
               });
               if (removed) {
-                console.log(`[ChatHandler] Identity corrected in real-time: removed "${identityResult.removeInterest}"`);
+                logger.info(`[ChatHandler] Identity corrected in real-time: removed "${identityResult.removeInterest}"`);
               }
             }
           } catch (idErr: any) {
-            console.warn('[ChatHandler] Identity correction check failed:', idErr.message);
+            logger.warn('[ChatHandler] Identity correction check failed:', idErr.message);
           }
-        } catch (err: any) { console.warn('[ChatHandler] Correction extraction failed:', err.message); }
+        } catch (err: any) { logger.warn('[ChatHandler] Correction extraction failed:', err.message); }
       }
 
       // Lightweight per-conversation evolution — micro-shifts after meaningful chats
@@ -1637,10 +1638,10 @@ export function registerChatHandler(
           );
           if (step) {
             personalityRegistry.applyEvolution(personalityId, step);
-            console.log(`[ChatHandler] Lightweight evolution: v${step.version}, ${step.mutations.length} mutation(s)`);
+            logger.info(`[ChatHandler] Lightweight evolution: v${step.version}, ${step.mutations.length} mutation(s)`);
           }
         } catch (evErr: any) {
-          console.warn('[ChatHandler] Lightweight evolution failed:', evErr.message);
+          logger.warn('[ChatHandler] Lightweight evolution failed:', evErr.message);
         }
       }
 
@@ -1670,7 +1671,7 @@ export function registerChatHandler(
         for (const rem of extracted.reminders) {
           addReminder({ userId: uid, content: rem.content, dueAt: rem.dueAt, sourceInteractionId: interactionId });
         }
-      }).catch(err => console.error('[Memory] Extraction failed:', err));
+      }).catch(err => logger.error('[Memory] Extraction failed:', err));
       }
 
       // Update emotional state — reconnect if user was away for a while
@@ -1729,7 +1730,7 @@ export function registerChatHandler(
       }
 
     } catch (error: any) {
-      console.error("[Socket Agent Error]:", error);
+      logger.error("[Socket Agent Error]:", error);
       emitAgent("agent:error", { message: error.message });
       emitAgent("agent:status", { status: "error" });
     } finally {
@@ -1763,7 +1764,7 @@ async function summarizeConversationAsync(
     const summary = result.text.trim();
     if (summary) {
       setConversationSummary(conversationId, summary);
-      console.log(`[Conversation] Auto-summary generated for ${conversationId}`);
+      logger.info(`[Conversation] Auto-summary generated for ${conversationId}`);
     }
   } catch (err) {
     // Non-critical — conversation continues without summary

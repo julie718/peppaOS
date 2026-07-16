@@ -1,4 +1,5 @@
 import path from 'path';
+import { logger } from '../lib/logger';
 import { addMemory } from '../memory/store';
 import { Memory } from '../memory/types';
 import type { MarkdownKnowledgeMetadata } from '../knowledge/markdown';
@@ -91,7 +92,7 @@ export async function ingestDocument(
     memoryIds.push(mem.id);
   }
 
-  console.log(`[RAG] Ingested "${documentTitle}" -> ${chunks.length} chunks for agent ${agentId}`);
+  logger.info(`[RAG] Ingested "${documentTitle}" -> ${chunks.length} chunks for agent ${agentId}`);
   return { chunkCount: chunks.length, memoryIds };
 }
 

@@ -1,4 +1,5 @@
 import express from "express";
+import { logger } from '../lib/logger';
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import http from "http";
@@ -52,7 +53,7 @@ export function createApp(): AppContext {
 
   // Middleware to log API requests for debugging
   apiRouter.use((req, res, next) => {
-    console.log(`[API_ROUTER] ${req.method} ${req.path}`);
+    logger.info(`[API_ROUTER] ${req.method} ${req.path}`);
     next();
   });
 
@@ -61,7 +62,7 @@ export function createApp(): AppContext {
 
   // Global error handler for async route rejections
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    console.error('[Express] Unhandled error:', err?.message || err);
+    logger.error('[Express] Unhandled error:', err?.message || err);
     res.status(500).json({ error: err?.message || 'Internal server error' });
   });
 

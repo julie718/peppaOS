@@ -1,5 +1,6 @@
 // Versioned database migrations — replaces the old silently-failing ALTER TABLE approach
 import sqlite3 from 'sqlite3';
+import { logger } from '../lib/logger';
 
 export interface Migration {
   version: number;
@@ -117,13 +118,13 @@ export function runMigrations(db: sqlite3.Database): Promise<number[]> {
                   applyNext(i + 1);
                 });
               } else {
-                console.error(`[Migration v${m.version}] ${m.description} FAILED:`, err.message);
+                logger.error(`[Migration v${m.version}] ${m.description} FAILED:`, err.message);
                 applyNext(i + 1);
               }
             } else {
               db.run(`INSERT OR IGNORE INTO schema_version (version, appliedAt) VALUES (?, ?)`, [m.version, new Date().toISOString()], () => {
                 applied.push(m.version);
-                console.log(`[Migration v${m.version}] ${m.description}`);
+                logger.info(`[Migration v${m.version}] ${m.description}`);
                 applyNext(i + 1);
               });
             }

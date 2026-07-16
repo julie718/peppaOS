@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { logger } from '../../lib/logger';
 import path from 'path';
 import { ToolRegistry } from '../registry';
 import { loadKeys } from '../../config/keys';
@@ -63,7 +64,7 @@ async function generateImage(args: Record<string, any>): Promise<string> {
     try {
       return await generateImageDalle(args);
     } catch (err: any) {
-      console.warn('[generateImage] DALL-E failed, falling back to DashScope:', err.message);
+      logger.warn('[generateImage] DALL-E failed, falling back to DashScope:', err.message);
     }
   }
 

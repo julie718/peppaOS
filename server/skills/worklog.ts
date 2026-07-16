@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 /**
  * Workflow recorder — captures tool execution traces for pattern detection.
  * Keeps last 50 workflows in memory; the scheduler periodically checks
@@ -37,7 +38,7 @@ export function recordWorkflow(record: Omit<WorkflowRecord, 'id' | 'timestamp'>)
   if (recentWorkflows.length > MAX_WORKFLOWS) {
     recentWorkflows.shift();
   }
-  console.log(`[Worklog] Recorded workflow "${record.userIntent.slice(0, 50)}" (${record.toolSequence.length} tools)`);
+  logger.info(`[Worklog] Recorded workflow "${record.userIntent.slice(0, 50)}" (${record.toolSequence.length} tools)`);
   return entry;
 }
 

@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from "express";
+import { logger } from '../lib/logger';
 import { readDB, writeDB } from "../../db_layer";
 import { getOrCreateActiveConversation, getActiveConversation, getMessages, addMessage } from "../conversation/manager";
 import { makeLLMCall, NormalizedMessage } from "../llm/providers";
@@ -83,7 +84,7 @@ export function mountAgentRoutes(
         { getDeepSeek: llmGetters.getDeepSeek, getGemini: llmGetters.getGemini, getOpenAI: llmGetters.getOpenAI, getAnthropic: llmGetters.getAnthropic, getQwen: llmGetters.getQwen },
       );
       res.json({ personalityConfig: result.personalityConfig, seedMemories: result.seedMemories, evidenceMap: result.evidenceMap, relationshipType: result.relationshipType, narrative: result.narrative, inferredName: result.inferredName, summary: { messageCount: chatLog.split('\n').filter((l: string) => l.trim()).length, memoryCount: result.seedMemories.length, cognitiveStyle: result.personalityConfig.personalityVector?.cognitiveStyle, socialStyle: result.personalityConfig.personalityVector?.socialStyle, tone: result.personalityConfig.expressionStyle.tone, topPhrases: result.personalityConfig.expressionStyle.vocabularyHints?.slice(0, 5) } });
-    } catch (err: any) { console.error('[Distill] Failed:', err.message); res.status(500).json({ error: err.message || 'Distillation failed' }); }
+    } catch (err: any) { logger.error('[Distill] Failed:', err.message); res.status(500).json({ error: err.message || 'Distillation failed' }); }
   }));
 
   router.get("/agents/sanctuaries", requireAuth, (req, res) => {
@@ -363,7 +364,7 @@ If the description doesn't specify, use reasonable defaults. Be creative!`;
           special: aiDesign.special || 'none',
         };
         return res.json({ generated: true, prompt, petId: `ai-${Date.now()}`, petName: aiDesign.petName || prompt.slice(0, 30), tags, aiEnhanced: true });
-      } catch (err: any) { console.error('[Pet Gen] AI-enhanced failed:', err.message); }
+      } catch (err: any) { logger.error('[Pet Gen] AI-enhanced failed:', err.message); }
     }
 
     // Procedural fallback: regex matching

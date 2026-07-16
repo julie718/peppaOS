@@ -6,6 +6,7 @@
  * All data stored in org_kb_articles + org_kb_embeddings with legal metadata.
  */
 import * as EDB from '../org/db';
+import { logger } from '../lib/logger';
 import { generateEmbedding, cosineSimilarity } from '../memory/store';
 import { chunkLegalText } from './parser';
 import { LUMI_EMBEDDING_MODEL } from './types';
@@ -81,7 +82,7 @@ export async function indexLegalArticle(orgId: string, articleId: string): Promi
         await new Promise(r => setTimeout(r, 200));
       }
     } catch (err) {
-      console.error(`[LegalKB] Failed to embed chunk ${i} of ${articleId}:`, err);
+      logger.error(`[LegalKB] Failed to embed chunk ${i} of ${articleId}:`, err);
     }
   }
 

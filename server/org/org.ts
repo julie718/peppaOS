@@ -6,6 +6,7 @@
  */
 
 import * as EDB from './db';
+import { logger } from '../lib/logger';
 import { logAudit } from './db';
 
 // ── Organization ─────────────────────────────────────────────────────────
@@ -25,15 +26,15 @@ export function createOrganization(name: string, slug: string, ownerUid: string)
   // Auto-install legal and design agent templates (fire-and-forget)
   import('../legal/templates').then(({ installLegalTemplates }) => {
     const count = installLegalTemplates(org.id);
-    if (count > 0) console.log(`[Org] Installed ${count} legal agent templates for org ${org.id}`);
+    if (count > 0) logger.info(`[Org] Installed ${count} legal agent templates for org ${org.id}`);
   }).catch((err: any) => {
-    console.warn('[Org] Failed to install legal templates:', err.message);
+    logger.warn('[Org] Failed to install legal templates:', err.message);
   });
   import('../design/templates').then(({ installDesignTemplates }) => {
     const count = installDesignTemplates(org.id);
-    if (count > 0) console.log(`[Org] Installed ${count} design agent templates for org ${org.id}`);
+    if (count > 0) logger.info(`[Org] Installed ${count} design agent templates for org ${org.id}`);
   }).catch((err: any) => {
-    console.warn('[Org] Failed to install design templates:', err.message);
+    logger.warn('[Org] Failed to install design templates:', err.message);
   });
   return org;
 }

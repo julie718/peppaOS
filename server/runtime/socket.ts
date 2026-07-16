@@ -1,5 +1,6 @@
 // Socket aggregator — mounts all Socket.IO handlers
 import { Server } from "socket.io";
+import { logger } from '../lib/logger';
 import jwt from "jsonwebtoken";
 import { registerChatHandler } from "../socket/chat";
 import { registerTaskHandler } from "../socket/task";
@@ -88,7 +89,7 @@ export function initSocketRuntime({ io, jwtSecret, llm }: SocketContext) {
     const uid = getUserIdFromSocket(socket, jwtSecret);
     // Join user room so all this user's sockets (DesktopUI, AgentChatPage, etc.) share events
     socket.join(`user:${uid}`);
-    console.log(`[Socket] Client connected: ${socket.id} (uid=${uid})`);
+    logger.info(`[Socket] Client connected: ${socket.id} (uid=${uid})`);
 
     const getUserId = (s: any) => getUserIdFromSocket(s, jwtSecret);
 
@@ -109,7 +110,7 @@ export function initSocketRuntime({ io, jwtSecret, llm }: SocketContext) {
         'presence:heartbeat',
       ]);
       if (event !== 'device:register' && !noisyEvents.has(event)) {
-        console.log(`[Socket:${socket.id}] event: ${event} args:`, JSON.stringify(args).slice(0, 200));
+        logger.info(`[Socket:${socket.id}] event: ${event} args:`, JSON.stringify(args).slice(0, 200));
       }
     });
 

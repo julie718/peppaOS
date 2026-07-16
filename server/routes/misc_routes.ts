@@ -1,5 +1,6 @@
 // Misc routes that didn't fit into other modules: founder vision, feedback, admin config, Org chat
 import { Router } from "express";
+import { logger } from '../lib/logger';
 import { readDB, writeDB, querySQL, runSQL } from "../../db_layer";
 import { runWithTools } from "../llm/adapter";
 import { toolRegistry } from "../tools/registry";
@@ -105,7 +106,7 @@ export function mountMiscRoutes(router: Router, _jwtSecret: string, llm: {
     const provider = preferred.provider;
     const model = preferred.model;
     if (reqProvider && reqProvider !== provider) {
-      console.warn(`[MiscChat] Ignoring request provider ${reqProvider}; using primary brain ${provider}/${model} for user ${userId}`);
+      logger.warn(`[MiscChat] Ignoring request provider ${reqProvider}; using primary brain ${provider}/${model} for user ${userId}`);
     }
 
     try {
@@ -129,7 +130,7 @@ export function mountMiscRoutes(router: Router, _jwtSecret: string, llm: {
       recordUsage(userId, tokens);
       res.json({ text: responseText, toolCalls: result.toolCalls.length });
     } catch (error: any) {
-      console.error("Chat Error:", error);
+      logger.error("Chat Error:", error);
       res.status(500).json({ error: error.message });
     }
   }));

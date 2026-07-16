@@ -3,6 +3,7 @@
 // On failure or timeout, fall back to the cloud provider specified in user config.
 
 import { NormalizedMessage, makeLLMCall, makeLLMCallStreaming, StreamCallback } from './providers';
+import { logger } from '../lib/logger';
 import { NormalizedLLMResponse } from '../tools/types';
 
 export interface DispatchConfig {
@@ -50,10 +51,10 @@ async function tryLocal(
     );
     if (result.text || result.toolCalls) return result;
     // Empty response — fallback
-    console.log('[Dispatch] Local model returned empty — falling back to cloud');
+    logger.info('[Dispatch] Local model returned empty — falling back to cloud');
     return null;
   } catch (err: any) {
-    console.log(`[Dispatch] Local model failed (${err.message}) — falling back to cloud`);
+    logger.info(`[Dispatch] Local model failed (${err.message}) — falling back to cloud`);
     return null;
   }
 }
@@ -78,7 +79,7 @@ export async function dispatchLLMCall(
   // ── Tier 2: Cloud provider ──
   const provider = config.provider || 'deepseek';
   const model = config.model || 'deepseek-chat';
-  console.log(`[Dispatch] Routing to cloud: ${provider}/${model}`);
+  logger.info(`[Dispatch] Routing to cloud: ${provider}/${model}`);
 
   const cloudResult = await makeLLMCall(
     messages,
@@ -116,7 +117,7 @@ export async function dispatchLLMCallStreaming(
   // ── Tier 2: Cloud streaming ──
   const provider = config.provider || 'deepseek';
   const model = config.model || 'deepseek-chat';
-  console.log(`[Dispatch] Routing stream to cloud: ${provider}/${model}`);
+  logger.info(`[Dispatch] Routing stream to cloud: ${provider}/${model}`);
 
   const cloudResult = await makeLLMCallStreaming(
     messages,

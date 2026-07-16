@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { logger } from '../lib/logger';
 import path from 'path';
 import { getDataPath } from '../config/data_path';
 import { runNcmCliAsync } from './ncm_cli';
@@ -51,7 +52,7 @@ interface LikedPlaylistInfo {
 async function runNcmCli(args: string[], timeout = 25000): Promise<string> {
   const result = await runNcmCliAsync(args, timeout, 8 * 1024 * 1024);
   if (!result.ok && !result.stdout) {
-    console.warn('[MusicProfile] ncm-cli error:', result.stderr || result.error || 'unknown error');
+    logger.warn('[MusicProfile] ncm-cli error:', result.stderr || result.error || 'unknown error');
     return '';
   }
   return result.stdout;

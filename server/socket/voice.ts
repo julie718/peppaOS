@@ -3,8 +3,8 @@
  * v2.1 — Multi-turn tool iteration, hands/mouth separation, input queue
  */
 import { Socket } from "socket.io";
+import { logger } from '../lib/logger';
 import { readDB, writeDB } from "../../db_layer";
-import { logger } from "../../logger";
 import { NormalizedMessage, makeLLMCallStreaming, makeLLMCall } from "../llm/providers";
 import { compactToolResultForModel } from "../llm/adapter";
 import { toolRegistry } from "../tools/registry";
@@ -1580,6 +1580,6 @@ export function registerVoiceHandlers(
         session.sttSession = null;
       }
     }
-    console.log(`[Socket] Client disconnected: ${socket.id}`);
+    logger.info(`[Socket] Client disconnected: ${socket.id}`);
   });
 }

@@ -1,4 +1,5 @@
 import { makeLLMCall, NormalizedMessage } from '../llm/providers';
+import { logger } from '../lib/logger';
 import { getUnconsolidatedEpisodic, markConsolidated, addMemory, queryMemories } from './store';
 import { Memory, MemoryPerspective } from './types';
 import { readDB } from '../../db_layer';
@@ -181,10 +182,10 @@ export async function consolidateEpisodic(
     // Link original episodic memories to this consolidated one
     markConsolidated(batch.map(m => m.id), consolidated.id);
 
-    console.log(`[Consolidator] Consolidated ${batch.length} episodic memories → growth:${consolidated.id}`);
+    logger.info(`[Consolidator] Consolidated ${batch.length} episodic memories → growth:${consolidated.id}`);
     return consolidated;
   } catch (err) {
-    console.error('[Consolidator] Consolidation failed:', err);
+    logger.error('[Consolidator] Consolidation failed:', err);
     return null;
   }
 }
@@ -217,7 +218,7 @@ export async function selfReflect(
   });
 
   if (growthMemories.length === 0) {
-    console.log('[SelfReflect] No growth memories to reflect on');
+    logger.info('[SelfReflect] No growth memories to reflect on');
     return null;
   }
 
@@ -276,10 +277,10 @@ export async function selfReflect(
       },
     );
 
-    console.log(`[SelfReflect] Generated reflection:${reflection.id}`);
+    logger.info(`[SelfReflect] Generated reflection:${reflection.id}`);
     return reflection;
   } catch (err) {
-    console.error('[SelfReflect] Reflection failed:', err);
+    logger.error('[SelfReflect] Reflection failed:', err);
     return null;
   }
 }
@@ -385,10 +386,10 @@ export async function consolidateNarrative(
       },
     );
 
-    console.log(`[NarrativeConsolidator] Created storyline "${title}" (${sample.length} memories, ${windowDays}d window)`);
+    logger.info(`[NarrativeConsolidator] Created storyline "${title}" (${sample.length} memories, ${windowDays}d window)`);
     return narrative;
   } catch (err) {
-    console.error('[NarrativeConsolidator] Failed:', err);
+    logger.error('[NarrativeConsolidator] Failed:', err);
     return null;
   }
 }

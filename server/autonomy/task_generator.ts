@@ -3,6 +3,7 @@
  * Gathers context about the user's state and asks the LLM to suggest useful autonomous tasks.
  */
 import { isAutonomousWorkAllowed } from './safety_gate';
+import { logger } from '../lib/logger';
 import { enqueue } from './task_queue';
 import { listEnabledAutonomousWorkflows } from './workflows';
 import { createPlan, updatePlan, type PeppaPlan } from './planner';
@@ -59,13 +60,13 @@ export async function generateAutonomousTasks(
   // Safety gate check
   const gate = isAutonomousWorkAllowed(userId);
   if (!gate.allowed) {
-    console.log(`[AutoTasks] Gate blocked: ${gate.reason}`);
+    logger.info(`[AutoTasks] Gate blocked: ${gate.reason}`);
     return 0;
   }
 
   const workflows = listEnabledAutonomousWorkflows(userId);
   if (workflows.length === 0) {
-    console.log(`[AutoTasks] No enabled confirmed workflows for ${userId}`);
+    logger.info(`[AutoTasks] No enabled confirmed workflows for ${userId}`);
     return 0;
   }
   const workflowById = new Map(workflows.map(workflow => [workflow.id, workflow]));
@@ -198,7 +199,7 @@ ${contextParts.join('\n')}
     try {
       tasks = JSON.parse(text);
     } catch {
-      console.log('[AutoTasks] Failed to parse LLM response:', text.slice(0, 200));
+      logger.info('[AutoTasks] Failed to parse LLM response:', text.slice(0, 200));
       return 0;
     }
 
@@ -208,13 +209,13 @@ ${contextParts.join('\n')}
     for (const t of tasks) {
       if (!t.title || !t.description) continue;
       if (!t.workflowId || !workflowById.has(t.workflowId)) {
-        console.log(`[AutoTasks] Skipped task without enabled workflow: ${t.title}`);
+        logger.info(`[AutoTasks] Skipped task without enabled workflow: ${t.title}`);
         continue;
       }
       const workflow = workflowById.get(t.workflowId)!;
       const requestedMode = t.mode === 'desktop' || t.mode === 'terminal' ? t.mode : 'analysis';
       if (!workflow.allowedModes.includes(requestedMode)) {
-        console.log(`[AutoTasks] Skipped task with disallowed mode ${requestedMode} for workflow ${workflow.id}`);
+        logger.info(`[AutoTasks] Skipped task with disallowed mode ${requestedMode} for workflow ${workflow.id}`);
         continue;
       }
       const plan = createLearningPlanForTask(t, workflow.title);
@@ -238,10 +239,10 @@ ${contextParts.join('\n')}
       }
     }
 
-    console.log(`[AutoTasks] Generated ${enqueued} autonomous tasks for ${userId}`);
+    logger.info(`[AutoTasks] Generated ${enqueued} autonomous tasks for ${userId}`);
     return enqueued;
   } catch (err: any) {
-    console.warn(`[AutoTasks] Generation failed:`, err.message);
+    logger.warn(`[AutoTasks] Generation failed:`, err.message);
     return 0;
   }
 }

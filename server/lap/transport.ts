@@ -1,4 +1,5 @@
 import type { IncomingMessage } from 'http';
+import { logger } from '../lib/logger';
 import { WebSocketServer, WebSocket } from 'ws';
 import { randomUUID } from 'crypto';
 import {
@@ -72,7 +73,7 @@ registerHandler('lap.handshake', async (req, ws) => {
   }
   const response = buildHandshakeResponse(request, localAgent, validation.trustLevel!, request.proposedScope);
   sendLAPResponse(ws, response);
-  console.log(`[LAP] Handshake complete: ${localAgent.agentId} ↔ ${request.agent.agentId} (session: ${response.sessionId})`);
+  logger.info(`[LAP] Handshake complete: ${localAgent.agentId} ↔ ${request.agent.agentId} (session: ${response.sessionId})`);
 });
 
 registerHandler('lap.task.delegate', async (req, ws) => {
@@ -86,7 +87,7 @@ registerHandler('lap.task.delegate', async (req, ws) => {
   const response = delegateTask(request, session);
   sendLAPResponse(ws, response);
   if (response.accepted) {
-    console.log(`[LAP] Task delegated: "${request.task.type}" → ${session.peerB.name}`);
+    logger.info(`[LAP] Task delegated: "${request.task.type}" → ${session.peerB.name}`);
   }
 });
 
@@ -100,7 +101,7 @@ registerHandler('lap.task.result', async (req, ws) => {
   updateHeartbeat(request.sessionId);
   updateTaskStatus(request.taskId, request.status, request.output, request.error);
   sendLAPResponse(ws, { acknowledged: true });
-  console.log(`[LAP] Task ${request.taskId} → ${request.status}`);
+  logger.info(`[LAP] Task ${request.taskId} → ${request.status}`);
 });
 
 registerHandler('lap.context.share', async (req, ws) => {
@@ -131,7 +132,7 @@ registerHandler('lap.revoke', async (req, ws) => {
     affected += removeSharedContexts(request.sessionId);
   }
   sendLAPResponse(ws, { revoked: true, affectedTasks: [`${affected} resources cleaned`] as any });
-  console.log(`[LAP] Revoked session ${request.sessionId}: ${affected} resources (reason: ${request.reason})`);
+  logger.info(`[LAP] Revoked session ${request.sessionId}: ${affected} resources (reason: ${request.reason})`);
 });
 
 registerHandler('lap.heartbeat', async (req, ws) => {
@@ -173,7 +174,7 @@ async function dispatchLAPMessage(data: Buffer, ws: WebSocket): Promise<void> {
   try {
     await handler(msg as LAPRequest, ws);
   } catch (err: any) {
-    console.error(`[LAP] Handler error for ${method}:`, err.message);
+    logger.error(`[LAP] Handler error for ${method}:`, err.message);
     ws.send(JSON.stringify({ error: `Handler error: ${err.message}`, lap: '2.0' }));
   }
 }
@@ -194,16 +195,16 @@ export function attachLAPWebSocket(server: any, path = '/lap'): WebSocketServer 
 
   wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     const clientId = randomUUID().slice(0, 8);
-    console.log(`[LAP] Client connected: ${clientId} (${req.socket.remoteAddress})`);
+    logger.info(`[LAP] Client connected: ${clientId} (${req.socket.remoteAddress})`);
 
     ws.on('message', (data: Buffer) => dispatchLAPMessage(data, ws));
 
     ws.on('close', () => {
-      console.log(`[LAP] Client disconnected: ${clientId}`);
+      logger.info(`[LAP] Client disconnected: ${clientId}`);
     });
 
     ws.on('error', (err) => {
-      console.error(`[LAP] WebSocket error (${clientId}):`, err.message);
+      logger.error(`[LAP] WebSocket error (${clientId}):`, err.message);
     });
 
     // Send welcome message
@@ -215,7 +216,7 @@ export function attachLAPWebSocket(server: any, path = '/lap'): WebSocketServer 
     }));
   });
 
-  console.log(`[LAP] WebSocket transport ready at ws://0.0.0.0:${(server.address as any)?.()?.port || '?'}${path}`);
+  logger.info(`[LAP] WebSocket transport ready at ws://0.0.0.0:${(server.address as any)?.()?.port || '?'}${path}`);
   return wss;
 }
 

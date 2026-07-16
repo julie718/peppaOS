@@ -1,5 +1,6 @@
 // WeChat ClawBot routes — QR login + status + config
 import { Router } from 'express';
+import { logger } from '../lib/logger';
 import { WeChatClawBotAdapter, type WeChatClawBotConfig } from './wechat-clawbot';
 import { getMessagingConfig, updateMessagingConfig } from './config';
 import { requireAuth } from '../middleware/auth';
@@ -98,7 +99,7 @@ export function createWeChatRoutes(
   // Auto-start polling if already configured (survives restarts)
   if (config?.botToken) {
     if (!config.botId) config.botId = (config.botToken.split(':')[0] || config.botToken);
-    console.log('[WeChat] Already logged in — botId:', config.botId?.slice(0,12)+'...', 'starting poll loop');
+    logger.info('[WeChat] Already logged in — botId:', config.botId?.slice(0,12)+'...', 'starting poll loop');
     startWeChatPolling(adapter, config, options);
   }
 
@@ -157,7 +158,7 @@ async function processWeChatMessage(
     const text = response.text?.trim();
     if (text) return { text: text.slice(0, 500) };
   } catch (err: any) {
-    console.warn(`[WeChat] Main LLM failed:`, err.message);
+    logger.warn(`[WeChat] Main LLM failed:`, err.message);
   }
 
   return { text: `收到你的消息："${msg.text.slice(0, 60)}"。当前主推理服务不可用，请稍后再试。` };
