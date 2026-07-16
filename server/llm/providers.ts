@@ -3,6 +3,16 @@ import { withCloudResilience } from '../cloud/resilience';
 import { isStrictPrivacy, requireLocalProvider } from '../config/privacy';
 import { getScopedPreferredLLM } from './user_preferences';
 import { getUserPreferredVision } from './vision_preferences';
+import { llmCallsTotal, llmTokensTotal, llmCallDuration } from '../lib/metrics';
+
+function recordLLMMetrics(provider: string, model: string, usage: any, startMs: number) {
+  try {
+    llmCallsTotal.inc({ provider, model });
+    if (usage?.promptTokens) llmTokensTotal.inc({ provider, model, type: 'input' }, usage.promptTokens);
+    if (usage?.completionTokens) llmTokensTotal.inc({ provider, model, type: 'output' }, usage.completionTokens);
+    llmCallDuration.observe({ provider, model }, (Date.now() - startMs) / 1000);
+  } catch {}
+}
 
 export type MessageContent =
   | string
@@ -523,6 +533,7 @@ export async function makeLLMCall(
   getRelay?: () => any,
 ): Promise<NormalizedLLMResponse> {
   assertQwenAllowedByUserPrefs(config);
+  const _start = Date.now();
 
   // ── Privacy gate: strict mode blocks cloud providers ──
   // Reasoning models need high token budget — their CoT eats into max_tokens
@@ -572,6 +583,7 @@ export async function makeLLMCall(
     const { dispatchLLMCall } = await import('./dispatch');
     const getters = { getDeepSeek, getGemini, getOpenAI: getOpenAI || (() => null), getAnthropic: getAnthropic || (() => null), getQwen: getQwen || (() => null), getArk: getArk || (() => null), getOllama, isOllamaAvailable: () => !!getOllama?.(), getLmStudio, isLmStudioAvailable: () => !!getLmStudio?.() };
     const result = await dispatchLLMCall(messages, toolDeclarations, { provider: 'deepseek', model: 'deepseek-chat', maxTokens: maxTokens, userId: config.userId }, getters);
+    recordLLMMetrics(config.provider, config.model, result.usage, _start);
     return { text: result.text, toolCalls: result.toolCalls, usage: result.usage };
   }
 
@@ -602,7 +614,7 @@ export async function makeLLMCall(
       () => client.chat.completions.create(params),
       { provider: config.provider, model: config.model },
     );
-    return parseDeepSeekResponse(response);
+    const _res = parseDeepSeekResponse(response); recordLLMMetrics(config.provider, config.model, _res.usage, _start); return _res;
   }
 
   if (config.provider === 'gemini') {
@@ -621,7 +633,7 @@ export async function makeLLMCall(
       () => modelInstance.generateContent({ contents }),
       { provider: 'gemini', model: config.model },
     );
-    return parseGeminiResponse(result);
+    const _res = parseGeminiResponse(result); recordLLMMetrics(config.provider, config.model, _res.usage, _start); return _res;
   }
 
   if (config.provider === 'openai') {
@@ -640,7 +652,7 @@ export async function makeLLMCall(
       () => client.chat.completions.create(params),
       { provider: 'openai', model: config.model },
     );
-    return parseOpenAIResponse(response);
+    const _res = parseOpenAIResponse(response); recordLLMMetrics(config.provider, config.model, _res.usage, _start); return _res;
   }
 
   if (config.provider === 'anthropic') {
@@ -658,7 +670,7 @@ export async function makeLLMCall(
       () => client.messages.create(params),
       { provider: 'anthropic', model: config.model },
     );
-    return parseAnthropicResponse(response);
+    const _res = parseAnthropicResponse(response); recordLLMMetrics(config.provider, config.model, _res.usage, _start); return _res;
   }
 
   throw new Error(`Unsupported provider: ${config.provider}`);
@@ -691,6 +703,7 @@ export async function makeLLMCallStreaming(
   getRelay?: () => any,
 ): Promise<NormalizedLLMResponse> {
   assertQwenAllowedByUserPrefs(config);
+  const _start = Date.now();
 
   // ── Privacy gate ──
   if (isStrictPrivacy() && config.provider !== 'auto') {
@@ -707,6 +720,7 @@ export async function makeLLMCallStreaming(
     const { dispatchLLMCallStreaming } = await import('./dispatch');
     const getters = { getDeepSeek, getGemini, getOpenAI: getOpenAI || (() => null), getAnthropic: getAnthropic || (() => null), getQwen: getQwen || (() => null), getArk: getArk || (() => null), getOllama, isOllamaAvailable: () => !!getOllama?.(), getLmStudio, isLmStudioAvailable: () => !!getLmStudio?.() };
     const result = await dispatchLLMCallStreaming(messages, toolDeclarations, { provider: 'deepseek', model: 'deepseek-chat', maxTokens: maxTokens, userId: config.userId, signal: config.signal }, onChunk, getters);
+    recordLLMMetrics(config.provider, config.model, result.usage, _start);
     return { text: result.text, toolCalls: result.toolCalls, usage: result.usage };
   }
 
