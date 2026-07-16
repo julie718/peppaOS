@@ -66,6 +66,11 @@ export function createApp(): AppContext {
     res.status(500).json({ error: err?.message || 'Internal server error' });
   });
 
+  // Health check endpoint
+  app.get('/health', (_req, res) => {
+    res.json({ status: 'ok', timestamp: Date.now() });
+  });
+
   const JWT_SECRET = process.env.JWT_SECRET || 'peppaOS_default_jwt_secret_2026_local';
 
   // Serialize personality file writes to prevent concurrent overwrites

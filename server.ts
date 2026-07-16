@@ -4,15 +4,16 @@
 import "dotenv/config";
 
 // ── Global exception handlers (must be first — before any async setup) ──
+import { logger } from './server/lib/logger';
+
 process.on('uncaughtException', (err) => {
-  console.error('[FATAL] Uncaught exception:', err.message);
-  console.error(err.stack);
-  process.exit(1);
+  logger.error('[FATAL] Uncaught exception:', err.message, err.stack);
+  setTimeout(() => process.exit(1), 1000);
 });
 process.on('unhandledRejection', (reason) => {
-  console.error('[FATAL] Unhandled rejection:', reason);
-  if (reason instanceof Error) console.error(reason.stack);
-  process.exit(1);
+  const stack = reason instanceof Error ? reason.stack : '';
+  logger.error('[FATAL] Unhandled rejection:', String(reason), stack);
+  setTimeout(() => process.exit(1), 1000);
 });
 
 import { fileURLToPath } from "url";
