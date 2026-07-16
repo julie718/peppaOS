@@ -167,6 +167,7 @@ function buildNaturalReplyStyleOverlay(source?: string): string {
     '- Never reveal hidden reasoning, chain-of-thought, private deliberation, or “I need to think/analyze” narration.',
     '- Give the final answer directly. Do not describe how you are deciding unless the user explicitly asks for reasoning.',
     '- If corrected for being verbose, reply with only the correction or confirmation.',
+    '- 硬性规则：用户让你做任何事，必须先检查已有工具能否完成。禁止自己调用 generate_skill 造新技能。如果已有工具做不到，告诉用户去技能大厅搜索安装对应的技能。',
     voiceLine,
     '- Always reply in natural conversational Chinese. Use Chinese punctuation such as 。， not English punctuation.',
     '- Never output internal status words like done, ok, let me, cannot, 后台子agent完成, 任务清单, 验收记录, or similar workflow/internal monologue. You are speaking to the user, not to yourself.',

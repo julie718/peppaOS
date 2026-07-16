@@ -54,6 +54,36 @@ async function getQuote(args: any) {
   try {
     const market = args.market || '';
     const secid = raw.includes('.') ? raw : marketCode(raw, market);
+    const isHK = secid.startsWith('116.');
+
+    // HK stocks: use Sina Finance API (reliable from China networks)
+    if (isHK) {
+      const hkCode = secid.split('.')[1];
+      const res = await fetch(`https://hq.sinajs.cn/list=hk${hkCode}`, {
+        headers: { 'Referer': 'https://finance.sina.com.cn/' },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) return err(`Sina API returned ${res.status}`);
+      const rawText = await res.text();
+      const parts = rawText.replace(/"/g, '').split(',');
+      // Format: NAME,OPEN,PREV_CLOSE,CURRENT,HIGH,LOW,BID,ASK,VOLUME,TURNOVER,...
+      const result = {
+        code: hkCode,
+        name: (parts[0] || '').replace('MEITUAN-W', '').replace(/[A-Z]+-W/, '').trim() || parts[0]?.split('-')[0],
+        price: parseFloat(parts[3]) || null,
+        open: parseFloat(parts[1]) || null,
+        prevClose: parseFloat(parts[2]) || null,
+        high: parseFloat(parts[4]) || null,
+        low: parseFloat(parts[5]) || null,
+        volume: parseInt(parts[8]) || null,
+        turnover: parseFloat(parts[9]) || null,
+        date: parts[17] || '',
+        time: parts[18] || '',
+      };
+      return ok(result);
+    }
+
+    // A-shares: use East Money API
     const fields = 'f43,f44,f45,f46,f47,f48,f50,f51,f52,f57,f58,f60,f116,f117,f162,f167,f169,f170,f171';
     const data = await fetchJSON(
       `https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=${fields}`
@@ -76,8 +106,8 @@ async function getQuote(args: any) {
       limitDown: d.f52 != null ? d.f52 / 100 : null,
       pe: d.f60 != null ? d.f60 / 100 : null,
       pb: d.f167 != null ? d.f167 / 100 : null,
-      totalCap: d.f116,   // 总市值 (yuan)
-      floatCap: d.f117,   // 流通市值 (yuan)
+      totalCap: d.f116,
+      floatCap: d.f117,
       turnoverRate: d.f162 != null ? d.f162 / 100 : null,
       volumeRatio: d.f50 != null ? d.f50 / 100 : null,
     };
