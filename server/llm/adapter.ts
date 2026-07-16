@@ -7,6 +7,7 @@ import { recordTokenUsage } from './token_tracker';
 import { recordWorkflow, WorkflowStep } from '../skills/worklog';
 import { recordLatency } from '../monitor/latency_store';
 import { guardCompletionClaims } from '../work_product/completion_guard';
+import { llmCallsTotal, llmTokensTotal, llmCallDuration } from '../lib/metrics';
 
 export interface LLMConfig {
   provider: 'deepseek' | 'gemini' | 'openai' | 'anthropic' | 'qwen' | 'ark' | 'ollama' | 'lmstudio' | 'xiaomi' | 'kimi' | 'glm' | 'relay' | 'auto';
@@ -432,7 +433,18 @@ export async function runWithTools(
           getGlm || (() => null),
           getRelay || (() => null),
         );
-    recordLatency('llm', Date.now() - llmStart);
+    const llmDurationS = (Date.now() - llmStart) / 1000;
+    recordLatency('llm', llmDurationS * 1000);
+
+    // Prometheus metrics
+    try {
+      llmCallsTotal.inc({ provider: config.provider, model: config.model });
+      if (response.usage) {
+        if (response.usage.promptTokens) llmTokensTotal.inc({ provider: config.provider, model: config.model, type: 'input' }, response.usage.promptTokens);
+        if (response.usage.completionTokens) llmTokensTotal.inc({ provider: config.provider, model: config.model, type: 'output' }, response.usage.completionTokens);
+      }
+      llmCallDuration.observe({ provider: config.provider, model: config.model }, llmDurationS);
+    } catch {}
 
     // Collect usage from this LLM call
     if (response.usage) {
