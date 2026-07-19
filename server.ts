@@ -3,6 +3,12 @@
 // /index.org.html → org workbench (create/manage orgs, legal tools)
 import "dotenv/config";
 
+// ── Required environment variables ──
+if (!process.env.JWT_SECRET) {
+  console.error('[FATAL] JWT_SECRET is required. Set it in .env or docker-compose.yml.');
+  process.exit(1);
+}
+
 // ── Global exception handlers (must be first — before any async setup) ──
 import { logger } from './server/lib/logger';
 

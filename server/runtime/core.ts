@@ -99,7 +99,7 @@ export function createApp(): AppContext {
     }
   });
 
-  const JWT_SECRET = process.env.JWT_SECRET || 'peppaOS_default_jwt_secret_2026_local';
+  const JWT_SECRET = process.env.JWT_SECRET!;
 
   // Serialize personality file writes to prevent concurrent overwrites
   // SameSite=None requires Secure (Chromium silently rejects otherwise).
