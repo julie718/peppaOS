@@ -46,4 +46,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 
 RUN chown -R node:node /app
 USER node
-CMD ["sh", "-c", "cp -rn /app/skills-bundled/* /app/data/skills/ 2>/dev/null; exec node entry.cjs"]
+# ENTRYPOINT: copy bundled skills on every container start (runs as node)
+ENTRYPOINT ["sh", "-c", "cp -rn /app/skills-bundled/* /app/data/skills/ 2>/dev/null; exec node entry.cjs"]
