@@ -1,6 +1,7 @@
 import express from "express";
 import { logger } from '../lib/logger';
 import { httpRequestsTotal, httpRequestDuration, getMetricsText } from '../lib/metrics';
+import { touchActivity, startMainLoop } from '../core/mainLoop';
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import http from "http";
@@ -55,10 +56,12 @@ export function createApp(): AppContext {
   // HTTP metrics middleware — record all API requests
   app.use((req, res, next) => {
     const start = Date.now();
+    const path = req.path?.split('?')[0] || '/';
+    // Reset idle timer for user activity (skip health/metrics probes)
+    if (path !== '/health' && path !== '/metrics') touchActivity();
     res.on('finish', () => {
       const duration = (Date.now() - start) / 1000;
-      const route = req.route?.path || req.path?.split('?')[0] || '/';
-      // Dynamic import to avoid circular deps
+      const route = req.route?.path || path;
       try {
         httpRequestsTotal.inc({ method: req.method, route, status_code: String(res.statusCode) });
         httpRequestDuration.observe({ method: req.method, route }, duration);
@@ -108,6 +111,9 @@ export function createApp(): AppContext {
     sameSite: isDev ? "lax" : "none",
     maxAge: 24 * 60 * 60 * 1000,
   });
+
+  // Start resource-aware background scheduler
+  startMainLoop();
 
   return { app, server, io, apiRouter, PORT, HOST, JWT_SECRET, getCookieOptions };
 }
