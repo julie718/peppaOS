@@ -27,7 +27,7 @@ export function createApp(): AppContext {
   const server = http.createServer(app);
   const io = new Server(server, {
     cors: {
-      origin: (origin: string | undefined, cb: (err: Error | null, allow: boolean) => void) => cb(null, true),
+      origin: corsOrigin,
       methods: ["GET", "POST"],
       credentials: true
     }
@@ -36,8 +36,15 @@ export function createApp(): AppContext {
   const PORT = Number.parseInt(process.env.PORT || '', 10) || 3000;
   const HOST = process.env.HOST || "0.0.0.0";
 
+  // CORS: allow local dev + NAS + Capacitor app
+  const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000,https://qweasd.top:4043,http://qweasd.top:3000,capacitor://localhost').split(',').map(s => s.trim());
+  const corsOrigin = (origin: string | undefined, cb: (err: Error | null, allow: boolean) => void) => {
+    if (!origin || allowedOrigins.includes(origin)) { cb(null, true); }
+    else { cb(new Error('Not allowed by CORS'), false); }
+  };
+
   // Allow credentials from any origin (Tauri webview, localhost, etc.)
-  app.use(cors({ origin: (origin: string | undefined, cb: (err: Error | null, allow: boolean) => void) => cb(null, true), credentials: true }));
+  app.use(cors({ origin: corsOrigin, credentials: true }));
   // Capture raw body before JSON parse (needed for WeCom XML webhooks)
   app.use(express.json({
     limit: '10mb',
