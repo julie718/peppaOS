@@ -28,6 +28,9 @@ COPY --from=build /app/node_modules /app/node_modules
 COPY --from=build /app/dist /app/dist
 COPY --from=build /app/dist-server /app/dist-server
 
+# bundled技能打进镜像 — 启动时自动拷到持久化目录
+COPY --from=build /app/server/skills/bundled/ /app/skills-bundled/
+
 # data/ is a volume — created at runtime by the app if not mounted
 RUN mkdir -p /app/data
 
@@ -43,4 +46,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 
 RUN chown -R node:node /app
 USER node
-CMD ["node", "entry.cjs"]
+CMD ["sh", "-c", "cp -rn /app/skills-bundled/* /app/data/skills/ 2>/dev/null; exec node entry.cjs"]
