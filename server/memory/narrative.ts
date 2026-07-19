@@ -40,23 +40,43 @@ interface StoredNarrative {
   updatedAt: string;
 }
 
-function saveNarrative(topic: string, summary: string, sourceIds: string[]): void {
+const NARRATIVES_SETTING_KEY = '__narratives';
+
+function loadNarratives(): StoredNarrative[] {
   try {
     const db = readDB();
-    const narratives: StoredNarrative[] = db.narratives || [];
-    const id = `narr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    const now = new Date().toISOString();
-    narratives.push({ id, topic, summary, sourceMemoryIds: JSON.stringify(sourceIds), createdAt: now, updatedAt: now });
-    // Keep max 5 — merge oldest two if exceeded
-    if (narratives.length > MAX_NARRATIVES) {
-      const merged = mergeNarratives(narratives[0], narratives[1]);
-      narratives.splice(0, 2, merged);
+    const row = (db.settings || []).find((s: any) => s.key === NARRATIVES_SETTING_KEY);
+    return row?.value ? JSON.parse(row.value) : [];
+  } catch { return []; }
+}
+
+function saveNarratives(narratives: StoredNarrative[]): void {
+  try {
+    const db = readDB();
+    let row = (db.settings || []).find((s: any) => s.key === NARRATIVES_SETTING_KEY);
+    const value = JSON.stringify(narratives);
+    if (row) { row.value = value; }
+    else {
+      if (!db.settings) db.settings = [];
+      db.settings.push({ key: NARRATIVES_SETTING_KEY, value });
     }
-    db.narratives = narratives;
     writeDB(db);
   } catch (err: any) {
-    logger.warn('[Narrative] Failed to save narrative:', err.message);
+    logger.warn('[Narrative] Failed to save narratives:', err.message);
   }
+}
+
+function saveNarrative(topic: string, summary: string, sourceIds: string[]): void {
+  const narratives = loadNarratives();
+  const id = `narr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const now = new Date().toISOString();
+  narratives.push({ id, topic, summary, sourceMemoryIds: JSON.stringify(sourceIds), createdAt: now, updatedAt: now });
+  // Keep max 5 — merge oldest two if exceeded
+  if (narratives.length > MAX_NARRATIVES) {
+    const merged = mergeNarratives(narratives[0], narratives[1]);
+    narratives.splice(0, 2, merged);
+  }
+  saveNarratives(narratives);
 }
 
 function mergeNarratives(a: StoredNarrative, b: StoredNarrative): StoredNarrative {
@@ -85,12 +105,7 @@ function clusterTopic(candidate: string, existing: StoredNarrative[]): string | 
 }
 
 function getRecentNarratives(limit = MAX_NARRATIVES): StoredNarrative[] {
-  try {
-    const db = readDB();
-    return (db.narratives || []).slice(-limit);
-  } catch {
-    return [];
-  }
+  return loadNarratives().slice(-limit);
 }
 
 /**

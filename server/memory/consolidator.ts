@@ -183,6 +183,16 @@ export async function consolidateEpisodic(
     markConsolidated(batch.map(m => m.id), consolidated.id);
 
     logger.info(`[Consolidator] Consolidated ${batch.length} episodic memories → growth:${consolidated.id}`);
+
+    // Trigger narrative chain building (within memory module boundary)
+    try {
+      const { buildNarrativesForRecentTopics } = await import('./narrative');
+      buildNarrativesForRecentTopics({
+        userId: ctx.userId,
+        getDeepSeek, getGemini, getQwen,
+      }).catch(() => {}); // fire-and-forget
+    } catch {}
+
     return consolidated;
   } catch (err) {
     logger.error('[Consolidator] Consolidation failed:', err);
