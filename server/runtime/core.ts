@@ -25,13 +25,6 @@ export interface AppContext {
 export function createApp(): AppContext {
   const app = express();
   const server = http.createServer(app);
-  const io = new Server(server, {
-    cors: {
-      origin: corsOrigin,
-      methods: ["GET", "POST"],
-      credentials: true
-    }
-  });
 
   const PORT = Number.parseInt(process.env.PORT || '', 10) || 3000;
   const HOST = process.env.HOST || "0.0.0.0";
@@ -43,7 +36,14 @@ export function createApp(): AppContext {
     else { cb(new Error('Not allowed by CORS'), false); }
   };
 
-  // Allow credentials from any origin (Tauri webview, localhost, etc.)
+  const io = new Server(server, {
+    cors: {
+      origin: corsOrigin,
+      methods: ["GET", "POST"],
+      credentials: true
+    }
+  });
+
   app.use(cors({ origin: corsOrigin, credentials: true }));
   // Capture raw body before JSON parse (needed for WeCom XML webhooks)
   app.use(express.json({
