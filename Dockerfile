@@ -1,6 +1,6 @@
-# MayOS — single-container Docker image
-# Build:  docker build -t mayos .
-# Run:    docker run -p 3000:3000 -e JWT_SECRET=xxx mayos
+# PeppaOS — multi-stage Docker image
+# Build:  docker build -t peppaos .
+# Run:    docker run -p 3000:3000 -e JWT_SECRET=xxx peppaos
 
 # ── Build stage ──────────────────────────────────────────────────────────
 FROM node:22-slim AS build
@@ -23,16 +23,13 @@ FROM node:22-slim
 
 WORKDIR /app
 
-# Only runtime deps
-COPY --from=build /app/node_modules /app/node_modules
-COPY --from=build /app/dist /app/dist
-COPY --from=build /app/dist-server /app/dist-server
+# Copy with --chown to avoid slow recursive chown on node_modules
+COPY --from=build --chown=node:node /app/node_modules /app/node_modules
+COPY --from=build --chown=node:node /app/dist /app/dist
+COPY --from=build --chown=node:node /app/dist-server /app/dist-server
+COPY --from=build --chown=node:node /app/server/skills/bundled/ /app/skills-bundled/
 
-# bundled技能打进镜像 — 启动时自动拷到持久化目录
-COPY --from=build /app/server/skills/bundled/ /app/skills-bundled/
-
-# data/ is a volume — created at runtime by the app if not mounted
-RUN mkdir -p /app/data
+RUN mkdir -p /app/data && chown node:node /app/data
 
 WORKDIR /app/dist-server
 
@@ -40,11 +37,10 @@ EXPOSE 3000
 
 ENV NODE_ENV=production
 
-# Health check pings the Express health endpoint
+# Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "require('http').get('http://localhost:'+(process.env.PORT||3000)+'/health',r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>process.exit(r.statusCode===200?0:1))}).on('error',()=>process.exit(1))"
 
-RUN chown -R node:node /app
 USER node
-# ENTRYPOINT: copy bundled skills on every container start (runs as node)
+# ENTRYPOINT copies bundled skills on every start (runs as node, needs host bind mount writable)
 ENTRYPOINT ["sh", "-c", "cp -rn /app/skills-bundled/* /app/data/skills/ 2>/dev/null; exec node entry.cjs"]
