@@ -885,6 +885,12 @@ async function persistMemoryDB(): Promise<void> {
       insertSQL: `INSERT INTO _temp_audit_log (id, orgId, userId, action, resourceType, resourceId, details, ipAddress, userAgent, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       rows: () => (memoryDB.auditLog || []).map((l: any) => [l.id, l.orgId, l.userId, l.action, l.resourceType, l.resourceId, l.details || '{}', l.ipAddress || null, l.userAgent || null, l.timestamp]),
     },
+    {
+      name: 'narratives',
+      createSQL: `CREATE TABLE _temp_narratives (id TEXT PRIMARY KEY, topic TEXT NOT NULL, summary TEXT NOT NULL, sourceMemoryIds TEXT NOT NULL, createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL)`,
+      insertSQL: `INSERT INTO _temp_narratives (id, topic, summary, sourceMemoryIds, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)`,
+      rows: () => (memoryDB.narratives || []).map((n: any) => [n.id, n.topic, n.summary, n.sourceMemoryIds || '[]', n.createdAt, n.updatedAt]),
+    },
   ];
 
   // Special handling: founder_vision is a single row

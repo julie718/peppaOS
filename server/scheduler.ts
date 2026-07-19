@@ -451,6 +451,17 @@ export function registerScheduledTasks(
         if (consolidated) {
           messages.push(`[${userId}] I've grown from our conversations: ${consolidated.content.slice(0, 200)}`);
         }
+
+        // Trigger narrative chain building after consolidation
+        try {
+          const { buildNarrativesForRecentTopics } = await import('./memory/narrative');
+          await buildNarrativesForRecentTopics({
+            userId,
+            getDeepSeek, getGemini, getQwen,
+          });
+        } catch (err: any) {
+          logger.warn('[Scheduler] narrative chain build skipped:', err.message);
+        }
       }
       return messages.length > 0 ? messages.join('\n') : null;
     },

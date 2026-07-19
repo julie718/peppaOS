@@ -2,6 +2,7 @@ import { makeLLMCall, NormalizedMessage } from '../llm/providers';
 import { logger } from '../lib/logger';
 import { queryMemories, addMemory, getAssociatedMemories } from './store';
 import { Memory } from './types';
+import { readDB, writeDB } from '../../db_layer';
 
 export interface NarrativeChainResult {
   narrative: string;
@@ -25,6 +26,72 @@ const NARRATIVE_PROMPT = `你是一个叙事编织者。请根据以下按时序
   "narrative": "你编织的第一人称中文叙事，3-6句话，语气温暖自然",
   "sourceMemoryIds": ["mem_xxx", "mem_yyy"]
 }`;
+
+// ── Narrative Persistence ──
+
+const MAX_NARRATIVES = 5;
+
+interface StoredNarrative {
+  id: string;
+  topic: string;
+  summary: string;
+  sourceMemoryIds: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function saveNarrative(topic: string, summary: string, sourceIds: string[]): void {
+  try {
+    const db = readDB();
+    const narratives: StoredNarrative[] = db.narratives || [];
+    const id = `narr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const now = new Date().toISOString();
+    narratives.push({ id, topic, summary, sourceMemoryIds: JSON.stringify(sourceIds), createdAt: now, updatedAt: now });
+    // Keep max 5 — merge oldest two if exceeded
+    if (narratives.length > MAX_NARRATIVES) {
+      const merged = mergeNarratives(narratives[0], narratives[1]);
+      narratives.splice(0, 2, merged);
+    }
+    db.narratives = narratives;
+    writeDB(db);
+  } catch (err: any) {
+    logger.warn('[Narrative] Failed to save narrative:', err.message);
+  }
+}
+
+function mergeNarratives(a: StoredNarrative, b: StoredNarrative): StoredNarrative {
+  const mergedIds = [a.sourceMemoryIds, b.sourceMemoryIds]
+    .map(s => { try { return JSON.parse(s); } catch { return []; } })
+    .flat() as string[];
+  return {
+    id: a.id,
+    topic: `${a.topic}, ${b.topic}`,
+    summary: `${a.summary} ${b.summary}`.slice(0, 600),
+    sourceMemoryIds: JSON.stringify([...new Set(mergedIds)]),
+    createdAt: a.createdAt,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/** Simple keyword-overlap topic clustering — no vector dependency */
+function clusterTopic(candidate: string, existing: StoredNarrative[]): string | null {
+  const words = new Set(candidate.toLowerCase().split(/\s+/).filter(w => w.length > 1));
+  for (const n of existing) {
+    const existingWords = new Set(n.topic.toLowerCase().split(/\s+/).filter(w => w.length > 1));
+    const overlap = [...words].filter(w => existingWords.has(w)).length;
+    if (overlap > 2) return n.topic; // merge into existing topic
+  }
+  return null; // new topic
+}
+
+function getRecentNarratives(limit = MAX_NARRATIVES): StoredNarrative[] {
+  try {
+    const db = readDB();
+    return (db.narratives || []).slice(-limit);
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Build a narrative chain from related memories.
@@ -115,7 +182,11 @@ export async function buildNarrativeChain(params: {
       ? parsed.sourceMemoryIds
       : chain.map(m => m.id);
 
-    // 6. Store narrative as a growth memory
+    // 6. Persist to narratives table
+    saveNarrative(topic, parsed.narrative.trim().slice(0, 500), sourceIds);
+    logger.info(`[Narrative] built narrative for topic: ${topic}`);
+
+    // 7. Store narrative as a growth memory
     const stored = addMemory(
       {
         userId,
@@ -146,4 +217,66 @@ export async function buildNarrativeChain(params: {
       memoryChain: chain,
     };
   }
+}
+
+/**
+ * Scan last 7 days of memories, cluster by keyword overlap, build narratives for each topic.
+ * Called by consolidator after episodic consolidation.
+ */
+export async function buildNarrativesForRecentTopics(params: {
+  userId: string;
+  getDeepSeek: () => any;
+  getGemini: () => any;
+  getQwen?: () => any;
+}): Promise<string[]> {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+  const recentMemories = queryMemories({
+    userId: params.userId,
+    limit: 100,
+    minConfidence: 0.3,
+  }).filter(m => m.createdAt >= sevenDaysAgo);
+
+  if (recentMemories.length < 6) return [];
+
+  // Cluster by keyword overlap
+  const topics = new Map<string, Memory[]>();
+  const existingNarratives = getRecentNarratives();
+
+  for (const mem of recentMemories) {
+    const keywords = (mem.keywords || []).join(' ');
+    const existingTopic = clusterTopic(keywords, existingNarratives);
+    const topic = existingTopic || keywords.slice(0, 80) || 'general';
+    if (!topics.has(topic)) topics.set(topic, []);
+    topics.get(topic)!.push(mem);
+  }
+
+  // Filter: only topics with >= 3 memories
+  const viable = [...topics.entries()].filter(([_, mems]) => mems.length >= 3);
+  if (viable.length === 0) return [];
+
+  const built: string[] = [];
+  // Limit to max 3 new narratives per cycle
+  for (const [topic] of viable.slice(0, 3)) {
+    try {
+      const result = await Promise.race([
+        buildNarrativeChain({
+          userId: params.userId,
+          topic,
+          limit: 10,
+          getDeepSeek: params.getDeepSeek,
+          getGemini: params.getGemini,
+          getQwen: params.getQwen,
+        }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 10_000)),
+      ]);
+      if (result?.narrative) built.push(topic);
+    } catch (err: any) {
+      logger.warn('[Narrative] build failed for topic:', topic, err.message);
+    }
+  }
+
+  if (built.length > 0) {
+    logger.info(`[Narrative] built ${built.length} narratives for topics: ${built.join(', ')}`);
+  }
+  return built;
 }
