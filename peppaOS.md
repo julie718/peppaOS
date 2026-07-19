@@ -1659,3 +1659,53 @@ function marketCode(code: string, market?: string): string {
 | 2026-07-14 上午 | cn-search 中文搜索技能：基于 SearXNG 公共实例，免费无 Key，支持中文搜索结果 |
 | ⬜ 待办 | NAS Dockerfile Caddy 统一端口 4043，不用 HTTP 3000 |
 | ⬜ 待办 | 定时备份：cron 每天自动备份 ~/mayos/data/peppa.db |
+| 2026-07-15 | 消息ID碰撞修复：Date.now()→msgId()，前端噪声过滤，Safari回车修复 |
+| 2026-07-15 | Prompt优化：中文自然风格+聚焦最新消息+禁止造技能硬规则 |
+| 2026-07-15 | NAS技能清理：96→15，删除72个Agent自动生成的垃圾技能 |
+| 2026-07-15 | stockbot港股支持：新浪财经API替换东方财富，港股代码116前缀 |
+| 2026-07-16 | API Key AES-256-GCM加密存储：OXOG_ENV_KEY注入，keys.json密文化 |
+| 2026-07-16 | 日志系统标准化：Pino替换全部console(375处)，JSON格式+LOG_LEVEL控制 |
+| 2026-07-16 | 进程健康检查：/health端点+异常捕获logger+1s延迟退出+Docker HEALTHCHECK |
+| 2026-07-17 | Prometheus /metrics端点：HTTP请求+LLM调用指标，prom-client采集 |
+| 2026-07-19 | 资源感知MainLoop：60s间隔，3min空闲检测，CPU>2.0→120s，内存<200MB降级 |
+| 2026-07-19 | 按需工具注入：selectRelevantTools关键词匹配，200+→3-5个相关工具 |
+| 2026-07-19 | 叙事链+双路召回：narratives settings存储，salience关键词+语义融合排序 |
+| 2026-07-19 | CORS收紧：全开*→白名单(localhost+NAS+Capacitor) |
+| 2026-07-19 | JWT_SECRET强制要求：未配置拒绝启动，消除7处硬编码默认值 |
+| 2026-07-19 | Docker非root运行：USER node，修复SQLITE_READONLY属主权限问题 |
+| 2026-07-19 | bundled技能打进Docker镜像：启动自动拷贝到/app/data/skills/，重建不丢 |
+| 2026-07-19 | 项目命名统一：package.json/react-example→peppaos，mayOS.md→peppaOS.md |
+
+---
+
+## 二十九、安全加固 (2026-07-19)
+
+### JWT_SECRET 强制要求
+- `server.ts`：入口处校验，未配置则 `process.exit(1)`
+- `server/runtime/core.ts`：移除 `|| 'peppaOS_default_jwt_secret_2026_local'` fallback
+- 其余6个文件的 fallback 变为死代码，后续逐步清理
+
+### CORS 白名单
+- `server/runtime/core.ts`：`corsOrigin` 函数，允许 `localhost:3000`、`qweasd.top:4043`、`qweasd.top:3000`、`capacitor://localhost`
+- 通过 `CORS_ORIGINS` 环境变量可扩展
+
+### Docker USER node
+- `Dockerfile`：添加 `RUN chown -R node:node /app` + `USER node`
+- 修复 NAS 数据目录属主：`sudo chown -R 1000:1000 ~/mayos/data`
+- 解决 SQLITE_READONLY 错误
+
+### bundled 技能打进镜像
+- `Dockerfile`：`COPY --from=build /app/server/skills/bundled/ /app/skills-bundled/`
+- CMD 改用 `cp -rn` 启动时拷贝到 `/app/data/skills/`
+- 从此 `docker compose up -d --build --force-recreate` 后技能不丢
+
+---
+
+## 三十、项目命名统一 (2026-07-19)
+
+| 位置 | 改前 | 改后 |
+|------|------|------|
+| `package.json` | `"react-example"` | `"peppaos"` |
+| `docker-compose.yml` | `container_name: mayos` | `container_name: peppaos` |
+| 文档 | `mayOS.md` | `peppaOS.md` |
+| NAS 运行时 | `react-example` | `peppaOS` |
