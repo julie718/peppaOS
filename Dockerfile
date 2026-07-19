@@ -21,6 +21,12 @@ RUN npm run build:frontends && npm run build:server
 # ── Runtime stage ────────────────────────────────────────────────────────
 FROM node:22-slim
 
+# Install build tools for native module rebuild
+RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Copy with --chown to avoid slow recursive chown on node_modules
@@ -28,6 +34,9 @@ COPY --from=build --chown=node:node /app/node_modules /app/node_modules
 COPY --from=build --chown=node:node /app/dist /app/dist
 COPY --from=build --chown=node:node /app/dist-server /app/dist-server
 COPY --from=build --chown=node:node /app/server/skills/bundled/ /app/skills-bundled/
+
+# Rebuild native modules against runtime glibc (sqlite3, sharp, etc.)
+RUN npm rebuild 2>/dev/null; true
 
 RUN mkdir -p /app/data && chown node:node /app/data
 
