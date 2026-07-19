@@ -8,6 +8,7 @@ import { recordWorkflow, WorkflowStep } from '../skills/worklog';
 import { recordLatency } from '../monitor/latency_store';
 import { guardCompletionClaims } from '../work_product/completion_guard';
 import { llmCallsTotal, llmTokensTotal, llmCallDuration } from '../lib/metrics';
+import { touchActivity } from '../core/mainLoop';
 
 export interface LLMConfig {
   provider: 'deepseek' | 'gemini' | 'openai' | 'anthropic' | 'qwen' | 'ark' | 'ollama' | 'lmstudio' | 'xiaomi' | 'kimi' | 'glm' | 'relay' | 'auto';
@@ -396,6 +397,7 @@ export async function runWithTools(
     const toolDeclarations = filterToolDeclarationsForPolicy(toolRegistry.getToolDeclarations(), context);
 
     const llmStart = Date.now();
+    touchActivity();
     const modelMessages = compactMessagesForModel(conversationHistory);
     const response = onStreamChunk
       ? await makeLLMCallStreaming(

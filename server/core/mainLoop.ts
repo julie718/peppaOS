@@ -15,9 +15,22 @@ let loopInterval: ReturnType<typeof setTimeout> | null = null;
 
 // ── Public API ──
 
+let activeSocketCount = 0;
+
 /** Called by HTTP middleware on every user message to reset idle timer */
 export function touchActivity(): void {
   lastUserActivity = Date.now();
+}
+
+/** Called on socket connect */
+export function notifySocketConnect(): void {
+  activeSocketCount++;
+  touchActivity();
+}
+
+/** Called on socket disconnect */
+export function notifySocketDisconnect(): void {
+  activeSocketCount = Math.max(0, activeSocketCount - 1);
 }
 
 /** Interrupt any running background task — called before processing user message */
@@ -32,7 +45,9 @@ export function preemptBackgroundTask(): void {
 // ── Detection ──
 
 function isIdle(): boolean {
-  return Date.now() - lastUserActivity > 3 * 60 * 1000;
+  const noActivity = Date.now() - lastUserActivity > 3 * 60 * 1000;
+  const noSockets = activeSocketCount === 0;
+  return noActivity && noSockets;
 }
 
 interface ResourceState {
