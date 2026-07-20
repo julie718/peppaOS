@@ -393,10 +393,6 @@ export function registerChatHandler(
       }
       logger.info('[ChatHandler] conversationId:', conversationId, 'mode:', conversationMode);
 
-      // Inject current time so the agent can answer time-related questions
-      const beijingTime = new Date(new Date().getTime() + 8 * 3600000).toISOString().replace('Z', '+08:00');
-      effectiveSystemPrompt += `\n\n## Current Time\n${beijingTime} (北京时间). Use this for any time-related questions.`;
-
       const sensory = sensoryFn(uid);
       logger.info('[ChatHandler] sensory loaded');
       const { config: personality, systemPrompt: systemInstruction } = personalityRegistry.buildSystemPrompt(
@@ -413,7 +409,8 @@ export function registerChatHandler(
       logger.info('[ChatHandler] systemPrompt built, personality name:', personality?.name);
 
       // Inject conversation summary chain for long-running conversations (anti-entropy)
-      let effectiveSystemPrompt = systemInstruction;
+      const beijingTime = new Date(new Date().getTime() + 8 * 3600000).toISOString().replace('Z', '+08:00');
+      let effectiveSystemPrompt = systemInstruction + `\n\n## Current Time\n${beijingTime} (北京时间). Use this for any time-related questions.`;
       if (conversationId) {
         const summaryContext = getConversationSummary(conversationId);
         if (summaryContext) {
