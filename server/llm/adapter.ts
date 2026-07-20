@@ -379,6 +379,14 @@ function selectRelevantTools<T extends { function: { name: string; description?:
   userText: string,
   recentHistory: NormalizedMessage[],
 ): T[] {
+  // Simple greetings — no tools needed
+  const trimmed = userText.trim().toLowerCase();
+  const greetings = ['你好', '嗨', '在吗', 'hello', 'hi', 'hey', '您好', 'hi there', '早上好', '晚上好', '晚安'];
+  if (greetings.some(g => trimmed === g || trimmed.startsWith(g + ' ') || trimmed.endsWith(' ' + g) || trimmed === g + '!')) {
+    logger.debug(`[ToolSelector] "${userText.slice(0, 40)}" → greeting, 0 tools`);
+    return [];
+  }
+
   const histText = recentHistory.map(m => typeof m.content === 'string' ? m.content : '').join(' ');
   const combined = userText + ' ' + histText;
 
