@@ -1060,12 +1060,12 @@ export function registerChatHandler(
                 if (completedTask?.status === 'cancelled') {
                   const cancelText = `Background task cancelled: ${text.slice(0, 80)}`;
                   persistBackgroundResult(cancelText, backgroundToolRecords);
-                  emitBackground("agent:response", { text: cancelText, agentName: personality.name });
+                  emitBackground("agent:status", { status: "cancelled", agentName: personality.name, phase: 'background', text: cancelText });
                   emitBackground("agent:status", { status: "idle", agentName: personality.name, phase: 'background' });
                   return;
                 }
                 persistBackgroundResult(completionText, backgroundToolRecords);
-                emitBackground("agent:response", { text: completionText, agentName: personality.name });
+                emitBackground("agent:status", { status: "idle", agentName: personality.name, phase: 'background', text: completionText });
                 emitBackground("agent:proactive", {
                   type: 'background_result',
                   message: completionText.slice(0, 1200),
@@ -1095,7 +1095,7 @@ export function registerChatHandler(
                   if (cancelledTask) emitTaskUpdate(cancelledTask);
                   const cancelText = `Background task cancelled: ${text.slice(0, 80)}`;
                   persistBackgroundResult(cancelText, backgroundToolRecords);
-                  emitBackground("agent:response", { text: cancelText, agentName: personality.name });
+                  emitBackground("agent:status", { status: "cancelled", agentName: personality.name, phase: 'background', text: cancelText });
                   emitBackground("agent:status", { status: "idle", agentName: personality.name, phase: 'background' });
                   pushNotification(uid, {
                     type: 'background_cancelled',

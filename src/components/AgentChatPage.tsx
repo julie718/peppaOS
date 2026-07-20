@@ -37,11 +37,8 @@ function isInternalNoise(text: string): boolean {
   // English internal monologue / self-check
   if (/^i (cannot|cannot|can'?t|don'?t|won'?t|should|will|must|need to|have to)/i.test(t)) return true;
   // Tool execution errors / status
-  if (/^maximum tool call iterations/i.test(t)) return true;
   if (/^no firecrawl_api_key/i.test(t)) return true;
   if (/^error[: ]/i.test(t) && t.length < 50) return true;
-  // Chinese internal monologue — agent talking to itself, not to user
-  if (/我还不能说|我不能说|这件事已经完成|还没有完成|我们可以继续|你可以继续|子.?agent|background worker|worker agent|后台子.?agent|任务清单|工作流程|验收记录|确认的成功步骤|我还不能说这件事|mark this complete/i.test(text)) return true;
   // Workflow log format — agent reporting tool execution steps to itself
   if (/子.?agent.*完成了|任务.*完成|what completed:|下一步应该|最近的阻塞点|目前能确认/i.test(text)) return true;
   return false;
