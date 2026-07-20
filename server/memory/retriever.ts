@@ -2,7 +2,7 @@
  * Dual-path memory retrieval — keyword + semantic, fused by salience score.
  */
 import { queryMemories, queryMemoriesVector } from './store';
-import { Memory, MemoryQuery } from './types';
+import { Memory } from './types';
 import { logger } from '../lib/logger';
 
 export interface RankedMemory {
@@ -55,13 +55,6 @@ export async function dualRetrieve(query: string, userId: string, topN = 3): Pro
     logger.warn(`[Retriever] dual retrieval took ${elapsed}ms`);
   }
 
+  logger.info(`[Retriever] "${query.slice(0, 40)}" → ${ranked.slice(0, topN).length} results in ${elapsed}ms`);
   return ranked.slice(0, topN);
-}
-
-async function safeQuery(fn: () => Memory[]): Promise<Memory[]> {
-  try {
-    return await fn();
-  } catch {
-    return [];
-  }
 }
