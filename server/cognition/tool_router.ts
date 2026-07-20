@@ -282,7 +282,7 @@ const ROUTES: RouteDefinition[] = [
       /股票|股价|行情|K线|大盘|指数|涨停|跌停|板块|上市公司|财报/u,
       /\b(stock|market|price|kline|index|finance|ticker)\b/i,
     ],
-    prefixes: ['mcp_stockbot_'],
+    prefixes: ['mcp_stockbot_', 'mcp_hk-stock_'],
     groups: ['web'],
   },
   {
