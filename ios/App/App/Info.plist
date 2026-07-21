@@ -44,6 +44,10 @@
 	</dict>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>MayOS 需要麦克风来进行语音对话。</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>MayOS 需要读取健康数据（步数、心率、睡眠等），为您提供更智能的健康建议和日常关怀。</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>MayOS 需要写入健康数据，帮助您记录和管理健康信息。</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
