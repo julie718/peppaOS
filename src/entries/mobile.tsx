@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { Rocket, Sparkles, Moon, Zap } from 'lucide-react';
 import { Toaster } from 'sonner';
 import { Geolocation } from '@capacitor/geolocation';
+import { Health } from '@krzysztofkostecki/capacitor-health';
 import '../index.css';
 import { ProactiveNotifications } from '../components/ProactiveNotifications';
 import { LoginModal, LoginRequired } from '../core/components/Auth';
@@ -44,6 +45,23 @@ export function MobileApp() {
     }).catch(() => {});
     return () => { if (watchId) Geolocation.clearWatch({ id: watchId }).catch(() => {}); };
   }, [shell.user]);
+
+  // HealthKit 权限请求
+  useEffect(() => {
+    const requestHealthPermission = async () => {
+      try {
+        console.log('[Health] 开始请求权限...');
+        const status = await Health.requestAuthorization({
+          read: ['heartRate', 'heartRateVariability', 'steps'],
+          write: [],
+        });
+        console.log('[Health] 授权状态:', JSON.stringify(status, null, 2));
+      } catch (err) {
+        console.error('[Health] 权限请求失败:', err);
+      }
+    };
+    requestHealthPermission();
+  }, []);
 
   // 自动检测更新：启动时对比服务器版本，有更新则清缓存刷新
   useEffect(() => {
