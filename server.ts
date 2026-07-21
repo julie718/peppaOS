@@ -40,6 +40,7 @@ import voiceRoutes from "./routes/voice";
 import fileRoutes, { configureKnowledgeFileRoutes } from "./routes/files";
 import { subscriptionRoutes } from "./server/subscription/routes";
 import { resolveRole } from "./server/runtime/role";
+import { getDesireEngine } from './server/desire/engine.js';
 import {
   configureNcmCredentials,
   normalizeNcmAppId as normalizeStoredNcmAppId,
@@ -329,6 +330,17 @@ async function start() {
   await setupStatic(app, __filename, __dirname, ROLE);
   await bootstrap({ server, io, PORT, HOST, jwtSecret: JWT_SECRET, llm, __dirname });
 }
+
+// ===== Desire 驱力引擎启动 =====
+try {
+  const engine = getDesireEngine();
+  engine.tick();
+  setInterval(() => { engine.tick(); }, 600000);
+  console.log('[Desire] 引擎已启动，tick 间隔: 10分钟');
+} catch (err) {
+  console.error('[Desire] 引擎启动失败:', err);
+}
+// ===== Desire 引擎启动结束 =====
 
 start().catch((err) => {
   console.error('[FATAL] Server startup failed:', err.message);
