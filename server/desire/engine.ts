@@ -18,7 +18,7 @@ export type DriveName = keyof typeof DRIVE_CONFIG;
 export type DriveState = Record<DriveName, number>;
 
 const COUPLING = 0.05;
-const STATE_FILE = process.env.DESIRE_STATE_PATH || './data/desire_state.json';
+const STATE_FILE = process.env.DESIRE_STATE_PATH || path.resolve(process.cwd(), 'data/desire_state.json');
 
 const INTENT_MESSAGES: Record<DriveName, string> = {
   attachment: '我有点想她',
