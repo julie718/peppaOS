@@ -39,6 +39,7 @@ import { lapRoutes } from "./server/lap/routes";
 import voiceRoutes from "./routes/voice";
 import fileRoutes, { configureKnowledgeFileRoutes } from "./routes/files";
 import { subscriptionRoutes } from "./server/subscription/routes";
+import { handleHealthData } from './server/api/health.js';
 import { resolveRole } from "./server/runtime/role";
 import { getDesireEngine } from './server/desire/engine.js';
 import {
@@ -81,6 +82,7 @@ apiRouter.use("/", voiceRoutes);
 apiRouter.use("/", fileRoutes);
 apiRouter.use("/", subscriptionRoutes);
 apiRouter.use("/", lapRoutes);
+apiRouter.put('/api/health/data', handleHealthData);
 
 // ── NetEase ncm-cli login ──
 let ncmLoginPolling: ReturnType<typeof setTimeout> | null = null;

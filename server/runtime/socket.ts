@@ -21,6 +21,7 @@ import { personalityRegistry } from "../personality";
 import { setOnAgentPromoted } from "../agents/orchestrator";
 import { initMemorySync, initMemoryAssociations } from "../memory";
 import { handleAutonomousDesktopResult } from "../autonomy/task_executor";
+import { getDesireEngine } from '../desire/engine.js';
 
 interface SocketContext {
   io: Server;
@@ -130,6 +131,40 @@ export function initSocketRuntime({ io, jwtSecret, llm }: SocketContext) {
     socket.on("skill:installed", (data) => { socket.broadcast.emit("skill:installed", data); });
     socket.on("skill:uninstalled", (data) => { socket.broadcast.emit("skill:uninstalled", data); });
     socket.on("skill:updated", (data) => { socket.broadcast.emit("skill:updated", data); });
+
+    socket.on("bio:update", (payload) => {
+      try {
+        const { heartRate, hrv, steps } = payload;
+        const engine = getDesireEngine();
+
+        if (heartRate !== null && typeof heartRate === 'number') {
+          if (heartRate > 100) {
+            engine.ingest({ fatigue: 0.05, stress: 0.03 });
+          } else if (heartRate < 60) {
+            engine.ingest({ stress: -0.02 });
+          }
+        }
+
+        if (hrv !== null && typeof hrv === 'number' && hrv < 30) {
+          engine.ingest({ stress: 0.08, attachment: 0.05 });
+        }
+
+        if (steps !== null && typeof steps === 'number' && steps > 5000) {
+          engine.ingest({ fatigue: 0.02, curiosity: 0.03 });
+        }
+
+        engine.tick();
+
+        const intent = engine.getTopIntent();
+        if (intent.score >= 0.55) {
+          console.log(`[Heartbeat] 触发心跳: ${intent.message} (${intent.score.toFixed(2)})`);
+        }
+
+        socket.emit('bio:ack', { status: 'ok', intent });
+      } catch (err) {
+        console.error('[bio:update] 处理失败:', err);
+      }
+    });
 
     // Register all handlers
     registerDeviceHandlers(socket, getUserId, io);
