@@ -1,7 +1,7 @@
 {
-  "name": "peppa-skill-hk-stock",
-  "version": "1.0.0",
-  "description": "港股实时行情查询 — 基于腾讯财经公开接口",
+  "name": "peppa-skill-stock",
+  "version": "2.0.0",
+  "description": "股票实时行情查询 — 自动识别港股/A股，腾讯财经数据源",
   "type": "module",
   "main": "index.ts",
   "scripts": { "start": "npx tsx index.ts" },
