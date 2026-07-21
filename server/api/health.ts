@@ -1,4 +1,5 @@
 import { getDesireEngine } from '../desire/engine.js';
+import { triggerHeartbeatIfReady } from '../heartbeat/injector.js';
 
 export async function handleHealthData(req: any, res: any) {
   try {
@@ -22,6 +23,7 @@ export async function handleHealthData(req: any, res: any) {
     }
 
     engine.tick();
+    triggerHeartbeatIfReady();
 
     const intent = engine.getTopIntent();
     if (intent.score >= 0.55) {
