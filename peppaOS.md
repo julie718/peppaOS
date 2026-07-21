@@ -1709,3 +1709,71 @@ function marketCode(code: string, market?: string): string {
 | `docker-compose.yml` | `container_name: mayos` | `container_name: peppaos` |
 | 文档 | `mayOS.md` | `peppaOS.md` |
 | NAS 运行时 | `react-example` | `peppaOS` |
+
+---
+
+## 三十一、港股行情数据接入 (2026-07-20)
+
+### 背景
+stockbot 只支持 A 股（东方财富 API），且从 NAS 网络不通。需要港股支持。
+
+### 调研
+- stock-sdk（零依赖 npm 包，腾讯财经数据源）→ 解析返回空，废弃
+- 腾讯财经原始 HTTP API（qt.gtimg.cn）→ NAS 能通，直接使用
+- 新浪财经（hq.sinajs.cn）→ 已验证可用
+
+### 实施
+新建 `server/skills/bundled/hk-stock/`，使用腾讯财经 API 原生调用：
+- `get_stock_quote`：自动识别代码格式，5位0开头→港股，6位6开头→沪A，6位0/3开头→深A
+- `get_stock_batch`：批量查询，最多 10 只
+- `get_stock_kline`：日内行情
+
+腾讯行情接口：`https://qt.gtimg.cn/q=hk00700`（港股）`/q=sh600519`（沪A）
+
+## 三十二、Docker 构建优化 (2026-07-20~21)
+
+### GLIBC 不兼容
+构建阶段和运行阶段的 `node:22-slim` 拉到了不同时间点的镜像，GLIBC 版本不一致导致 sqlite3 原生模块报 `GLIBC_2.38' not found`。
+
+修复：运行阶段全新 `npm install`，原生模块编译时链接运行阶段 GLIBC。
+
+### chown -R 慢
+`RUN chown -R node:node /app` 扫描整个 node_modules（数百 MB），耗时 10-30 分钟。
+
+修复：在 COPY 时用 `--chown=node:node` 直接设属主，删除独立 chown 步骤。
+
+### npm ci 耗时
+`--no-cache` 重建每次都重新下载依赖。普通 rebuild 用 Docker 缓存，只需重编译代码（2-3 分钟）。
+
+## 三十三、对话链路排查 (2026-07-20~21)
+
+### 现象
+1. Agent 偶尔不回复
+2. 后台子 agent 汇报消息污染聊天流
+3. 查港股时工具被关（chat-only 模式）
+
+### 发现
+- `agent:response` 事件发出但前端 `isInternalNoise` 过滤器吞掉了 "Maximum tool call iterations" 消息
+- 后台子 agent 完成时调用 `emitBackground("agent:response")` 把内部汇报塞进了聊天
+- `shouldAllowToolUseForTurn` 在 autonomous 模式下只看 `AUTONOMOUS_TASK_PATTERNS`，忽略 `hasLookupIntent`
+- 新开对话可恢复（上下文污染导致 Agent 行为异常）
+
+### 修复
+- 删除 `Maximum tool call iterations` 噪声过滤规则
+- 后台委托结果改为 `agent:status`，不插入聊天
+- 问候语返回空工具列表（阶段3）
+
+## 十二、开发日志（续）
+
+| 日期 | 事件 |
+|------|------|
+| 2026-07-20 | 港股统一技能：腾讯API原生调用，自动分流港股/A股，get_stock_quote/batch/kline |
+| 2026-07-20 | Docker构建优化：COPY --chown替代chown -R，普通build用缓存2-3分钟 |
+| 2026-07-20 | GLIBC不兼容修复：运行阶段全新npm install |
+| 2026-07-20 | 焦点栈(contextStack)+预期上下文注入(prefetch)：阶段1-2完成 |
+| 2026-07-20 | 对话链路排查：噪声过滤修复、后台消息污染修复、tool gate分析 |
+| 2026-07-21 | 提示词优化：系统注入北京时间，Agent可回答时间问题 |
+| 2026-07-21 | 统一股票技能上线：get_stock_quote自动识别港股/A股，腾讯财经数据源 |
+| ⬜ 待办 | GitHub 间歇性被墙，多个 commit 未推送；NAS 与 MacBook 代码未同步 |
+| ⬜ 待办 | autonomous 模式下 hasLookupIntent 未生效，查股价工具被关 |
+| ⬜ 待办 | 定时备份：cron 每天自动备份 ~/mayos/data/peppa.db |
