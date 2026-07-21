@@ -3,6 +3,13 @@
 // /index.org.html → org workbench (create/manage orgs, legal tools)
 import "dotenv/config";
 
+// ── 全局类型声明 ──
+declare global {
+  var __activeSessionId: string;
+  var __wsClients: Array<{ sessionId: string; ws: any }>;
+  var __lastUserMessageAt: number;
+}
+
 // ── Required environment variables ──
 if (!process.env.JWT_SECRET) {
   console.error('[FATAL] JWT_SECRET is required. Set it in .env or docker-compose.yml.');
@@ -55,6 +62,8 @@ const __dirname = path.dirname(__filename);
 const ROLE = resolveRole();
 
 const { app, server, io, apiRouter, PORT, HOST, JWT_SECRET, getCookieOptions } = createApp();
+(global as any).__wsClients = (global as any).__wsClients || [];
+(global as any).__lastUserMessageAt = 0;
 const llm = createLLMRuntime();
 
 // ── Static serve for lumi_output (charts, images, generated files) ──

@@ -22,6 +22,7 @@ import { setOnAgentPromoted } from "../agents/orchestrator";
 import { initMemorySync, initMemoryAssociations } from "../memory";
 import { handleAutonomousDesktopResult } from "../autonomy/task_executor";
 import { getDesireEngine } from '../desire/engine.js';
+import { triggerHeartbeatIfReady } from '../heartbeat/injector.js';
 
 interface SocketContext {
   io: Server;
@@ -94,6 +95,11 @@ export function initSocketRuntime({ io, jwtSecret, llm }: SocketContext) {
     socket.join(`user:${uid}`);
     logger.info(`[Socket] Client connected: ${socket.id} (uid=${uid})`);
 
+    // ── 全局 WebSocket 连接追踪 ──
+    (global as any).__activeSessionId = socket.handshake.query.sessionId || 'default';
+    (global as any).__wsClients = (global as any).__wsClients || [];
+    (global as any).__wsClients.push({ sessionId: (global as any).__activeSessionId, ws: socket });
+
     const getUserId = (s: any) => getUserIdFromSocket(s, jwtSecret);
 
     // DEBUG: log all incoming events
@@ -125,6 +131,9 @@ export function initSocketRuntime({ io, jwtSecret, llm }: SocketContext) {
       notifySocketDisconnect();
       const uid = getUserId(socket);
       perceptionEvents.delete(uid);
+      (global as any).__wsClients = (global as any).__wsClients.filter(
+        (c: any) => c.ws !== socket
+      );
     });
 
     // Skill event relay — forward client-emitted skill events to all connected clients
@@ -154,6 +163,7 @@ export function initSocketRuntime({ io, jwtSecret, llm }: SocketContext) {
         }
 
         engine.tick();
+        triggerHeartbeatIfReady();
 
         const intent = engine.getTopIntent();
         if (intent.score >= 0.55) {
