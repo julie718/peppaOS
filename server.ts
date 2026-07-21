@@ -82,7 +82,7 @@ apiRouter.use("/", voiceRoutes);
 apiRouter.use("/", fileRoutes);
 apiRouter.use("/", subscriptionRoutes);
 apiRouter.use("/", lapRoutes);
-apiRouter.put('/api/health/data', handleHealthData);
+apiRouter.put('/health/data', handleHealthData);
 
 // ── NetEase ncm-cli login ──
 let ncmLoginPolling: ReturnType<typeof setTimeout> | null = null;
