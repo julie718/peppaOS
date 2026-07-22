@@ -76,13 +76,25 @@ function hasLookupIntent(text: string): boolean {
   return LOOKUP_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
+const CHITCHAT_PATTERNS: RegExp[] = [
+  /\b(随便聊聊|聊聊天|没事|随便说说|不用操作|别说太多|就聊聊|只是聊聊|闲聊|随便讲|不用做|不用说那么多|简单聊聊)\b/u,
+  /\b(just\s+chat|just\s+talking|never\s+mind|don'?t\s+do\s+anything|nothing\s+important|chit\s*chat|casual)\b/i,
+];
+
+function hasChitChatIntent(text: string): boolean {
+  const normalized = text.trim();
+  if (!normalized) return true; // 空消息视为闲聊
+  if (normalized.length < 4 && !/[?!！？]/.test(normalized)) return true; // 极短消息（如"嗯""哦"）视为闲聊
+  return CHITCHAT_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
 export function shouldAllowToolUseForTurn(text: string, source?: string, operationMode?: string): boolean {
   const mode = normalizeOperationMode(operationMode);
   if (isDiagnosticOrRepairRequest(text)) return true;
   if (mode === 'chat') return hasLookupIntent(text) || hasClientActionIntent(text) || hasExplicitToolIntent(text) || hasVisionIntent(text);
   if (mode === 'meeting') return hasClientActionIntent(text);
   if (hasVisionIntent(text)) return true;
-  if (mode === 'autonomous' && AUTONOMOUS_TASK_PATTERNS.some((pattern) => pattern.test(text.trim()))) return true;
+  if (mode === 'autonomous') return !hasChitChatIntent(text);
   if (hasExplicitToolIntent(text)) return true;
   return false;
 }
