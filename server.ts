@@ -49,6 +49,7 @@ import { subscriptionRoutes } from "./server/subscription/routes";
 import { handleHealthData } from './server/api/health.js';
 import { resolveRole } from "./server/runtime/role";
 import { getDesireEngine } from './server/desire/engine.js';
+import { getLifeSystem } from './server/life/index.js';
 import {
   configureNcmCredentials,
   normalizeNcmAppId as normalizeStoredNcmAppId,
@@ -352,6 +353,22 @@ try {
   console.error('[Desire] 引擎启动失败:', err);
 }
 // ===== Desire 引擎启动结束 =====
+
+// ===== 数字生命体系统启动 =====
+try {
+  const life = getLifeSystem();
+  life.initializeLifeSystem().then((result) => {
+    if (result.ok) console.log('[LifeSystem] ✅ 数字生命体初始化完成');
+    else console.warn('[LifeSystem] ⚠️ 初始化有错误:', result.errors);
+    life.start();
+  }).catch((err) => {
+    console.error('[LifeSystem] 初始化失败:', err.message);
+  });
+  console.log('[LifeSystem] 数字生命体系统已触发启动');
+} catch (err) {
+  console.error('[LifeSystem] 启动失败:', err);
+}
+// ===== 数字生命体启动结束 =====
 
 start().catch((err) => {
   console.error('[FATAL] Server startup failed:', err.message);
