@@ -9,9 +9,20 @@ import { ProactiveNotifications } from '../components/ProactiveNotifications';
 import { LoginModal, LoginRequired } from '../core/components/Auth';
 import { AgentChatPage } from '../components/AgentChatPage';
 import { useAppShell } from './useAppShell';
+import { useHealth } from '../hooks/useHealth';
+import { usePerceptionVector } from '../hooks/usePerception';
 
 export function MobileApp() {
   const shell = useAppShell();
+
+  // 健康数据轮询（心率/HRV/步数）
+  const healthData = useHealth(!!shell.user);
+
+  // 感知特征向量提取（12维 → perception:update）
+  const perception = usePerceptionVector({
+    healthData,
+    enabled: !!shell.user,
+  });
 
   // GPS实时追踪：watchPosition持续监听，位移>50m上报
   useEffect(() => {
