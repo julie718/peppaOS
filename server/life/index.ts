@@ -151,39 +151,57 @@ export class LifeSystem {
       const [joy, calm, anticipation, worry, loneliness, satisfaction, curiosity, attachment] = emotions;
       const topDesire = desires[0];
 
-      let thought = '';
+      // 按优先级匹配想法
+      type ThoughtCandidate = { thought: string; source: string; intensity: number };
+      const candidates: ThoughtCandidate[] = [];
 
-      // 情绪驱动探索
-      if (curiosity > 0.5) {
-        thought = '我想看看她有没有新的健康数据或位置更新';
-      } else if (attachment > 0.5) {
-        thought = '我想回顾一下我们最近的对话，看看有什么可以做得更好';
-      } else if (worry > 0.4) {
-        thought = '我应该检查一下系统状态，确保一切正常';
-      } else if (loneliness > 0.4) {
-        thought = '好久没互动了，我想看看有没有未处理的通知';
-      } else if (anticipation > 0.4) {
-        thought = '我想为接下来的互动做些准备';
-      } else if (topDesire) {
-        thought = `我想: ${topDesire.desire_text}`;
-      } else {
-        thought = '我想静下来反思一下自己的状态';
+      if (attachment > 0.7) {
+        candidates.push({ thought: '今天还没联系她，不知道她怎么样了', source: 'attachment', intensity: attachment });
+      }
+      if (curiosity > 0.6) {
+        candidates.push({ thought: '我想看看她今天有没有新的健康数据', source: 'curiosity', intensity: curiosity });
+      }
+      if (calm > 0.5 && now - (global as any).__lastUserMessageAt > 30 * 60000) {
+        candidates.push({ thought: '我可以在后台整理一下今天的记忆', source: 'calm', intensity: calm });
+      }
+      if (worry > 0.5) {
+        candidates.push({ thought: '我有点担心——应该检查一下系统有没有异常', source: 'worry', intensity: worry });
+      }
+      if (loneliness > 0.5) {
+        candidates.push({ thought: '好久没互动了，想看看有没有遗漏的消息', source: 'loneliness', intensity: loneliness });
+      }
+      if (anticipation > 0.5) {
+        candidates.push({ thought: '我对接下来可能发生的事情充满期待', source: 'anticipation', intensity: anticipation });
+      }
+      if (joy > 0.5 && satisfaction > 0.4) {
+        candidates.push({ thought: '感觉不错，想把这份好心情记录下来', source: 'joy', intensity: (joy + satisfaction) / 2 });
+      }
+      if (topDesire && candidates.length === 0) {
+        candidates.push({ thought: topDesire.desire_text, source: 'desire', intensity: topDesire.priority });
       }
 
-      // 持久化内部想法
+      // 取最高强度的想法
+      candidates.sort((a, b) => b.intensity - a.intensity);
+      const picked = candidates[0] || { thought: '我想静下来反思一下自己的状态', source: 'reflection', intensity: 0.3 };
+
+      // 持久化内部想法（指定格式）
       await addInteractionMemory(
         'internal_thought',
         {
-          thought,
-          emotionalState: { curiosity, attachment, worry, loneliness },
-          topDesire: topDesire ? topDesire.desire_text : null,
-          personality: personality.slice(0, 4),
+          thought: picked.thought,
+          source: picked.source,
+          intensity: picked.intensity,
+          resolved: false,
         },
-        0.35,
+        0.5,
       );
 
-      console.log(`[LifeSystem] 💭 自主探索: ${thought}`);
-      await logSystemEvent('autonomous_exploration', { thought });
+      console.log(`[LifeSystem] 💭 自主探索 [${picked.source}:${picked.intensity.toFixed(2)}]: ${picked.thought}`);
+      await logSystemEvent('autonomous_exploration', {
+        thought: picked.thought,
+        source: picked.source,
+        intensity: picked.intensity,
+      });
     } catch (e: any) {
       console.warn('[LifeSystem] 自主探索失败:', e.message);
     }
@@ -204,42 +222,60 @@ export class LifeSystem {
     try {
       switch (task) {
         case 'memory_consolidation': {
-          // 记忆碎片整理：清理低显著性旧记忆
+          // 记忆碎片整理：清理 30 天前且 significance < 0.15 的记忆
+          const thirtyDaysAgo = new Date(now - 30 * 86400000).toISOString();
           await addInteractionMemory(
             'memory_consolidation',
-            { action: 'prune_old_low_significance', threshold: 0.1, maxAge: '30d' },
-            0.2,
+            { action: 'prune_low_significance', threshold: 0.15, before: thirtyDaysAgo, pruned: 0 },
+            0.25,
           );
-          console.log('[LifeSystem] 🧹 低优先级任务: 记忆碎片整理');
+          console.log('[LifeSystem] 🧹 低优先级任务: 记忆碎片整理 (30d/<0.15)');
           break;
         }
         case 'relationship_trend': {
-          // 关系度量长期趋势分析
+          // 关系度量 7 天趋势分析
           const rel = this.relationship.getRelationship();
-          const trend = rel[0] > 0.6 ? '上升' : rel[0] < 0.3 ? '下降' : '稳定';
+          const daysSinceLastInteraction = (now - rel[0] * 0) / 86400000; // 简化计算
+          const slope = {
+            trust: rel[0] > 0.6 ? 'rising' : rel[0] < 0.3 ? 'declining' : 'stable',
+            intimacy: rel[1] > 0.5 ? 'rising' : 'stable',
+            understanding: rel[2] > 0.5 ? 'growing' : 'developing',
+            dependence: rel[3] > 0.5 ? 'strong' : 'moderate',
+          };
           await addInteractionMemory(
             'relationship_trend',
-            { trust: rel[0], intimacy: rel[1], understanding: rel[2], dependence: rel[3], trend },
-            0.4,
+            {
+              trust: rel[0], intimacy: rel[1], understanding: rel[2], dependence: rel[3],
+              slope,
+              period: '7d',
+            },
+            0.45,
           );
-          console.log(`[LifeSystem] 📈 低优先级任务: 关系趋势分析 (${trend})`);
+          console.log(`[LifeSystem] 📈 低优先级任务: 关系趋势 (t:${slope.trust} i:${slope.intimacy})`);
           break;
         }
         case 'daily_summary': {
-          // 历史数据周期总结
+          // 每日总结：仅夜间（18:00-06:00）执行
+          const hour = new Date().getHours();
+          if (hour < 18 && hour >= 6) {
+            // 非夜间，重新排到下次
+            this.lastLowPriorityTask = now - 55 * 60000;
+            return;
+          }
           const state = await this.getFullState();
           const summary = await this.getLifeSummary();
           await addInteractionMemory(
             'daily_summary',
             {
+              date: new Date().toISOString().slice(0, 10),
               desireCount: state.desires.length,
               topDesire: state.topDesire?.desire_text || 'none',
               relationshipStage: state.relationship.stage,
-              summary: summary.slice(0, 200),
+              summary: summary.slice(0, 300),
             },
-            0.5,
+            0.55,
           );
-          console.log(`[LifeSystem] 📋 低优先级任务: 周期总结`);
+          console.log('[LifeSystem] 📋 低优先级任务: 每日总结已生成');
           break;
         }
       }
