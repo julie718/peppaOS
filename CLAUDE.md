@@ -1,5 +1,8 @@
 # Peppa Project Skills
 
+## ⚠️ 提交前必验证
+**改完任何代码并部署到 NAS 后，必须主动验证功能是否生效。** 不等用户反馈、不靠 Agent 回复判断。验证方式：调用对应 API、查看日志、确认工具注册。验证通过才算做完。
+
 ## /dev — Start development environment
 Start the Node.js dev server (if not running) and launch the Tauri desktop app.
 ```

@@ -205,7 +205,7 @@ const ROUTES: RouteDefinition[] = [
       /查|搜|找|看|去查|去搜|去找|去看|帮我查|帮我搜|帮我找|帮我看|搜搜|查查|找找|看看|搜一下|查一下|找一下|看一下|你去|搜索|查询|查找|联网|浏览|网页|网址|链接|资料来源|出处|引用|官方|验证|调研|知不知道|知道吗|告诉我|介绍|有什么|有哪些|什么是|怎么.*的|怎么样|如何|是谁|在哪里|什么时候|多少钱/u,
       /\b(search|look\s*up|browse|fetch|research|source|citation|official|verify)\b/i,
     ],
-    prefixes: ['mcp_fetcher_', 'mcp_web-fetcher-pro_', 'mcp_firecrawl-mcp_', 'mcp_cn-search_'],
+    prefixes: ['mcp_fetcher_', 'mcp_web-fetcher-pro_', 'mcp_firecrawl-mcp_', 'mcp_cn-search_', 'mcp_hk-stock_'],
     groups: ['web', 'authenticatedWeb'],
   },
   {
