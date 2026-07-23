@@ -11,6 +11,7 @@ import { AgentChatPage } from '../components/AgentChatPage';
 import { useAppShell } from './useAppShell';
 import { useHealth } from '../hooks/useHealth';
 import { usePerceptionVector } from '../hooks/usePerception';
+import { requestPermission } from '../services/notificationService';
 
 export function MobileApp() {
   const shell = useAppShell();
@@ -72,6 +73,13 @@ export function MobileApp() {
       }
     };
     requestHealthPermission();
+  }, []);
+
+  // 通知权限请求
+  useEffect(() => {
+    requestPermission().then(granted => {
+      console.log('[Notification] 权限:', granted ? '已授权' : '未授权');
+    });
   }, []);
 
   // 自动检测更新：启动时对比服务器版本，有更新则清缓存刷新

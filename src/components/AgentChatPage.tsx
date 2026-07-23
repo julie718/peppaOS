@@ -17,6 +17,7 @@ import { runAgentLogic, AgentResponse } from '@/services/agentService';
 import { useApp } from '@/contexts/AppContext';
 import { VoiceCallButton } from './VoiceCallButton';
 import { socketService } from '@/services/socketService';
+import { sendNotification } from '@/services/notificationService';
 import { useVoiceCall } from '@/hooks/useVoiceCall';
 import { useVoiceCloning } from '@/hooks/useVoiceCloning';
 import { listVoices } from '@/services/voiceService';
@@ -740,7 +741,12 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
           type: 'agent'
         }]);
       }
-      // Auto-speak disabled
+
+      // 收到回复时推送本地通知
+      if (data.text && data.text.trim()) {
+        const preview = data.text.replace(/\n/g, ' ').slice(0, 80) + (data.text.length > 80 ? '…' : '');
+        sendNotification(data.agentName || 'Peppa', preview).catch(() => {});
+      }
     };
 
     const onStatus = (data: { status: string; requestId?: string; source?: string }) => {

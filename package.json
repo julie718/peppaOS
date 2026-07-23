@@ -45,6 +45,7 @@
     "@capacitor/core": "^8.3.1",
     "@capacitor/geolocation": "^8.2.0",
     "@capacitor/ios": "^8.3.1",
+    "@capacitor/local-notifications": "^8.2.1",
     "@fontsource-variable/geist": "^5.2.8",
     "@google/generative-ai": "^0.24.1",
     "@krzysztofkostecki/capacitor-health": "^8.2.30",

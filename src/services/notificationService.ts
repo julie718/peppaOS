@@ -1,27 +1,55 @@
-// Notification service — fetch/clear persisted notifications via REST API
+// PeppaOS 本地通知服务 — 横幅推送 + 角标管理
+import { LocalNotifications } from '@capacitor/local-notifications';
 
-import type { NotificationListResponse } from '@/types/api';
+let badgeCount = 0;
 
-export async function fetchNotifications(): Promise<NotificationListResponse> {
-  const res = await fetch('/api/notifications', { credentials: 'include' });
-  if (!res.ok) throw new Error(`Failed to fetch notifications: ${res.status}`);
-  return res.json();
+export async function requestPermission(): Promise<boolean> {
+  try {
+    const result = await LocalNotifications.requestPermissions();
+    return result.display === 'granted';
+  } catch {
+    return false;
+  }
 }
 
-export async function markAllNotificationsRead(): Promise<{ success: boolean; marked: number }> {
-  const res = await fetch('/api/notifications/read-all', {
-    method: 'POST',
-    credentials: 'include',
-  });
-  if (!res.ok) throw new Error(`Failed to mark notifications read: ${res.status}`);
-  return res.json();
+export async function sendNotification(
+  title: string,
+  body: string,
+  data?: Record<string, any>,
+): Promise<void> {
+  try {
+    badgeCount++;
+    await LocalNotifications.schedule({
+      notifications: [{
+        id: Date.now(),
+        title,
+        body: body.slice(0, 200),
+        extra: data || {},
+        schedule: { at: new Date(Date.now() + 100) },
+      }],
+    });
+    await updateBadge(badgeCount);
+  } catch (e) {
+    console.warn('[Notification] 发送失败:', e);
+  }
 }
 
-export async function clearAllNotifications(): Promise<{ success: boolean }> {
-  const res = await fetch('/api/notifications', {
-    method: 'DELETE',
-    credentials: 'include',
-  });
-  if (!res.ok) throw new Error(`Failed to clear notifications: ${res.status}`);
-  return res.json();
+export async function updateBadge(count: number): Promise<void> {
+  badgeCount = Math.max(0, count);
+}
+
+export async function clearBadge(): Promise<void> {
+  badgeCount = 0;
+  try {
+    await LocalNotifications.cancel({ notifications: [{ id: -1 }] });
+  } catch {}
+}
+
+export function getBadgeCount(): number {
+  return badgeCount;
+}
+
+export async function fetchNotifications(): Promise<{ notifications: any[] }> {
+  // 服务端通知暂未实现，返回空
+  return { notifications: [] };
 }
