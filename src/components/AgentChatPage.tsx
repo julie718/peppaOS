@@ -582,9 +582,8 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     if (isFounder || !socket) return;
 
     const isCurrentChatEvent = (data?: { requestId?: string; source?: string }) => {
-      if (data?.requestId) return data.requestId === activeChatRequestIdRef.current;
-      if (data?.source && data.source !== 'chat') return false;
-      return textChatActiveRef.current;
+      if (!data?.requestId || !activeChatRequestIdRef.current) return false;
+      return data.requestId === activeChatRequestIdRef.current;
     };
 
     const onProactive = (data: { message: string; timestamp: string; requestId?: string; source?: string; type?: string; taskId?: string }) => {
@@ -998,14 +997,15 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     let safetyTimer: ReturnType<typeof setTimeout>;
     let restFallbackTimer: ReturnType<typeof setTimeout> | null = null;
     const isCurrentResponse = (data?: { requestId?: string; source?: string }) => {
-      if (data?.requestId) return data.requestId === requestId;
-      if (data?.source && data.source !== 'chat') return false;
-      return true;
+      if (!data?.requestId || !activeChatRequestIdRef.current) return false;
+      return data.requestId === activeChatRequestIdRef.current;
     };
     const cleanupSocketWaiters = () => {
       socket.off('agent:response', onResponse);
       socket.off('agent:error', onError);
       socket.off('agent:status', onStatus);
+      streamingMsgId.current = null;
+      if (activeChatRequestIdRef.current === requestId) activeChatRequestIdRef.current = null;
     };
     const resolve = () => {
       if (resolved) return;
@@ -1015,7 +1015,6 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
       cleanupSocketWaiters();
       setIsTyping(false);
       textChatActiveRef.current = false;
-      if (activeChatRequestIdRef.current === requestId) activeChatRequestIdRef.current = null;
     };
     const onResponse = (data?: { requestId?: string; source?: string }) => { if (isCurrentResponse(data)) resolve(); };
     const onError = (data?: { requestId?: string; source?: string }) => { if (isCurrentResponse(data)) resolve(); };
@@ -1025,7 +1024,6 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     };
     safetyTimer = setTimeout(() => {
       if (!resolved) {
-        streamingMsgId.current = null;
         resolve();
       }
     }, outgoingAttachments.length > 0 ? 60000 : 30000);

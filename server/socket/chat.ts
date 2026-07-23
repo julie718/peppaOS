@@ -1306,7 +1306,9 @@ export function registerChatHandler(
 
           // Collect tool calls for persistence
 
-          const result = await runWithTools(
+          let result: any;
+          try {
+          result = await runWithTools(
             messages,
             toolRegistry,
             { provider: activeProvider, model: activeModel, userId: uid, domain: resolvedDomain, orgId: resolvedOrgId },
@@ -1371,6 +1373,14 @@ export function registerChatHandler(
           );
 
           responseText = result.text || '';
+          } catch (toolErr: any) {
+            logger.error('[ChatHandler] Tool execution failed:', toolErr.message);
+            socket.emit('agent:error', {
+              message: toolErr.message || '工具执行失败',
+              requestId: requestId || '',
+            });
+            return;
+          }
           llmWasCalled = true;
           // Record analytics + subscription
           for (const u of result.usageRecords) {
