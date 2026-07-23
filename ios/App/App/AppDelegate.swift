@@ -1,15 +1,30 @@
 import UIKit
 import Capacitor
 import CoreLocation
+import UserNotifications
 
 @UIApplicationMain
-class AppDelegate: UIResponder, UIApplicationDelegate {
+class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
 
     var window: UIWindow?
     let locationManager = CLLocationManager()
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        // 注册本地通知
+        UNUserNotificationCenter.current().delegate = self
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
+            if let error = error {
+                print("[Notification] 权限请求失败: \(error.localizedDescription)")
+            } else {
+                print("[Notification] 权限: \(granted ? "已授权" : "已拒绝")")
+            }
+        }
         return true
+    }
+
+    // 前台显示通知（横幅+角标+声音）
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .badge, .sound])
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
