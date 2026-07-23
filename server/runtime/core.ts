@@ -37,6 +37,8 @@ export function createApp(): AppContext {
   };
 
   const io = new Server(server, {
+    pingInterval: 60000,
+    pingTimeout: 45000,
     cors: {
       origin: corsOrigin,
       methods: ["GET", "POST"],
