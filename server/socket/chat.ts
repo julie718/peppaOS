@@ -23,6 +23,7 @@ import { lightweightEvolve } from "../personality/evolution";
 import { getOrCreateActiveConversation, addMessage, getMessages, getMessagesByTokenBudget, checkAutoSummary, setConversationSummary, getConversationSummary, setConversationMode, getUnclosedConversation, extractTopics, trackTopic, getTopicContext } from "../conversation/manager";
 import { ensureBranch } from "../memory/tree";
 import { detectAndSwitchTopic } from "../memory/focusStack";
+import { getPrefetchedContext, clearPrefetchedContext, touchActivity } from "../memory/prefetch";
 import { getLifeSystem } from "../life/index.js";
 import { retrieveChunks } from "../agents/rag";
 import { getSensory } from "./shared";
@@ -249,6 +250,8 @@ export function registerChatHandler(
 
   socket.on("agent:chat", async (data: { text?: string; history?: any[]; attachments?: any[]; personalityId?: string; category?: string; agentId?: string; domain?: string; orgId?: string | null; mode?: string; source?: string; requestId?: string }) => {
     logger.info('[ChatHandler] agent:chat RECEIVED:', JSON.stringify(data).slice(0, 300));
+    touchActivity(); // 更新最后活跃时间，供 prefetch 判断空闲
+    (global as any).__lastActiveUid = userIdFn(socket); // 记录最后活跃用户，供 TICK 预判
     const { history, personalityId = "peppa", category, agentId, mode: payloadMode, source } = data;
     const attachments = normalizeIncomingAttachments(data.attachments);
     const rawUserText = typeof data.text === 'string' ? data.text.trim() : '';
@@ -416,6 +419,14 @@ export function registerChatHandler(
       // Inject conversation summary chain for long-running conversations (anti-entropy)
       const beijingTime = new Date(new Date().getTime() + 8 * 3600000).toISOString().replace('Z', '+08:00');
       let effectiveSystemPrompt = systemInstruction + `\n\n## Current Time\n${beijingTime} (北京时间). Use this for any time-related questions.`;
+
+      // ── ACI 预判上下文注入 ──
+      const prefetchedContext = getPrefetchedContext(uid);
+      if (prefetchedContext) {
+        effectiveSystemPrompt += '\n\n' + prefetchedContext.summary;
+        logger.info('[ChatHandler] prefetched context injected:', prefetchedContext.source);
+        clearPrefetchedContext(uid);
+      }
       if (conversationId) {
         const summaryContext = getConversationSummary(conversationId);
         if (summaryContext) {

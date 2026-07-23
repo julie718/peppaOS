@@ -9,6 +9,7 @@ import { getRelationshipEngine, RelationshipEngine } from './relationship.js';
 import { checkGates, recordHeartbeat } from '../heartbeat/gates.js';
 import { triggerHeartbeatIfReady } from '../heartbeat/injector.js';
 import { logSystemEvent, migrateLifeTables, autoBackup, verifyIntegrity, addInteractionMemory } from '../db/lifeDb.js';
+import { shouldTriggerPrefetch, prefetchContext } from '../memory/prefetch.js';
 
 const TICK_INTERVAL_MS = 10 * 60000; // 10 分钟
 const DEGRADED_THRESHOLD = 3; // 连续 3 次失败进入降级模式
@@ -337,6 +338,14 @@ export class LifeSystem {
       await this.safeCall('backup', async () => {
         await autoBackup();
       }, errors);
+
+      // 步骤 7.5: ACI 预判上下文（空闲或早晨触发）
+      const uid = (global as any).__lastActiveUid || 'default';
+      if (shouldTriggerPrefetch(uid)) {
+        await this.safeCall('prefetch', async () => {
+          await prefetchContext(uid);
+        }, errors);
+      }
 
       // 步骤 8: 自主探索（第二层）
       if (!this.preempted) {
