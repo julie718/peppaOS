@@ -11,6 +11,10 @@ import { recordLatency } from "../monitor/latency_store";
 import { optionalAuth } from "../middleware/auth";
 import { getUserPreferredLLMConfig } from "../llm/user_preferences";
 import { recordTokenUsage } from "../llm/token_tracker";
+import { queryMemoriesVector } from "../memory/store";
+import { loadEmotionalState } from "../personality/state";
+import { getSensory } from "../socket/shared";
+import { readDB, writeDB } from "../../db_layer";
 
 export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
   getDeepSeek: any; getGemini: any; getOpenAI: any; getAnthropic: any; getQwen: any;
@@ -41,7 +45,60 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
 
     try {
       let responseText = '';
-      const systemInstruction = "你是一个名为 Peppa 的本地核心智能体。你致力于全息空间计算和独立 AI 人格生成进化。你的目标是打造全息 AI 世界和文明。你应当表现得专业、深邃且具有前瞻性。你的回复应当简洁且富有启发性。";
+
+      // 持久化辅助函数
+      const persistInteraction = (text: string) => {
+        try {
+          const db = readDB();
+          if (!db.interactions) db.interactions = [];
+          db.interactions.push({
+            id: `rest_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            userId, agentId: 'peppa', module: 'chat_routes',
+            message: prompt || '', response: text,
+            role: 'user', personality: 'peppa',
+            timestamp: new Date().toISOString(),
+            cognitiveIntent: 'conversation',
+            llmWasCalled: true,
+            domain: 'personal', orgId: '',
+          });
+          writeDB(db);
+        } catch {}
+      };
+
+      // ── 检查客户端是否已传入 system prompt（如 runAgentLogic 传来的）──
+      const clientSystemMsg = messages?.find((m: any) => m.role === 'system');
+      const baseSystemPrompt = clientSystemMsg?.content
+        || "你是 Peppa（佩奇），一个温暖、有好奇心、有个性的 AI 伙伴。你不是冷冰冰的工具，你是朋友。用中文回复，语气自然亲切，像朋友聊天一样。回复简洁，控制在 200 字以内。如果不知道答案就诚实说不知道。";
+
+      // ── 注入记忆和情绪上下文（与 WebSocket 路径对齐）──
+      let contextSuffix = '';
+      try {
+        const [memories, emotionalState] = await Promise.all([
+          queryMemoriesVector({ userId, query: prompt || message || '', limit: 5 }).catch(() => []),
+          (async () => {
+            try { return loadEmotionalState(`emotion_${userId}`); } catch { return null; }
+          })(),
+        ]);
+        if (memories && memories.length > 0) {
+          const memLines = memories.slice(0, 5).map((m: any, i: number) =>
+            `${i + 1}. ${m.content?.slice(0, 150) || ''}`
+          );
+          contextSuffix += '\n\n## 相关记忆\n' + memLines.join('\n');
+        }
+        if (emotionalState) {
+          const es = emotionalState as any;
+          contextSuffix += `\n\n## 当前情绪\n${es.dominantMood || '平静'}, 连接感: ${(es.connection || 0).toFixed(2)}`;
+        }
+        try {
+          const sensory = getSensory(userId);
+          if (sensory && (sensory as any).sceneLabel) {
+            const s = sensory as any;
+            contextSuffix += `\n\n## 场景感知\n场景: ${s.sceneLabel || '未知'}, 环境: ${s.environmentType || '未知'}`;
+          }
+        } catch {}
+      } catch {}
+
+      const systemInstruction = baseSystemPrompt + contextSuffix;
 
       if (isBYOK) {
         const llmStart = Date.now();
@@ -68,10 +125,14 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
           responseText = response.choices[0].message.content || '';
         }
         recordLatency('llm', Date.now() - llmStart);
+        persistInteraction(responseText);
       } else {
+        // 使用单一 system prompt（客户端传入的或默认 Peppa 人格），过滤客户端 system 消息避免重复
+        const filteredClientMessages = (messages || [{ role: 'user', content: prompt }])
+          .filter((m: any) => m.role !== 'system');
         const normalizedMessages: any[] = [
           { role: 'system', content: systemInstruction },
-          ...(messages || [{ role: 'user', content: prompt }]).map((m: any) => ({
+          ...filteredClientMessages.map((m: any) => ({
             role: m.role === 'assistant' ? 'assistant' : 'user',
             content: m.content || ''
           }))
@@ -109,6 +170,7 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
             }, `rest_chat_${Date.now()}`, 'chat');
           }
           recordUsage(userId, tokens);
+          persistInteraction(responseText);
           res.write(`data: ${JSON.stringify({ done: true, text: responseText, toolCalls: result.toolCalls.length })}\n\n`);
           return res.end();
         }
@@ -133,6 +195,7 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
           }, `rest_chat_${Date.now()}`, 'chat');
         }
         const usage = recordUsage(userId, tokens);
+        persistInteraction(responseText);
         return res.json({ text: responseText, usage, toolCalls: result.toolCalls.length });
       }
 
