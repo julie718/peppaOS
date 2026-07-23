@@ -22,6 +22,7 @@ import { personalityRegistry } from "../personality";
 import { lightweightEvolve } from "../personality/evolution";
 import { getOrCreateActiveConversation, addMessage, getMessages, getMessagesByTokenBudget, checkAutoSummary, setConversationSummary, getConversationSummary, setConversationMode, getUnclosedConversation, extractTopics, trackTopic, getTopicContext } from "../conversation/manager";
 import { ensureBranch } from "../memory/tree";
+import { detectAndSwitchTopic } from "../memory/focusStack";
 import { retrieveChunks } from "../agents/rag";
 import { getSensory } from "./shared";
 import { processInput, handleLLMFailure, extractSentiment, CognitiveContext } from "../cognition";
@@ -805,6 +806,15 @@ export function registerChatHandler(
       const sentiment = extractSentiment(text);
       if (sentiment.valence !== 0 || sentiment.urgency > 0 || sentiment.frustration > 0) {
         logger.info('[ChatHandler] sentiment:', sentiment);
+      }
+
+      // ── Focus Stack: 话题切换检测 ──
+      const focusResult = await detectAndSwitchTopic(text, {
+        getDeepSeek: llmGetters.getDeepSeek,
+        getGemini: llmGetters.getGemini,
+      });
+      if (focusResult.switched) {
+        logger.info('[ChatHandler] focusStack switch:', focusResult.previousTopic, '→', focusResult.currentTopic);
       }
 
       // Auto-select model: flash for simple chat, pro for complex tasks
