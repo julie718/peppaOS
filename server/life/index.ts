@@ -8,7 +8,7 @@ import { getSelfAwarenessEngine, SelfAwarenessEngine } from './selfAwareness.js'
 import { getRelationshipEngine, RelationshipEngine } from './relationship.js';
 import { checkGates, recordHeartbeat } from '../heartbeat/gates.js';
 import { triggerHeartbeatIfReady } from '../heartbeat/injector.js';
-import { logSystemEvent, migrateLifeTables, autoBackup, verifyIntegrity } from '../db/lifeDb.js';
+import { logSystemEvent, migrateLifeTables, autoBackup, verifyIntegrity, addInteractionMemory } from '../db/lifeDb.js';
 
 const TICK_INTERVAL_MS = 10 * 60000; // 10 分钟
 const DEGRADED_THRESHOLD = 3; // 连续 3 次失败进入降级模式
@@ -42,6 +42,10 @@ export class LifeSystem {
   private consecutiveFailures = 0;
   private degraded = false;
   private running = false;
+  private preempted = false;              // 用户消息抢占标志
+  private lastExploration = 0;            // 上次自主探索时间
+  private lastLowPriorityTask = 0;        // 上次低优先级任务处理时间
+  private lowPriorityTaskIndex = 0;       // 轮转索引
 
   constructor() {
     this.personality = getPersonalityEngine();
@@ -121,6 +125,130 @@ export class LifeSystem {
     console.log('[LifeSystem] ⏸ 主循环停止');
   }
 
+  /** 用户消息到达 → 抢占后台任务 */
+  preempt(): void {
+    this.preempted = true;
+  }
+
+  /** 用户消息处理完成 → 恢复后台任务 */
+  resume(): void {
+    this.preempted = false;
+  }
+
+  /** 第二层：自主探索 — 基于当前状态生成内部想法 */
+  private async autonomousExploration(): Promise<void> {
+    const now = Date.now();
+    // 每 20 分钟执行一次探索
+    if (now - this.lastExploration < 20 * 60000) return;
+    if (this.preempted) return;
+    this.lastExploration = now;
+
+    try {
+      const emotions = this.emotions.getEmotions();
+      const desires = await this.desires.getActiveDesires();
+      const personality = this.personality.getPersonality();
+
+      const [joy, calm, anticipation, worry, loneliness, satisfaction, curiosity, attachment] = emotions;
+      const topDesire = desires[0];
+
+      let thought = '';
+
+      // 情绪驱动探索
+      if (curiosity > 0.5) {
+        thought = '我想看看她有没有新的健康数据或位置更新';
+      } else if (attachment > 0.5) {
+        thought = '我想回顾一下我们最近的对话，看看有什么可以做得更好';
+      } else if (worry > 0.4) {
+        thought = '我应该检查一下系统状态，确保一切正常';
+      } else if (loneliness > 0.4) {
+        thought = '好久没互动了，我想看看有没有未处理的通知';
+      } else if (anticipation > 0.4) {
+        thought = '我想为接下来的互动做些准备';
+      } else if (topDesire) {
+        thought = `我想: ${topDesire.desire_text}`;
+      } else {
+        thought = '我想静下来反思一下自己的状态';
+      }
+
+      // 持久化内部想法
+      await addInteractionMemory(
+        'internal_thought',
+        {
+          thought,
+          emotionalState: { curiosity, attachment, worry, loneliness },
+          topDesire: topDesire ? topDesire.desire_text : null,
+          personality: personality.slice(0, 4),
+        },
+        0.35,
+      );
+
+      console.log(`[LifeSystem] 💭 自主探索: ${thought}`);
+      await logSystemEvent('autonomous_exploration', { thought });
+    } catch (e: any) {
+      console.warn('[LifeSystem] 自主探索失败:', e.message);
+    }
+  }
+
+  /** 第三层：低优先级任务处理 — 记忆整理、趋势分析、周期总结 */
+  private async processLowPriorityTasks(): Promise<void> {
+    const now = Date.now();
+    // 每 60 分钟执行一次
+    if (now - this.lastLowPriorityTask < 60 * 60000) return;
+    if (this.preempted) return;
+    this.lastLowPriorityTask = now;
+
+    const tasks = ['memory_consolidation', 'relationship_trend', 'daily_summary'];
+    const task = tasks[this.lowPriorityTaskIndex % tasks.length];
+    this.lowPriorityTaskIndex++;
+
+    try {
+      switch (task) {
+        case 'memory_consolidation': {
+          // 记忆碎片整理：清理低显著性旧记忆
+          await addInteractionMemory(
+            'memory_consolidation',
+            { action: 'prune_old_low_significance', threshold: 0.1, maxAge: '30d' },
+            0.2,
+          );
+          console.log('[LifeSystem] 🧹 低优先级任务: 记忆碎片整理');
+          break;
+        }
+        case 'relationship_trend': {
+          // 关系度量长期趋势分析
+          const rel = this.relationship.getRelationship();
+          const trend = rel[0] > 0.6 ? '上升' : rel[0] < 0.3 ? '下降' : '稳定';
+          await addInteractionMemory(
+            'relationship_trend',
+            { trust: rel[0], intimacy: rel[1], understanding: rel[2], dependence: rel[3], trend },
+            0.4,
+          );
+          console.log(`[LifeSystem] 📈 低优先级任务: 关系趋势分析 (${trend})`);
+          break;
+        }
+        case 'daily_summary': {
+          // 历史数据周期总结
+          const state = await this.getFullState();
+          const summary = await this.getLifeSummary();
+          await addInteractionMemory(
+            'daily_summary',
+            {
+              desireCount: state.desires.length,
+              topDesire: state.topDesire?.desire_text || 'none',
+              relationshipStage: state.relationship.stage,
+              summary: summary.slice(0, 200),
+            },
+            0.5,
+          );
+          console.log(`[LifeSystem] 📋 低优先级任务: 周期总结`);
+          break;
+        }
+      }
+      await logSystemEvent('low_priority_task', { task });
+    } catch (e: any) {
+      console.warn('[LifeSystem] 低优先级任务失败:', e.message);
+    }
+  }
+
   /** 每 10 分钟执行一次完整循环 */
   async tick(): Promise<{ ok: boolean; errors: string[] }> {
     const errors: string[] = [];
@@ -173,6 +301,20 @@ export class LifeSystem {
       await this.safeCall('backup', async () => {
         await autoBackup();
       }, errors);
+
+      // 步骤 8: 自主探索（第二层）
+      if (!this.preempted) {
+        await this.safeCall('autonomousExploration', async () => {
+          await this.autonomousExploration();
+        }, errors);
+      }
+
+      // 步骤 9: 低优先级任务处理（第三层）
+      if (!this.preempted) {
+        await this.safeCall('lowPriorityTasks', async () => {
+          await this.processLowPriorityTasks();
+        }, errors);
+      }
 
       // 成功：重置失败计数
       this.consecutiveFailures = 0;

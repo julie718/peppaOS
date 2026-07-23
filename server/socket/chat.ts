@@ -23,6 +23,7 @@ import { lightweightEvolve } from "../personality/evolution";
 import { getOrCreateActiveConversation, addMessage, getMessages, getMessagesByTokenBudget, checkAutoSummary, setConversationSummary, getConversationSummary, setConversationMode, getUnclosedConversation, extractTopics, trackTopic, getTopicContext } from "../conversation/manager";
 import { ensureBranch } from "../memory/tree";
 import { detectAndSwitchTopic } from "../memory/focusStack";
+import { getLifeSystem } from "../life/index.js";
 import { retrieveChunks } from "../agents/rag";
 import { getSensory } from "./shared";
 import { processInput, handleLLMFailure, extractSentiment, CognitiveContext } from "../cognition";
@@ -307,6 +308,9 @@ export function registerChatHandler(
     if (prevController) prevController.abort();
     const abortController = new AbortController();
     chatSessionMap.set(sessionKey, abortController);
+
+    // 抢占 LifeSystem 后台任务
+    getLifeSystem().preempt();
 
     try {
       // Look up agent record for memory/emotion isolation
@@ -1755,6 +1759,7 @@ export function registerChatHandler(
       emitAgent("agent:error", { message: error.message });
       emitAgent("agent:status", { status: "error" });
     } finally {
+      getLifeSystem().resume();
       chatSessionMap.delete(sessionKey);
     }
   });
