@@ -86,19 +86,20 @@ export function mountPreferencesRoutes(router: Router, _jwtSecret: string) {
   router.put("/preferences/location", requireAuth, async (req, res) => {
     try {
       const uid = req.user!.uid;
-      const { lat, lng } = req.body || {};
+      const { lat, lng, address: clientAddress } = req.body || {};
       if (lat == null || lng == null) return res.status(400).json({ error: 'lat and lng are required' });
-      // 逆地理编码：坐标 → 地址文本
-      const address = await reverseGeocode(lat, lng);
+      // 优先使用客户端 CLGeocoder 反查结果，服务端反查仅作兜底
+      const finalAddress = clientAddress || await reverseGeocode(lat, lng).catch(() => '') || `纬度${lat.toFixed(4)}, 经度${lng.toFixed(4)}`;
+      console.log('[Location] 客户端 address:', clientAddress || '(空)', '最终 address:', finalAddress);
       const db = readDB();
       if (!db.settings) db.settings = [];
       const key = `location_${uid}`;
-      const value = JSON.stringify({ lat, lng, address, updatedAt: new Date().toISOString() });
+      const value = JSON.stringify({ lat, lng, address: finalAddress, updatedAt: new Date().toISOString() });
       const existing = db.settings.findIndex((s: any) => s.key === key);
       if (existing >= 0) db.settings[existing].value = value;
       else db.settings.push({ key, value });
       writeDB(db);
-      res.json({ ok: true, address });
+      res.json({ ok: true, address: finalAddress });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
