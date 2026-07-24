@@ -460,14 +460,18 @@ export function registerChatHandler(
         effectiveSystemPrompt += `\n\n## Company Knowledge Base\n${kbContext}\n\nUse the above company knowledge to inform your response. Cite article titles when referencing company policy.`;
       }
 
-      // Inject GPS location context
+      // Inject GPS location context — 优先地址文本
       try {
         const ddb = readDB();
         const locSetting = (ddb.settings || []).find((s: any) => s.key === `location_${uid}`);
         if (locSetting) {
           const loc = JSON.parse(locSetting.value);
           if (loc.lat && loc.lng) {
-            effectiveSystemPrompt += `\n\n## Your Location (Real-Time GPS)\nYou are currently at coordinates ${loc.lat}, ${loc.lng} (accuracy ~20m, live GPS from the user's iPhone). This is NOT a static or cached location — it updates whenever the user moves more than 50 meters. Use your current location to answer location questions naturally. When asked where you are, describe the actual location based on these coordinates.`;
+            if (loc.address) {
+              effectiveSystemPrompt += `\n\n## 你的实时位置\n你现在位于：${loc.address}\n坐标: ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}（iPhone GPS 实时定位，移动超过50米自动更新）。回答位置相关问题直接使用上述地址描述。`;
+            } else {
+              effectiveSystemPrompt += `\n\n## 你的实时位置（无地址文本，使用坐标）\n坐标: ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}（iPhone GPS 实时定位）。`;
+            }
           }
         }
       } catch {}
