@@ -22,9 +22,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         return true
     }
 
-    // 前台显示通知（横幅+角标+声音）
+    // 前台仅更新角标，不弹横幅（后台由 iOS 系统处理横幅）
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        completionHandler([.banner, .badge, .sound])
+        completionHandler([.badge])
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {

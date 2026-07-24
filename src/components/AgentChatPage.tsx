@@ -742,10 +742,13 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
         }]);
       }
 
-      // 收到回复时推送本地通知
+      // 收到回复时推送通知：后台横幅，前台仅角标
       if (data.text && data.text.trim()) {
+        const isBackground = document.visibilityState === 'hidden';
         const preview = data.text.replace(/\n/g, ' ').slice(0, 80) + (data.text.length > 80 ? '…' : '');
-        sendNotification(data.agentName || 'Peppa', preview).catch(() => {});
+        if (isBackground) {
+          sendNotification(data.agentName || 'Peppa', preview).catch(() => {});
+        }
       }
     };
 
@@ -1081,7 +1084,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
         }]);
         toast.error(message);
       }
-    }, 5000) : null;
+    }, 15000) : null;
   };
 
   // When prefillMessage comes from notification center, show it as a Peppa message
