@@ -41,7 +41,9 @@ export function MobileApp() {
           const parts = [a.administrativeArea, a.subAdministrativeArea, a.locality, a.subLocality, a.thoroughfare, a.subThoroughfare].filter(Boolean);
           address = parts.join('') || [a.countryName, a.administrativeArea, a.locality, a.thoroughfare].filter(Boolean).join('');
         }
-      } catch {}
+      } catch (e) {
+        console.error('[GPS] 反查地址失败:', e);
+      }
       const token = localStorage.getItem('peppa_auth_token');
       fetch('/api/preferences/location', {
         method: 'PUT',
