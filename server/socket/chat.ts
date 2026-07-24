@@ -1603,6 +1603,11 @@ export function registerChatHandler(
       }
       emitAgent("agent:status", { status: "idle" });
 
+      // ── 注入交互事件到数字生命体 ──
+      try {
+        await getLifeSystem().receiveInteraction('user_message', 'accepted');
+      } catch {}
+
       // Clean up abort session
       chatSessionMap.delete(sessionKey);
 
