@@ -14,7 +14,8 @@ let package = Package(
         .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.3.1"),
         .package(name: "CapacitorGeolocation", path: "../../../node_modules/@capacitor/geolocation"),
         .package(name: "CapacitorLocalNotifications", path: "../../../node_modules/@capacitor/local-notifications"),
-        .package(name: "CapgoCapacitorHealth", path: "../../../node_modules/@krzysztofkostecki/capacitor-health")
+        .package(name: "CapgoCapacitorNativegeocoder", path: "../../../node_modules/@capgo/capacitor-nativegeocoder"),
+        .package(name: "KrzysztofkosteckiCapacitorHealth", path: "../../../node_modules/@krzysztofkostecki/capacitor-health")
     ],
     targets: [
         .target(
@@ -24,7 +25,8 @@ let package = Package(
                 .product(name: "Cordova", package: "capacitor-swift-pm"),
                 .product(name: "CapacitorGeolocation", package: "CapacitorGeolocation"),
                 .product(name: "CapacitorLocalNotifications", package: "CapacitorLocalNotifications"),
-                .product(name: "CapgoCapacitorHealth", package: "CapgoCapacitorHealth")
+                .product(name: "CapgoCapacitorNativegeocoder", package: "CapgoCapacitorNativegeocoder"),
+                .product(name: "KrzysztofkosteckiCapacitorHealth", package: "KrzysztofkosteckiCapacitorHealth")
             ]
         )
     ]

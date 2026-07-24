@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { Rocket, Sparkles, Moon, Zap } from 'lucide-react';
 import { Toaster } from 'sonner';
 import { Geolocation } from '@capacitor/geolocation';
+import { NativeGeocoder } from '@capgo/capacitor-nativegeocoder';
 import { Health } from '@krzysztofkostecki/capacitor-health';
 import '../index.css';
 import { ProactiveNotifications } from '../components/ProactiveNotifications';
@@ -30,12 +31,22 @@ export function MobileApp() {
     if (!shell.user) return;
     let watchId: string | null = null;
     let lastLat = 0, lastLng = 0;
-    const send = (lat: number, lng: number) => {
+    const send = async (lat: number, lng: number) => {
+      // iOS 原生 CLGeocoder 反查坐标→地址
+      let address = '';
+      try {
+        const result = await NativeGeocoder.reverseGeocode({ latitude: lat, longitude: lng });
+        if (result?.addresses?.length > 0) {
+          const a = result.addresses[0];
+          const parts = [a.administrativeArea, a.subAdministrativeArea, a.locality, a.subLocality, a.thoroughfare, a.subThoroughfare].filter(Boolean);
+          address = parts.join('') || [a.countryName, a.administrativeArea, a.locality, a.thoroughfare].filter(Boolean).join('');
+        }
+      } catch {}
       const token = localStorage.getItem('peppa_auth_token');
       fetch('/api/preferences/location', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ lat, lng }),
+        body: JSON.stringify({ lat, lng, address }),
       }).catch(() => {});
     };
     Geolocation.requestPermissions({ permissions: ['location'] }).then(async perm => {
