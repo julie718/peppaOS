@@ -39,8 +39,8 @@ COPY --from=build /app/dist /app/dist
 COPY --from=build /app/dist-server /app/dist-server
 COPY --from=build /app/server/skills/bundled/ /app/skills-bundled/
 
-RUN mkdir -p /app/data
-RUN chown -R node:node /app
+RUN mkdir -p /app/data /app/skills-bundled && \
+    chown -R node:node /app/data /app/skills-bundled /app/dist /app/dist-server
 
 WORKDIR /app/dist-server
 
