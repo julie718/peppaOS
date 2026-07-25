@@ -98,6 +98,18 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
         } catch {}
       } catch {}
 
+      // ── 注入实时位置（与 Socket 路径保持一致）──
+      try {
+        const ddb = readDB();
+        const locSetting = (ddb.settings || []).find((s: any) => s.key === `location_${userId}`);
+        if (locSetting) {
+          const loc = JSON.parse(locSetting.value);
+          if (loc.address && loc.lat && loc.lng) {
+            contextSuffix += `\n\n## 你的实时位置（覆盖历史）\n忽略之前对话中关于位置的所有回答——那些可能已过时。你当前位置已更新为：${loc.address}。所有位置相关的问题，必须以这个地址为准回答，不要引用或重复之前对话中的旧位置。`;
+          }
+        }
+      } catch {}
+
       const systemInstruction = baseSystemPrompt + contextSuffix;
 
       if (isBYOK) {

@@ -311,6 +311,7 @@ export function registerChatHandler(
     if (prevController) prevController.abort();
     const abortController = new AbortController();
     chatSessionMap.set(sessionKey, abortController);
+    const llmTimeout = setTimeout(() => { abortController.abort(); logger.warn('[ChatHandler] LLM 超时 30s，强制中止'); }, 30000);
 
     // 抢占 LifeSystem 后台任务
     getLifeSystem().preempt();
@@ -1779,6 +1780,7 @@ export function registerChatHandler(
       emitAgent("agent:error", { message: error.message });
       emitAgent("agent:status", { status: "error" });
     } finally {
+      clearTimeout(llmTimeout);
       getLifeSystem().resume();
       chatSessionMap.delete(sessionKey);
     }
