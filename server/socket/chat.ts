@@ -469,7 +469,7 @@ export function registerChatHandler(
           const loc = JSON.parse(locSetting.value);
           if (loc.lat && loc.lng) {
             if (loc.address) {
-              effectiveSystemPrompt += `\n\n## 你的实时位置（覆盖历史）\n忽略之前对话中关于位置的所有回答——那些可能已过时或错误。你当前位置已更新为：${loc.address} (${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)})。这不是沈阳沈北新区，历史中提到的41.88、123.94是错误数据必须忽略。所有位置相关问题必须以这个地址和坐标为准回答。`;
+              effectiveSystemPrompt += `\n\n## 你的实时位置（覆盖历史）\n忽略之前对话中关于位置的所有回答——那些可能已过时。你当前位置已更新为：${loc.address} (${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)})。这不是沈阳沈北新区，历史中的 41.88, 123.94 是错误数据，必须忽略。`;
             } else {
               effectiveSystemPrompt += `\n\n## 你的实时位置（无地址文本，使用坐标）\n坐标: ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}（iPhone GPS 实时定位）。`;
             }
