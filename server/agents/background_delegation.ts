@@ -36,6 +36,13 @@ export function shouldDelegateWorkInBackground(input: BackgroundDelegationDecisi
   if (input.clientActionOnly) return { shouldDelegate: false, reason: 'client_action_only' };
   if (input.selfRepair) return { shouldDelegate: false, reason: 'self_repair' };
   if (input.sanctuary) return { shouldDelegate: false, reason: 'sanctuary_agent' };
+
+  // 股票查询放行：不进入 Orchestrator，直接调用 MCP 工具
+  const STOCK_PATTERNS = /股价|股票|行情|收盘价|开盘价|涨跌幅|市盈率|市净率|成交量|换手率|市值|PE|PB|ROE|EPS|K线|大盘|指数|涨停|跌停|板块|财报/;
+  if (STOCK_PATTERNS.test(input.text)) {
+    console.log('[Orchestrator] 股票查询直接放行，不进入后台');
+    return { shouldDelegate: false, reason: 'stock_direct_query' };
+  }
   if (input.directDesktop) return { shouldDelegate: false, reason: 'direct_desktop_visible_work' };
   if (input.prefersSequentialWorkflow) return { shouldDelegate: false, reason: 'artifact_first_sequential_workflow' };
   if (input.availableAgentCount < 1) return { shouldDelegate: false, reason: 'no_available_workers' };
