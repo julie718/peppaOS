@@ -24,7 +24,7 @@ export interface UserLLMPrefs {
 }
 
 export const DEFAULT_MODELS: Record<UserLLMProvider, string> = {
-  deepseek: 'deepseek-chat',
+  deepseek: 'deepseek-v4-flash',
   qwen: 'qwen-plus',
   openai: 'gpt-4o',
   gemini: 'gemini-2.0-flash',

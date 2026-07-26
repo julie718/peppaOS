@@ -131,7 +131,7 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
         } else {
           const client = new OpenAI({ apiKey: userKey, baseURL: provider === "deepseek" ? "https://api.deepseek.com/v1" : provider === "qwen" ? "https://dashscope.aliyuncs.com/compatible-mode/v1" : undefined });
           const response = await client.chat.completions.create({
-            model: model || (provider === "deepseek" ? "deepseek-chat" : provider === "qwen" ? "qwen-plus" : "gpt-4o"),
+            model: model || (provider === "deepseek" ? "deepseek-v4-flash" : provider === "qwen" ? "qwen-plus" : "gpt-4o"),
             messages: messages || [{ role: "user", content: prompt }]
           });
           responseText = response.choices[0].message.content || '';

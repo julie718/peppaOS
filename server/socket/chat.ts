@@ -841,7 +841,7 @@ export function registerChatHandler(
       const complexCategories = ['command', 'code', 'question', 'analysis'];
       const isComplex = complexCategories.includes(cognition.intent.category);
       if (activeProvider === 'deepseek') {
-        activeModel = isComplex ? 'deepseek-v4-pro' : 'deepseek-chat';
+        activeModel = isComplex ? 'deepseek-v4-pro' : (activeModel === 'deepseek-chat' ? 'deepseek-v4-flash' : activeModel);
       } else if (activeProvider === 'qwen') {
         activeModel = isComplex ? 'qwen-max' : 'qwen-plus';
       } else if (activeProvider === 'gemini') {
