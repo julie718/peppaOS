@@ -21,6 +21,14 @@ const SUMMARY_MAX_CHARS = 100;
 // 内存单例
 let state: FocusStackState = { stack: [], updatedAt: Date.now() };
 
+/** 关键词提取回退摘要 */
+function extractKeywords(context: string): string {
+  const clean = context.replace(/[，。！？、\s]/g, '');
+  // 取前 100 字中重复度最高的词作为摘要
+  const segs = clean.slice(0, 100);
+  return segs.length > SUMMARY_MAX_CHARS ? segs.slice(0, SUMMARY_MAX_CHARS) : segs;
+}
+
 /** LLM 摘要 prompt */
 function buildSummaryPrompt(topic: string, context: string): NormalizedMessage[] {
   return [
@@ -46,8 +54,8 @@ async function compressTopic(
   },
 ): Promise<string> {
   if (!providerGetters?.getDeepSeek) {
-    // 无 LLM 可用 → 简单截断
-    return context.slice(0, SUMMARY_MAX_CHARS);
+    // 无 LLM 可用 → 关键词提取回退
+    return extractKeywords(context);
   }
 
   try {
@@ -55,7 +63,7 @@ async function compressTopic(
     const response = await makeLLMCall(
       messages,
       [],
-      { provider: 'deepseek', model: 'deepseek-chat', maxTokens: 200 },
+      { provider: 'deepseek', model: 'deepseek-v4-flash', maxTokens: 200 },
       providerGetters.getDeepSeek!,
       providerGetters.getGemini || (() => null),
     );

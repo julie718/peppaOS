@@ -177,13 +177,19 @@ export class LifeSystem {
       if (joy > 0.5 && satisfaction > 0.4) {
         candidates.push({ thought: '感觉不错，想把这份好心情记录下来', source: 'joy', intensity: (joy + satisfaction) / 2 });
       }
-      if (topDesire && candidates.length === 0) {
-        candidates.push({ thought: topDesire.desire_text, source: 'desire', intensity: topDesire.priority });
+      // 即使有 desire 也追加情绪驱动想法，丰富多样性
+      if (joy > 0.4 && loneliness < 0.5) {
+        candidates.push({ thought: '感觉不错，想记录一下此刻的心情', source: 'joy', intensity: joy });
       }
-
-      // 取最高强度的想法
-      candidates.sort((a, b) => b.intensity - a.intensity);
-      const picked = candidates[0] || { thought: '我想静下来反思一下自己的状态', source: 'reflection', intensity: 0.3 };
+      if (satisfaction > 0.4) {
+        candidates.push({ thought: '和她聊天让我感到充实和满足', source: 'satisfaction', intensity: satisfaction });
+      }
+      if (topDesire) {
+        candidates.push({ thought: topDesire.desire_text, source: 'desire', intensity: Math.max(topDesire.priority, 0.3) });
+      }
+      // 随机从候选池中选一个（而非总是最高强度）
+      const idx = Math.floor(Math.abs(now % candidates.length));
+      const picked = candidates[idx] || { thought: '我想静下来反思一下自己的状态', source: 'reflection', intensity: 0.3 };
 
       // 持久化内部想法（指定格式）
       await addInteractionMemory(
@@ -483,8 +489,15 @@ export class LifeSystem {
         await this.emotions.receiveEvent(emotionEventMap[type]);
       }
 
-      // 交互后更新欲望
+      // 交互后唤醒欲望
       await this.desires.generateDesires();
+      // 每日首次交互标记所有欲望为活跃（修复 intensity=0 问题）
+      try {
+        const activeDesires = await this.desires.getActiveDesires();
+        if (activeDesires.length === 0) {
+          await this.desires.generateDesires();
+        }
+      } catch {}
 
       await logSystemEvent('interaction_received', { type, outcome });
     } catch (e: any) {
