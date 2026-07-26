@@ -50,6 +50,7 @@ import { handleHealthData } from './server/api/health.js';
 import { resolveRole } from "./server/runtime/role";
 // import { getDesireEngine } from './server/desire/engine.js'; // 已停用 — 数字生命体接管
 import { getLifeSystem } from './server/life/index.js';
+import { registerDataSources } from './server/lib/dataSourceRegistry.js';
 import {
   configureNcmCredentials,
   normalizeNcmAppId as normalizeStoredNcmAppId,
@@ -353,6 +354,14 @@ async function start() {
 //   console.error('[Desire] 引擎启动失败:', err);
 // }
 // ===== Desire 引擎启动结束 =====
+
+// ===== 金融数据源管理器启动 =====
+try {
+  registerDataSources();
+  console.log('[DataSource] 金融数据源管理器已启动');
+} catch (err) {
+  console.error('[DataSource] 数据源注册失败:', err);
+}
 
 // ===== 数字生命体系统启动 =====
 try {
