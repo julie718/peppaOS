@@ -343,17 +343,6 @@ export function classifyComplexity(
   const chChars = (text.match(/[一-鿿]/g) || []).length;
   if (isQuestion && chChars < 30 && text.split(/\s+/).length < 20) return 'simple';
 
-  // 7.5 Simple query: short single-intent request → not complex enough for Orchestrator
-  const hasMultiVerb = ACTION_VERBS.filter(s => lower.includes(s)).length >= 2;
-  const hasConjunction = /[和与及或并且而且]/.test(text);
-  const hasConditional = /如果|因为|所以|但是|虽然|然而|万一/.test(text);
-  const hasComplexOutput = /报告|建议|计划|方案|总结|分析|评估|策略/.test(text);
-  const isShortSimple = chineseChars < 30 && !hasMultiVerb && !hasConjunction && !hasConditional && !hasComplexOutput;
-  if (isShortSimple) {
-    console.log('[Orchestrator] 简单查询放行:', text.slice(0, 40));
-    return 'simple';
-  }
-
   // 8. Action verbs: user wants something DONE with tools → at least moderate, dispatch to worker
   const actionHits = ACTION_VERBS.filter(s => lower.includes(s));
   if (actionHits.length >= 1) return 'moderate';
@@ -366,6 +355,17 @@ export function classifyComplexity(
   // ── Fallback size-based heuristics ──
   const chineseChars = (text.match(/[一-鿿]/g) || []).length;
   const wordCount = text.split(/\s+/).length;
+
+  // Simple query detection: short single-intent request → skip Orchestrator
+  const hasMultiVerb = ACTION_VERBS.filter(s => lower.includes(s)).length >= 2;
+  const hasConjunction = /[和与及或并且而且]/.test(text);
+  const hasConditional = /如果|因为|所以|但是|虽然|然而|万一/.test(text);
+  const hasComplexOutput = /报告|建议|计划|方案|总结|分析|评估|策略/.test(text);
+  const isShortSimple = chineseChars < 30 && !hasMultiVerb && !hasConjunction && !hasConditional && !hasComplexOutput;
+  if (isShortSimple) {
+    console.log('[Orchestrator] 简单查询放行:', text.slice(0, 40));
+    return 'simple';
+  }
 
   // Very short → simple
   if (chineseChars < 20 && wordCount < 15) return 'simple';
