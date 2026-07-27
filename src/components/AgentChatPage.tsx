@@ -1084,7 +1084,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
         }]);
         toast.error(message);
       }
-    }, 15000) : null;
+    }, 45000) : null;
   };
 
   // When prefillMessage comes from notification center, show it as a Peppa message

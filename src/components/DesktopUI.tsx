@@ -873,6 +873,25 @@ export function DesktopUI({
   onLogin: () => void;
   renderTabContent: (tab: string) => React.ReactNode;
 }) {
+  // ── 强制登录 ──
+  if (!user) {
+    return (
+      <div className="fixed inset-0 bg-black flex items-center justify-center z-50">
+        <div className="text-center space-y-6">
+          <Rocket size={64} className="mx-auto text-celestial-saturn animate-pulse" />
+          <h2 className="text-xl font-bold text-white">PeppaOS Desktop</h2>
+          <p className="text-white/50 text-sm">请登录后使用</p>
+          <button
+            onClick={onLogin}
+            className="px-8 py-3 rounded-2xl bg-white text-black font-bold hover:bg-white/90 transition-colors"
+          >
+            登录 / Login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Camera and Environment state
   const [viewMode, setViewMode] = useState<'personal' | 'world'>('personal');
   const [syncRate, setSyncRate] = useState(1);
