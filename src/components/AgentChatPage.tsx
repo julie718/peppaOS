@@ -903,6 +903,17 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
       recordBackgroundTaskStep(task);
     };
 
+    const onProgress = (data: { stage: string; message: string; requestId?: string; source?: string }) => {
+      if (!isCurrentChatEvent(data)) return;
+      setWorkflowStatus('executing');
+      setWorkflowSteps(prev => [...prev, {
+        id: `progress-${Date.now()}`,
+        type: 'progress',
+        text: data.message,
+        time: Date.now(),
+      }]);
+    };
+
     socket.on("agent:proactive", onProactive);
     socket.on("agent:delegation", onDelegation);
     socket.on("agent:background_task_update", onBackgroundTaskUpdate);
@@ -910,6 +921,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     socket.on("agent:tool", onTool);
     socket.on("agent:tool_call", onTool);
     socket.on("agent:confirm_tool", onConfirmTool);
+    socket.on("agent:progress", onProgress);
     socket.on("agent:response", onResponse);
     socket.on("agent:status", onStatus);
     socket.on("agent:error", onError);
@@ -923,6 +935,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
       socket.off("agent:tool", onTool);
       socket.off("agent:tool_call", onTool);
       socket.off("agent:confirm_tool", onConfirmTool);
+      socket.off("agent:progress", onProgress);
       socket.off("agent:response", onResponse);
       socket.off("agent:status", onStatus);
       socket.off("agent:error", onError);

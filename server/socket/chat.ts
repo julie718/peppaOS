@@ -554,6 +554,7 @@ export function registerChatHandler(
       });
 
       emitAgent("agent:status", { status: "thinking", agentName: personality.name });
+      emitAgent("agent:progress", { stage: 'start', message: '正在处理你的请求…' });
       logger.info('[ChatHandler] emitted agent:status thinking');
 
       // Read user's operation mode from DB
@@ -1369,6 +1370,7 @@ export function registerChatHandler(
               isCancelled: () => abortController.signal.aborted,
               onToolStart: (call) => {
                 if (isDirectDesktopTool(call.name)) return;
+                emitAgent("agent:progress", { stage: 'executing', message: `正在执行: ${call.name}…` });
                 emitToolLifecycle({
                   correlationId: call.id || `tool-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                   name: call.name,
@@ -1601,6 +1603,7 @@ export function registerChatHandler(
       writeDB(db);
 
       // Emit response BEFORE conversation_updated so the client finalizes streaming first
+      emitAgent("agent:progress", { stage: 'finalizing', message: '正在整理结果…' });
       emitAgent("agent:response", { text: responseText, agentName: personality.name });
       // Re-emit conversation_updated AFTER response so the client syncs from API with complete data
       if (conversationId) {
