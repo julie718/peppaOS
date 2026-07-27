@@ -906,12 +906,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     const onProgress = (data: { stage: string; message: string; requestId?: string; source?: string }) => {
       if (!isCurrentChatEvent(data)) return;
       setWorkflowStatus('executing');
-      setWorkflowSteps(prev => [...prev, {
-        id: `progress-${Date.now()}`,
-        type: 'progress',
-        text: data.message,
-        time: Date.now(),
-      }]);
+      setIsTyping(true);
     };
 
     socket.on("agent:proactive", onProactive);
