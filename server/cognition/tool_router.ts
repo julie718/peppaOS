@@ -283,7 +283,6 @@ const ROUTES: RouteDefinition[] = [
       /\b(stock|market|price|kline|index|finance|ticker)\b/i,
     ],
     prefixes: ['mcp_stockbot_', 'mcp_hk-stock_'],
-    groups: ['web'],
   },
   {
     category: 'media_image',
