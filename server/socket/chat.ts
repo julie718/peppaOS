@@ -1282,7 +1282,8 @@ export function registerChatHandler(
         ];
 
         try {
-          logger.info('[ChatHandler] Calling Path C with provider:', activeProvider, 'model:', activeModel, 'tools:', allowToolUseForTurn && !isSanctuary ? 'enabled' : 'off');
+          const toolNamesForLLM = toolRegistry.getToolDeclarations().map((d: any) => d.function?.name || d.name || '').filter(Boolean);
+          logger.info('[ChatHandler] Calling Path C with provider:', activeProvider, 'model:', activeModel, 'tools:', allowToolUseForTurn && !isSanctuary ? 'enabled' : 'off', 'available:', toolNamesForLLM.length, 'sample:', toolNamesForLLM.slice(0, 8).join(','));
           const streamChunks: string[] = [];
           const onChunk: StreamCallback = (chunk) => {
             streamChunks.push(chunk);

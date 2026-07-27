@@ -377,7 +377,7 @@ export function routeToolsForTurn(
 
   const ordered = availableNames.filter(name => selected.has(name));
   const truncated = ordered.length > maxTools;
-  return {
+  const result = {
     toolNames: ordered.slice(0, maxTools),
     categories: unique(categories),
     reasons: unique(reasons),
@@ -385,6 +385,8 @@ export function routeToolsForTurn(
     maxTools,
     truncated,
   };
+  console.log('[ToolRouter] 查询:', text.slice(0, 60), '→', result.categories.join(','), '工具数:', Math.min(ordered.length, maxTools), '/', declarations.length);
+  return result;
 }
 
 export function mergeToolPolicyWithRoute(policy: ToolPolicy, route: ToolRoute): ToolPolicy {
