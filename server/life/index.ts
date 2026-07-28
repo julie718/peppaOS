@@ -11,6 +11,7 @@ import { triggerHeartbeatIfReady } from '../heartbeat/injector.js';
 import { logSystemEvent, migrateLifeTables, autoBackup, verifyIntegrity, addInteractionMemory, markObservationsIgnored } from '../db/lifeDb.js';
 import { shouldTriggerPrefetch, prefetchContext } from '../memory/prefetch.js';
 import { getVitality } from './vitality.js';
+import { dailyNarrativeGeneration } from './narrative.js';
 
 const TICK_INTERVAL_MS = 10 * 60000; // 10 分钟
 const DEGRADED_THRESHOLD = 3; // 连续 3 次失败进入降级模式
@@ -336,6 +337,14 @@ export class LifeSystem {
       // 步骤 5: 自我反思（夜间触发）
       await this.safeCall('selfAwareness.reflection', async () => {
         await this.selfAwareness.triggerReflection();
+      }, errors);
+
+      // 步骤 5.5: 自我叙事（每24小时一次）
+      await this.safeCall('narrative.daily', async () => {
+        const snapshot = await dailyNarrativeGeneration();
+        if (snapshot) {
+          console.log(`[LifeSystem] 📖 每日叙事: era=${snapshot.era} tone=${snapshot.tone}`);
+        }
       }, errors);
 
       // 步骤 6: 闸门检查 + 行动
