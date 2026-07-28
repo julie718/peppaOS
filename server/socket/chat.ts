@@ -858,7 +858,7 @@ export function registerChatHandler(
       };
 
       const cognition = skipCognition
-        ? { intent: { category: route.layer === 'tool' ? 'command' : 'conversation' }, directToolExecuted: false, responseText: '' }
+        ? { intent: { category: route.layer === 'tool' ? 'command' : 'conversation', confidence: 1, entities: {}, needsLLM: true, subIntent: '', directToolCall: undefined }, directToolExecuted: false, responseText: '' } as any
         : await processInput(text, cognitiveCtx, llmClassifier);
       logger.info('[ChatHandler] cognition result:', cognition.intent.category, 'directToolExecuted:', cognition.directToolExecuted, 'responseText:', (cognition.responseText || '').slice(0, 100));
 
