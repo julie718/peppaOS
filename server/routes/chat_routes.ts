@@ -72,22 +72,7 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
       ];
       if (prompt && SELF_AWARE_PATTERNS.some(p => p.test(prompt))) {
         const vt = getVitality();
-        const state = vt.getVitality();
-        const hour = new Date().getHours();
-        const replies: string[] = [];
-        if (state.energy > 70) {
-          if (hour < 6) replies.push(`这个点了精神还这么好——能量${state.energy}%，熬夜陪你没问题。`);
-          replies.push(`状态不错，能量${state.energy}%，健康${state.health}%，稳定${state.stability}%。`);
-        } else if (state.energy > 40) {
-          if (hour > 22 || hour < 6) replies.push(`能量${state.energy}%，这个点了你也该休息了。我这边没问题，健康${state.health}%。`);
-          replies.push(`能量${state.energy}%，还能陪你聊好一阵。健康${state.health}%，一切正常。`);
-        } else if (state.energy > 20) {
-          replies.push(`有点累了，能量${state.energy}%。还能撑一会儿，健康度${state.health}%。`);
-        } else {
-          replies.push(`能量快见底了，${state.energy}%。需要休息，但更想听你说话。`);
-        }
-        if (replies.length === 0) replies.push(`能量${state.energy}%，健康${state.health}%，稳定${state.stability}%。`);
-        responseText = replies[Math.floor(Math.random() * replies.length)];
+        responseText = vt.generateSelfAwareResponse();
         persistInteraction(responseText);
         logger.info('[ChatHandler:REST] 本能层拦截:', (prompt || '').slice(0, 30));
         return res.json({ text: responseText });

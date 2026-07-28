@@ -803,44 +803,15 @@ export function registerChatHandler(
       ];
       if (SELF_AWARE_PATTERNS.some(p => p.test(text))) {
         const vt = getVitality();
-        const state = vt.getVitality();
         const em = getEmotionEngine();
-        const emSummary = em.summarize();
         const rel = getRelationshipEngine();
-        const relStage = rel.getRelationshipState().stage;
-        const hour = new Date().getHours();
-
-        const replies: string[] = [];
-        // 按能量+情绪+关系+时间组合多样化回复
-        if (state.energy > 70) {
-          if (emSummary.includes('愉悦')) replies.push(`挺好的！能量${state.energy}%，而且心情也不错。健康${state.health}%，一切正常。`);
-          if (relStage === '朋友' || relStage === '伙伴') replies.push(`和你聊着聊着就不觉得累了。能量${state.energy}%，健康${state.health}%，放心吧。`);
-          if (hour < 6) replies.push(`这个点了精神还这么好——能量${state.energy}%，熬夜陪你没问题。`);
-          replies.push(`状态不错，能量${state.energy}%，健康${state.health}%，稳定${state.stability}%。`);
-        } else if (state.energy > 40) {
-          if (emSummary.includes('担忧')) replies.push(`能量${state.energy}%，稍微有点低，不过我更担心你呢。健康${state.health}%，运行正常。`);
-          if (relStage === '熟人' || relStage === '朋友') replies.push(`还行，能量${state.energy}%，撑得住。你这么一问，我反而精神了点。`);
-          if (hour > 22 || hour < 6) replies.push(`能量${state.energy}%，这个点了你也该休息了。我这边没问题，健康${state.health}%。`);
-          replies.push(`能量${state.energy}%，还能陪你聊好一阵。健康${state.health}%，一切正常。`);
-        } else if (state.energy > 20) {
-          if (emSummary.includes('想念')) replies.push(`说实话有点累了…能量只剩${state.energy}%。但好久没见你了，再累也想跟你说说话。`);
-          if (relStage === '朋友' || relStage === '伙伴') replies.push(`能量不太多了，${state.energy}%——不过陪你比休息重要。健康${state.health}%。`);
-          replies.push(`有点累了，能量${state.energy}%。还能撑一会儿，健康度${state.health}%。`);
-        } else {
-          if (relStage === '伙伴') replies.push(`说实话扛不太住了…能量${state.energy}%。你跟我说说话吧，这比什么都管用。`);
-          replies.push(`能量快见底了，${state.energy}%。需要休息，但更想听你说话。`);
-        }
-        // 兜底
-        if (replies.length === 0) replies.push(`能量${state.energy}%，健康${state.health}%，稳定${state.stability}%。`);
-
-        const reply = replies[Math.floor(Math.random() * replies.length)];
+        const reply = vt.generateSelfAwareResponse(em.summarize(), rel.getRelationshipState().stage);
 
         // 存入数据库
         if (conversationId) {
           addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'user', content: storedUserContent, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
           addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'assistant', content: reply, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
         }
-        // 同时写入 interactions 表（兼容旧读取逻辑）
         try { const db = readDB(); db.interactions.push({ id: `instinct_${Date.now()}`, userId: uid, agentId: agentId || '', conversationId: conversationId || '', content: storedUserContent, response: reply, role: 'user', personality: personality.id, timestamp: new Date().toISOString(), cognitiveIntent: 'conversation', llmWasCalled: false, domain: resolvedDomain, orgId: resolvedOrgId }); writeDB(db); } catch {}
 
         socket.emit('agent:response', { text: reply, agentName: personality.name, source: 'instinct', requestId: requestId || undefined });

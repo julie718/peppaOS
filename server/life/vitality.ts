@@ -186,6 +186,45 @@ export class Vitality {
     }
   }
 
+  /** 获取结构化状态供外部使用 */
+  getVitalityStatus(): { energy: number; health: number; stability: number; isLow: boolean } {
+    return {
+      energy: this.state.energy,
+      health: this.state.health,
+      stability: this.state.stability,
+      isLow: this.isLowEnergy() || this.isLowHealth(),
+    };
+  }
+
+  /** 生成自检回复 — 从多个候选中随机选择 */
+  generateSelfAwareResponse(emotionSummary?: string, relationStage?: string): string {
+    const { energy, health, stability } = this.state;
+    const hour = new Date().getHours();
+    const replies: string[] = [];
+
+    if (energy > 70) {
+      if (emotionSummary?.includes('愉悦')) replies.push(`挺好的！能量${energy}%，而且心情也不错。健康${health}%，一切正常。`);
+      if (relationStage === '朋友' || relationStage === '伙伴') replies.push(`和你聊着聊着就不觉得累了。能量${energy}%，健康${health}%，放心吧。`);
+      if (hour < 6) replies.push(`这个点了精神还这么好——能量${energy}%，熬夜陪你没问题。`);
+      replies.push(`状态不错，能量${energy}%，健康${health}%，稳定${stability}%。`);
+    } else if (energy > 40) {
+      if (emotionSummary?.includes('担忧')) replies.push(`能量${energy}%，稍微有点低，不过我更担心你呢。健康${health}%，运行正常。`);
+      if (relationStage === '熟人' || relationStage === '朋友') replies.push(`还行，能量${energy}%，撑得住。你这么一问，我反而精神了点。`);
+      if (hour > 22 || hour < 6) replies.push(`能量${energy}%，这个点了你也该休息了。我这边没问题，健康${health}%。`);
+      replies.push(`能量${energy}%，还能陪你聊好一阵。健康${health}%，一切正常。`);
+    } else if (energy > 20) {
+      if (emotionSummary?.includes('想念')) replies.push(`说实话有点累了…能量只剩${energy}%。但好久没见你了，再累也想跟你说说话。`);
+      if (relationStage === '朋友' || relationStage === '伙伴') replies.push(`能量不太多了，${energy}%——不过陪你比休息重要。健康${health}%。`);
+      replies.push(`有点累了，能量${energy}%。还能撑一会儿，健康度${health}%。`);
+    } else {
+      if (relationStage === '伙伴') replies.push(`说实话扛不太住了…能量${energy}%。你跟我说说话吧，这比什么都管用。`);
+      replies.push(`能量快见底了，${energy}%。需要休息，但更想听你说话。`);
+    }
+    if (replies.length === 0) replies.push(`能量${energy}%，健康${health}%，稳定${stability}%。`);
+
+    return replies[Math.floor(Math.random() * replies.length)];
+  }
+
   reset(): void {
     this.state = { ...DEFAULT };
     this.save();
