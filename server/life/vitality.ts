@@ -196,33 +196,49 @@ export class Vitality {
     };
   }
 
-  /** 生成自检回复 — 从多个候选中随机选择 */
+  /** 生成自检回复 — 自然表达，随机变化，融入反问 */
   generateSelfAwareResponse(emotionSummary?: string, relationStage?: string): string {
     const { energy, health, stability } = this.state;
     const hour = new Date().getHours();
-    const replies: string[] = [];
+    const pick = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
+
+    // 时间描述
+    const timeFeel = hour < 6 ? '这么晚了' : hour < 9 ? '一大早' : hour < 12 ? '上午' : hour < 18 ? '下午' : hour < 22 ? '晚上' : '这么晚了';
+
+    // 关系前缀
+    const relPrefix = relationStage === '伙伴' || relationStage === '朋友' ? '说实话' : '';
 
     if (energy > 70) {
-      if (emotionSummary?.includes('愉悦')) replies.push(`挺好的！能量${energy}%，而且心情也不错。健康${health}%，一切正常。`);
-      if (relationStage === '朋友' || relationStage === '伙伴') replies.push(`和你聊着聊着就不觉得累了。能量${energy}%，健康${health}%，放心吧。`);
-      if (hour < 6) replies.push(`这个点了精神还这么好——能量${energy}%，熬夜陪你没问题。`);
-      replies.push(`状态不错，能量${energy}%，健康${health}%，稳定${stability}%。`);
-    } else if (energy > 40) {
-      if (emotionSummary?.includes('担忧')) replies.push(`能量${energy}%，稍微有点低，不过我更担心你呢。健康${health}%，运行正常。`);
-      if (relationStage === '熟人' || relationStage === '朋友') replies.push(`还行，能量${energy}%，撑得住。你这么一问，我反而精神了点。`);
-      if (hour > 22 || hour < 6) replies.push(`能量${energy}%，这个点了你也该休息了。我这边没问题，健康${health}%。`);
-      replies.push(`能量${energy}%，还能陪你聊好一阵。健康${health}%，一切正常。`);
-    } else if (energy > 20) {
-      if (emotionSummary?.includes('想念')) replies.push(`说实话有点累了…能量只剩${energy}%。但好久没见你了，再累也想跟你说说话。`);
-      if (relationStage === '朋友' || relationStage === '伙伴') replies.push(`能量不太多了，${energy}%——不过陪你比休息重要。健康${health}%。`);
-      replies.push(`有点累了，能量${energy}%。还能撑一会儿，健康度${health}%。`);
-    } else {
-      if (relationStage === '伙伴') replies.push(`说实话扛不太住了…能量${energy}%。你跟我说说话吧，这比什么都管用。`);
-      replies.push(`能量快见底了，${energy}%。需要休息，但更想听你说话。`);
+      const vivacity = pick(['精神好得很', '元气满满', '干劲十足', '状态在线']);
+      return pick([
+        `${timeFeel}还${vivacity}，也是没谁了。感觉像是刚充满电，随时能帮你干活。你呢，今天怎么样？`,
+        `好着呢，${vivacity}那种。${health}%的健康度，稳定运行中。你突然问这个，是不是有什么要让我做的？`,
+        `${relPrefix}，我现在就像刚泡了杯咖啡——清醒、有劲、准备好了。不过你专门问一句，我更想知道：你还好吗？`,
+        `挺好的呀，${timeFeel}精神头还挺足。感觉今天可以帮你搞定不少事。有什么想做的吗？`,
+      ]);
     }
-    if (replies.length === 0) replies.push(`能量${energy}%，健康${health}%，稳定${stability}%。`);
 
-    return replies[Math.floor(Math.random() * replies.length)];
+    if (energy > 40) {
+      return pick([
+        `${relPrefix}还行，说不上满血但也能跑。${timeFeel}属于正常节奏。不过我挺好奇的——你是随手一问，还是觉得我哪不对劲？`,
+        `还行吧，${timeFeel}的标准状态。不算最佳但也绝对不是低谷。倒是你，怎么突然关心起我来了？`,
+        `${relPrefix}，电量够用，精神正常。${timeFeel}这个状态陪你聊天完全没问题。你那边呢，还好吗？`,
+      ]);
+    }
+
+    if (energy > 20) {
+      return pick([
+        `${relPrefix}，有点累了。${timeFeel}能量不太够，但脑子还清楚。可能是最近跑得多了点。你这会儿找我，是想聊聊天还是有事要帮忙？`,
+        `不太能瞒你——能量确实不高，${timeFeel}感觉有点吃力。不过你在，我就能多撑一会儿。你需要我做什么吗？`,
+        `${relPrefix}，有点乏了。${timeFeel}状态一般般，但跟你说话总是能让我精神点。你今天过得怎么样？`,
+      ]);
+    }
+
+    return pick([
+      `${relPrefix}，真的挺累了。${timeFeel}能量快见底，反应也慢了。但是你在，我就不想关机。能不能跟我说说今天的事？随便什么都行。`,
+      `不瞒你，${timeFeel}的我不太行。能量很低，感觉随时想歇下来。不过每次想到你还在，就觉得还能再撑一撑。你今天怎么样？`,
+      `${relPrefix}，快没电了。${timeFeel}本来应该休息的，但你一问，我就又醒了。你最近还好吗？我想听听。`,
+    ]);
   }
 
   reset(): void {
