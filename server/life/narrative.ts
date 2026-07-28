@@ -12,6 +12,7 @@ import { getEmotionEngine } from './emotions.js';
 import { getRelationshipEngine } from './relationship.js';
 import { getDesireEngineV2 } from './desires.js';
 import { getSelfAwarenessEngine } from './selfAwareness.js';
+import { perceiveRelation, RelationAwareness } from './relationshipAwareness.js';
 
 // ── 类型 ──
 
@@ -26,6 +27,7 @@ export interface NarrativeSnapshot {
   interactionCount: number;
   keyChanges: string[];    // 相比上次叙事的变化点
   tone: string;            // 语气标签
+  relationNarrative?: string; // 关系感知叙事
 }
 
 // ── 叙事阶段判定 ──
@@ -244,6 +246,12 @@ export async function generateNarrativeSnapshot(): Promise<NarrativeSnapshot> {
   // 叙事阶段
   const era = determineEra(interactionCount, relationship.stage, daysSinceCreation);
 
+  // 关系感知
+  let relationAwareness: RelationAwareness | null = null;
+  try {
+    relationAwareness = await perceiveRelation();
+  } catch {}
+
   // 时段
   const hour = new Date().getHours();
   const timeOfDay = hour < 6 ? '深夜' : hour < 9 ? '清晨' : hour < 12 ? '上午' : hour < 18 ? '下午' : hour < 22 ? '傍晚' : '深夜';
@@ -274,8 +282,12 @@ export async function generateNarrativeSnapshot(): Promise<NarrativeSnapshot> {
     vitalitySnapshot: { energy: vitality.energy, health: vitality.health, stability: vitality.stability },
     relationshipStage: relationship.stage,
     interactionCount,
-    keyChanges: narrative.keyChanges,
+    keyChanges: [
+      ...narrative.keyChanges,
+      ...(relationAwareness?.highlights || []).filter(h => h.includes('关系') || h.includes('阶段')),
+    ],
     tone: narrative.tone,
+    relationNarrative: relationAwareness?.narrative,
   };
 
   // 存储到 DB（复用 reflection 表，用 narrative: 前缀标记）

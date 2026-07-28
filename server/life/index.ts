@@ -351,7 +351,7 @@ export class LifeSystem {
       if (!this.degraded) {
         await this.safeCall('heartbeat.gates', async () => {
           try {
-            triggerHeartbeatIfReady();
+            await triggerHeartbeatIfReady();
           } catch {}
         }, errors);
       }

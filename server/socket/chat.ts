@@ -28,6 +28,7 @@ import { getLifeSystem } from "../life/index.js";
 import { getVitality } from "../life/vitality.js";
 import { getEmotionEngine } from "../life/emotions.js";
 import { getRelationshipEngine } from "../life/relationship.js";
+import { onInteractionComplete } from "../life/relationshipAwareness.js";
 import { routeMessage } from "../cognition/router.js";
 import { executeDeepReasoning } from "../cognition/deepReasoning.js";
 import { generateIdentityResponse, generateHowAreYouResponse } from "../life/narrative.js";
@@ -1763,6 +1764,7 @@ export function registerChatHandler(
       // ── 注入交互事件到数字生命体 ──
       try {
         await getLifeSystem().receiveInteraction('user_message', 'accepted');
+        await onInteractionComplete('user_message');
       } catch {}
 
       // Clean up abort session

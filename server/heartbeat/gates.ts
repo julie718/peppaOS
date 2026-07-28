@@ -10,6 +10,22 @@ const CONFIG = {
   SILENT_END_HOUR: 7,
 };
 
+// 关系感知的行为调整（懒加载避免循环依赖）
+let cachedAdjustment: any = null;
+let lastAdjustFetch = 0;
+async function getRelationAdjustment(): Promise<any> {
+  const now = Date.now();
+  if (cachedAdjustment && (now - lastAdjustFetch) < 300000) return cachedAdjustment;
+  try {
+    const { getBehaviorAdjustment } = await import('../life/relationshipAwareness.js');
+    cachedAdjustment = await getBehaviorAdjustment();
+    lastAdjustFetch = now;
+    return cachedAdjustment;
+  } catch {
+    return null;
+  }
+}
+
 interface HeartbeatState {
   lastHeartbeatAt: number;
   todayCount: number;
@@ -58,18 +74,42 @@ function isSilentHour(): boolean {
 
 function isThrottled(): boolean {
   const minutesSinceLast = (Date.now() - state.lastHeartbeatAt) / 60000;
-  return minutesSinceLast < CONFIG.MIN_INTERVAL_MINUTES;
+  // 基础间隔，关系状态可能缩短
+  const baseInterval = CONFIG.MIN_INTERVAL_MINUTES;
+  // 异步获取关系调整（同步fallback用基础值）
+  let minInterval = baseInterval;
+  try {
+    // 同步读取缓存（如果getRelationAdjustment已经预加载过）
+    if (cachedAdjustment) {
+      minInterval = cachedAdjustment.minIntervalMinutes;
+    }
+  } catch {}
+  return minutesSinceLast < minInterval;
 }
 
 function isDailyLimitReached(): boolean {
   resetDailyIfNeeded();
-  return state.todayCount >= CONFIG.DAILY_LIMIT;
+  let limit = CONFIG.DAILY_LIMIT;
+  try {
+    if (cachedAdjustment) {
+      limit = cachedAdjustment.dailyLimit;
+    }
+  } catch {}
+  return state.todayCount >= limit;
 }
 
 function checkScoreThreshold(): { passed: boolean; intent: any } {
   const engine = getDesireEngine();
   const intent = engine.getTopIntent();
-  const threshold = intent.name === 'social' ? CONFIG.SOCIAL_THRESHOLD : CONFIG.SCORE_THRESHOLD;
+  let socialThreshold = CONFIG.SOCIAL_THRESHOLD;
+  let generalThreshold = CONFIG.SCORE_THRESHOLD;
+  try {
+    if (cachedAdjustment) {
+      socialThreshold = cachedAdjustment.socialThreshold;
+      generalThreshold = cachedAdjustment.generalThreshold;
+    }
+  } catch {}
+  const threshold = intent.name === 'social' ? socialThreshold : generalThreshold;
   return { passed: intent.score >= threshold, intent };
 }
 
@@ -90,24 +130,31 @@ function isUserActive(): boolean {
   return (Date.now() - lastUserMessageAt) < 5 * 60000;
 }
 
-export function checkGates(): {
+export async function checkGates(): Promise<{
   passed: boolean;
   reason: string;
   intent?: any;
-} {
-  if (isSilentHour()) return { passed: false, reason: '静音窗' };
-  if (isThrottled()) return { passed: false, reason: '节流 (间隔 < 120分钟)' };
-  if (isDailyLimitReached()) return { passed: false, reason: '日上限已达' };
+  adjustment?: any;
+}> {
+  // 预加载关系感知调整
+  const adj = await getRelationAdjustment();
+  if (adj) {
+    cachedAdjustment = adj;
+  }
+
+  if (isSilentHour()) return { passed: false, reason: '静音窗', adjustment: adj || undefined };
+  if (isThrottled()) return { passed: false, reason: `节流 (间隔 < ${adj?.minIntervalMinutes || CONFIG.MIN_INTERVAL_MINUTES}分钟)`, adjustment: adj || undefined };
+  if (isDailyLimitReached()) return { passed: false, reason: `日上限已达 (${adj?.dailyLimit || CONFIG.DAILY_LIMIT}条)`, adjustment: adj || undefined };
 
   const scoreResult = checkScoreThreshold();
   if (!scoreResult.passed) {
-    return { passed: false, reason: `分数不足 (${scoreResult.intent.score.toFixed(2)})` };
+    return { passed: false, reason: `分数不足 (${scoreResult.intent.score.toFixed(2)})`, adjustment: adj || undefined };
   }
 
-  if (!isPhysiologicalSafe()) return { passed: false, reason: '生理不安全' };
-  if (isUserActive()) return { passed: false, reason: '用户正在活跃' };
+  if (!isPhysiologicalSafe()) return { passed: false, reason: '生理不安全', adjustment: adj || undefined };
+  if (isUserActive()) return { passed: false, reason: '用户正在活跃', adjustment: adj || undefined };
 
-  return { passed: true, reason: '通过', intent: scoreResult.intent };
+  return { passed: true, reason: '通过', intent: scoreResult.intent, adjustment: adj || undefined };
 }
 
 export function recordHeartbeat(): void {

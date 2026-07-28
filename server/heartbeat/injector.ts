@@ -27,7 +27,7 @@ function injectHeartbeatToSession(sessionId: string, intent: any): void {
   console.log(`[Heartbeat] ⚠️ 会话 ${sessionId} 无活跃 WebSocket 连接，跳过注入`);
 }
 
-export function triggerHeartbeatIfReady(): void {
+export async function triggerHeartbeatIfReady(): Promise<void> {
   try {
     // 低生命体征优先触发 — 需同时满足用户状态合适
     const vitality = getVitality();
@@ -54,7 +54,7 @@ export function triggerHeartbeatIfReady(): void {
       }
     }
 
-    const result = checkGates();
+    const result = await checkGates();
     if (!result.passed) {
       console.log(`[Heartbeat] 未触发: ${result.reason}`);
       return;
