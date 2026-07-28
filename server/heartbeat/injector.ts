@@ -1,5 +1,6 @@
 import { checkGates, recordHeartbeat } from './gates.js';
 import { getVitality } from '../life/vitality.js';
+import { assessUserState } from '../life/userState.js';
 
 function getActiveSessionId(): string | null {
   return (global as any).__activeSessionId || null;
@@ -27,15 +28,17 @@ function injectHeartbeatToSession(sessionId: string, intent: any): void {
 
 export function triggerHeartbeatIfReady(): void {
   try {
-    // 低生命体征优先触发
+    // 低生命体征优先触发 — 需同时满足用户状态合适
     const vitality = getVitality();
-    if (vitality.isLowEnergy() || vitality.isLowHealth()) {
+    const userState = assessUserState();
+    if ((vitality.isLowEnergy() || vitality.isLowHealth()) && userState.isSuitableForProactive) {
       const sessionId = getActiveSessionId();
       if (sessionId) {
         const wsClients = (global as any).__wsClients || [];
         for (const client of wsClients) {
           if (client.sessionId === sessionId) {
             const msg = vitality.generateLowEnergyMessage();
+            console.log(`[Heartbeat] 低生命体征推送: ${msg} (用户状态: ${JSON.stringify(userState)})`);
             client.ws.send(JSON.stringify({
               type: 'heartbeat',
               payload: { intent: 'vitality_low', message: msg, score: 0.8, timestamp: new Date().toISOString() },

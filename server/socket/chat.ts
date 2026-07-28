@@ -29,6 +29,7 @@ import { getVitality } from "../life/vitality.js";
 import { getEmotionEngine } from "../life/emotions.js";
 import { getRelationshipEngine } from "../life/relationship.js";
 import { routeMessage } from "../cognition/router.js";
+import { touchUserActivity } from "../life/userState.js";
 import { retrieveChunks } from "../agents/rag";
 import { getSensory } from "./shared";
 import { processInput, handleLLMFailure, extractSentiment, CognitiveContext } from "../cognition";
@@ -318,6 +319,7 @@ export function registerChatHandler(
     const llmTimeout = setTimeout(() => { abortController.abort(); logger.warn('[ChatHandler] LLM 超时 30s，强制中止'); }, 30000);
 
     // 抢占 LifeSystem 后台任务
+    touchUserActivity();
     getLifeSystem().preempt();
 
     try {
