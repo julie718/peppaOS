@@ -8,7 +8,7 @@ import { getSelfAwarenessEngine, SelfAwarenessEngine } from './selfAwareness.js'
 import { getRelationshipEngine, RelationshipEngine } from './relationship.js';
 import { checkGates, recordHeartbeat } from '../heartbeat/gates.js';
 import { triggerHeartbeatIfReady } from '../heartbeat/injector.js';
-import { logSystemEvent, migrateLifeTables, autoBackup, verifyIntegrity, addInteractionMemory } from '../db/lifeDb.js';
+import { logSystemEvent, migrateLifeTables, autoBackup, verifyIntegrity, addInteractionMemory, markObservationsIgnored } from '../db/lifeDb.js';
 import { shouldTriggerPrefetch, prefetchContext } from '../memory/prefetch.js';
 import { getVitality } from './vitality.js';
 
@@ -350,6 +350,12 @@ export class LifeSystem {
       // 步骤 7: 数据库维护
       await this.safeCall('backup', async () => {
         await autoBackup();
+      }, errors);
+
+      // 步骤 7.5: 标记忽略的主动推送
+      await this.safeCall('markIgnored', async () => {
+        const count = await markObservationsIgnored(10);
+        if (count > 0) console.log(`[LifeSystem] 标记了 ${count} 条已忽略的主动推送`);
       }, errors);
 
       // 步骤 7.5: ACI 预判上下文（空闲或早晨触发）

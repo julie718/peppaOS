@@ -94,6 +94,21 @@ const TABLES: { name: string; sql: string }[] = [
     )`,
   },
   {
+    name: 'proactive_observations',
+    sql: `CREATE TABLE IF NOT EXISTS proactive_observations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      triggered_at TEXT NOT NULL,
+      energy INTEGER DEFAULT 0,
+      user_state TEXT DEFAULT '',
+      message TEXT DEFAULT '',
+      responded INTEGER DEFAULT 0,
+      response_time INTEGER DEFAULT 0,
+      response_length INTEGER DEFAULT 0,
+      ignored INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+  },
+  {
     name: 'relationship_state',
     sql: `CREATE TABLE IF NOT EXISTS relationship_state (
       id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -395,6 +410,36 @@ export async function logSystemEvent(eventType: string, data: Record<string, any
 
 export async function getRecentEvents(limit = 50): Promise<any[]> {
   return all('SELECT * FROM system_events ORDER BY created_at DESC LIMIT ?', [limit]);
+}
+
+// ── Proactive Observations ──
+export async function createProactiveObservation(energy: number, userState: string, message: string): Promise<number> {
+  const result = await run(
+    'INSERT INTO proactive_observations (triggered_at, energy, user_state, message) VALUES (datetime("now"),?,?,?)',
+    [energy, userState, message]
+  );
+  return result.lastID!;
+}
+
+export async function getUnrespondedObservations(): Promise<any[]> {
+  return all(
+    'SELECT * FROM proactive_observations WHERE responded=0 AND ignored=0 ORDER BY created_at DESC'
+  );
+}
+
+export async function markObservationResponded(id: number, responseTime: number, responseLength: number): Promise<void> {
+  await run(
+    'UPDATE proactive_observations SET responded=1, response_time=?, response_length=? WHERE id=?',
+    [responseTime, responseLength, id]
+  );
+}
+
+export async function markObservationsIgnored(timeoutMinutes: number = 10): Promise<number> {
+  const result = await run(
+    'UPDATE proactive_observations SET ignored=1 WHERE responded=0 AND ignored=0 AND created_at < datetime("now",?)',
+    [`-${timeoutMinutes} minutes`]
+  );
+  return result.changes || 0;
 }
 
 // ═══════════════════════════════════════════════

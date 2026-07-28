@@ -1,6 +1,7 @@
 import { checkGates, recordHeartbeat } from './gates.js';
 import { getVitality } from '../life/vitality.js';
 import { assessUserState } from '../life/userState.js';
+import { createProactiveObservation } from '../db/lifeDb.js';
 
 function getActiveSessionId(): string | null {
   return (global as any).__activeSessionId || null;
@@ -39,6 +40,8 @@ export function triggerHeartbeatIfReady(): void {
           if (client.sessionId === sessionId) {
             const msg = vitality.generateLowEnergyMessage();
             console.log(`[Heartbeat] 低生命体征推送: ${msg} (用户状态: ${JSON.stringify(userState)})`);
+            // 创建观察记录
+            createProactiveObservation(vitality.getVitality().energy, JSON.stringify(userState), msg).catch(() => {});
             client.ws.send(JSON.stringify({
               type: 'heartbeat',
               payload: { intent: 'vitality_low', message: msg, score: 0.8, timestamp: new Date().toISOString() },

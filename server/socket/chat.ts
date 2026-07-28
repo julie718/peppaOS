@@ -30,6 +30,7 @@ import { getEmotionEngine } from "../life/emotions.js";
 import { getRelationshipEngine } from "../life/relationship.js";
 import { routeMessage } from "../cognition/router.js";
 import { touchUserActivity } from "../life/userState.js";
+import { getUnrespondedObservations, markObservationResponded } from "../db/lifeDb.js";
 import { retrieveChunks } from "../agents/rag";
 import { getSensory } from "./shared";
 import { processInput, handleLLMFailure, extractSentiment, CognitiveContext } from "../cognition";
@@ -320,6 +321,17 @@ export function registerChatHandler(
 
     // 抢占 LifeSystem 后台任务
     touchUserActivity();
+    // 检查是否有未回应的主动推送 → 标记为已回复
+    getUnrespondedObservations().then(rows => {
+      if (rows.length > 0) {
+        const now = Date.now();
+        for (const r of rows) {
+          const triggeredAt = new Date(r.triggered_at).getTime();
+          const responseTime = Math.round((now - triggeredAt) / 1000);
+          markObservationResponded(r.id, responseTime, text.length).catch(() => {});
+        }
+      }
+    }).catch(() => {});
     getLifeSystem().preempt();
 
     try {
