@@ -150,8 +150,22 @@ const TOOL_GROUPS: Record<string, string[]> = {
     'calendar_create',
     'calendar_modify',
     'calendar_delete',
+    'calendar_system_today',
+    'calendar_system_upcoming',
+    'reminder_create',
+    'reminder_list',
+    'reminder_dismiss',
+    'reminder_delete',
     'send_email',
     'recent_emails',
+  ],
+  weather: [
+    'weather_current',
+    'weather_forecast',
+  ],
+  news: [
+    'news_headlines',
+    'news_search',
   ],
 };
 
@@ -210,12 +224,13 @@ const ROUTES: RouteDefinition[] = [
   },
   {
     category: 'general',
-    reason: 'everyday utility — weather, translation, calculation, time, notes',
+    reason: 'everyday utility — weather, translation, calculation, time, notes, news',
     patterns: [
-      /天气|温度|下雨|刮风|湿度|预报|翻译|计算|算一下|等于|多少|几点了|闹钟|倒计时|提醒|记一下|笔记|备忘|写下来/u,
-      /\b(weather|temperature|rain|forecast|translate|calculate|math|timer|alarm|remind|note|memo)\b/i,
+      /天气|温度|下雨|刮风|湿度|预报|翻译|计算|算一下|等于|多少|几点了|闹钟|倒计时|提醒|记一下|笔记|备忘|写下来|新闻|资讯|快讯|头条|热搜|最新.*消息|有什么.*新闻/u,
+      /\b(weather|temperature|rain|forecast|translate|calculate|math|timer|alarm|remind|note|memo|news|headlines)\b/i,
     ],
     prefixes: ['mcp_weather_', 'mcp_translator_', 'mcp_calculator_', 'mcp_timer_', 'mcp_notes_'],
+    groups: ['weather', 'news'],
   },
   {
     category: 'code_git',
@@ -269,7 +284,7 @@ const ROUTES: RouteDefinition[] = [
     category: 'calendar_email',
     reason: 'calendar or email workflow',
     patterns: [
-      /日历|日程|提醒|邮件|邮箱|发邮件/u,
+      /日历|日程|提醒|邮件|邮箱|发邮件|安排|行程/u,
       /\b(calendar|schedule|event|email|mail)\b/i,
     ],
     groups: ['calendar', 'files', 'documents'],

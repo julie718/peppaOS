@@ -29,6 +29,7 @@ import { getVitality } from "../life/vitality.js";
 import { getEmotionEngine } from "../life/emotions.js";
 import { getRelationshipEngine } from "../life/relationship.js";
 import { routeMessage } from "../cognition/router.js";
+import { executeDeepReasoning } from "../cognition/deepReasoning.js";
 import { touchUserActivity } from "../life/userState.js";
 import { getUnrespondedObservations, markObservationResponded } from "../db/lifeDb.js";
 import { retrieveChunks } from "../agents/rag";
@@ -837,6 +838,94 @@ export function registerChatHandler(
 
         socket.emit('agent:response', { text: reply, agentName: personality.name, source: 'instinct', requestId: requestId || undefined });
         logger.info('[ChatHandler] 本能层拦截:', text.slice(0, 30));
+        chatSessionMap.delete(sessionKey);
+        return;
+      }
+
+      // ── 深度推理层：观点/分析/对比类问题 — 四层推理引擎 ──
+      if (route.layer === 'deep_reasoning') {
+        logger.info('[ChatHandler] 深度推理层触发:', text.slice(0, 40));
+        try {
+          // 构建 LLM 调用函数（封装 makeLLMCall）
+          const llmCallFn = async (params: { systemPrompt: string; userPrompt: string; maxTokens?: number }) => {
+            const messages: NormalizedMessage[] = [
+              { role: 'system', content: params.systemPrompt },
+              { role: 'user', content: params.userPrompt },
+            ];
+            const result = await makeLLMCall(
+              messages, [],
+              {
+                provider: activeProvider,
+                model: activeProvider === 'deepseek' ? 'deepseek-v4-pro' : activeModel,
+                userId: uid,
+                maxTokens: params.maxTokens || 1200,
+                domain: resolvedDomain,
+                orgId: resolvedOrgId,
+              },
+              llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI,
+              llmGetters.getAnthropic, llmGetters.getQwen, llmGetters.getOllama,
+              llmGetters.getLmStudio, llmGetters.getArk, llmGetters.getXiaomi,
+              llmGetters.getKimi, llmGetters.getGlm, llmGetters.getRelay,
+            );
+            return result.text || '';
+          };
+
+          const reasoningResult = await executeDeepReasoning(
+            { text, userId: uid, personalityName: personality.name },
+            llmCallFn,
+          );
+
+          const reply = reasoningResult.answer;
+
+          // 存入数据库
+          if (conversationId) {
+            addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'user', content: storedUserContent, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
+            addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'assistant', content: reply, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
+          }
+          try {
+            const db = readDB();
+            db.interactions.push({
+              id: `deep_${Date.now()}`,
+              userId: uid,
+              agentId: agentId || '',
+              conversationId: conversationId || '',
+              content: storedUserContent,
+              response: reply,
+              role: 'user',
+              personality: personality.id,
+              timestamp: new Date().toISOString(),
+              cognitiveIntent: 'deep_reasoning',
+              llmWasCalled: true,
+              domain: resolvedDomain,
+              orgId: resolvedOrgId,
+            });
+            writeDB(db);
+          } catch {}
+
+          socket.emit('agent:response', {
+            text: reply,
+            agentName: personality.name,
+            source: 'deep_reasoning',
+            requestId: requestId || undefined,
+            metadata: {
+              confidence: reasoningResult.confidence.score,
+              llmCalls: reasoningResult.llmCallsUsed,
+              degraded: reasoningResult.degraded,
+              domain: reasoningResult.reasoning.domain,
+              framework: reasoningResult.reasoning.framework,
+            },
+          });
+          logger.info('[ChatHandler] 深度推理完成: confidence=%d, llmCalls=%d, degraded=%s',
+            reasoningResult.confidence.score, reasoningResult.llmCallsUsed, reasoningResult.degraded);
+        } catch (e: any) {
+          logger.error('[ChatHandler] 深度推理失败:', e.message);
+          socket.emit('agent:response', {
+            text: '这个问题有点复杂，我需要想想… 要不换个角度再问一次？',
+            agentName: personality.name,
+            source: 'deep_reasoning_degraded',
+            requestId: requestId || undefined,
+          });
+        }
         chatSessionMap.delete(sessionKey);
         return;
       }

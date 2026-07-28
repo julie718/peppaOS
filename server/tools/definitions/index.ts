@@ -36,6 +36,9 @@ import { registerSelfExtensionTools } from './self_extension_tools';
 import { registerUsageTools } from './usage_tools';
 import { registerWorkProductTools } from './work_product_tools';
 import { registerAuthorityResearchTools } from './authority_research_tools';
+import { registerWeatherTools } from './weather_tools';
+import { registerNewsTools } from './news_tools';
+import { registerReminderTools } from './reminder_tools';
 
 export function registerAllTools(
   registry: ToolRegistry,
@@ -84,6 +87,9 @@ export function registerAllTools(
   registerUsageTools(registry);
   registerWorkProductTools(registry);
   registerAuthorityResearchTools(registry);
+  registerWeatherTools(registry);
+  registerNewsTools(registry);
+  registerReminderTools(registry);
   if (llmGetters) {
     setSkillLLMGetters(llmGetters);
   }

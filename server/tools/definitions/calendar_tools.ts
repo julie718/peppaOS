@@ -3,6 +3,7 @@ import { execSync } from 'child_process';
 import { writeFileSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { formatCalendarToday, formatCalendarUpcoming } from '../responseFormatter';
 
 /**
  * Windows Calendar & Email tools using Outlook COM automation via PowerShell.
@@ -224,6 +225,159 @@ function runPowerShell(script: string, toolName: string): string {
   }
 }
 
+// ── 系统日历读取（macOS Calendar.app / Linux Evolution） ──
+
+function isMacOS(): boolean {
+  return process.platform === 'darwin';
+}
+
+function runOsascript(script: string, timeoutMs = 10000): string {
+  try {
+    const result = execSync(`osascript -e '${script.replace(/'/g, "'\\''")}'`, {
+      timeout: timeoutMs,
+      encoding: 'utf-8',
+      maxBuffer: 512 * 1024,
+    });
+    return result.trim();
+  } catch (err: any) {
+    const msg = err.stderr || err.message || '';
+    if (msg.includes('Not authorised') || msg.includes('privacy')) {
+      return '__ERROR__:Calendar access denied. Please grant Calendar permission in System Settings → Privacy & Security → Calendars.';
+    }
+    return `__ERROR__:${msg.slice(0, 200)}`;
+  }
+}
+
+async function systemCalendarToday(_args: Record<string, any>): Promise<string> {
+  if (!isMacOS()) {
+    return '系统日历读取目前仅支持 macOS。Windows 用户请使用 calendar_today（Outlook）。Linux 用户请使用 Evolution 或等待后续支持。';
+  }
+
+  const today = new Date();
+  const startISO = today.toISOString().split('T')[0];
+  const endDate = new Date(today);
+  endDate.setDate(endDate.getDate() + 1);
+  const endISO = endDate.toISOString().split('T')[0];
+
+  const script = `
+    tell application "Calendar"
+      set results to {}
+      set calList to every calendar
+      repeat with cal in calList
+        set calName to name of cal
+        try
+          set evts to (every event of cal whose start date ≥ date "${startISO}" and start date < date "${endISO}")
+          repeat with evt in evts
+            set evtStart to start date of evt
+            set evtEnd to end date of evt
+            set evtTitle to summary of evt
+            if evtTitle is missing value then set evtTitle to "(无标题)"
+            set evtLocation to location of evt
+            if evtLocation is missing value then set evtLocation to ""
+            set evtDesc to description of evt
+            if evtDesc is missing value then set evtDesc to ""
+            set startStr to time string of evtStart
+            set endStr to time string of evtEnd
+            set isAllDay to (evtStart = (date (date string of evtStart)))
+            if isAllDay then
+              set timeInfo to "全天"
+            else
+              set timeInfo to startStr & " - " & endStr
+            end if
+            set end of results to timeInfo & "|" & evtTitle & "|" & evtLocation & "|" & evtDesc & "|" & calName
+          end repeat
+        end try
+      end repeat
+      if (count of results) = 0 then return "EMPTY"
+      set oldDelims to AppleScript's text item delimiters
+      set AppleScript's text item delimiters to "\\n"
+      set resultStr to results as string
+      set AppleScript's text item delimiters to oldDelims
+      return resultStr
+    end tell
+  `;
+
+  const output = runOsascript(script);
+  if (output.startsWith('__ERROR__:')) {
+    return output.slice(9);
+  }
+  if (output === 'EMPTY' || !output) {
+    return formatCalendarToday({ events: [] });
+  }
+
+  const events = output.split('\n').filter(Boolean).map(line => {
+    const [time, title, location, desc, calName] = line.split('|');
+    return { time, title, location: location || undefined, desc: desc || undefined, calendar: calName || undefined };
+  });
+  return formatCalendarToday({ events });
+}
+
+async function systemCalendarUpcoming(args: Record<string, any>): Promise<string> {
+  if (!isMacOS()) {
+    return '系统日历读取目前仅支持 macOS。Windows 用户请使用 upcoming_events（Outlook）。';
+  }
+
+  const days = Math.min(Math.max(Number(args.days) || 7, 1), 30);
+  const today = new Date();
+  const startISO = today.toISOString().split('T')[0];
+  const endDate = new Date(today);
+  endDate.setDate(endDate.getDate() + days);
+  const endISO = endDate.toISOString().split('T')[0];
+
+  const script = `
+    tell application "Calendar"
+      set results to {}
+      set calList to every calendar
+      repeat with cal in calList
+        set calName to name of cal
+        try
+          set evts to (every event of cal whose start date ≥ date "${startISO}" and start date < date "${endISO}")
+          repeat with evt in evts
+            set evtStart to start date of evt
+            set evtEnd to end date of evt
+            set evtTitle to summary of evt
+            if evtTitle is missing value then set evtTitle to "(无标题)"
+            set evtLocation to location of evt
+            if evtLocation is missing value then set evtLocation to ""
+            set evtDesc to description of evt
+            if evtDesc is missing value then set evtDesc to ""
+            set dateStr to short date string of evtStart
+            set startStr to time string of evtStart
+            set endStr to time string of evtEnd
+            set isAllDay to (evtStart = (date (date string of evtStart)))
+            if isAllDay then
+              set timeInfo to "全天"
+            else
+              set timeInfo to startStr & " - " & endStr
+            end if
+            set end of results to dateStr & "|" & timeInfo & "|" & evtTitle & "|" & evtLocation & "|" & evtDesc & "|" & calName
+          end repeat
+        end try
+      end repeat
+      if (count of results) = 0 then return "EMPTY"
+      set oldDelims to AppleScript's text item delimiters
+      set AppleScript's text item delimiters to "\\n"
+      set resultStr to results as string
+      set AppleScript's text item delimiters to oldDelims
+      return resultStr
+    end tell
+  `;
+
+  const output = runOsascript(script);
+  if (output.startsWith('__ERROR__:')) {
+    return output.slice(9);
+  }
+  if (output === 'EMPTY' || !output) {
+    return formatCalendarUpcoming({ days, events: [] });
+  }
+
+  const events = output.split('\n').filter(Boolean).map(line => {
+    const [date, time, title, location, desc, calName] = line.split('|');
+    return { date, time, title, location: location || undefined, desc: desc || undefined, calendar: calName || undefined };
+  });
+  return formatCalendarUpcoming({ days, events });
+}
+
 export function registerCalendarTools(registry: ToolRegistry): void {
   registry.register({
     name: 'calendar_today',
@@ -340,5 +494,32 @@ export function registerCalendarTools(registry: ToolRegistry): void {
     handler: outlookDeleteEvent,
     permission: 'user',
     securityLevel: 'confirm',
+  });
+
+  // 系统日历（macOS Calendar.app）
+  registry.register({
+    name: 'calendar_system_today',
+    description:
+      '读取 macOS 系统日历（Calendar.app）今日日程。返回时间、标题、地点、描述。无需 Outlook，直接读取原生日历。Windows 用户请用 calendar_today（Outlook）。',
+    parameters: { type: 'object', properties: {}, required: [] },
+    handler: systemCalendarToday,
+    permission: 'user',
+    securityLevel: 'safe',
+  });
+
+  registry.register({
+    name: 'calendar_system_upcoming',
+    description:
+      '读取 macOS 系统日历未来N天日程。返回日期、时间、标题、地点、描述。默认7天，最多30天。Windows 用户请用 upcoming_events（Outlook）。',
+    parameters: {
+      type: 'object',
+      properties: {
+        days: { type: 'number', description: '查询天数（默认7，最大30）' },
+      },
+      required: [],
+    },
+    handler: systemCalendarUpcoming,
+    permission: 'user',
+    securityLevel: 'safe',
   });
 }

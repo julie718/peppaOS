@@ -1,9 +1,10 @@
-// 统一消息路由引擎 — 本能层 → 工具层 → 认知层 → Orchestrator
+// 统一消息路由引擎 — 本能层 → 工具层 → 认知层 → 深度推理 → Orchestrator
 // 规则处理明确类型（0 Token），LLM 仅用于模糊边界
 import { logger } from '../lib/logger.js';
+import { isDeepReasoningQuery } from './deepReasoning.js';
 
 // ── 路由层级 ──
-export type RouteLayer = 'instinct' | 'tool' | 'cognitive' | 'orchestrator' | 'unknown';
+export type RouteLayer = 'instinct' | 'tool' | 'cognitive' | 'deep_reasoning' | 'orchestrator' | 'unknown';
 
 export interface RouteResult {
   layer: RouteLayer;
@@ -76,6 +77,13 @@ export async function routeMessage(
     trace.push('tool: matched tool intent pattern');
     logger.info(`[Router] ${trimmed.slice(0, 30)} → tool`);
     return { layer: 'tool', reason: 'tool_intent_detected', trace };
+  }
+
+  // 第2.5层：深度推理（规则，0 Token）— 观点/分析/对比类问题
+  if (isDeepReasoningQuery(trimmed)) {
+    trace.push('deep_reasoning: matched deep reasoning pattern');
+    logger.info(`[Router] ${trimmed.slice(0, 30)} → deep_reasoning`);
+    return { layer: 'deep_reasoning', reason: 'deep_reasoning_triggered', trace };
   }
 
   // 第3层：认知层（复杂度判断）
