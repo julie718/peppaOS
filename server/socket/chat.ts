@@ -803,6 +803,8 @@ export function registerChatHandler(
       // ── 统一路由：本能层 → 工具层 → 认知层 → Orchestrator ──
       const route = await routeMessage(text, operationMode);
       logger.info(`[ChatHandler] route: ${route.layer} (${route.reason}) trace: ${route.trace.join(' → ')}`);
+      // 注入路由信息到响应，供前端调试
+      const routeContext = { layer: route.layer, reason: route.reason, trace: route.trace };
 
       // ── 本能层：关于系统自身状态的消息，直接回复不经过认知/工具层 ──
       const SELF_AWARE_PATTERNS = [
@@ -828,6 +830,8 @@ export function registerChatHandler(
       }
 
       // ── Peppa Cognitive Engine: classify intent BEFORE calling any LLM ──
+      // 路由已判定为 instinct/tool → 跳过认知引擎（节省 Token）
+      const skipCognition = route.layer === 'instinct' || route.layer === 'tool';
       const cognitiveCtx: CognitiveContext = {
         userId: uid,
         agentId: agentId || undefined,
@@ -853,8 +857,10 @@ export function registerChatHandler(
         return result.text || '{"category":"unknown","confidence":0.5,"entities":{}}';
       };
 
-      const cognition = await processInput(text, cognitiveCtx, llmClassifier);
-      logger.info('[ChatHandler] cognition result:', cognition.intent.category, 'directToolExecuted:', cognition.directToolExecuted, 'responseText:', cognition.responseText?.slice(0, 100));
+      const cognition = skipCognition
+        ? { intent: { category: route.layer === 'tool' ? 'command' : 'conversation' }, directToolExecuted: false, responseText: '' }
+        : await processInput(text, cognitiveCtx, llmClassifier);
+      logger.info('[ChatHandler] cognition result:', cognition.intent.category, 'directToolExecuted:', cognition.directToolExecuted, 'responseText:', (cognition.responseText || '').slice(0, 100));
 
       // ── Sentiment analysis: detect emotional charge in user input ──
       const sentiment = extractSentiment(text);
