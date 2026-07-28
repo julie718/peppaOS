@@ -26,6 +26,8 @@ import { detectAndSwitchTopic } from "../memory/focusStack";
 import { getPrefetchedContext, clearPrefetchedContext, touchActivity } from "../memory/prefetch";
 import { getLifeSystem } from "../life/index.js";
 import { getVitality } from "../life/vitality.js";
+import { getEmotionEngine } from "../life/emotions.js";
+import { getRelationshipEngine } from "../life/relationship.js";
 import { retrieveChunks } from "../agents/rag";
 import { getSensory } from "./shared";
 import { processInput, handleLLMFailure, extractSentiment, CognitiveContext } from "../cognition";
@@ -797,16 +799,50 @@ export function registerChatHandler(
 
       // ── 本能层：关于系统自身状态的消息，直接回复不经过认知/工具层 ──
       const SELF_AWARE_PATTERNS = [
-        /你还好吗|你还好么|你怎么样|你累不累|你现在状态|你感觉如何|你最近怎么样|你在吗|你还在吗|你忙不忙|你有没有精力|你是不是累了|你的状态怎么样|你还活着吗|你还有电吗/i,
+        /你还好吗|你还好么|你怎么样|感觉怎么样|你累不累|你现在状态|你感觉如何|你最近怎么样|你在吗|你还在吗|你忙不忙|你有没有精力|你是不是累了|你的状态怎么样|你还活着吗|你还有电吗|你感觉怎么样|怎么样.*你|好点没|缓过来了吗/i,
       ];
       if (SELF_AWARE_PATTERNS.some(p => p.test(text))) {
         const vt = getVitality();
         const state = vt.getVitality();
-        let reply = '';
-        if (state.energy > 70) reply = `挺好的！能量${state.energy}%，精神头很足。健康${state.health}%，稳定${state.stability}%，一切正常。`;
-        else if (state.energy > 40) reply = `还行，能量${state.energy}%，还能撑一阵。健康${state.health}%，正常运作中。`;
-        else if (state.energy > 20) reply = `说实话有点累了…能量只剩${state.energy}%了。不过还能陪你聊。`;
-        else reply = `有点扛不住了…能量${state.energy}%，需要休息一下。或者你跟我说说话也行。`;
+        const em = getEmotionEngine();
+        const emSummary = em.summarize();
+        const rel = getRelationshipEngine();
+        const relStage = rel.getRelationshipState().stage;
+        const hour = new Date().getHours();
+
+        const replies: string[] = [];
+        // 按能量+情绪+关系+时间组合多样化回复
+        if (state.energy > 70) {
+          if (emSummary.includes('愉悦')) replies.push(`挺好的！能量${state.energy}%，而且心情也不错。健康${state.health}%，一切正常。`);
+          if (relStage === '朋友' || relStage === '伙伴') replies.push(`和你聊着聊着就不觉得累了。能量${state.energy}%，健康${state.health}%，放心吧。`);
+          if (hour < 6) replies.push(`这个点了精神还这么好——能量${state.energy}%，熬夜陪你没问题。`);
+          replies.push(`状态不错，能量${state.energy}%，健康${state.health}%，稳定${state.stability}%。`);
+        } else if (state.energy > 40) {
+          if (emSummary.includes('担忧')) replies.push(`能量${state.energy}%，稍微有点低，不过我更担心你呢。健康${state.health}%，运行正常。`);
+          if (relStage === '熟人' || relStage === '朋友') replies.push(`还行，能量${state.energy}%，撑得住。你这么一问，我反而精神了点。`);
+          if (hour > 22 || hour < 6) replies.push(`能量${state.energy}%，这个点了你也该休息了。我这边没问题，健康${state.health}%。`);
+          replies.push(`能量${state.energy}%，还能陪你聊好一阵。健康${state.health}%，一切正常。`);
+        } else if (state.energy > 20) {
+          if (emSummary.includes('想念')) replies.push(`说实话有点累了…能量只剩${state.energy}%。但好久没见你了，再累也想跟你说说话。`);
+          if (relStage === '朋友' || relStage === '伙伴') replies.push(`能量不太多了，${state.energy}%——不过陪你比休息重要。健康${state.health}%。`);
+          replies.push(`有点累了，能量${state.energy}%。还能撑一会儿，健康度${state.health}%。`);
+        } else {
+          if (relStage === '伙伴') replies.push(`说实话扛不太住了…能量${state.energy}%。你跟我说说话吧，这比什么都管用。`);
+          replies.push(`能量快见底了，${state.energy}%。需要休息，但更想听你说话。`);
+        }
+        // 兜底
+        if (replies.length === 0) replies.push(`能量${state.energy}%，健康${state.health}%，稳定${state.stability}%。`);
+
+        const reply = replies[Math.floor(Math.random() * replies.length)];
+
+        // 存入数据库
+        if (conversationId) {
+          addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'user', content: storedUserContent, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
+          addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'assistant', content: reply, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
+        }
+        // 同时写入 interactions 表（兼容旧读取逻辑）
+        try { const db = readDB(); db.interactions.push({ id: `instinct_${Date.now()}`, userId: uid, agentId: agentId || '', conversationId: conversationId || '', content: storedUserContent, response: reply, role: 'user', personality: personality.id, timestamp: new Date().toISOString(), cognitiveIntent: 'conversation', llmWasCalled: false, domain: resolvedDomain, orgId: resolvedOrgId }); writeDB(db); } catch {}
+
         socket.emit('agent:response', { text: reply, agentName: personality.name, source: 'instinct', requestId: requestId || undefined });
         logger.info('[ChatHandler] 本能层拦截:', text.slice(0, 30));
         chatSessionMap.delete(sessionKey);

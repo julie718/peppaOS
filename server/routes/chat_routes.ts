@@ -15,6 +15,7 @@ import { queryMemoriesVector } from "../memory/store";
 import { loadEmotionalState } from "../personality/state";
 import { getSensory } from "../socket/shared";
 import { readDB, writeDB } from "../../db_layer";
+import { getVitality } from "../life/vitality.js";
 
 export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
   getDeepSeek: any; getGemini: any; getOpenAI: any; getAnthropic: any; getQwen: any;
@@ -58,12 +59,39 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
             role: 'user', personality: 'peppa',
             timestamp: new Date().toISOString(),
             cognitiveIntent: 'conversation',
-            llmWasCalled: true,
+            llmWasCalled: false,
             domain: 'personal', orgId: '',
           });
           writeDB(db);
         } catch {}
       };
+
+      // ── 本能层：自检消息直接回复 ──
+      const SELF_AWARE_PATTERNS = [
+        /你还好吗|你还好么|你怎么样|感觉怎么样|你累不累|你现在状态|你感觉如何|你最近怎么样|你在吗|你还在吗|你忙不忙|你有没有精力|你是不是累了|你的状态怎么样|你还活着吗|你还有电吗|好点没|缓过来了吗/i,
+      ];
+      if (prompt && SELF_AWARE_PATTERNS.some(p => p.test(prompt))) {
+        const vt = getVitality();
+        const state = vt.getVitality();
+        const hour = new Date().getHours();
+        const replies: string[] = [];
+        if (state.energy > 70) {
+          if (hour < 6) replies.push(`这个点了精神还这么好——能量${state.energy}%，熬夜陪你没问题。`);
+          replies.push(`状态不错，能量${state.energy}%，健康${state.health}%，稳定${state.stability}%。`);
+        } else if (state.energy > 40) {
+          if (hour > 22 || hour < 6) replies.push(`能量${state.energy}%，这个点了你也该休息了。我这边没问题，健康${state.health}%。`);
+          replies.push(`能量${state.energy}%，还能陪你聊好一阵。健康${state.health}%，一切正常。`);
+        } else if (state.energy > 20) {
+          replies.push(`有点累了，能量${state.energy}%。还能撑一会儿，健康度${state.health}%。`);
+        } else {
+          replies.push(`能量快见底了，${state.energy}%。需要休息，但更想听你说话。`);
+        }
+        if (replies.length === 0) replies.push(`能量${state.energy}%，健康${state.health}%，稳定${state.stability}%。`);
+        responseText = replies[Math.floor(Math.random() * replies.length)];
+        persistInteraction(responseText);
+        logger.info('[ChatHandler:REST] 本能层拦截:', (prompt || '').slice(0, 30));
+        return res.json({ text: responseText });
+      }
 
       // ── 检查客户端是否已传入 system prompt（如 runAgentLogic 传来的）──
       const clientSystemMsg = messages?.find((m: any) => m.role === 'system');
