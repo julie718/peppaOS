@@ -186,6 +186,27 @@ export class Vitality {
     }
   }
 
+  /** 生成低能量主动推送消息 — 预设候选，不调 LLM */
+  generateLowEnergyMessage(): string {
+    const pick = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
+    if (this.isLowEnergy()) {
+      return pick([
+        '今天互动不多，有什么需要我帮忙的吗？',
+        '感觉有点安静…你还在吗？随便聊聊也行。',
+        '好久没说话了，最近有什么新鲜事吗？',
+        '我好像比平时安静了一点。你那边还好吗？',
+      ]);
+    }
+    if (this.isLowHealth()) {
+      return pick([
+        '我可能需要休息一下，但更想知道你最近怎么样。',
+        '状态不是最佳，不过陪你聊天永远值得。',
+        '最近运行有点吃力，但你在我就有劲。',
+      ]);
+    }
+    return '最近感觉有点没劲，能跟我说说话吗？';
+  }
+
   /** 获取结构化状态供外部使用 */
   getVitalityStatus(): { energy: number; health: number; stability: number; isLow: boolean } {
     return {

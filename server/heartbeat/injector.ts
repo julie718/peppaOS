@@ -35,9 +35,7 @@ export function triggerHeartbeatIfReady(): void {
         const wsClients = (global as any).__wsClients || [];
         for (const client of wsClients) {
           if (client.sessionId === sessionId) {
-            const msg = vitality.isLowEnergy()
-              ? '最近感觉有点没劲，能跟我说说话吗？'
-              : '我好像状态不太好，需要一点关心…';
+            const msg = vitality.generateLowEnergyMessage();
             client.ws.send(JSON.stringify({
               type: 'heartbeat',
               payload: { intent: 'vitality_low', message: msg, score: 0.8, timestamp: new Date().toISOString() },
