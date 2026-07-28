@@ -807,7 +807,7 @@ export function registerChatHandler(
         else if (state.energy > 40) reply = `还行，能量${state.energy}%，还能撑一阵。健康${state.health}%，正常运作中。`;
         else if (state.energy > 20) reply = `说实话有点累了…能量只剩${state.energy}%了。不过还能陪你聊。`;
         else reply = `有点扛不住了…能量${state.energy}%，需要休息一下。或者你跟我说说话也行。`;
-        socket.emit('agent:response', { text: reply, agentName: personality.name, source: 'instinct' });
+        socket.emit('agent:response', { text: reply, agentName: personality.name, source: 'instinct', requestId: requestId || undefined });
         logger.info('[ChatHandler] 本能层拦截:', text.slice(0, 30));
         chatSessionMap.delete(sessionKey);
         return;
