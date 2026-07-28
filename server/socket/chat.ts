@@ -28,6 +28,7 @@ import { getLifeSystem } from "../life/index.js";
 import { getVitality } from "../life/vitality.js";
 import { getEmotionEngine } from "../life/emotions.js";
 import { getRelationshipEngine } from "../life/relationship.js";
+import { routeMessage } from "../cognition/router.js";
 import { retrieveChunks } from "../agents/rag";
 import { getSensory } from "./shared";
 import { processInput, handleLLMFailure, extractSentiment, CognitiveContext } from "../cognition";
@@ -796,6 +797,10 @@ export function registerChatHandler(
         chatSessionMap.delete(sessionKey);
         return;
       }
+
+      // ── 统一路由：本能层 → 工具层 → 认知层 → Orchestrator ──
+      const route = await routeMessage(text, operationMode);
+      logger.info(`[ChatHandler] route: ${route.layer} (${route.reason}) trace: ${route.trace.join(' → ')}`);
 
       // ── 本能层：关于系统自身状态的消息，直接回复不经过认知/工具层 ──
       const SELF_AWARE_PATTERNS = [
