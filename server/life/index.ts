@@ -10,6 +10,7 @@ import { checkGates, recordHeartbeat } from '../heartbeat/gates.js';
 import { triggerHeartbeatIfReady } from '../heartbeat/injector.js';
 import { logSystemEvent, migrateLifeTables, autoBackup, verifyIntegrity, addInteractionMemory } from '../db/lifeDb.js';
 import { shouldTriggerPrefetch, prefetchContext } from '../memory/prefetch.js';
+import { getVitality } from './vitality.js';
 
 const TICK_INTERVAL_MS = 10 * 60000; // 10 分钟
 const DEGRADED_THRESHOLD = 3; // 连续 3 次失败进入降级模式
@@ -123,6 +124,7 @@ export class LifeSystem {
       this.tickTimer = null;
     }
     this.running = false;
+    getVitality().shutdown().catch(() => {});
     console.log('[LifeSystem] ⏸ 主循环停止');
   }
 
@@ -298,6 +300,11 @@ export class LifeSystem {
     const startTime = Date.now();
 
     try {
+      // 步骤 0: 生命体征
+      await this.safeCall('vitality.tick', async () => {
+        getVitality().tick();
+      }, errors);
+
       // 步骤 1: 情绪衰减 (tick)
       await this.safeCall('emotions.tick', async () => {
         await this.emotions.tickEmotions();
@@ -489,7 +496,8 @@ export class LifeSystem {
         await this.emotions.receiveEvent(emotionEventMap[type]);
       }
 
-      // 交互后唤醒欲望
+      // 交互后唤醒欲望 + 恢复生命体征
+      getVitality().restore(2);
       await this.desires.generateDesires();
       // 每日首次交互标记所有欲望为活跃（修复 intensity=0 问题）
       try {

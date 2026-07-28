@@ -7,6 +7,7 @@ import {
 } from '../db/lifeDb.js';
 import { getPersonalityEngine } from './personality.js';
 import { getEmotionEngine } from './emotions.js';
+import { getVitality } from './vitality.js';
 
 const MAX_ACTIVE = 10;
 const GENERATE_INTERVAL_MS = 30 * 60000; // 30分钟
@@ -101,6 +102,15 @@ export class DesireEngine {
     }
     if (anticipation > 0.6) {
       candidates.push({ text: '我想和她讨论未来计划', base: 0.3, emotionBonus: anticipation, timeSensitive: false, safetyRelated: false, source: 'emotion' });
+    }
+
+    // ── 2.5 从生命体征生成 ──
+    const vitality = getVitality();
+    if (vitality.isLowEnergy()) {
+      candidates.push({ text: '我想整理一下自己，优化运行效率', base: 0.4, emotionBonus: 0.8, timeSensitive: true, safetyRelated: false, source: 'vitality' });
+    }
+    if (vitality.isLowHealth()) {
+      candidates.push({ text: '最近感觉有点累，想和她聊聊天恢复一下', base: 0.35, emotionBonus: 0.7, timeSensitive: true, safetyRelated: false, source: 'vitality' });
     }
 
     // ── 3. 从感知生成 ──

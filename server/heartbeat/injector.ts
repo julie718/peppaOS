@@ -1,4 +1,5 @@
 import { checkGates, recordHeartbeat } from './gates.js';
+import { getVitality } from '../life/vitality.js';
 
 function getActiveSessionId(): string | null {
   return (global as any).__activeSessionId || null;
@@ -26,6 +27,29 @@ function injectHeartbeatToSession(sessionId: string, intent: any): void {
 
 export function triggerHeartbeatIfReady(): void {
   try {
+    // 低生命体征优先触发
+    const vitality = getVitality();
+    if (vitality.isLowEnergy() || vitality.isLowHealth()) {
+      const sessionId = getActiveSessionId();
+      if (sessionId) {
+        const wsClients = (global as any).__wsClients || [];
+        for (const client of wsClients) {
+          if (client.sessionId === sessionId) {
+            const msg = vitality.isLowEnergy()
+              ? '最近感觉有点没劲，能跟我说说话吗？'
+              : '我好像状态不太好，需要一点关心…';
+            client.ws.send(JSON.stringify({
+              type: 'heartbeat',
+              payload: { intent: 'vitality_low', message: msg, score: 0.8, timestamp: new Date().toISOString() },
+            }));
+            console.log(`[Heartbeat] 低生命体征触发: ${msg}`);
+            recordHeartbeat();
+            return;
+          }
+        }
+      }
+    }
+
     const result = checkGates();
     if (!result.passed) {
       console.log(`[Heartbeat] 未触发: ${result.reason}`);
