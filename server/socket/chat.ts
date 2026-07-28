@@ -25,6 +25,7 @@ import { ensureBranch } from "../memory/tree";
 import { detectAndSwitchTopic } from "../memory/focusStack";
 import { getPrefetchedContext, clearPrefetchedContext, touchActivity } from "../memory/prefetch";
 import { getLifeSystem } from "../life/index.js";
+import { getVitality } from "../life/vitality.js";
 import { retrieveChunks } from "../agents/rag";
 import { getSensory } from "./shared";
 import { processInput, handleLLMFailure, extractSentiment, CognitiveContext } from "../cognition";
@@ -790,6 +791,24 @@ export function registerChatHandler(
           socket.emit('chat:conversation_updated', { conversationId, agentId: conversationAgentId, source: 'chat' });
         }
         emitAgent("agent:status", { status: "idle" });
+        chatSessionMap.delete(sessionKey);
+        return;
+      }
+
+      // ── 本能层：关于系统自身状态的消息，直接回复不经过认知/工具层 ──
+      const SELF_AWARE_PATTERNS = [
+        /你还好吗|你还好么|你怎么样|你累不累|你现在状态|你感觉如何|你最近怎么样|你在吗|你还在吗|你忙不忙|你有没有精力|你是不是累了|你的状态怎么样|你还活着吗|你还有电吗/i,
+      ];
+      if (SELF_AWARE_PATTERNS.some(p => p.test(text))) {
+        const vt = getVitality();
+        const state = vt.getVitality();
+        let reply = '';
+        if (state.energy > 70) reply = `挺好的！能量${state.energy}%，精神头很足。健康${state.health}%，稳定${state.stability}%，一切正常。`;
+        else if (state.energy > 40) reply = `还行，能量${state.energy}%，还能撑一阵。健康${state.health}%，正常运作中。`;
+        else if (state.energy > 20) reply = `说实话有点累了…能量只剩${state.energy}%了。不过还能陪你聊。`;
+        else reply = `有点扛不住了…能量${state.energy}%，需要休息一下。或者你跟我说说话也行。`;
+        socket.emit('agent:response', { text: reply, agentName: personality.name, source: 'instinct' });
+        logger.info('[ChatHandler] 本能层拦截:', text.slice(0, 30));
         chatSessionMap.delete(sessionKey);
         return;
       }
