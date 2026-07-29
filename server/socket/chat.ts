@@ -1763,8 +1763,26 @@ export function registerChatHandler(
 
       // ── 注入交互事件到数字生命体 ──
       try {
-        await getLifeSystem().receiveInteraction('user_message', 'accepted');
+        // 主入口：LifeSystem.receiveInteraction('user_initiated') 处理信任/人格/情绪/活力/欲望
+        await getLifeSystem().receiveInteraction('user_initiated', 'accepted');
+        // 关系感知模块：缓存失效 + 快照历史 + 叙事（不重复调用 rel.receiveInteraction）
         await onInteractionComplete('user_message');
+
+        // 理解度增长触发点：检测纠正和感受分享
+        const correctionKeywords = [/不对/, /不是这样/, /错了/, /你理解错了/, /你弄错了/, /wrong/i, /incorrect/i, /actually/i];
+        const feelingKeywords = [/我觉得/, /我感觉/, /我想/, /i think/i, /i feel/i, /i believe/i];
+
+        if (correctionKeywords.some(p => p.test(text))) {
+          await getLifeSystem().receiveInteraction('user_corrected', 'accepted');
+          await onInteractionComplete('user_correction');
+          console.log('[Relationship] 🔧 检测到用户纠正，理解度 +0.04');
+        }
+
+        if (feelingKeywords.some(p => p.test(text))) {
+          await getLifeSystem().receiveInteraction('user_shared_feelings', 'accepted');
+          await onInteractionComplete('shared_feelings');
+          console.log('[Relationship] 💭 检测到感受分享，理解度 +0.05');
+        }
       } catch {}
 
       // Clean up abort session

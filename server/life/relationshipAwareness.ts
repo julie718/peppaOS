@@ -421,7 +421,8 @@ export async function onInteractionComplete(interactionType: string): Promise<vo
   // 根据交互类型更新关系
   switch (interactionType) {
     case 'user_message':
-      await rel.receiveInteraction('user_initiated');
+      // 关系更新已由 LifeSystem.receiveInteraction('user_initiated') 处理
+      // 此处仅负责缓存失效 + 快照记录 + 叙事（在 switch 下方）
       break;
     case 'deep_reasoning':
       // 深度思考说明用户信任我们的判断

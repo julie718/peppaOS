@@ -8,6 +8,9 @@ import {
 const DIM_LABELS = ['信任度', '亲密感', '理解度', '依赖度'] as const;
 const BASELINE: number[] = [0.30, 0.20, 0.20, 0.30];
 const MIN_FLOOR = 0.05;
+const TRUST_DECAY_PER_24H = 0.005;  // 每 24 小时无交互，信任衰减 0.005
+const TRUST_DECAY_FLOOR = 0.20;      // 信任最低不低于 0.2
+const DECAY_CHECK_MS = 24 * 60 * 60 * 1000; // 24 小时检查一次
 
 function clamp(v: number): number {
   return Math.max(MIN_FLOOR, Math.min(1, v));
@@ -47,9 +50,13 @@ function getDecisionInfluence(vector: number[]): {
 
 export class RelationshipEngine {
   private vector: number[];
+  private lastInteractionAt: number;  // 上次交互时间戳 (ms)
+  private lastDecayAt: number;        // 上次衰减检查时间戳 (ms)
 
   constructor() {
     this.vector = [...BASELINE];
+    this.lastInteractionAt = Date.now();
+    this.lastDecayAt = Date.now();
     this.load();
   }
 
@@ -106,6 +113,9 @@ export class RelationshipEngine {
   async receiveInteraction(type: string, outcome: 'accepted' | 'ignored' | 'positive' | 'negative' | 'neutral' = 'neutral'): Promise<void> {
     const delta = new Array(4).fill(0);
 
+    // 记录交互时间（用于衰减计算）
+    this.lastInteractionAt = Date.now();
+
     switch (type) {
       case 'user_initiated':
         delta[0] += 0.02; // 信任+0.02
@@ -145,6 +155,30 @@ export class RelationshipEngine {
     }
 
     await this.updateRelationship(delta);
+  }
+
+  /** 定期衰减检查 — 由 LifeSystem TICK 调用（每 10 分钟） */
+  async tick(): Promise<void> {
+    const now = Date.now();
+
+    // 仅每 24 小时检查一次衰减，避免频繁计算
+    if (now - this.lastDecayAt < DECAY_CHECK_MS) return;
+    this.lastDecayAt = now;
+
+    // 如果距离上次交互超过 24 小时，每 24 小时信任衰减 0.005
+    const hoursSinceInteraction = (now - this.lastInteractionAt) / (60 * 60 * 1000);
+    if (hoursSinceInteraction >= 24) {
+      const daysPassed = Math.floor(hoursSinceInteraction / 24);
+      const decayAmount = daysPassed * TRUST_DECAY_PER_24H;
+      const currentTrust = this.vector[0];
+      const newTrust = Math.max(TRUST_DECAY_FLOOR, currentTrust - decayAmount);
+
+      if (newTrust < currentTrust) {
+        const delta = [newTrust - currentTrust, 0, 0, 0];
+        await this.updateRelationship(delta);
+        console.log(`[Relationship] 信任衰减: ${currentTrust.toFixed(3)} → ${newTrust.toFixed(3)} (${daysPassed}天无交互, -${decayAmount.toFixed(3)})`);
+      }
+    }
   }
 
   /** 获取关系描述 */

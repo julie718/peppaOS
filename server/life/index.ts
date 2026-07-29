@@ -327,11 +327,9 @@ export class LifeSystem {
         }
       }, errors);
 
-      // 步骤 4: 关系衰减
+      // 步骤 4: 关系衰减（24h 信任衰减检查）
       await this.safeCall('relationship.tick', async () => {
-        const relVec = this.relationship.getRelationship();
-        // 如果有长时间无交互，关系微调
-        // 关系系统内部有 updateRelationship 处理
+        await this.relationship.tick();
       }, errors);
 
       // 步骤 5: 自我反思（夜间触发）
