@@ -163,7 +163,7 @@ export function initSocketRuntime({ io, jwtSecret, llm }: SocketContext) {
         }
 
         engine.tick();
-        triggerHeartbeatIfReady();
+        triggerHeartbeatIfReady('rest');
 
         const intent = engine.getTopIntent();
         if (intent.score >= 0.55) {

@@ -1,4 +1,4 @@
-import { checkGates, recordHeartbeat } from './gates.js';
+import { checkGates, recordTICKHeartbeat, recordRESTHeartbeat } from './gates.js';
 import { getVitality } from '../life/vitality.js';
 import { assessUserState } from '../life/userState.js';
 import { createProactiveObservation } from '../db/lifeDb.js';
@@ -27,7 +27,12 @@ function injectHeartbeatToSession(sessionId: string, intent: any): void {
   console.log(`[Heartbeat] ⚠️ 会话 ${sessionId} 无活跃 WebSocket 连接，跳过注入`);
 }
 
-export async function triggerHeartbeatIfReady(): Promise<void> {
+/**
+ * 触发心跳检查（如果条件满足则推送消息到活跃会话）
+ * @param source 'tick' — TICK 循环调用（每10分钟），使用独立计时器
+ *               'rest' — REST/WebSocket 健康数据路径，使用独立计时器
+ */
+export async function triggerHeartbeatIfReady(source: 'tick' | 'rest' = 'tick'): Promise<void> {
   try {
     // 低生命体征优先触发 — 需同时满足用户状态合适
     const vitality = getVitality();
@@ -47,7 +52,9 @@ export async function triggerHeartbeatIfReady(): Promise<void> {
               payload: { intent: 'vitality_low', message: msg, score: 0.8, timestamp: new Date().toISOString() },
             }));
             console.log(`[Heartbeat] 低生命体征触发: ${msg}`);
-            recordHeartbeat();
+            // 低生命体征推送独立于 source，同时记录两个计时器
+            recordTICKHeartbeat();
+            recordRESTHeartbeat();
             return;
           }
         }
@@ -56,7 +63,7 @@ export async function triggerHeartbeatIfReady(): Promise<void> {
 
     const result = await checkGates();
     if (!result.passed) {
-      console.log(`[Heartbeat] 未触发: ${result.reason}`);
+      console.log(`[Heartbeat] 未触发 [${source}]: ${result.reason}`);
       return;
     }
 
@@ -67,8 +74,15 @@ export async function triggerHeartbeatIfReady(): Promise<void> {
     }
 
     injectHeartbeatToSession(sessionId, result.intent);
-    recordHeartbeat();
-    console.log(`[Heartbeat] ✅ 已触发: ${result.intent.message} (${result.intent.score.toFixed(2)})`);
+
+    // 根据来源使用不同的计时器，互不干扰
+    if (source === 'tick') {
+      recordTICKHeartbeat();
+    } else {
+      recordRESTHeartbeat();
+    }
+
+    console.log(`[Heartbeat] ✅ 已触发 [${source}]: ${result.intent.message} (${result.intent.score.toFixed(2)})`);
   } catch (err) {
     console.error('[Heartbeat] 触发失败:', err);
   }

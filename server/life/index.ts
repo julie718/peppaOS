@@ -6,7 +6,7 @@ import { getEmotionEngine, EmotionEngine } from './emotions.js';
 import { getDesireEngineV2, DesireEngine } from './desires.js';
 import { getSelfAwarenessEngine, SelfAwarenessEngine } from './selfAwareness.js';
 import { getRelationshipEngine, RelationshipEngine } from './relationship.js';
-import { checkGates, recordHeartbeat } from '../heartbeat/gates.js';
+// checkGates/recordHeartbeat 由 injector.ts 内部调用，life/index.ts 只需 triggerHeartbeatIfReady
 import { triggerHeartbeatIfReady } from '../heartbeat/injector.js';
 import { logSystemEvent, migrateLifeTables, autoBackup, verifyIntegrity, addInteractionMemory, markObservationsIgnored } from '../db/lifeDb.js';
 import { shouldTriggerPrefetch, prefetchContext } from '../memory/prefetch.js';

@@ -27,13 +27,15 @@ async function getRelationAdjustment(): Promise<any> {
 }
 
 interface HeartbeatState {
-  lastHeartbeatAt: number;
+  lastTICKHeartbeatAt: number;   // TICK 路径专用计时器（用于节流判断）
+  lastRESTHeartbeatAt: number;   // REST/WebSocket 路径专用计时器
   todayCount: number;
   todayDate: string;
 }
 
 let state: HeartbeatState = {
-  lastHeartbeatAt: 0,
+  lastTICKHeartbeatAt: 0,
+  lastRESTHeartbeatAt: 0,
   todayCount: 0,
   todayDate: '',
 };
@@ -73,7 +75,7 @@ function isSilentHour(): boolean {
 }
 
 function isThrottled(): boolean {
-  const minutesSinceLast = (Date.now() - state.lastHeartbeatAt) / 60000;
+  const minutesSinceLast = (Date.now() - state.lastTICKHeartbeatAt) / 60000;
   // 基础间隔，关系状态可能缩短
   const baseInterval = CONFIG.MIN_INTERVAL_MINUTES;
   // 异步获取关系调整（同步fallback用基础值）
@@ -157,9 +159,17 @@ export async function checkGates(): Promise<{
   return { passed: true, reason: '通过', intent: scoreResult.intent, adjustment: adj || undefined };
 }
 
-export function recordHeartbeat(): void {
+export function recordTICKHeartbeat(): void {
   resetDailyIfNeeded();
-  state.lastHeartbeatAt = Date.now();
+  state.lastTICKHeartbeatAt = Date.now();
   state.todayCount += 1;
+  saveState();
+}
+
+export function recordRESTHeartbeat(): void {
+  resetDailyIfNeeded();
+  state.lastRESTHeartbeatAt = Date.now();
+  // 注意：REST 路径不增加 todayCount，也不影响 TICK 节流判断
+  // REST 路径频繁触发（健康数据上报），仅记录时间用于自身追踪
   saveState();
 }

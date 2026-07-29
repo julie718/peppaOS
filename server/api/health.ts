@@ -23,7 +23,7 @@ export async function handleHealthData(req: any, res: any) {
     }
 
     engine.tick();
-    triggerHeartbeatIfReady();
+    triggerHeartbeatIfReady('rest');
 
     const intent = engine.getTopIntent();
     if (intent.score >= 0.55) {
