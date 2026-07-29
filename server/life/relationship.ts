@@ -221,7 +221,7 @@ export class RelationshipEngine {
   setInteractionCount(count: number): void {
     if (count > 0) {
       this.totalInteractions = count;
-      console.log(`[Relationship] 交互总数已设置: ${count}`);
+      console.log(`[Relationship] 交互总数已设置: ${count} → 校准后阶段: ${getStage(this.vector, count)}`);
     }
   }
 
