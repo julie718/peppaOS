@@ -49,6 +49,8 @@ export class LifeSystem {
   private lastExploration = 0;            // 上次自主探索时间
   private lastLowPriorityTask = 0;        // 上次低优先级任务处理时间
   private lowPriorityTaskIndex = 0;       // 轮转索引
+  recentInteractions: Array<{ type: string; timestamp: string; text?: string }> = [];  // 交互记录队列
+  private interactionCount = 0;           // 交互计数器（每次用户消息+1）
 
   constructor() {
     this.personality = getPersonalityEngine();
@@ -344,6 +346,21 @@ export class LifeSystem {
         await this.relationship.tick();
       }, errors);
 
+      // 步骤 4.5: 人格演化 — 每 10 次交互聚合微调一次
+      if (this.recentInteractions.length >= 10 && this.interactionCount % 10 === 0) {
+        await this.safeCall('personality.evolution', async () => {
+          const recent = this.recentInteractions.slice(-10);
+          const delta = this.personality.calculateDeltaFromInteractions(recent);
+          const before = this.personality.getPersonality();
+          const result = await this.personality.updatePersonality(delta);
+          if (result.ok) {
+            console.log(`[LifeSystem] 🧬 人格演化: ${recent.length}次交互聚合 → ${recent.map(i=>i.type).join(',')}`);
+            // 保留最近 10 条用于下次聚合
+            this.recentInteractions = this.recentInteractions.slice(-10);
+          }
+        }, errors);
+      }
+
       // 步骤 5: 自我反思（夜间触发）
       await this.safeCall('selfAwareness.reflection', async () => {
         await this.selfAwareness.triggerReflection();
@@ -535,6 +552,16 @@ export class LifeSystem {
       await logSystemEvent('interaction_received', { type, outcome });
     } catch (e: any) {
       console.error('[LifeSystem] 交互处理失败:', e.message);
+    }
+  }
+
+  /** 存储交互记录到队列（供人格演化使用） */
+  addInteraction(interaction: { type: string; timestamp: string; text?: string }): void {
+    this.recentInteractions.push(interaction);
+    this.interactionCount++;
+    // 队列保留最近 50 条，避免内存膨胀
+    if (this.recentInteractions.length > 50) {
+      this.recentInteractions = this.recentInteractions.slice(-50);
     }
   }
 

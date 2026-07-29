@@ -117,6 +117,43 @@ export class Personality {
     }
   }
 
+  /** 根据最近N次交互聚合计算人格微调量 */
+  calculateDeltaFromInteractions(interactions: Array<{ type: string; timestamp?: string; text?: string }>): number[] {
+    const delta = new Array(8).fill(0);
+
+    for (const interaction of interactions) {
+      switch (interaction.type) {
+        case 'user_initiated':
+          delta[0] += 0.005; // 开放性+
+          delta[1] += 0.003; // 亲和性+
+          delta[2] += 0.005; // 主动性+
+          break;
+        case 'user_corrected':
+          delta[3] += 0.005; // 情绪稳定性+
+          delta[4] += 0.005; // 同理心+
+          delta[7] += 0.005; // 谨慎性+
+          break;
+        case 'user_shared_feelings':
+          delta[4] += 0.008; // 同理心+
+          delta[1] += 0.005; // 亲和性+
+          break;
+        case 'agent_action_accepted':
+          delta[2] += 0.005; // 主动性+
+          delta[6] += 0.005; // 好奇心+
+          break;
+        case 'agent_action_ignored':
+          delta[2] -= 0.003; // 主动性-
+          delta[7] += 0.005; // 谨慎性+
+          break;
+        default:
+          break;
+      }
+    }
+
+    // 限制每次变化不超过 0.02
+    return delta.map(d => Math.max(-0.02, Math.min(0.02, d)));
+  }
+
   /** 根据交互事件自动微调人格 */
   async adaptToEvent(event: {
     type: 'user_positive' | 'user_negative' | 'user_initiated' | 'exploration_success'
