@@ -51,6 +51,7 @@ services:
       - "4043:4043"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy_certs:/caddy_certs
       - caddy_data:/data
     restart: unless-stopped
 
