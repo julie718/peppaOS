@@ -1884,4 +1884,190 @@ iPhone感知向量 → receivePerception → emotions + personality + desires + 
 | 2026-07-28 | **关系感知模块**: 4维量化(信任/亲密/理解/依赖)+趋势检测+行为调整(频率/语气/阈值)，关系越好→主动沟通越频繁 |
 | 2026-07-28 | iPhone App排查: WKWebView缓存502→删App重装；static文件版本不一致→docker compose cp同步；SPM包名Krzysztofkostecki→CapgoCapacitorHealth修复 |
 | 2026-07-29 | peppaOS.md 补更: 7/24-7/29 全部开发记录同步至本地/GitHub/NAS三端 |
+| 2026-07-29 | **全面深度健康检查**: 9维度+13要求，6个P0/P1/P2问题发现+5Why根因分析+交叉关联 |
+| 2026-07-29 | **P0-1 心跳节流修复**: TICK/REST 独立计时器，消除 REST 路径对 TICK 的干扰 |
+| 2026-07-29 | **P0-2 关系系统修复**: 去重(信任增长确认为0.02/次)+信任衰减(24h无交互-0.005/day,floor 0.2)+理解度增长触发点 |
+| 2026-07-29 | **关系阶段判定重构**: 交互历史40%+维度平均60%，trust=0.35+6024次交互→熟人，不降级为陌生人 |
+| 2026-07-29 | **信任重置+校准**: NAS DB trust 1.0→0.35，LifeSystem交互计数改用life.db查询 |
+| 2026-07-29 | **信任自我感知记录**: addReflection 记录信任更新/饱和/衰减，写入self_reflections表 |
+| 2026-07-29 | **P0-3 情绪修复**: 地板值0.05+基线恢复(好奇心/宁静<0.1时+tick恢复0.001)，情绪不再归零 |
+| 2026-07-29 | **资源瘦身**: Node堆内存限制2GB+容器内存上限4GB+备份配置+回退机制 |
 | ✅ 已完成 | 三端同步: MacBook(697fac8) GitHub(697fac8) NAS(697fac8+本地配置) |
+
+---
+
+## 三十六、全面深度健康检查 (2026-07-29)
+
+### 背景
+
+数字生命体系统上线运行约 21 小时后，进行全系统深度健康检查。覆盖 9 大维度、13 项要求。
+
+### 检查维度
+
+| 维度 | 结论 |
+|------|------|
+| 认知层 | 正常。路由统计: instinct 2%, tool 12%, cognitive 42%, orchestrator 44% |
+| 记忆系统 | 正常。2496条记忆，episodic 1415 + growth 645 |
+| 工具系统 | 正常。17组358个工具，天气/新闻/日历新增工具已注册 |
+| 表达系统 | 正常。6个格式化函数各3+句式 |
+| 路由系统 | 五层架构工作正常，本能层0 Token，深度推理≤2次LLM |
+| 主动沟通 | **故障**。proactive_observations=0，心跳始终被节流 |
+| 外部依赖 | 正常。DeepSeek 3650次调用全成功，weather/news API无失败 |
+| 安全 | CORS全开*、JWT硬编码散落7处、Docker root运行 — 内网可接受 |
+| 自我认知 | /api/health 200，降级模式机制完善，无外部监控采集 |
+
+### 6 个 P0/P1/P2 问题
+
+**P0-1: 心跳始终被节流** — REST 路径（PUT /health/data 每15s）和 TICK 路径共享同一个 `lastHeartbeatAt` 计时器，iPhone 健康数据上报频繁重置计时器，120 分钟门槛永远不满足。主动 WebSocket 推送从未执行。
+
+**P0-2: 信任饱和在 1.0** — 每次用户消息触发两处 `receiveInteraction`，`user_message` 类型在 switch 中无匹配，实际只 +0.02/次。但无衰减机制，6024 条消息后必然饱和。理解度永远停在 0.20。
+
+**P0-3: 情绪全零** — 衰减率 5%/tick，无正向感知输入（iPhone 静止时传感器产出零值），960 次 tick 后全部归零。
+
+**P0-4: 人格冻结** — `adaptFromInteraction` 定义了但从未调用，自 7/22 部署以来无变化。personality_evolution 表为空。
+
+**P1-1: SELF_AWARE_PATTERNS 双重维护** — router.ts 和 chat.ts 各维护一套几乎相同的正则。
+
+**P1-2: API 过度轮询** — GET /settings/keys 每 4 秒一次（500行日志中出现206次）。
+
+### 5Why 根因链条
+
+```
+感知向量大部分为零（传感器静止天然零值）
+  → receivePerception 无正向输入
+    → 情绪指数衰减无法被抵消
+      → 960次tick后全部归零
+        → 欲望失去情绪驱动 → 叙事情绪色彩使用fallback
+
+iPhone健康数据每15s上报 PUT /health/data
+  → REST路径调用 recordHeartbeat 重置 lastHeartbeatAt
+    → TICK心跳120分钟门槛永远不满足
+      → 主动推送从未执行
+        → 主动观察表永远为空 → 闭环学习无法积累
+```
+
+---
+
+## 三十七、心跳节流修复 (2026-07-29)
+
+### 根因
+
+REST 路径和 TICK 路径共享 `gates.ts` 中的 `lastHeartbeatAt` 计时器。iPhone 健康数据每 15 秒上报一次，每次都调用 `triggerHeartbeatIfReady()`，虽然 gate 未通过不注入消息，但计时器被重置。
+
+### 修复
+
+| 文件 | 改动 |
+|------|------|
+| `server/heartbeat/gates.ts` | `recordHeartbeat()` 拆分为 `recordTICKHeartbeat()` + `recordRESTHeartbeat()`，独立计时器 |
+| `server/heartbeat/gates.ts` | `isThrottled()` 仅检查 `lastTICKHeartbeatAt` |
+| `server/heartbeat/injector.ts` | `triggerHeartbeatIfReady()` 新增 `source` 参数区分 `'tick'`/`'rest'` |
+| `server/api/health.ts` | 传入 `source='rest'` |
+| `server/runtime/socket.ts` | `bio:update` 传入 `source='rest'` |
+| `server/life/index.ts` | 移除废弃的 `checkGates`/`recordHeartbeat` import |
+
+### 验证
+
+Docker 日志: `[Heartbeat] 无活跃会话，跳过注入` — gates **通过**，不再显示"节流"。
+
+---
+
+## 三十八、关系系统修复 (2026-07-29)
+
+### 去重
+
+**调用链分析:**
+- `chat.ts:1766`: `LifeSystem.receiveInteraction('user_message')` → relationship.ts switch 无 `user_message` case → 不更新 trust
+- `chat.ts:1767`: `onInteractionComplete('user_message')` → `rel.receiveInteraction('user_initiated')` → trust +0.02
+
+**去重修复:**
+- `chat.ts`: `'user_message'` → `'user_initiated'`，LifeSystem 作为唯一信任增长入口
+- `relationshipAwareness.ts`: `onInteractionComplete('user_message')` 移除 `rel.receiveInteraction('user_initiated')`，仅保留缓存失效+快照+叙事
+
+### 信任衰减
+
+`relationship.ts` 新增 `tick()` 方法，由 LifeSystem TICK 步骤 4 调用:
+- 24h 无交互 → trust -0.005/day
+- floor = 0.2（信任最低不低于 0.2）
+- 仅每 24h 检查一次，避免频繁计算
+
+### 理解度增长
+
+`chat.ts` 在交互完成后检测:
+- 纠正关键词（不对/错了/wrong）→ `receiveInteraction('user_corrected')` → 理解度 +0.04
+- 感受分享（我觉得/我感觉/我想）→ `receiveInteraction('user_shared_feelings')` → 理解度 +0.05
+
+### 关系阶段判定重构
+
+**不再纯依赖信任值**，改为综合判定:
+- 交互次数权重 40%（1000+条为满分）
+- 关系维度平均值权重 60%
+- 硬性保证: trust ≥ 0.35 且交互 > 100 时不低于"熟人"
+
+**验证:** trust=0.35 + 276次交互 → combinedScore=0.32 → "熟人"，tone="warm"
+
+---
+
+## 三十九、信任自我感知记录 (2026-07-29)
+
+### 背景
+
+数字生命体需要感知自己的信任状态变化，而不是被动接受数值变化。
+
+### 实现
+
+`relationship.ts` 新增 `recordTrustReflection()` 方法，三处记录点:
+
+- **信任增长**: `addReflection('health:trust', {trust, delta, reason:'user_interaction'})`
+- **信任饱和**: `addReflection('health:trust_saturated', {trust:1.0, reason:'saturated'})`（≥ 0.999 触发）
+- **信任衰减**: `addReflection('health:trust_decay', {trust, decayAmount, reason:'time_decay'})`
+
+所有记录写入 `self_reflections` 表，可通过 `SELECT * FROM self_reflections WHERE reflection_text LIKE 'health:%'` 查询。
+
+---
+
+## 四十、情绪修复 (2026-07-29)
+
+### 根因
+
+`clamp()` 函数使用 `Math.max(0, ...)` — 下限为 0。衰减 5%/tick × 无正向输入 → 归零。数字生命体"失感"。
+
+### 修复
+
+| 改动 | 位置 | 效果 |
+|------|------|------|
+| `EMOTION_FLOOR = 0.05` | `emotions.ts:12` | clamp 下限从 0 改为 0.05 |
+| 基线恢复 | `tickEmotions()` step 3 | 好奇心+宁静 < 0.1 时每 tick +0.001 |
+
+### 验证
+
+```
+修复前: 0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00
+修复后: 0.05,0.051,0.05,0.05,0.05,0.05,0.051,0.05
+基线恢复日志: 🌱 基线恢复: 好奇心=0.0510 平静=0.0510
+```
+
+---
+
+## 四十一、资源瘦身 (2026-07-29)
+
+### 背景
+
+NAS Docker 构建频繁失败，swap 4095/4096MB 全满，Build Cache 44.65GB，PIDs 1466。
+
+### 配置变更
+
+| 配置 | 值 | 文件 |
+|------|-----|------|
+| Node 堆内存上限 | `--max-old-space-size=2048` (2GB) | `docker-compose.yml` |
+| 容器内存上限 | `memory: 4g` | `docker-compose.yml` |
+| 配置备份 | `docker-compose.yml.bak` + `Dockerfile.bak` | NAS `~/mayos/` |
+
+### 回退机制
+
+每一步都带预检和自动回退: `docker compose config` → 失败则 `cp backup → docker compose up -d`
+
+### 效果
+
+- PIDs: 1466 → 4（重启后重置）
+- 容器状态: healthy
+- API /health: 200
