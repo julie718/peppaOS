@@ -1863,3 +1863,25 @@ iPhone感知向量 → receivePerception → emotions + personality + desires + 
 | ✅ 已完成 | GitHub推送: 全部commit已推送至julie718/peppaOS main分支 |
 | ✅ 已完成 | autonomous模式修复: hasChitChatIntent替代AUTONOMOUS_TASK_PATTERNS，默认启用工具 |
 | ✅ 已完成 | 三端同步: MacBook(697fac8) GitHub(697fac8) NAS(697fac8+本地配置) |
+| 2026-07-24 | 位置链路修复: CLGeocoder错误日志+Xcode重建提示；客户端CLGeocoder地址优先，服务端反查仅兜底 |
+| 2026-07-24 | 位置prompt修复: 加入正确坐标数字+明确否定旧坐标，双路径(Socket+REST)覆盖历史指令 |
+| 2026-07-25 | Dockerfile chown精准化修复 |
+| 2026-07-26 | 金融数据源管理器: 智能路由+熔断+健康检查+多源降级 |
+| 2026-07-26 | 股票查询直接放行: 绕过Orchestrator直接调MCP工具，classifyComplexity简单查询放行 |
+| 2026-07-27 | 工具执行进度反馈: agent:progress分步显示(start/searching/fetching/finalizing) |
+| 2026-07-27 | 三合一修复: Web强制登录+REST 45s超时+anonymous迁移脚本 |
+| 2026-07-28 | **生命体征模块**: energy/health/stability三指标，每小时tick自然消耗，低能量/低健康主动告警，generateSelfAwareResponse自然回复 |
+| 2026-07-28 | **本能层**: 识别自检消息直接回复生命体征，绕过认知/工具层，4种回复模板×随机选择 |
+| 2026-07-28 | **统一消息路由引擎**: 本能→工具→认知→深度推理→Orchestrator 五层路由，完整trace |
+| 2026-07-28 | **用户状态感知**: 深夜/会议/工作不打扰 + 主动沟通时机优化 |
+| 2026-07-28 | **主动沟通观察机制**: 推送记录+回复监听+忽略标记 闭环学习数据 |
+| 2026-07-28 | **天气工具**: weather_current + weather_forecast，Open-Meteo免费API，50+城市 |
+| 2026-07-28 | **新闻工具**: news_headlines + news_search，10+ RSS源(36氪/HN/TechCrunch等) |
+| 2026-07-28 | **日历提醒工具**: reminder_create/list/dismiss/delete，SQLite持久化 + calendar_system_today/upcoming(macOS Calendar.app) |
+| 2026-07-28 | **自然语言包装器**: responseFormatter.ts，6个格式化函数各3+句式模板随机变化 |
+| 2026-07-28 | **认知层深度推理引擎**: 四层架构(检索→推演→验证→置信度输出)，2次LLM调用/30s超时，3领域推理框架 |
+| 2026-07-28 | **自我叙事模块**: 生成/存储/查询叙事快照，6阶段判定(新生期→共融期)，"你是谁"身份应答 |
+| 2026-07-28 | **关系感知模块**: 4维量化(信任/亲密/理解/依赖)+趋势检测+行为调整(频率/语气/阈值)，关系越好→主动沟通越频繁 |
+| 2026-07-28 | iPhone App排查: WKWebView缓存502→删App重装；static文件版本不一致→docker compose cp同步；SPM包名Krzysztofkostecki→CapgoCapacitorHealth修复 |
+| 2026-07-29 | peppaOS.md 补更: 7/24-7/29 全部开发记录同步至本地/GitHub/NAS三端 |
+| ✅ 已完成 | 三端同步: MacBook(697fac8) GitHub(697fac8) NAS(697fac8+本地配置) |
