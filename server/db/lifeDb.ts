@@ -412,6 +412,14 @@ export async function getRecentEvents(limit = 50): Promise<any[]> {
   return all('SELECT * FROM system_events ORDER BY created_at DESC LIMIT ?', [limit]);
 }
 
+export async function countEvents(eventType: string): Promise<number> {
+  const row = await get<{ cnt: number }>(
+    'SELECT COUNT(*) as cnt FROM system_events WHERE event_type = ?',
+    [eventType]
+  );
+  return row?.cnt || 0;
+}
+
 // ── Proactive Observations ──
 export async function createProactiveObservation(energy: number, userState: string, message: string): Promise<number> {
   const result = await run(
