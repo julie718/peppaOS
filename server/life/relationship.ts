@@ -20,15 +20,25 @@ function clampVector(v: number[]): number[] {
   return v.map(clamp);
 }
 
-/** 关系阶段判定 */
-function getStage(vector: number[]): string {
-  const avg = vector.reduce((a, b) => a + b, 0) / 4;
+/** 关系阶段判定 — 结合交互历史和维度平均值 */
+function getStage(vector: number[], totalInteractions: number = 0): string {
   const [trust, intimacy, understanding, dependence] = vector;
+  const avg = vector.reduce((a, b) => a + b, 0) / 4;
 
-  if (avg > 0.85 && intimacy > 0.8 && trust > 0.9) return '灵魂伙伴';
-  if (avg > 0.65 && trust > 0.7 && intimacy > 0.6) return '伙伴';
-  if (avg > 0.45 && trust > 0.5) return '朋友';
-  if (avg > 0.30) return '熟人';
+  // 交互权重得分 (0-1, 1000 条以上满分)
+  const interactionScore = Math.min(totalInteractions / 1000, 1.0);
+  // 综合得分: 交互次数 40% + 维度平均值 60%
+  const combinedScore = interactionScore * 0.4 + avg * 0.6;
+
+  // 硬性保证: trust >= 0.35 且交互 > 100 时不低于熟人
+  if (trust >= 0.35 && totalInteractions > 100 && combinedScore < 0.30) {
+    return '熟人';
+  }
+
+  if (combinedScore > 0.85 && intimacy > 0.8 && trust > 0.9) return '灵魂伙伴';
+  if (combinedScore > 0.65 && trust > 0.7 && intimacy > 0.6) return '伙伴';
+  if (combinedScore > 0.45 && trust > 0.5) return '朋友';
+  if (combinedScore > 0.30) return '熟人';
   return '陌生人';
 }
 
@@ -52,11 +62,13 @@ export class RelationshipEngine {
   private vector: number[];
   private lastInteractionAt: number;  // 上次交互时间戳 (ms)
   private lastDecayAt: number;        // 上次衰减检查时间戳 (ms)
+  private totalInteractions: number;  // 交互总数（用于阶段判定）
 
   constructor() {
     this.vector = [...BASELINE];
     this.lastInteractionAt = Date.now();
     this.lastDecayAt = Date.now();
+    this.totalInteractions = 0;
     this.load();
   }
 
@@ -77,7 +89,7 @@ export class RelationshipEngine {
   }
 
   summarize(): string {
-    return `${getStage(this.vector)} [${this.vector.map(v => v.toFixed(2)).join(', ')}]`;
+    return `${getStage(this.vector, this.totalInteractions)} [${this.vector.map(v => v.toFixed(2)).join(', ')}]`;
   }
 
   /** 获取当前 4 维关系向量 */
@@ -99,8 +111,8 @@ export class RelationshipEngine {
       await addRelationshipSnapshot(this.vector[0], this.vector[1], this.vector[2]);
     }
 
-    const newStage = getStage(this.vector);
-    const oldStage = getStage(before);
+    const newStage = getStage(this.vector, this.totalInteractions);
+    const oldStage = getStage(before, this.totalInteractions);
     if (newStage !== oldStage) {
       console.log(`[Relationship] 🎉 关系升级: ${oldStage} → ${newStage}`);
       await logSystemEvent('relationship_milestone', { from: oldStage, to: newStage, vector: this.vector });
@@ -189,7 +201,7 @@ export class RelationshipEngine {
     labels: { label: string; value: number }[];
   } {
     return {
-      stage: getStage(this.vector),
+      stage: getStage(this.vector, this.totalInteractions),
       vector: this.getRelationship(),
       decisionInfluence: getDecisionInfluence(this.vector),
       labels: DIM_LABELS.map((label, i) => ({ label, value: this.vector[i] })),
@@ -203,6 +215,18 @@ export class RelationshipEngine {
 
   getProfile(): { label: string; value: number; floor: number }[] {
     return DIM_LABELS.map((label, i) => ({ label, value: this.vector[i], floor: MIN_FLOOR }));
+  }
+
+  /** 设置交互总数（由 LifeSystem 在初始化时调用） */
+  setInteractionCount(count: number): void {
+    if (count > 0) {
+      this.totalInteractions = count;
+      console.log(`[Relationship] 交互总数已设置: ${count}`);
+    }
+  }
+
+  getTotalInteractions(): number {
+    return this.totalInteractions;
   }
 
   async reset(): Promise<void> {

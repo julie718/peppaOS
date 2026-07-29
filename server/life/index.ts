@@ -91,6 +91,20 @@ export class LifeSystem {
       }
     }
 
+    // 查询交互总数，设置到关系引擎（用于阶段判定）
+    try {
+      const { readDB } = await import('../../db_layer.js');
+      const db = readDB();
+      if (db) {
+        const row = db.prepare('SELECT COUNT(*) as cnt FROM interactions WHERE role = ?').get('user');
+        if (row && row.cnt > 0) {
+          this.relationship.setInteractionCount(row.cnt);
+        }
+      }
+    } catch (e: any) {
+      console.warn('[LifeSystem] 交互总数查询失败:', e.message);
+    }
+
     try {
       await autoBackup();
     } catch (e: any) {
