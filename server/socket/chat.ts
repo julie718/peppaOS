@@ -29,7 +29,7 @@ import { getVitality } from "../life/vitality.js";
 import { getEmotionEngine } from "../life/emotions.js";
 import { getRelationshipEngine } from "../life/relationship.js";
 import { onInteractionComplete } from "../life/relationshipAwareness.js";
-import { routeMessage } from "../cognition/router.js";
+import { routeMessage, isInstinctQuery, isIdentityQuery } from "../cognition/router.js";
 import { executeDeepReasoning } from "../cognition/deepReasoning.js";
 import { generateIdentityResponse, generateHowAreYouResponse } from "../life/narrative.js";
 import { touchUserActivity } from "../life/userState.js";
@@ -822,15 +822,9 @@ export function registerChatHandler(
       const routeContext = { layer: route.layer, reason: route.reason, trace: route.trace };
 
       // ── 本能层：关于系统自身状态的消息，直接回复不经过认知/工具层 ──
-      const SELF_AWARE_PATTERNS = [
-        /你还好吗|你还好么|你怎么样|感觉怎么样|你累不累|你现在状态|你感觉如何|你最近怎么样|你在吗|你还在吗|你忙不忙|你有没有精力|你是不是累了|你的状态怎么样|你还活着吗|你还有电吗|你感觉怎么样|怎么样.*你|好点没|缓过来了吗/i,
-        /你是谁|你是什么|你是谁呀|介绍一下你自己|你叫什么|你是谁呢|你到底是谁|你究竟是.*谁|说说你自己|介绍一下你|讲讲你自己|你是个什么样.*(人|存在|AI|程序|东西)/i,
-      ];
-      const IDENTITY_PATTERNS = [
-        /你是谁|你是什么|你是谁呀|介绍一下你自己|你叫什么|你是谁呢|你到底是谁|你究竟是.*谁|说说你自己|介绍一下你|讲讲你自己|你是个什么样.*(人|存在|AI|程序|东西)/i,
-      ];
-      if (SELF_AWARE_PATTERNS.some(p => p.test(text))) {
-        const isIdentity = IDENTITY_PATTERNS.some(p => p.test(text));
+      // 模式定义统一在 router.ts 中管理（INSTINCT_PATTERNS + IDENTITY_PATTERNS）
+      if (isInstinctQuery(text)) {
+        const isIdentity = isIdentityQuery(text);
         const vt = getVitality();
         const em = getEmotionEngine();
         const rel = getRelationshipEngine();

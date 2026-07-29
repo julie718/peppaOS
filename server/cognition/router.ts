@@ -19,8 +19,17 @@ const INSTINCT_PATTERNS: RegExp[] = [
   /你是谁|你是什么|你是谁呀|介绍一下你自己|你叫什么|你是谁呢|你到底是谁|你究竟是.*谁|说说你自己|介绍一下你|讲讲你自己|你是个什么样.*(人|存在|AI|程序|东西)/i,
 ];
 
+// 身份识别模式（独立导出，供 chat.ts 区分 identity vs self-aware）
+const IDENTITY_PATTERNS: RegExp[] = [
+  /你是谁|你是什么|你是谁呀|介绍一下你自己|你叫什么|你是谁呢|你到底是谁|你究竟是.*谁|说说你自己|介绍一下你|讲讲你自己|你是个什么样.*(人|存在|AI|程序|东西)/i,
+];
+
 function isInstinctQuery(text: string): boolean {
   return INSTINCT_PATTERNS.some(p => p.test(text));
+}
+
+function isIdentityQuery(text: string): boolean {
+  return IDENTITY_PATTERNS.some(p => p.test(text));
 }
 
 // ── 第2层：工具层模式 ──
@@ -110,4 +119,4 @@ export async function routeMessage(
 }
 
 // ── 辅助导出：供外部直接使用 ──
-export { isInstinctQuery, hasToolIntent };
+export { isInstinctQuery, isIdentityQuery, hasToolIntent };
