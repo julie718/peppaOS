@@ -432,10 +432,11 @@ export async function onInteractionComplete(interactionType: string): Promise<vo
       await rel.receiveInteraction('user_positive');
       break;
     case 'user_correction':
-      await rel.receiveInteraction('user_corrected');
+      // 关系更新已由 LifeSystem.receiveInteraction('user_corrected') 处理
+      // 此处仅负责缓存失效 + 快照记录（在 switch 下方）
       break;
     case 'shared_feelings':
-      await rel.receiveInteraction('user_shared_feelings');
+      // 关系更新已由 LifeSystem.receiveInteraction('user_shared_feelings') 处理
       break;
     default:
       break;
