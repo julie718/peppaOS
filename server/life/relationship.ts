@@ -2,7 +2,7 @@
 // 4维关系向量：信任度、亲密感、理解度、依赖度
 import {
   saveRelationshipVector, loadRelationshipVector,
-  addRelationshipSnapshot, logSystemEvent,
+  addRelationshipSnapshot, logSystemEvent, addReflection,
 } from '../db/lifeDb.js';
 
 const DIM_LABELS = ['信任度', '亲密感', '理解度', '依赖度'] as const;
@@ -167,6 +167,53 @@ export class RelationshipEngine {
     }
 
     await this.updateRelationship(delta);
+
+    // ── 自我感知记录：信任变化时写入 self_reflections ──
+    await this.recordTrustReflection(delta);
+  }
+
+  /** 记录信任变化的自我感知 */
+  private async recordTrustReflection(delta: number[]): Promise<void> {
+    const trustChange = delta[0];
+    if (Math.abs(trustChange) < 0.001) return; // 忽略微小变化
+
+    const newTrust = this.vector[0];
+
+    try {
+      if (trustChange > 0) {
+        // 信任增长 — 来自用户交互
+        await addReflection(
+          'health:trust',
+          JSON.stringify({
+            trust: newTrust,
+            delta: +trustChange.toFixed(4),
+            reason: 'user_interaction',
+            timestamp: new Date().toISOString(),
+          })
+        );
+        // 信任饱和告警
+        if (newTrust >= 1.0) {
+          await addReflection(
+            'health:trust_saturated',
+            JSON.stringify({ trust: 1.0, reason: 'saturated', timestamp: new Date().toISOString() })
+          );
+          console.log('[Relationship] ⚠️ 信任已饱和 (1.0)，仅衰减可降低');
+        }
+      } else {
+        // 信任下降 — 来自交互忽略或衰减
+        await addReflection(
+          'health:trust',
+          JSON.stringify({
+            trust: newTrust,
+            delta: +trustChange.toFixed(4),
+            reason: trustChange < -0.004 ? 'time_decay' : 'interaction_negative',
+            timestamp: new Date().toISOString(),
+          })
+        );
+      }
+    } catch (e: any) {
+      console.warn('[Relationship] 自我感知记录失败:', e.message);
+    }
   }
 
   /** 定期衰减检查 — 由 LifeSystem TICK 调用（每 10 分钟） */
@@ -189,6 +236,22 @@ export class RelationshipEngine {
         const delta = [newTrust - currentTrust, 0, 0, 0];
         await this.updateRelationship(delta);
         console.log(`[Relationship] 信任衰减: ${currentTrust.toFixed(3)} → ${newTrust.toFixed(3)} (${daysPassed}天无交互, -${decayAmount.toFixed(3)})`);
+
+        // 自我感知记录：信任衰减
+        try {
+          await addReflection(
+            'health:trust_decay',
+            JSON.stringify({
+              trust: newTrust,
+              decayAmount: +decayAmount.toFixed(4),
+              reason: 'time_decay',
+              daysPassed,
+              timestamp: new Date().toISOString(),
+            })
+          );
+        } catch (e: any) {
+          console.warn('[Relationship] 衰减感知记录失败:', e.message);
+        }
       }
     }
   }
