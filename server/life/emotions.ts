@@ -6,11 +6,12 @@ import { getPersonalityEngine } from './personality.js';
 const DIM_LABELS = ['愉悦', '平静', '期待', '担忧', '孤独', '满足', '好奇', '牵挂'] as const;
 const BASELINE: number[] = [0.30, 0.60, 0.20, 0.10, 0.15, 0.30, 0.40, 0.25];
 const DECAY_RATE = 0.05; // 每tick衰减5%
+const EMOTION_FLOOR = 0.05; // 情绪地板值：每个维度不低于 0.05
 const HIGH_EMOTION_THRESHOLD = 0.8;
 const HIGH_EMOTION_DURATION_MS = 86400000; // 24小时
 
 function clamp(v: number): number {
-  return Math.max(0, Math.min(1, v));
+  return Math.max(EMOTION_FLOOR, Math.min(1, v));
 }
 
 function clampVector(v: number[]): number[] {
@@ -101,7 +102,23 @@ export class EmotionEngine {
 
     await this.updateEmotions(decayDelta);
 
-    // 3. 感知特征向量的缓慢影响（如果有）
+    // 3. 基线恢复机制：好奇心(index=6)和宁静(index=1)低于 0.1 时每 tick 恢复 0.001
+    const recoveryDelta = new Array(8).fill(0);
+    let recovered = false;
+    if (this.vector[6] < 0.1) {
+      recoveryDelta[6] += 0.001;
+      recovered = true;
+    }
+    if (this.vector[1] < 0.1) {
+      recoveryDelta[1] += 0.001;
+      recovered = true;
+    }
+    if (recovered) {
+      await this.updateEmotions(recoveryDelta);
+      console.log(`[Emotions] 🌱 基线恢复: 好奇心=${this.vector[6].toFixed(4)} 平静=${this.vector[1].toFixed(4)}`);
+    }
+
+    // 4. 感知特征向量的缓慢影响（如果有）
     if (perceptionVector && perceptionVector.length >= 12) {
       await this.receivePerception(perceptionVector, true);
     }
