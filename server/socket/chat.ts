@@ -15,7 +15,7 @@ import { hasClientActionOnlyIntent, isDiagnosticOrRepairRequest, shouldAllowTool
 import { resolveWorkSurfaceRoute } from "../cognition/work_surface";
 import { formatToolRouteForPrompt, mergeToolPolicyWithRoute, routeToolsForTurn } from "../cognition/tool_router";
 import { formatClientSelfPrompt } from "../client/self_model";
-import { queryMemories, queryMemoriesVector, addMemory, addReminder, extractMemories } from "../memory";
+import { queryMemories, queryMemoriesVector, addMemory, addReminder, extractMemories, retrieveRelevantMemories, getTimeline, getMemories, storeMemory, extractKeyFacts, extractKnowledge, storeKnowledge, getKnowledge, formatKnowledgeForContext } from "../memory";
 import { loadEmotionalState, saveEmotionalState, updateEmotionalState, updateEmotionalStateWithHIM, loadHIMState, saveHIMState, generateContextualGreeting, vectorMemoryBias } from "../personality/state";
 import { buildModeOverlay } from "../personality/engine";
 import { personalityRegistry } from "../personality";
@@ -65,6 +65,7 @@ import { buildResponseLanguageInstruction } from "../utils/language";
 import { guardCompletionClaims, needsCompletionEvidence } from "../work_product/completion_guard";
 import { buildModelSelfAwareness, buildVisionRoutingOverlay, hasVisionIntent } from "../cognition/vision_routing";
 import { DEFAULT_MODELS, getScopedPreferredLLM } from "../llm/user_preferences";
+import { generateTemporalContext } from '../time/temporal_context.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'peppaOS_default_jwt_secret_2026_local';
 
@@ -187,6 +188,20 @@ function buildNaturalReplyStyleOverlay(source?: string): string {
     '- Focus on answering ONLY the latest user message. Reference earlier conversation only if the user explicitly asks about it.',
     '- Give a complete answer. Do not stop mid-sentence or trail off.',
   ].join('\n');
+}
+
+// ── M4 辅助：将事实 key 转为可读标签 ──
+function formatFactLabel(key: string): string {
+  const labels: Record<string, string> = {
+    name: '名字',
+    preference: '喜欢',
+    dislike: '不喜欢',
+    workplace: '工作单位',
+    location: '居住地',
+    hobby: '爱好',
+    pet: '宠物',
+  };
+  return labels[key] || key;
 }
 
 export function registerChatHandler(
@@ -365,6 +380,38 @@ export function registerChatHandler(
       });
       logger.info('[ChatHandler] relevantMemories (vector):', relevantMemories.length);
 
+      // 交互历史检索：从 peppa.db interactions 表检索与当前话题相关的历史记录
+      let relevantHistory = '';
+      try {
+        const interactionMemories = await retrieveRelevantMemories(text, 5);
+        if (interactionMemories.length > 0) {
+          relevantHistory = '## 相关历史记忆\n你与用户曾有过以下相关交流：\n'
+            + interactionMemories.map((m, i) =>
+                `${i + 1}. [${m.timestamp?.slice(0, 16) || '未知时间'}] 用户: "${m.message.slice(0, 200)}"\n   你的回复: "${(m.response || '').slice(0, 200)}"`
+              ).join('\n')
+            + '\n请参考以上历史记忆，使回复更连贯、个性化。';
+          logger.info('[ChatHandler] 相关历史记忆:', interactionMemories.length, '条');
+        }
+      } catch (e: any) {
+        logger.warn('[ChatHandler] 交互历史检索异常:', e.message);
+      }
+
+      // 时间线检索：最近 7 天的重要交互，按时间倒序
+      let timelineHistory = '';
+      try {
+        const timelineEntries = await getTimeline({ days: 7, limit: 10 });
+        if (timelineEntries.length > 0) {
+          timelineHistory = '## 最近 7 天时间线\n以下是你与用户最近的交互时间线：\n'
+            + timelineEntries.map((e, i) =>
+                `${i + 1}. [${e.timestamp?.slice(0, 16) || '未知时间'}] [${e.type}] ${e.summary}`
+              ).join('\n')
+            + '\n请参考时间线理解用户近期的关注点和情绪变化。';
+          logger.info('[ChatHandler] 时间线:', timelineEntries.length, '条');
+        }
+      } catch (e: any) {
+        logger.warn('[ChatHandler] 时间线检索异常:', e.message);
+      }
+
       // RAG: retrieve relevant knowledge chunks from agent-scoped and Peppa knowledge.
       let ragChunks: string[] = [];
       const ragAgentIds = Array.from(new Set([conversationAgentId, 'peppa'].filter(Boolean)));
@@ -442,6 +489,17 @@ export function registerChatHandler(
       const beijingTime = new Date(new Date().getTime() + 8 * 3600000).toISOString().replace('Z', '+08:00');
       let effectiveSystemPrompt = systemInstruction + `\n\n## Current Time\n${beijingTime} (北京时间). Use this for any time-related questions.`;
 
+      // ── 时间感知上下文：季节、节日、早晚、周末/工作日 ──
+      try {
+        const temporalBlock = generateTemporalContext(uid);
+        if (temporalBlock) {
+          effectiveSystemPrompt += '\n\n' + temporalBlock;
+          logger.info('[ChatHandler] temporal context injected');
+        }
+      } catch (e: any) {
+        logger.warn('[ChatHandler] temporal context failed:', e.message);
+      }
+
       // ── ACI 预判上下文注入 ──
       const prefetchedContext = getPrefetchedContext(uid);
       if (prefetchedContext) {
@@ -460,12 +518,50 @@ export function registerChatHandler(
         effectiveSystemPrompt += `\n\n${previousSessionContext}`;
       }
 
+      // ── M4: 跨会话记忆注入 ──
+      try {
+        const crossMemories = await getMemories(uid);
+        if (crossMemories.length > 0) {
+          const crossMemoryText = '## 跨会话记忆（关于用户的重要信息）\n以下是你从之前的对话中记住的关于用户的事实：\n'
+            + crossMemories.map(m =>
+                `- ${formatFactLabel(m.key)}: ${m.value}`
+              ).join('\n')
+            + '\n请在对话中自然地运用这些信息，让用户感受到你记得关于他们的事情。';
+          effectiveSystemPrompt += '\n\n' + crossMemoryText;
+          logger.info('[ChatHandler] 跨会话记忆:', crossMemories.length, '条');
+        }
+      } catch (e: any) {
+        logger.warn('[ChatHandler] 跨会话记忆加载异常:', e.message);
+      }
+
+      // ── M5: 知识库注入 ──
+      try {
+        const knowledgeEntries = await getKnowledge(uid, { limit: 15, minConfidence: 0.3 });
+        if (knowledgeEntries.length > 0) {
+          const knowledgeContext = formatKnowledgeForContext(knowledgeEntries);
+          effectiveSystemPrompt += '\n\n' + knowledgeContext;
+          logger.info('[ChatHandler] 知识库注入:', knowledgeEntries.length, '条');
+        }
+      } catch (e: any) {
+        logger.warn('[ChatHandler] 知识库加载异常:', e.message);
+      }
+
       // Topic continuity: inject recent conversation topics
       if (conversationId) {
         const topicCtx = getTopicContext(conversationId);
         if (topicCtx) {
           effectiveSystemPrompt += topicCtx;
         }
+      }
+
+      // 交互历史记忆注入：将检索到的相关历史对话注入上下文
+      if (relevantHistory) {
+        effectiveSystemPrompt += '\n\n' + relevantHistory;
+      }
+
+      // 时间线注入：将最近7天的交互时间线注入上下文
+      if (timelineHistory) {
+        effectiveSystemPrompt += '\n\n' + timelineHistory;
       }
 
       // Inject conversation mode overlay (shapes interaction style without changing personality)
@@ -1891,6 +1987,28 @@ export function registerChatHandler(
       }).catch(err => logger.error('[Memory] Extraction failed:', err));
       }
 
+      // ── M4: 跨会话记忆提取 — 检测"我叫XX"、"我喜欢XX"等信息 ──
+      try {
+        const keyFacts = extractKeyFacts(text, responseText);
+        for (const fact of keyFacts) {
+          storeMemory(fact.key, fact.value, uid).catch(e =>
+            logger.warn('[ChatHandler] 跨会话存储失败:', e.message));
+        }
+      } catch (e: any) {
+        logger.warn('[ChatHandler] 跨会话提取异常:', e.message);
+      }
+
+      // ── M5: 知识库提取 — 从消息中提炼事实和规律 ──
+      try {
+        const knowledgeEntries = extractKnowledge(text, responseText);
+        if (knowledgeEntries.length > 0) {
+          storeKnowledge(uid, knowledgeEntries).catch(e =>
+            logger.warn('[ChatHandler] 知识库存储失败:', e.message));
+        }
+      } catch (e: any) {
+        logger.warn('[ChatHandler] 知识库提取异常:', e.message);
+      }
+
       // Update emotional state — reconnect if user was away for a while
       const hoursSinceLast = emotionalState.lastInteractionAt
         ? (Date.now() - new Date(emotionalState.lastInteractionAt).getTime()) / (1000 * 60 * 60)
@@ -1911,6 +2029,25 @@ export function registerChatHandler(
       const { state: himUpdated, him: newHim } = updateEmotionalStateWithHIM(updatedState, { type: 'self_reflection', userId: uid }, himState, text.slice(0, 40));
       saveEmotionalState(emotionKey, himUpdated);
       saveHIMState(emotionKey, newHim);
+
+      // ── M6: 同步情绪到 LifeDB EmotionEngine（修复情绪冻结）──
+      try {
+        const em = getEmotionEngine();
+        // 根据 sentiment 构造感知向量：valence→愉悦, frustration→担忧
+        const pv = [
+          Math.max(0, sentiment.valence) * 0.3,              // joy
+          Math.abs(sentiment.valence) < 0.2 ? 0.1 : 0.0,    // calm (reduced when strong sentiment)
+          sentiment.urgency * 0.2,                            // anticipation
+          sentiment.frustration * 0.3,                        // worry
+          0.0,                                                // loneliness
+          Math.max(0, sentiment.valence) * 0.2,              // satisfaction
+          isNovel ? 0.15 : 0.0,                              // curiosity (boost on novel topic)
+          updatedState.intimacy * 0.1,                       // care
+        ];
+        em.receivePerception(pv);
+      } catch (e: any) {
+        logger.warn('[ChatHandler] EmotionEngine sync failed:', e.message);
+      }
 
       // Emit contextual greeting on reconnect (sanctuary agents don't initiate)
       if (!isSanctuary && isReconnect && updatedState.intimacy > 0.2) {

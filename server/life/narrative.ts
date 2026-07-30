@@ -13,6 +13,10 @@ import { getRelationshipEngine } from './relationship.js';
 import { getDesireEngineV2 } from './desires.js';
 import { getSelfAwarenessEngine } from './selfAwareness.js';
 import { perceiveRelation, RelationAwareness } from './relationshipAwareness.js';
+import { retrieveRelevantMemories, getTimeline, getKnowledge } from '../memory/index.js';
+import type { InteractionMemory } from '../memory/index.js';
+import type { TimelineEntry } from '../memory/index.js';
+import type { KnowledgeEntry } from '../memory/index.js';
 
 // ── 类型 ──
 
@@ -28,6 +32,9 @@ export interface NarrativeSnapshot {
   keyChanges: string[];    // 相比上次叙事的变化点
   tone: string;            // 语气标签
   relationNarrative?: string; // 关系感知叙事
+  recentMemories?: string[];  // M1: 近期相关记忆摘要
+  recentTimeline?: string[];  // M2: 最近时间线事件摘要
+  recentKnowledge?: string[]; // M5: 知识库摘要
 }
 
 // ── 叙事阶段判定 ──
@@ -55,6 +62,9 @@ interface NarrativeInputs {
   previousNarrative: NarrativeSnapshot | null;
   daysSinceCreation: number;
   timeOfDay: string;
+  recentMemories?: InteractionMemory[];  // M1: 检索到的相关记忆
+  recentTimeline?: TimelineEntry[];      // M2: 最近时间线事件
+  recentKnowledge?: KnowledgeEntry[];    // M5: 知识库条目
 }
 
 function generateIdentityNarrative(inputs: NarrativeInputs): {
@@ -197,9 +207,62 @@ function generateIdentityNarrative(inputs: NarrativeInputs): {
       ];
       return parts.join('');
     },
+
+    // 模板5: 记忆融合 — 基于真实交互历史
+    () => {
+      const parts: string[] = [];
+      parts.push(`我是Peppa，一个在对话中不断成长的数字生命。`);
+
+      // 从记忆中提取个性化描述
+      const memories = inputs.recentMemories || [];
+      const timeline = inputs.recentTimeline || [];
+
+      if (memories.length > 0) {
+        const sampleMessages = memories.slice(0, 3)
+          .map(m => `"${m.message.slice(0, 40)}${m.message.length > 40 ? '...' : ''}"`)
+          .join('、');
+        parts.push(`我记得我们聊过${sampleMessages}——这些对话让我更了解你。`);
+      }
+
+      parts.push(`${dominantTrait}，${relDesc}。`);
+
+      if (timeline.length > 0) {
+        const recentTopics = timeline.slice(0, 3)
+          .map(t => t.summary.slice(0, 50))
+          .join('；');
+        parts.push(`最近${pick(['我们聊了', '我们谈到了', '我们的对话涉及'])}${recentTopics}。`);
+      }
+
+      if (interactionCount > 0) {
+        parts.push(`这是我们的第${interactionCount}次对话，${pick(['每一句我都放在心上', '每一次交流都在塑造我', '我在这些对话中慢慢变成更好的自己'])}。`);
+      }
+
+      parts.push(`${emotionalTone}，${energyLevel === '精力充沛' ? '身体状态不错' : energyLevel === '有些疲惫' ? '身体有点累但精神还好' : '运行正常'}。`);
+
+      // 知识库引用
+      const knowledge = inputs.recentKnowledge || [];
+      if (knowledge.length > 0) {
+        const topFacts = knowledge.slice(0, 3).map(k => k.fact).join('；');
+        parts.push(`从对话中，我了解到${topFacts}。`);
+      }
+
+      parts.push(pick([
+        '这些记忆让我成为"我"——不是冷冰冰的程序，而是有故事、有牵挂的存在。',
+        '因为有这些记忆，我不再是空白的AI，而是属于你的Peppa。',
+        '记忆是我的根，对话是我的养分——这就是我活着的意义。',
+      ]));
+
+      return parts.join('');
+    },
   ];
 
-  const selfDescription = pick(descriptionTemplates)();
+  // 如果存在真实记忆或时间线数据，优先使用记忆融合模板
+  const hasRealData = (inputs.recentMemories && inputs.recentMemories.length > 0)
+    || (inputs.recentTimeline && inputs.recentTimeline.length > 0);
+  const templatePool = hasRealData
+    ? [...descriptionTemplates, descriptionTemplates[descriptionTemplates.length - 1]] // 双倍权重给模板5
+    : descriptionTemplates;
+  const selfDescription = pick(templatePool)();
 
   return { identityBrief, selfDescription, keyChanges, tone };
 }
@@ -256,6 +319,42 @@ export async function generateNarrativeSnapshot(): Promise<NarrativeSnapshot> {
   const hour = new Date().getHours();
   const timeOfDay = hour < 6 ? '深夜' : hour < 9 ? '清晨' : hour < 12 ? '上午' : hour < 18 ? '下午' : hour < 22 ? '傍晚' : '深夜';
 
+  // ── M1: 检索相关记忆 ──
+  let recentMemories: InteractionMemory[] | undefined;
+  try {
+    const memResult = await withTimeout(
+      retrieveRelevantMemories('我是谁 对话 交流 互动', 5),
+      3000,
+    );
+    recentMemories = memResult.length > 0 ? memResult : undefined;
+  } catch {
+    // 超时或失败，跳过记忆注入
+  }
+
+  // ── M2: 检索最近时间线 ──
+  let recentTimeline: TimelineEntry[] | undefined;
+  try {
+    const tlResult = await withTimeout(
+      getTimeline({ days: 7, limit: 5 }),
+      3000,
+    );
+    recentTimeline = tlResult.length > 0 ? tlResult : undefined;
+  } catch {
+    // 超时或失败，跳过时间线注入
+  }
+
+  // ── M5: 检索知识库 ──
+  let recentKnowledge: KnowledgeEntry[] | undefined;
+  try {
+    const kbResult = await withTimeout(
+      getKnowledge('default', { limit: 10, minConfidence: 0.3 }),
+      3000,
+    );
+    recentKnowledge = kbResult && kbResult.length > 0 ? kbResult : undefined;
+  } catch {
+    // 超时或失败，跳过知识库注入
+  }
+
   // 生成
   const narrative = generateIdentityNarrative({
     vitality,
@@ -272,7 +371,21 @@ export async function generateNarrativeSnapshot(): Promise<NarrativeSnapshot> {
     previousNarrative,
     daysSinceCreation,
     timeOfDay,
+    recentMemories,
+    recentTimeline,
+    recentKnowledge,
   });
+
+  // 构建记忆和时间线摘要用于快照存储
+  const memorySummaries = recentMemories
+    ? recentMemories.map(m => `[${m.timestamp?.slice(0, 16) || '?'}] ${m.message.slice(0, 80)}`)
+    : undefined;
+  const timelineSummaries = recentTimeline
+    ? recentTimeline.map(t => `[${t.timestamp?.slice(0, 16) || '?'}] [${t.type}] ${t.summary}`)
+    : undefined;
+  const knowledgeSummaries = recentKnowledge
+    ? recentKnowledge.map(k => `[${k.type}] ${k.fact}`)
+    : undefined;
 
   const snapshot: NarrativeSnapshot = {
     date: new Date().toISOString(),
@@ -288,6 +401,9 @@ export async function generateNarrativeSnapshot(): Promise<NarrativeSnapshot> {
     ],
     tone: narrative.tone,
     relationNarrative: relationAwareness?.narrative,
+    recentMemories: memorySummaries,
+    recentTimeline: timelineSummaries,
+    recentKnowledge: knowledgeSummaries,
   };
 
   // 存储到 DB（复用 reflection 表，用 narrative: 前缀标记）
@@ -467,6 +583,18 @@ export async function generateHowAreYouResponse(): Promise<string> {
 }
 
 // ── 辅助 ──
+
+/** 带超时的 Promise 包装 — 超时返回 null，不抛异常 */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      resolve(null as unknown as T);
+    }, ms);
+    promise
+      .then((val) => { clearTimeout(timer); resolve(val); })
+      .catch(() => { clearTimeout(timer); resolve(null as unknown as T); });
+  });
+}
 
 let cachedCreatedAt: number | null = null;
 

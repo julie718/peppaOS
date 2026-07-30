@@ -94,12 +94,42 @@ export class LifeSystem {
     }
 
     // 查询交互总数，设置到关系引擎（用于阶段判定）
-    // 使用 life.db 的 system_events 表（保证 LifeSystem 初始化时已可用）
+    // 综合 system_events + interaction_memories，优先使用 peppa.db 实际数据
     try {
-      const { countEvents } = await import('../db/lifeDb.js');
-      const count = await countEvents('interaction_received');
-      if (count > 0) {
-        this.relationship.setInteractionCount(count);
+      const { countEvents, getLifeDb } = await import('../db/lifeDb.js');
+      const eventCount = await countEvents('interaction_received');
+      // 也统计 interaction_memories 中的交互记忆
+      const lifeDb = getLifeDb();
+      const memRow = await new Promise<{ cnt: number } | null>((resolve, reject) => {
+        lifeDb.get('SELECT COUNT(*) as cnt FROM interaction_memories', (err, row: any) => {
+          if (err) reject(err);
+          else resolve(row || null);
+        });
+      });
+      const lifeCount = Math.max(eventCount, memRow?.cnt || 0);
+
+      // 尝试从 peppa.db 获取真实聊天交互总数（更准确）
+      let peppaCount = 0;
+      try {
+        const sqlite3 = (await import('sqlite3')).default;
+        const peppaDbPath = process.env.DB_PATH || '/app/data/peppa.db';
+        const peppaDb = new sqlite3.Database(peppaDbPath);
+        const peppaRow = await new Promise<any>((resolve, reject) => {
+          peppaDb.get('SELECT COUNT(*) as cnt FROM interactions', (err, row) => {
+            if (err) reject(err);
+            else resolve(row);
+          });
+        });
+        peppaDb.close();
+        peppaCount = peppaRow?.cnt || 0;
+      } catch (e: any) {
+        console.warn('[LifeSystem] peppa.db 交互计数查询失败:', e.message);
+      }
+
+      const totalCount = Math.max(lifeCount, peppaCount);
+      if (totalCount > 0) {
+        this.relationship.setInteractionCount(totalCount);
+        console.log(`[LifeSystem] 交互总数: ${totalCount} (life:${lifeCount}, peppa:${peppaCount})`);
       }
     } catch (e: any) {
       console.warn('[LifeSystem] 交互总数查询失败:', e.message);

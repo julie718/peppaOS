@@ -413,6 +413,68 @@ export async function generateRelationStatusResponse(): Promise<string> {
   return pick(templates)();
 }
 
+// ── 关系阶段判定（综合交互历史和关系维度）──
+
+/**
+ * 基于交互历史和关系维度综合判定关系阶段
+ * 不纯粹依赖 trust 值，结合交互总数和交互频率
+ * 信任 >= 0.35 且交互 > 100 条时，不低于"熟人"
+ */
+export function getRelationshipStage(
+  vector: number[],
+  totalInteractions: number,
+): string {
+  const [trust, intimacy, understanding, dependence] = vector;
+  const avg = vector.reduce((a, b) => a + b, 0) / 4;
+
+  // 交互权重得分 (0-1, 1000 条以上满分)
+  const interactionScore = Math.min(totalInteractions / 1000, 1.0);
+  // 综合得分: 交互次数 40% + 维度平均值 60%
+  const combinedScore = interactionScore * 0.4 + avg * 0.6;
+
+  // 硬性保证: trust >= 0.35 且交互 > 100 时不低于熟人
+  if (trust >= 0.35 && totalInteractions > 100 && combinedScore < 0.30) {
+    return '熟人';
+  }
+
+  if (combinedScore > 0.85 && intimacy > 0.8 && trust > 0.9) return '灵魂伙伴';
+  if (combinedScore > 0.65 && trust > 0.7 && intimacy > 0.6) return '伙伴';
+  if (combinedScore > 0.45 && trust > 0.5) return '朋友';
+  if (combinedScore > 0.30) return '熟人';
+  return '陌生人';
+}
+
+/** 校准阶段：使用 peppa.db 中的实际交互总数 */
+export async function calibrateRelationshipStage(): Promise<string> {
+  const rel = getRelationshipEngine();
+  const state = rel.getRelationshipState();
+  let totalInteractions = rel.getTotalInteractions();
+
+  // 尝试从 peppa.db 获取更准确的交互总数
+  try {
+    const sqlite3 = (await import('sqlite3')).default;
+    const peppaDbPath = process.env.DB_PATH || '/app/data/peppa.db';
+    const peppaDb = new sqlite3.Database(peppaDbPath);
+    const row = await new Promise<any>((resolve, reject) => {
+      peppaDb.get('SELECT COUNT(*) as cnt FROM interactions WHERE role = ?', ['user'], (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+    peppaDb.close();
+
+    if (row && row.cnt > totalInteractions) {
+      totalInteractions = row.cnt;
+      // 同步更新到关系引擎（如果更准确）
+      rel.setInteractionCount(totalInteractions);
+    }
+  } catch (e: any) {
+    console.warn('[RelationAwareness] peppa.db 交互总数查询失败:', e.message);
+  }
+
+  return getRelationshipStage(state.vector, totalInteractions);
+}
+
 // ── 单次交互后的关系更新（供 chat.ts 调用）──
 
 export async function onInteractionComplete(interactionType: string): Promise<void> {
