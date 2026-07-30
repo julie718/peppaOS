@@ -497,24 +497,40 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
       setCallState('connecting');
       transcriptionOnlyRef.current = options.transcriptionOnly === true;
 
+      console.log('[VoiceCall] Requesting microphone...');
       const stream = await requestMicrophoneStream({
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
       });
       streamRef.current = stream;
+      console.log('[VoiceCall] Microphone acquired, tracks:', stream.getAudioTracks().length);
 
-      // Set up audio level monitoring (16000 Hz matches Deepgram linear16 config)
-      audioContext.current = new AudioContext({ sampleRate: 16000 });
+      // Set up audio level monitoring (use native sample rate for iOS compatibility)
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      console.log('[VoiceCall] AudioContext constructor:', !!AudioCtx);
+      audioContext.current = new AudioCtx();
+      console.log('[VoiceCall] AudioContext created, state:', audioContext.current.state);
+
+      // iOS: AudioContext starts suspended, must resume before use
+      if (audioContext.current.state === 'suspended') {
+        console.log('[VoiceCall] Resuming suspended AudioContext...');
+        await audioContext.current.resume();
+        console.log('[VoiceCall] AudioContext resumed, state:', audioContext.current.state);
+      }
+
       const source = audioContext.current.createMediaStreamSource(stream);
       analyser.current = audioContext.current.createAnalyser();
       analyser.current.fftSize = 256;
       source.connect(analyser.current);
       updateAudioLevel();
+      console.log('[VoiceCall] Audio analyser connected');
 
       // Set up ScriptProcessorNode to capture raw PCM (linear16) for Deepgram
       const bufferSize = 4096;
+      console.log('[VoiceCall] Creating ScriptProcessor...');
       const scriptProcessor = audioContext.current.createScriptProcessor(bufferSize, 1, 1);
+      console.log('[VoiceCall] ScriptProcessor created');
 
       scriptProcessor.onaudioprocess = (event) => {
         if (!socket?.connected) return;
@@ -578,6 +594,7 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
       timerInterval.current = setInterval(() => {
         setElapsedSeconds(Math.floor((Date.now() - callStartTime.current) / 1000));
       }, 1000);
+      console.log('[VoiceCall] Emitting audio:start...');
       socket.emit('audio:start', {
         voiceId,
         voiceProvider: options.voiceProvider,
@@ -587,8 +604,20 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
         domain: options.domain || 'personal',
         orgId: options.domain === 'work' ? options.orgId : undefined,
       });
+      console.log('[VoiceCall] audio:start emitted successfully');
     } catch (err: any) {
+      console.error('[VoiceCall] startCall FAILED:', err?.name, err?.message, err?.stack?.slice(0, 200));
       transcriptionOnlyRef.current = false;
+      // Clean up stream on error so mic light turns off
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
+        console.log('[VoiceCall] Stream cleaned up after error');
+      }
+      if (audioContext.current) {
+        audioContext.current.close().catch(() => {});
+        audioContext.current = null;
+      }
       setError(err.message || 'Failed to start voice call');
       setCallState('idle');
     }

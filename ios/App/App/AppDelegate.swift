@@ -2,6 +2,7 @@ import UIKit
 import Capacitor
 import CoreLocation
 import UserNotifications
+import AVFoundation
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
@@ -18,6 +19,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
             } else {
                 print("[Notification] 权限: \(granted ? "已授权" : "已拒绝")")
             }
+        }
+        // 配置 AVAudioSession 以支持语音通话（播放+录音）
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
+            try session.setActive(true)
+            print("[Audio] AVAudioSession configured: playAndRecord + defaultToSpeaker + allowBluetooth")
+        } catch {
+            print("[Audio] AVAudioSession setup failed: \(error.localizedDescription)")
         }
         return true
     }

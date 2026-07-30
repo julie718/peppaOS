@@ -282,7 +282,7 @@ export function useVoiceprint(options?: UseVoiceprintOptions) {
         autoGainControl: true,
       });
       streamRef.current = stream;
-      audioContextRef.current = new AudioContext({ sampleRate: SAMPLE_RATE });
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       const source = audioContextRef.current.createMediaStreamSource(stream);
       const processor = audioContextRef.current.createScriptProcessor(4096, 1, 1);
       processorRef.current = processor;

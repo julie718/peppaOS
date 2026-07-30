@@ -170,7 +170,7 @@ export function useWakeWord({
       streamRef.current = stream;
       console.log('[WakeWord-Qwen] Mic opened, setting up AudioContext');
 
-      const ctx = new AudioContext({ sampleRate: 16000 });
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
       ctxRef.current = ctx;
       const source = ctx.createMediaStreamSource(stream);
       const processor = ctx.createScriptProcessor(4096, 1, 1);
@@ -321,7 +321,7 @@ export function useWakeWord({
       });
       streamRef.current = stream;
 
-      const ctx = new AudioContext({ sampleRate: engine.sampleRate });
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
       ctxRef.current = ctx;
       const source = ctx.createMediaStreamSource(stream);
       const processor = ctx.createScriptProcessor(engine.frameLength, 1, 1);

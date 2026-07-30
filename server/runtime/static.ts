@@ -44,13 +44,24 @@ export async function setupStatic(app: express.Express, __filename: string, __di
       path.join(process.cwd(), "..", "dist"),
     ].filter(Boolean) as string[];
     const distPath = candidates.find((candidate) => fs.existsSync(candidate)) || candidates[candidates.length - 1];
-    app.use(express.static(distPath));
+    // Static assets (JS/CSS with hashed filenames) — immutable long cache
+    app.use(express.static(distPath, {
+      setHeaders: (res, filePath) => {
+        if (filePath.match(/\.(js|css|woff2?|png|jpg|svg|ico)$/)) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+      }
+    }));
     app.use("/api/*", (_req, res) => { res.status(404).json({ error: "API route not found" }); });
+    // HTML — must never be cached so WKWebView picks up updated JS hashes
     app.get("*", (req, res) => {
       const ua = (req.headers['user-agent'] || '').toLowerCase();
       const isMobile = /iphone|ipad|android|mobile/.test(ua) && !/tablet/.test(ua);
       const file = isMobile ? 'index.mobile.html' : defaultFile;
       const fullPath = path.join(distPath, file);
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       if (fs.existsSync(fullPath)) {
         res.sendFile(fullPath);
       } else {

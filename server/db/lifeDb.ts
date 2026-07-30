@@ -57,9 +57,9 @@ const TABLES: { name: string; sql: string }[] = [
   {
     name: 'emotion_state',
     sql: `CREATE TABLE IF NOT EXISTS emotion_state (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
       vector_json TEXT NOT NULL,
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`,
   },
   {
@@ -167,6 +167,54 @@ export async function migrateLifeTables(): Promise<{ success: boolean; tables: s
     }
   }
 
+  // ── M5 情绪追加模式迁移：移除旧 emotion_state 的 CHECK(id=1) 单行约束 ──
+  try {
+    const hasOldSchema = await new Promise<boolean>((resolve) => {
+      database.get(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='emotion_state'",
+        (err, row: any) => resolve(row?.sql?.includes?.('CHECK') ?? false),
+      );
+    });
+    if (hasOldSchema) {
+      console.log('[LifeDB] Detected old emotion_state schema, migrating to append mode...');
+      await new Promise<void>((resolve, reject) => {
+        database.run('BEGIN', (err) => {
+          if (err) { reject(err); return; }
+          database.run(
+            `CREATE TABLE IF NOT EXISTS emotion_state_new (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              vector_json TEXT NOT NULL,
+              created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )`,
+            (err2) => {
+              if (err2) { database.run('ROLLBACK', () => reject(err2)); return; }
+              database.run(
+                `INSERT INTO emotion_state_new (vector_json, created_at)
+                 SELECT vector_json, IFNULL(updated_at, datetime('now'))
+                 FROM emotion_state WHERE id = 1`,
+                (err3) => {
+                  if (err3) { database.run('ROLLBACK', () => reject(err3)); return; }
+                  database.run('DROP TABLE emotion_state', (err4) => {
+                    if (err4) { database.run('ROLLBACK', () => reject(err4)); return; }
+                    database.run('ALTER TABLE emotion_state_new RENAME TO emotion_state', (err5) => {
+                      if (err5) { database.run('ROLLBACK', () => reject(err5)); return; }
+                      database.run('COMMIT', (err6) => {
+                        if (err6) reject(err6); else resolve();
+                      });
+                    });
+                  });
+                },
+              );
+            },
+          );
+        });
+      });
+      console.log('[LifeDB] emotion_state migrated to append mode');
+    }
+  } catch (e: any) {
+    console.warn('[LifeDB] emotion_state migration skipped:', e.message);
+  }
+
   console.log(`[LifeDB] 迁移完成: ${created.length} 张表, ${errors.length} 个错误`);
   return { success: errors.length === 0, tables: created, errors };
 }
@@ -271,13 +319,15 @@ export async function decayEmotions(): Promise<void> {
 export async function saveEmotionVector(vector: number[]): Promise<void> {
   const json = JSON.stringify(vector);
   await run(
-    'INSERT OR REPLACE INTO emotion_state (id, vector_json, updated_at) VALUES (1, ?, datetime("now"))',
+    'INSERT INTO emotion_state (vector_json, created_at) VALUES (?, datetime("now"))',
     [json]
   );
 }
 
 export async function loadEmotionVector(): Promise<number[] | null> {
-  const row = await get<{ vector_json: string }>('SELECT vector_json FROM emotion_state WHERE id = 1');
+  const row = await get<{ vector_json: string }>(
+    'SELECT vector_json FROM emotion_state ORDER BY id DESC LIMIT 1'
+  );
   if (!row) return null;
   try {
     const v = JSON.parse(row.vector_json);

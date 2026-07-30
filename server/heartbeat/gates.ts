@@ -2,7 +2,7 @@ import { getDesireEngine } from '../desire/engine.js';
 import fs from 'fs';
 
 const CONFIG = {
-  MIN_INTERVAL_MINUTES: 120,
+  MIN_INTERVAL_MINUTES: 60,  // reduced from 120 to allow emotions to evolve more frequently
   DAILY_LIMIT: 10,
   SCORE_THRESHOLD: 0.55,
   SOCIAL_THRESHOLD: 0.65,
