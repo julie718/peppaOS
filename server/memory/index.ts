@@ -9,6 +9,14 @@ export { initMemorySync, registerUserSocket, unregisterUserSocket, broadcastMemo
 export { buildNarrativeChain } from './narrative';
 export type { NarrativeChainResult } from './narrative';
 export { evaluateMemoryFirewall, getMemoryFirewallPolicy } from './firewall';
+export { dualRetrieve, retrieveRelevantMemories } from './retriever';
+export type { RankedMemory, InteractionMemory } from './retriever';
+export { getTimeline } from './timeline';
+export type { TimelineEntry, TimelineOptions } from './timeline';
+export { storeMemory, getMemories, extractKeyFacts } from './crossSession';
+export type { CrossSessionMemory, ExtractedFact } from './crossSession';
+export { extractKnowledge, storeKnowledge, getKnowledge, formatKnowledgeForContext } from './knowledgeBase';
+export type { KnowledgeEntry, ExtractedKnowledge } from './knowledgeBase';
 export type { MemoryFirewallDecision, MemoryFirewallPolicy } from './firewall';
 export { runDreamCycle, getSleepCycleState } from './dream';
 export type { DreamCycleReport, DreamCycleOptions, SleepCycleState } from './dream';

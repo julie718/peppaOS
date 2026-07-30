@@ -1,9 +1,11 @@
 /**
  * Dual-path memory retrieval — keyword + semantic, fused by salience score.
+ * Also: interaction history retrieval from peppa.db for context-aware conversations.
  */
 import { queryMemories, queryMemoriesVector } from './store';
 import { Memory } from './types';
 import { logger } from '../lib/logger';
+import sqlite3 from 'sqlite3';
 
 export interface RankedMemory {
   memory: Memory;
@@ -57,4 +59,201 @@ export async function dualRetrieve(query: string, userId: string, topN = 3): Pro
 
   logger.info(`[Retriever] "${query.slice(0, 40)}" → ${ranked.slice(0, topN).length} results in ${elapsed}ms`);
   return ranked.slice(0, topN);
+}
+
+// ── 交互历史检索（从 peppa.db interactions 表）──
+
+export interface InteractionMemory {
+  id: string;
+  message: string;
+  response: string;
+  timestamp: string;
+  similarity: number;
+}
+
+/**
+ * 基于关键词匹配从 interactions 表检索最相关的历史记录
+ * - 超时 3 秒，超时返回空数组
+ * - 关键词匹配失败时回退到最近 5 条记录
+ * - interactions 表不存在或为空时返回空数组
+ */
+export async function retrieveRelevantMemories(
+  text: string,
+  limit: number = 5,
+): Promise<InteractionMemory[]> {
+  const start = Date.now();
+  const peppaDbPath = process.env.DB_PATH || '/app/data/peppa.db';
+
+  let db: sqlite3.Database | null = null;
+
+  try {
+    // 带超时的 Promise 包装
+    const result = await new Promise<InteractionMemory[]>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        db?.close();
+        resolve([]); // 超时不阻塞
+      }, 3000);
+
+      try {
+        db = new sqlite3.Database(peppaDbPath, (err) => {
+          if (err) {
+            clearTimeout(timeout);
+            logger.warn('[Retriever] peppa.db 连接失败:', err.message);
+            resolve([]);
+            return;
+          }
+
+          // 提取关键词
+          const keywords = extractKeywords(text);
+          if (keywords.length === 0) {
+            clearTimeout(timeout);
+            // 回退：返回最近 N 条记录
+            fallbackRecent(db!, limit, resolve, timeout);
+            return;
+          }
+
+          // 构建关键词 LIKE 查询
+          const likeClauses = keywords.map(() => "message LIKE ?").join(' OR ');
+          const likeParams = keywords.map(k => `%${k}%`);
+          const sql = `SELECT id, message, response, timestamp FROM interactions WHERE ${likeClauses} AND role = 'user' ORDER BY timestamp DESC LIMIT ?`;
+          const params = [...likeParams, Math.max(limit * 3, 20)];
+
+          db!.all(sql, params, (err2, rows: any[]) => {
+            clearTimeout(timeout);
+            if (err2) {
+              logger.warn('[Retriever] interactions 查询失败:', err2.message);
+              resolve([]);
+              return;
+            }
+
+            if (!rows || rows.length === 0) {
+              // 回退：返回最近 N 条记录
+              fallbackRecent(db!, limit, resolve, null);
+              return;
+            }
+
+            // 计算相似度并排序
+            const scored = rows.map((row: any) => ({
+              id: row.id,
+              message: row.message || '',
+              response: row.response || '',
+              timestamp: row.timestamp || '',
+              similarity: keywordSimilarity(text, row.message || ''),
+            }));
+
+            scored.sort((a, b) => b.similarity - a.similarity);
+            resolve(scored.slice(0, limit));
+          });
+        });
+      } catch (e: any) {
+        clearTimeout(timeout);
+        logger.warn('[Retriever] interactions 检索异常:', e.message);
+        resolve([]);
+      }
+    });
+
+    const elapsed = Date.now() - start;
+    if (elapsed > 1000) {
+      logger.warn(`[Retriever] interactions retrieval took ${elapsed}ms`);
+    }
+
+    if (result.length > 0) {
+      logger.info(`[Retriever] 交互历史检索: "${text.slice(0, 30)}" → ${result.length} 条 (${elapsed}ms)`);
+    }
+    return result;
+  } catch (e: any) {
+    logger.warn('[Retriever] 交互历史检索失败:', e.message);
+    return [];
+  }
+}
+
+/** 从中文/英文文本中提取关键词 */
+function extractKeywords(text: string): string[] {
+  const cleaned = text.replace(/[^\w一-鿿]/g, ' ').trim();
+  if (!cleaned) return [];
+
+  // 分词：中文按字分隔但保留2-4字词组，英文按空格分词
+  const words: string[] = [];
+
+  // 提取中文词组（2-4 字）
+  const chineseChars = cleaned.match(/[一-鿿]+/g);
+  if (chineseChars) {
+    for (const segment of chineseChars) {
+      if (segment.length <= 4) {
+        words.push(segment);
+      } else {
+        // 滑动窗口提取 2-4 字词组
+        for (let len = 4; len >= 2; len--) {
+          for (let i = 0; i <= segment.length - len; i++) {
+            words.push(segment.slice(i, i + len));
+          }
+        }
+      }
+    }
+  }
+
+  // 提取英文单词（>2 个字符）
+  const englishWords = cleaned.match(/[a-zA-Z]{3,}/g);
+  if (englishWords) {
+    words.push(...englishWords.map(w => w.toLowerCase()));
+  }
+
+  // 去重 + 过滤停用词
+  const stopWords = new Set(['这个', '那个', '什么', '怎么', '为什么', '能不能', '可以', '需要', '现在', '应该', 'the', 'and', 'for', 'that', 'this', 'what', 'how', 'can', 'you', 'are', 'was']);
+  return [...new Set(words)]
+    .filter(w => w.length >= 2 && !stopWords.has(w))
+    .slice(0, 10); // 最多 10 个关键词
+}
+
+/** 计算关键词匹配相似度 */
+function keywordSimilarity(query: string, target: string): number {
+  const qLower = query.toLowerCase();
+  const tLower = target.toLowerCase();
+
+  // 精确子串匹配得分最高
+  if (tLower.includes(qLower)) return 1.0;
+
+  // 关键词匹配
+  const qWords = extractKeywords(query);
+  if (qWords.length === 0) return 0;
+
+  let matchCount = 0;
+  for (const word of qWords) {
+    if (tLower.includes(word.toLowerCase())) {
+      matchCount++;
+    }
+  }
+
+  return matchCount / qWords.length;
+}
+
+/** 回退：返回最近 N 条用户消息 */
+function fallbackRecent(
+  db: sqlite3.Database,
+  limit: number,
+  resolve: (value: InteractionMemory[]) => void,
+  timeout: NodeJS.Timeout | null,
+): void {
+  if (timeout) clearTimeout(timeout);
+  db.all(
+    "SELECT id, message, response, timestamp FROM interactions WHERE role = 'user' ORDER BY timestamp DESC LIMIT ?",
+    [limit],
+    (err, rows: any[]) => {
+      db.close();
+      if (err || !rows) {
+        logger.warn('[Retriever] 回退查询失败:', err?.message);
+        resolve([]);
+        return;
+      }
+      const result = rows.map((r: any) => ({
+        id: r.id,
+        message: r.message || '',
+        response: r.response || '',
+        timestamp: r.timestamp || '',
+        similarity: 0,
+      }));
+      logger.info(`[Retriever] 关键词匹配失败，回退最近 ${result.length} 条记录`);
+      resolve(result);
+    },
+  );
 }
