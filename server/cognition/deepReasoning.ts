@@ -12,6 +12,7 @@ export interface DeepReasoningInput {
   text: string;
   userId?: string;
   personalityName?: string;
+  context?: string;
 }
 
 export interface RetrievalResult {
@@ -424,7 +425,7 @@ export async function executeDeepReasoning(
   input: DeepReasoningInput,
   llmCall: LLMCallFn,
 ): Promise<DeepReasoningResult> {
-  const { text } = input;
+  const { text, context } = input;
   let llmCallsUsed = 0;
   let degraded = false;
 
@@ -434,11 +435,12 @@ export async function executeDeepReasoning(
 
   // ── 第2层：规则推演（LLM 调用 #1）──
   const { system: deduceSys, user: deduceUser } = buildDeductionPrompt(text, retrieval);
+  const deduceSysWithContext = context ? deduceSys + `\n\n## 当前上下文信息\n${context}\n` : deduceSys;
   let deductionJson: any = null;
 
   try {
     const deduceRaw = await withTimeout(
-      llmCall({ systemPrompt: deduceSys, userPrompt: deduceUser, maxTokens: 1200 }),
+      llmCall({ systemPrompt: deduceSysWithContext, userPrompt: deduceUser, maxTokens: 1200 }),
       20000,
     );
     llmCallsUsed++;

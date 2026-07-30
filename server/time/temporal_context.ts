@@ -3,6 +3,7 @@
 import { getUserNow, getDateString, getDayOfWeekCN, getTimeOfDay, getSeasonInfo, getNearbyHoliday, getMonthDay, isWeekend, hoursSince, daysSince, minutesSince, formatDuration } from './utils';
 import { queryMemories } from '../memory/store';
 import { readDB } from '../../db_layer';
+import sqlite3 from 'sqlite3';
 
 export interface TemporalContext {
   dateString: string;
@@ -16,9 +17,15 @@ export interface TemporalContext {
   sessionDurationMinutes: number;
   recentMemoryCount: number;
   userTimezone: string;
+  /** Total user messages since the beginning of the relationship */
+  totalInteractionCount: number;
+  /** ISO timestamp of the first interaction ever */
+  firstInteractionDate: string;
+  /** Number of days since the first interaction */
+  daysSinceFirstInteraction: number;
 }
 
-export function buildTemporalContext(userId: string): TemporalContext {
+export async function buildTemporalContext(userId: string): Promise<TemporalContext> {
   const now = getUserNow(userId);
   const holiday = getNearbyHoliday(userId);
 
@@ -56,6 +63,32 @@ export function buildTemporalContext(userId: string): TemporalContext {
     recentMemoryCount = queryMemories({ userId, after: sevenDaysAgo, limit: 1000 }).length;
   } catch {}
 
+  // ── 关系时长：从 peppa.db interactions 表中查出最早交互时间 ──
+  let totalInteractionCount = 0;
+  let firstInteractionDate = '';
+  let daysSinceFirstInteraction = 0;
+  try {
+    const peppaDbPath = process.env.DB_PATH || '/app/data/peppa.db';
+    const db = new sqlite3.Database(peppaDbPath);
+    await new Promise<void>((resolve) => {
+      db.get(
+        "SELECT COUNT(*) as cnt, MIN(timestamp) as first FROM interactions WHERE role = 'user'",
+        (err, row: any) => {
+          if (!err && row) {
+            totalInteractionCount = row.cnt || 0;
+            firstInteractionDate = row.first || '';
+            if (firstInteractionDate) {
+              const first = new Date(firstInteractionDate).getTime();
+              daysSinceFirstInteraction = Math.max(1, Math.round((now.getTime() - first) / 86400000));
+            }
+          }
+          db.close();
+          resolve();
+        },
+      );
+    });
+  } catch {}
+
   return {
     dateString: getDateString(userId),
     dayOfWeek: getDayOfWeekCN(userId),
@@ -67,12 +100,15 @@ export function buildTemporalContext(userId: string): TemporalContext {
     minutesSinceLastInteraction,
     sessionDurationMinutes,
     recentMemoryCount,
+    totalInteractionCount,
+    firstInteractionDate,
+    daysSinceFirstInteraction,
     userTimezone: now.toString(),
   };
 }
 
-export function generateTemporalContext(userId: string): string {
-  const ctx = buildTemporalContext(userId);
+export async function generateTemporalContext(userId: string): Promise<string> {
+  const ctx = await buildTemporalContext(userId);
 
   const lines: string[] = [];
   lines.push('\n## Temporal Context');
@@ -125,11 +161,20 @@ export function generateTemporalContext(userId: string): string {
     lines.push('- It is late at night — keep responses concise and gentle. The user may be tired.');
   }
 
+  // ── 关系时长（硬数据，LLM 必须使用）──
+  if (ctx.daysSinceFirstInteraction > 0) {
+    lines.push(`\n## Relationship Duration (HARD FACT — use these numbers directly)`);
+    lines.push(`- You have been interacting with this user for ${ctx.daysSinceFirstInteraction} days.`);
+    lines.push(`- Your first conversation was on ${ctx.firstInteractionDate.slice(0, 10)}.`);
+    lines.push(`- You have exchanged ${ctx.totalInteractionCount} messages together.`);
+    lines.push(`- CRITICAL: When the user asks "how long have we known each other" or similar, you MUST answer with the specific number of days (${ctx.daysSinceFirstInteraction} days). Never say "we just met" or "only this session." You have ${ctx.daysSinceFirstInteraction} days of shared history.`);
+  }
+
   return lines.join('\n');
 }
 
-export function generateTemporalContextBrief(userId: string): string {
-  const ctx = buildTemporalContext(userId);
+export async function generateTemporalContextBrief(userId: string): Promise<string> {
+  const ctx = await buildTemporalContext(userId);
   const parts: string[] = [ctx.dateString, ctx.dayOfWeek, ctx.season.seasonCN];
   if (ctx.holiday?.isToday) {
     parts.push(ctx.holiday.nameCN);

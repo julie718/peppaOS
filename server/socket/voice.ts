@@ -1455,7 +1455,7 @@ export function registerVoiceHandlers(
     let temporalBlock = '';
     try {
       const { generateTemporalContext } = await import('../time/temporal_context');
-      temporalBlock = generateTemporalContext(userId);
+      temporalBlock = await generateTemporalContext(userId);
     } catch {}
 
     // Fetch a few recent memories for personalization
