@@ -29,7 +29,7 @@ export function createStream(
 
   const apiKey = getApiKey();
   const model = 'qwen3-asr-flash-realtime';
-  const url = `wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=${model}`;
+  const url = `wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=${model}&workspaceId=ws-wwf4o5cgjc8kd3fk`;
 
   const WebSocketImpl = (globalThis as any).WebSocket;
   if (!WebSocketImpl) {
