@@ -24,13 +24,13 @@ import { getOrCreateActiveConversation, addMessage, getMessages, getMessagesByTo
 import { ensureBranch } from "../memory/tree";
 import { detectAndSwitchTopic } from "../memory/focusStack";
 import { getPrefetchedContext, clearPrefetchedContext, touchActivity } from "../memory/prefetch";
-import { getLifeSystem } from "../life/index.js";
+import { getLifeSystem, getDirectionState } from "../life/index.js";
 import { getVitality } from "../life/vitality.js";
 import { getEmotionEngine } from "../life/emotions.js";
 import { getRelationshipEngine } from "../life/relationship.js";
 import { onInteractionComplete } from "../life/relationshipAwareness.js";
 import { routeMessage, isInstinctQuery, isIdentityQuery } from "../cognition/router.js";
-import { executeDeepReasoning } from "../cognition/deepReasoning.js";
+import { getSelfState, synthesizeResponse } from "../cognition/deepReasoning.js";
 import { generateIdentityResponse, generateHowAreYouResponse } from "../life/narrative.js";
 import { touchUserActivity } from "../life/userState.js";
 import { getUnrespondedObservations, markObservationResponded } from "../db/lifeDb.js";
@@ -936,46 +936,91 @@ export function registerChatHandler(
         }
         try { const db = readDB(); db.interactions.push({ id: `instinct_${Date.now()}`, userId: uid, agentId: agentId || '', conversationId: conversationId || '', content: storedUserContent, response: reply, role: 'user', personality: personality.id, timestamp: new Date().toISOString(), cognitiveIntent: 'conversation', llmWasCalled: false, domain: resolvedDomain, orgId: resolvedOrgId }); writeDB(db); } catch {}
 
+        console.log("[本能层] 准备发送回复:", reply);
         socket.emit('agent:response', { text: reply, agentName: personality.name, source: 'instinct', requestId: requestId || undefined });
         logger.info('[ChatHandler] 本能层拦截:', text.slice(0, 30));
         chatSessionMap.delete(sessionKey);
         return;
       }
 
-      // ── 深度推理层：观点/分析/对比类问题 — 四层推理引擎 ──
+      // ── 深度推理层：优先使用自身状态生成回复 ──
       if (route.layer === 'deep_reasoning') {
-        logger.info('[ChatHandler] 深度推理层触发:', text.slice(0, 40));
+        logger.info('[ChatHandler] 深度推理层触发（自身状态模式）:', text.slice(0, 40));
         try {
-          // 构建 LLM 调用函数（封装 makeLLMCall）
-          const llmCallFn = async (params: { systemPrompt: string; userPrompt: string; maxTokens?: number }) => {
-            const messages: NormalizedMessage[] = [
-              { role: 'system', content: params.systemPrompt },
-              { role: 'user', content: params.userPrompt },
-            ];
-            const result = await makeLLMCall(
-              messages, [],
-              {
-                provider: activeProvider,
-                model: activeProvider === 'deepseek' ? 'deepseek-v4-pro' : activeModel,
-                userId: uid,
-                maxTokens: params.maxTokens || 1200,
-                domain: resolvedDomain,
-                orgId: resolvedOrgId,
-              },
-              llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI,
-              llmGetters.getAnthropic, llmGetters.getQwen, llmGetters.getOllama,
-              llmGetters.getLmStudio, llmGetters.getArk, llmGetters.getXiaomi,
-              llmGetters.getKimi, llmGetters.getGlm, llmGetters.getRelay,
-            );
-            return result.text || '';
+          const selfState = await getSelfState();
+          logger.info('[Debug] selfState 内容:', JSON.stringify(selfState));
+
+          // ── 实体提取：从用户消息中提取人物、事件、动作 ──
+          const peopleKeywords = ['同事', '老板', '朋友', '家人', '领导', '同学', '伴侣', '师傅', '邻居', '客户', '合伙人'];
+          const eventKeywords = [
+            // 职业类
+            '换工作', '跳槽', '转行', '裸辞', '辞职', '找工作', '面试', '升职', '加薪',
+            // 生活类
+            '换城市', '搬家', '买房', '租房', '买车', '结婚', '离婚', '分手', '复合',
+            // 情感类
+            '道歉', '表白', '求婚', '感谢', '和好',
+            // 创业/投资类
+            '创业', '投资', '理财', '炒股',
+            // 决策类
+            '决定', '选择', '放弃', '坚持'
+          ];
+          const actionKeywords = [
+            '说', '做', '去', '找', '问', '要', '给', '聊', '谈', '讲', '写', '发',
+            '告诉', '分享', '通知', '转告', '告知', '透露', '交代', '表示', '表达',
+            '聊', '谈', '讨论', '商议', '商量', '协商'
+          ];
+          const extractedEntities = {
+            people: peopleKeywords.filter(k => text.includes(k)),
+            events: eventKeywords.filter(k => text.includes(k)),
+            actions: actionKeywords.filter(k => text.includes(k)),
           };
+          console.log('[实体提取] 人物:', extractedEntities.people, '事件:', extractedEntities.events, '动作:', extractedEntities.actions);
 
-          const reasoningResult = await executeDeepReasoning(
-            { text, userId: uid, personalityName: personality.name, context: effectiveSystemPrompt },
-            llmCallFn,
+          const directionState = getDirectionState();
+          await directionState.load();
+          const direction = await directionState.updateFromState(
+            selfState.emotion,
+            selfState.personality,
+            extractedEntities
           );
+          const emotion = selfState?.emotion;
+          const personality = selfState?.personality;
+          const deduction: any = {
+            domain: '人际沟通',
+            steps: ['基于当前情绪、人格状态和表达倾向生成判断'],
+            pro_position: emotion && personality
+              ? `基于我的状态（情绪：${emotion.emotion_type}(${Math.round(emotion.intensity * 100)}%)，人格倾向：偏主动，表达倾向：${direction.inclination}），我倾向于...`
+              : '我倾向于...',
+            con_position: emotion
+              ? `我现在的状态是${emotion.emotion_type}，表达倾向${direction.inclination}(${direction.reason})，所以...`
+              : '我不会盲目鼓励你做任何事。',
+            intermediate_conclusion: emotion && personality
+              ? `我的状态决定了我的判断：${emotion.emotion_type}让我更谨慎，偏主动让我倾向于主动处理。表达倾向${direction.inclination}影响我的立场。`
+              : '我建议你说清楚，但不强求。',
+            direction: {
+              inclination: direction.inclination,
+              intensity: direction.intensity,
+              reason: direction.reason,
+            },
+          };
+          // 将 context 融入 deduction，让回复内容更具针对性
+          if (extractedEntities && (extractedEntities.events.length > 0 || extractedEntities.people.length > 0)) {
+            const contextInfo = [];
+            if (extractedEntities.events.length > 0) {
+              contextInfo.push(`你提到了 ${extractedEntities.events.join('、')}`);
+            }
+            if (extractedEntities.people.length > 0) {
+              contextInfo.push(`涉及 ${extractedEntities.people.join('、')}`);
+            }
+            if (contextInfo.length > 0) {
+              deduction.context_note = contextInfo.join('，');
+              // 将 context 信息融入 intermediate_conclusion
+              deduction.intermediate_conclusion += ` 基于你提到的内容，我给出以下判断。`;
+            }
+          }
 
-          const reply = reasoningResult.answer;
+          const reply = synthesizeResponse(text, deduction, null, { score: 70, dataCompleteness: 50, ruleSoundness: 70, verifiability: 50, uncertaintyFactors: [] }, { sources: [], summary: '', dataGaps: [] }, false);
+          logger.info('[Debug] reply 内容:', reply);
 
           // 存入数据库
           if (conversationId) {
@@ -995,12 +1040,15 @@ export function registerChatHandler(
               personality: personality.id,
               timestamp: new Date().toISOString(),
               cognitiveIntent: 'deep_reasoning',
-              llmWasCalled: true,
+              llmWasCalled: false,
               domain: resolvedDomain,
               orgId: resolvedOrgId,
             });
             writeDB(db);
           } catch {}
+
+          logger.info('[Debug] 准备发送 agent:response，reply 长度:', reply?.length);
+          logger.info('[Debug] socket.connected:', socket.connected);
 
           socket.emit('agent:response', {
             text: reply,
@@ -1008,15 +1056,14 @@ export function registerChatHandler(
             source: 'deep_reasoning',
             requestId: requestId || undefined,
             metadata: {
-              confidence: reasoningResult.confidence.score,
-              llmCalls: reasoningResult.llmCallsUsed,
-              degraded: reasoningResult.degraded,
-              domain: reasoningResult.reasoning.domain,
-              framework: reasoningResult.reasoning.framework,
+              confidence: 70,
+              llmCalls: 0,
+              degraded: false,
+              domain: 'self_state',
+              framework: '自身状态判断',
             },
           });
-          logger.info('[ChatHandler] 深度推理完成: confidence=%d, llmCalls=%d, degraded=%s',
-            reasoningResult.confidence.score, reasoningResult.llmCallsUsed, reasoningResult.degraded);
+          logger.info('[ChatHandler] 自身状态回复完成');
         } catch (e: any) {
           logger.error('[ChatHandler] 深度推理失败:', e.message);
           socket.emit('agent:response', {

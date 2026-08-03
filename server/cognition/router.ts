@@ -1,7 +1,7 @@
 // 统一消息路由引擎 — 本能层 → 工具层 → 认知层 → 深度推理 → Orchestrator
 // 规则处理明确类型（0 Token），LLM 仅用于模糊边界
 import { logger } from '../lib/logger.js';
-import { isDeepReasoningQuery } from './deepReasoning.js';
+import { isDeepReasoningQuery, getSelfState } from './deepReasoning.js';
 
 // ── 路由层级 ──
 export type RouteLayer = 'instinct' | 'tool' | 'cognitive' | 'deep_reasoning' | 'orchestrator' | 'unknown';
@@ -10,6 +10,7 @@ export interface RouteResult {
   layer: RouteLayer;
   reason: string;
   trace: string[];           // 完整决策路径
+  canSelfRespond?: boolean;  // 自我评估：基于情绪和人格的置信度
 }
 
 // ── 第1层：本能层模式 ──
@@ -39,7 +40,7 @@ const STOCK_PATTERNS: RegExp[] = [
 ];
 
 const LOOKUP_PATTERNS: RegExp[] = [
-  /查|搜|找|看|去查|去搜|去找|去看|帮我查|帮我搜|帮我找|帮我看|搜索|查询|查找|联网|浏览|网页|网址|链接|验证|调研|知不知道|知道吗|告诉我|介绍|有什么|有哪些|什么是|怎么样|如何|是谁|在哪里|什么时候|多少钱/u,
+  /去查|去搜|去找|去看|帮我查|帮我搜|帮我找|帮我看|搜索|查询|查找|联网|浏览|网页|网址|链接|验证|调研|知不知道|知道吗|告诉我|介绍|有什么|有哪些|什么是|怎么样|如何|是谁|在哪里|什么时候|多少钱/u,
   /\b(search|look\s*up|browse|fetch|research|find|check)\b/i,
 ];
 
@@ -71,30 +72,41 @@ export async function routeMessage(
   const trace: string[] = [];
   const trimmed = text.trim();
 
+  // ── 自我评估：读取情绪和人格状态，计算置信度 ──
+  let canSelfRespond = false;
+  try {
+    const state = await getSelfState();
+    if (state?.emotion && state?.personality) {
+      const vec = JSON.parse(state.personality.vector_json);
+      const confidence = state.emotion.intensity * 0.4 + (vec[2] || 0.5) * 0.6;
+      canSelfRespond = confidence >= 0.6;
+    }
+  } catch {}
+
   // 空消息
   if (!trimmed) {
-    return { layer: 'unknown', reason: 'empty_text', trace: ['rejected: empty'] };
+    return { layer: 'unknown', reason: 'empty_text', trace: ['rejected: empty'], canSelfRespond };
   }
 
   // 第1层：本能层（规则，0 Token）
   if (isInstinctQuery(trimmed)) {
     trace.push('instinct: matched self-aware pattern');
     logger.info(`[Router] ${trimmed.slice(0, 30)} → instinct`);
-    return { layer: 'instinct', reason: 'self_aware_query', trace };
+    return { layer: 'instinct', reason: 'self_aware_query', trace, canSelfRespond };
   }
 
-  // 第2层：工具层（规则，0 Token）
-  if (hasToolIntent(trimmed)) {
-    trace.push('tool: matched tool intent pattern');
-    logger.info(`[Router] ${trimmed.slice(0, 30)} → tool`);
-    return { layer: 'tool', reason: 'tool_intent_detected', trace };
-  }
-
-  // 第2.5层：深度推理（规则，0 Token）— 观点/分析/对比类问题
+  // 第2层：深度推理（规则，0 Token）— 观点/分析/对比类问题
   if (isDeepReasoningQuery(trimmed)) {
     trace.push('deep_reasoning: matched deep reasoning pattern');
     logger.info(`[Router] ${trimmed.slice(0, 30)} → deep_reasoning`);
-    return { layer: 'deep_reasoning', reason: 'deep_reasoning_triggered', trace };
+    return { layer: 'deep_reasoning', reason: 'deep_reasoning_triggered', trace, canSelfRespond };
+  }
+
+  // 第3层：工具层（规则，0 Token）
+  if (hasToolIntent(trimmed)) {
+    trace.push('tool: matched tool intent pattern');
+    logger.info(`[Router] ${trimmed.slice(0, 30)} → tool`);
+    return { layer: 'tool', reason: 'tool_intent_detected', trace, canSelfRespond };
   }
 
   // 第3层：认知层（复杂度判断）
@@ -105,16 +117,16 @@ export async function routeMessage(
     if (complexity === 'simple') {
       trace.push(`cognitive: complexity=${complexity} → direct LLM`);
       logger.info(`[Router] ${trimmed.slice(0, 30)} → cognitive (simple)`);
-      return { layer: 'cognitive', reason: 'simple_direct_llm', trace };
+      return { layer: 'cognitive', reason: 'simple_direct_llm', trace, canSelfRespond };
     }
 
     // 第4层：Orchestrator（LLM 任务拆解）
     trace.push(`cognitive: complexity=${complexity} → orchestrator`);
     logger.info(`[Router] ${trimmed.slice(0, 30)} → orchestrator (${complexity})`);
-    return { layer: 'orchestrator', reason: `complex_${complexity}`, trace };
+    return { layer: 'orchestrator', reason: `complex_${complexity}`, trace, canSelfRespond };
   } catch {
     trace.push('cognitive: classification failed → fallback to direct LLM');
-    return { layer: 'cognitive', reason: 'classification_error_fallback', trace };
+    return { layer: 'cognitive', reason: 'classification_error_fallback', trace, canSelfRespond };
   }
 }
 

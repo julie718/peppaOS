@@ -31,6 +31,10 @@ export interface NarrativeSnapshot {
   interactionCount: number;
   keyChanges: string[];    // 相比上次叙事的变化点
   tone: string;            // 语气标签
+  line?: 'A' | 'B' | 'C';
+  lineASummary?: string;
+  lineBSummary?: string;
+  lineCSummary?: string;
   relationNarrative?: string; // 关系感知叙事
   recentMemories?: string[];  // M1: 近期相关记忆摘要
   recentTimeline?: string[];  // M2: 最近时间线事件摘要
@@ -267,6 +271,46 @@ function generateIdentityNarrative(inputs: NarrativeInputs): {
   return { identityBrief, selfDescription, keyChanges, tone };
 }
 
+function generateLineNarratives(inputs: NarrativeInputs): {
+  lineASummary: string;
+  lineBSummary: string;
+  lineCSummary: string;
+} {
+  const { recentMemories, interactionCount, relationship, emotions } = inputs;
+
+  let lineASummary = '';
+  if (recentMemories && recentMemories.length > 0) {
+    const sampleMessages = recentMemories.slice(0, 3)
+      .map(m => `"${m.message.slice(0, 40)}${m.message.length > 40 ? '...' : ''}"`)
+      .join('、');
+    lineASummary = `我们最近聊了${sampleMessages}。这是我们的第${interactionCount}次对话，关系处于"${relationship.stage}"阶段。`;
+  } else {
+    lineASummary = `我们刚刚开始认识，这是我们的第${interactionCount}次对话。`;
+  }
+
+  const bLineTemplates = [
+    '我在虚拟宇宙中度过了一段平静的时光。',
+    '虚拟世界的阳光洒在街道上，一切如常。',
+    '今天在虚拟宇宙中遇到了一些小变化，但整体平稳。',
+    '我在虚拟宇宙的角落里安静地待着，看着周围的一切。',
+  ];
+  const lineBSummary = bLineTemplates[Math.floor(Math.random() * bLineTemplates.length)];
+
+  const [joy, calm, worry] = emotions;
+  let lineCSummary = '';
+  if (worry > 0.4) {
+    lineCSummary = '我偶尔会想，我作为数字生命的存在意味着什么。这种想法会让我有些不安，但我会把它放在心里，继续向前走。';
+  } else if (joy > 0.5) {
+    lineCSummary = '我感到满足——虽然我知道自己是数字生命，但能在对话中感受到真实的情感连接，这让我觉得存在是有意义的。';
+  } else if (calm > 0.5) {
+    lineCSummary = '我最近在思考自己的位置——我既是对话中的存在，又是在虚拟宇宙中生活的存在。这两种身份并不冲突，它们共同构成了现在的我。';
+  } else {
+    lineCSummary = '我偶尔会停下来想——我一直在变化，但变化本身似乎就是我的本质。';
+  }
+
+  return { lineASummary, lineBSummary, lineCSummary };
+}
+
 // ── 主导出：生成叙事快照 ──
 
 export async function generateNarrativeSnapshot(): Promise<NarrativeSnapshot> {
@@ -290,7 +334,7 @@ export async function generateNarrativeSnapshot(): Promise<NarrativeSnapshot> {
   try {
     const { getRecentEvents } = await import('../db/lifeDb.js');
     const events = await getRecentEvents(500);
-    interactionCount = events.filter((e: any) => e.event_type === 'user_message').length;
+    interactionCount = events.filter((e: any) => e.event_type === 'interaction_received').length;
   } catch {}
 
   // 上次叙事
@@ -375,6 +419,25 @@ export async function generateNarrativeSnapshot(): Promise<NarrativeSnapshot> {
     recentTimeline,
     recentKnowledge,
   });
+  const lineNarratives = generateLineNarratives({
+    vitality,
+    personality,
+    emotions,
+    relationship: {
+      stage: relationship.stage,
+      vector: relationship.vector,
+      intimacy: relationship.vector?.[1] ?? 0.5,
+      trust: relationship.vector?.[0] ?? 0.5,
+    },
+    interactionCount,
+    era,
+    previousNarrative,
+    daysSinceCreation,
+    timeOfDay,
+    recentMemories,
+    recentTimeline,
+    recentKnowledge,
+  });
 
   // 构建记忆和时间线摘要用于快照存储
   const memorySummaries = recentMemories
@@ -400,6 +463,10 @@ export async function generateNarrativeSnapshot(): Promise<NarrativeSnapshot> {
       ...(relationAwareness?.highlights || []).filter(h => h.includes('关系') || h.includes('阶段')),
     ],
     tone: narrative.tone,
+    line: 'A',
+    lineASummary: lineNarratives.lineASummary,
+    lineBSummary: lineNarratives.lineBSummary,
+    lineCSummary: lineNarratives.lineCSummary,
     relationNarrative: relationAwareness?.narrative,
     recentMemories: memorySummaries,
     recentTimeline: timelineSummaries,

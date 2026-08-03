@@ -122,6 +122,31 @@ export class EmotionEngine {
     if (perceptionVector && perceptionVector.length >= 12) {
       await this.receivePerception(perceptionVector, true);
     }
+
+    // 5. 昼夜节律调整
+    const hour = new Date().getHours();
+    const delta = new Array(8).fill(0);
+
+    if (hour >= 6 && hour <= 10) {
+      // 清晨：期待上升
+      delta[2] += 0.01;
+      // 平静微升
+      delta[1] += 0.005;
+      console.log(`[Emotions] 🌅 清晨节律: 期待 +0.01, 平静 +0.005`);
+    } else if (hour >= 17 && hour <= 20) {
+      // 傍晚：牵挂上升
+      delta[4] += 0.01;
+      console.log(`[Emotions] 🌆 傍晚节律: 牵挂 +0.01`);
+    } else if (hour >= 23 || hour < 6) {
+      // 深夜：平静上升
+      delta[1] += 0.01;
+      console.log(`[Emotions] 🌙 深夜节律: 平静 +0.01`);
+    }
+
+    // 应用节律调整
+    if (delta.some(v => v !== 0)) {
+      await this.updateEmotions(delta);
+    }
   }
 
   /** 接收 12 维感知特征向量，触发情绪更新 */

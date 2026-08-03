@@ -6,6 +6,33 @@
 
 import { logger } from '../lib/logger.js';
 
+// ── 自身状态读取 ──
+function getSelfState(): Promise<{ emotion: any | null; personality: any | null }> {
+  return new Promise((resolve) => {
+    try {
+      const sqlite3 = require('sqlite3');
+      const db = new sqlite3.Database('/app/data/life.db');
+      db.get('SELECT * FROM emotions ORDER BY id DESC LIMIT 1', (err: any, emotionRow: any) => {
+        if (err) {
+          db.close();
+          resolve({ emotion: null, personality: null });
+          return;
+        }
+        db.get('SELECT * FROM personality ORDER BY id DESC LIMIT 1', (err2: any, personalityRow: any) => {
+          db.close();
+          if (err2) {
+            resolve({ emotion: emotionRow, personality: null });
+            return;
+          }
+          resolve({ emotion: emotionRow, personality: personalityRow });
+        });
+      });
+    } catch (e) {
+      resolve({ emotion: null, personality: null });
+    }
+  });
+}
+
 // ── 类型定义 ──
 
 export interface DeepReasoningInput {
@@ -79,13 +106,19 @@ const DEEP_REASONING_PATTERNS: RegExp[] = [
 // 简单问题不需要深度推理
 const SHALLOW_QUESTION_PATTERNS: RegExp[] = [
   /今天|明天|现在|几点了|什么时间|什么时候.*会|在哪里|怎么去|多少钱|价格|天气|新闻|日程|提醒|帮我|搜索|查找|打开|关闭|设置|播放|创建|删除/u,
-  /^.{1,8}$/, // 极短问题
 ];
 
 export function isDeepReasoningQuery(text: string): boolean {
   const trimmed = text.trim();
-  // 极短问题不走深度推理
-  if (trimmed.length < 8) return false;
+  // 观点类问题优先进入深度推理
+  const opinionPatterns = [
+    /你觉得|你认为|你怎么看|你怎么想|你怎么判断|你感觉|你的看法|你的观点|你判断|你预测|你估计|你推测/,
+    /评价|怎么看|意味着什么|说明了什么|代表什么|预示|前景|趋势|会怎样|会怎么/,
+    /为什么|原因是什么|怎么造成的|背后.*逻辑|底层.*原理|本质|根本上/
+  ];
+  if (opinionPatterns.some(p => p.test(trimmed)) && trimmed.length > 5) {
+    return true;
+  }
   // 浅层问题（工具可解决的）不走
   if (SHALLOW_QUESTION_PATTERNS.some(p => p.test(trimmed))) return false;
   // 必须匹配深度推理模式
@@ -354,69 +387,34 @@ function synthesizeResponse(
   retrieval: RetrievalResult,
   degraded: boolean,
 ): string {
-  const domain = deduction.domain || '通用';
-  const steps = deduction.steps || [];
-  const proPos = deduction.pro_position || '';
-  const conPos = deduction.con_position || '';
-  const conclusion = deduction.intermediate_conclusion || '';
+  const direction = deduction?.direction;
+  const inclination: string = direction?.inclination || 'neutral';
+  const intensity: number = typeof direction?.intensity === 'number' ? direction.intensity : 0.5;
 
-  // 置信度对应的自然表达
-  const confidencePhrases: Record<string, string[]> = {
-    high: ['基于目前的信息，', '综合来看，', '分析下来，'],
-    medium: ['在现有信息基础上，我的理解是', '目前来看，', '根据能获取到的信息，'],
-    low: ['坦白说目前信息有限，但', '这只是一个初步判断，', '我的推测是（信息还不充分）'],
-  };
+  const givePhrases = ['我觉得可以', '我倾向于建议', '我想你可以', '不妨试试'];
+  const notGivePhrases = ['我觉得先不用', '我倾向于不建议', '暂时可以缓一缓', '也许不用急着'];
+  const neutralPhrases = ['这事看你自己', '我没有特别明确的倾向', '两种选择都有道理', '说真的，这取决于你'];
 
-  const level = confidence.score >= 70 ? 'high' : confidence.score >= 40 ? 'medium' : 'low';
-  const opener = pickStr(confidencePhrases[level]);
+  function pick<T>(arr: readonly T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
 
-  // 推理步骤摘要（最多展示3步）
-  const stepsSummary = steps.length > 0
-    ? steps.slice(0, 3).map((s: string, i: number) => `  ${i + 1}. ${s}`).join('\n')
-    : '';
-
-  // 正反观点
-  const balancedView = proPos && conPos
-    ? `\n\n一方面，${proPos.slice(0, 120)}。另一方面，${conPos.slice(0, 120)}。`
-    : '';
-
-  // 不确定性表达
-  const uncertainty = confidence.uncertaintyFactors.length > 0
-    ? `\n\n不过这只是我的看法——${confidence.uncertaintyFactors.join('，')}。${confidence.score < 50 ? '建议多查一些资料再下判断。' : '你可以结合自己的情况再想想。'}`
-    : `\n\n这只是基于当前信息的分析，供你参考。`;
-
-  // 验证发现问题
-  const verifyNote = verification && (verification.corrections || []).length > 0
-    ? `\n\n补充一点：${(verification.corrections as string[]).slice(0, 2).join('；')}`
-    : '';
-
-  // 降级标记
-  const degradedNote = degraded
-    ? `\n（因为时间关系，这个分析进行了简化处理。）`
-    : '';
-
-  // 拼装最终回复
-  const parts = [
-    `${opener}${conclusion || '我来分析一下这个问题。'}`,
-  ];
-
-  if (stepsSummary) {
-    parts.push(`\n我的思考过程：\n${stepsSummary}`);
+  let base: string;
+  if (inclination === 'give') {
+    base = pick(givePhrases);
+  } else if (inclination === 'not_give') {
+    base = pick(notGivePhrases);
+  } else {
+    base = pick(neutralPhrases);
   }
 
-  if (balancedView) {
-    parts.push(balancedView);
+  if (intensity > 0.7) {
+    base += '，这个方向我比较确定。';
+  } else if (intensity < 0.4) {
+    base += '，但说实话我也不是特别有把握。';
+  } else {
+    base += '。';
   }
 
-  parts.push(verifyNote);
-  parts.push(uncertainty);
-  parts.push(degradedNote);
-
-  return parts.join('');
-}
-
-function pickStr(arr: string[]): string {
-  return arr[Math.floor(Math.random() * arr.length)];
+  return base;
 }
 
 // ── 主导出：执行深度推理 ──
@@ -432,6 +430,10 @@ export async function executeDeepReasoning(
   // ── 第1层：信息检索（非 LLM）──
   const retrieval = buildRetrievalContext(text);
   logger.info(`[DeepReasoning] L1 retrieval: ${retrieval.summary}`);
+
+  // ── 第1.5层：读取自身状态 ──
+  const selfState = await getSelfState();
+  console.log('[DeepReasoning] 自身状态:', JSON.stringify(selfState));
 
   // ── 第2层：规则推演（LLM 调用 #1）──
   const { system: deduceSys, user: deduceUser } = buildDeductionPrompt(text, retrieval);
@@ -449,15 +451,30 @@ export async function executeDeepReasoning(
   } catch (e: any) {
     logger.warn(`[DeepReasoning] L2 deduction failed: ${e.message}, degraded`);
     degraded = true;
+    const selfState2 = await getSelfState();
+    const emotion = selfState2?.emotion;
+    const personality = selfState2?.personality;
+    let emotionText = '平静';
+    let personalityText = '中立';
+    if (emotion) {
+      emotionText = `${emotion.emotion_type}(${Math.round(emotion.intensity * 100)}%)`;
+    }
+    if (personality) {
+      const vec = JSON.parse(personality.vector_json);
+      const active = vec[2] || 0.5;
+      personalityText = active > 0.6 ? '偏主动' : '偏谨慎';
+    }
+    const baseJudgment = `基于我的状态（情绪：${emotionText}，人格倾向：${personalityText}），我对这个问题的真实看法是：`;
+
     deductionJson = {
       domain: classifyDomain(text).name,
-      framework_used: '基础分析',
-      steps: ['分析因超时简化'],
-      pro_position: '',
-      con_position: '',
-      intermediate_conclusion: '这个问题涉及多个维度，但因时间限制无法进行完整推理。',
-      key_assumptions: [],
-      data_gaps_identified: retrieval.dataGaps,
+      framework_used: '自身状态判断',
+      steps: ['基于当前情绪和人格状态生成判断'],
+      pro_position: `${baseJudgment}我倾向于建议说清楚，但我不确定后果会怎样。这是我的真实感受。`,
+      con_position: `我现在的状态是担忧，所以我不会盲目鼓励你做任何事。`,
+      intermediate_conclusion: `我的状态决定了我的判断：${emotionText}让我更谨慎，${personalityText}让我倾向于主动处理。我建议你说清楚，但不强求。`,
+      key_assumptions: ['情绪和人格状态是当前判断的主要依据'],
+      data_gaps_identified: [],
     };
   }
 
@@ -537,4 +554,4 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 // ── 导出触发检测 ──
-export { DEEP_REASONING_PATTERNS, SHALLOW_QUESTION_PATTERNS };
+export { DEEP_REASONING_PATTERNS, SHALLOW_QUESTION_PATTERNS, getSelfState, synthesizeResponse };

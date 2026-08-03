@@ -1,0 +1,59 @@
+import { logger } from '../lib/logger';
+import { allTriggers } from './triggers';
+
+export type ProactiveScene =
+  | 'morning_greeting'
+  | 'long_silence'
+  | 'memory_trigger'
+  | 'health_perception'
+  | 'emotion_share';
+
+export interface TriggerResult {
+  triggered: boolean;
+  scene?: ProactiveScene;
+  content?: string;
+  reason?: string;
+}
+
+export interface ProactiveTrigger {
+  name: string;
+  check: () => Promise<TriggerResult>;
+}
+
+export class ProactiveManager {
+  private triggers: ProactiveTrigger[] = [];
+  private initialized = false;
+
+  init(): void {
+    if (this.initialized) return;
+    for (const trigger of allTriggers) {
+      this.register(trigger);
+    }
+    this.initialized = true;
+    logger.info(`[Proactive] 已初始化，注册了 ${this.triggers.length} 个触发器`);
+  }
+
+  register(trigger: ProactiveTrigger): void {
+    this.triggers.push(trigger);
+    logger.info(`[Proactive] 注册触发器: ${trigger.name}`);
+  }
+
+  async run(): Promise<void> {
+    if (!this.initialized) {
+      this.init();
+    }
+    for (const trigger of this.triggers) {
+      try {
+        const result = await trigger.check();
+        if (result.triggered) {
+          logger.info(`[Proactive] 触发: ${result.scene} - ${result.reason}`);
+          // TODO: 推送到前端
+        }
+      } catch (e) {
+        logger.error(`[Proactive] 触发器 ${trigger.name} 执行失败: ${e}`);
+      }
+    }
+  }
+}
+
+export const proactiveManager = new ProactiveManager();

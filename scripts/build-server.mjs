@@ -1,5 +1,7 @@
 import { build } from 'esbuild';
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, cpSync } from 'node:fs';
+import { join } from 'node:path';
+import { execSync } from 'node:child_process';
 
 await build({
   entryPoints: ['server.ts'],
@@ -13,7 +15,19 @@ await build({
   },
 });
 
-// Generate entry.cjs for CommonJS environments (Tauri node.exe, production serve)
+// 复制 proactive 目录到 dist-server
+const srcProactive = join(process.cwd(), 'server/proactive');
+const destProactive = join(process.cwd(), 'dist-server/proactive');
+try {
+  cpSync(srcProactive, destProactive, { recursive: true, force: true });
+  // 编译 proactive 目录中的 TypeScript 文件
+  execSync('npx tsc dist-server/proactive/*.ts --outDir dist-server/proactive --module commonjs --target es2020 --esModuleInterop', { stdio: 'inherit' });
+  console.log('[build-server] Copied and compiled proactive/ to dist-server/');
+} catch (e) {
+  console.log('[build-server] proactive/ not found, skipping');
+}
+
+// Generate entry.cjs for CommonJS environments
 mkdirSync('dist-server', { recursive: true });
 writeFileSync('dist-server/entry.cjs', `// CJS entry point - dynamically imports the ESM server bundle.
 
@@ -54,7 +68,6 @@ import('./server.mjs').catch(err => {
 });
 `);
 
-// Generate hide-console.cjs — required by Tauri production spawn via NODE_OPTIONS (Windows only)
 if (process.platform === 'win32') {
 writeFileSync('dist-server/hide-console.cjs', `// Hide console window on Windows desktop app
 if (process.platform === 'win32') {

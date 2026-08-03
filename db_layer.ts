@@ -286,6 +286,15 @@ function createTables(): Promise<void> {
         category TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS event_log (
+        id TEXT PRIMARY KEY,
+        timestamp TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        session_id TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE TABLE IF NOT EXISTS skills (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -945,4 +954,27 @@ export async function querySQL<T = any>(sql: string, params: any[] = []): Promis
 
 export async function runSQL(sql: string, params: any[] = []): Promise<void> {
   return run(sql, params);
+}
+
+/**
+ * 写入事件到 event_log 表
+ * @param eventType 事件类型（如 'USER_SAID', 'EMOTION_CHANGED', 'TICK' 等）
+ * @param payload 事件数据（任意对象）
+ * @param sessionId 会话ID（可选）
+ */
+export async function appendEvent(
+  eventType: string,
+  payload: any,
+  sessionId?: string
+): Promise<void> {
+  const id = crypto.randomUUID();
+  const timestamp = new Date().toISOString();
+  const payloadStr = JSON.stringify(payload);
+
+  const sql = `
+    INSERT INTO event_log (id, timestamp, event_type, payload, session_id)
+    VALUES (?, ?, ?, ?, ?)
+  `;
+
+  await runSQL(sql, [id, timestamp, eventType, payloadStr, sessionId || null]);
 }

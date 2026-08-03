@@ -352,6 +352,16 @@ export function classifyComplexity(
   const clauseCount = trimmed.split(/[.。!！?？\n]+/).filter(s => s.trim().length > 0).length;
   if (simpleHits.length >= 1 && clauseCount <= 1) return 'simple';
 
+  // 观点类问题 → 进入深度推理
+  const opinionPatterns = [
+    /你觉得|你认为|你怎么看|你怎么想|你怎么判断|你感觉|你的看法|你的观点|你判断|你预测|你估计|你推测/,
+    /评价|怎么看|意味着什么|说明了什么|代表什么|预示|前景|趋势|会怎样|会怎么/,
+    /为什么|原因是什么|怎么造成的|背后.*逻辑|底层.*原理|本质|根本上/
+  ];
+  if (opinionPatterns.some(p => p.test(text)) && text.length > 5) {
+    return 'moderate';
+  }
+
   // ── Fallback size-based heuristics ──
   const chineseChars = (text.match(/[一-鿿]/g) || []).length;
   const wordCount = text.split(/\s+/).length;

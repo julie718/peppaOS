@@ -4,6 +4,7 @@
 import { getPersonalityEngine, Personality } from './personality.js';
 import { getEmotionEngine, EmotionEngine } from './emotions.js';
 import { getDesireEngineV2, DesireEngine } from './desires.js';
+import { getDirectionState } from './direction.js';
 import { getSelfAwarenessEngine, SelfAwarenessEngine } from './selfAwareness.js';
 import { getRelationshipEngine, RelationshipEngine } from './relationship.js';
 // checkGates/recordHeartbeat 由 injector.ts 内部调用，life/index.ts 只需 triggerHeartbeatIfReady
@@ -355,6 +356,12 @@ export class LifeSystem {
         await this.emotions.tickEmotions();
       }, errors);
 
+      // 步骤 1.5: 方向状态自然演进
+      await this.safeCall('direction.tick', async () => {
+        const directionState = getDirectionState();
+        await directionState.tick();
+      }, errors);
+
       // 步骤 2: 欲望生成与衰减
       await this.safeCall('desires.generate', async () => {
         await this.desires.generateDesires();
@@ -395,6 +402,19 @@ export class LifeSystem {
       await this.safeCall('selfAwareness.reflection', async () => {
         await this.selfAwareness.triggerReflection();
       }, errors);
+
+      // 步骤 5.6: 主动行为检查（直接执行）
+      try {
+        console.log('[主动行为] 检查开始（直接执行）');
+        const { execSync } = require('child_process');
+        const output = execSync('npx tsx server/proactive/index.ts', {
+          encoding: 'utf8',
+          cwd: '/app'
+        });
+        console.log('[主动行为] 输出:', output);
+      } catch (e: any) {
+        console.error('[主动行为] 执行失败:', e.message);
+      }
 
       // 步骤 5.5: 自我叙事（每24小时一次）
       await this.safeCall('narrative.daily', async () => {
@@ -656,3 +676,9 @@ export function getLifeSystem(): LifeSystem {
   if (!instance) instance = new LifeSystem();
   return instance;
 }
+
+export { DirectionState, getDirectionState } from './direction.js';
+export type { DirectionSnapshot, DirectionInclination } from './direction.js';
+
+// ---- 导入主动行为管理器 ----
+import { proactiveManager } from '../proactive/index.js';
