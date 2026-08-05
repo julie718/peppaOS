@@ -377,6 +377,143 @@ function assessConfidence(
   };
 }
 
+// ── 信息完整性判断 + 追问框架 ──
+
+type QuestionType = 'career' | 'relationship' | 'investment' | 'choice' | 'analysis' | 'general' | 'unknown';
+
+interface InformationGap {
+  dimension: string;
+  question: string;
+  priority: number;
+}
+
+function getQuestionType(text: string, nluIntent?: { intent: string; confidence: number } | null): QuestionType {
+  const intent = nluIntent?.intent || '';
+
+  if (intent === 'seek_advice' || intent === 'ask_opinion') {
+    const lower = text.toLowerCase();
+    if (/工作|职业|跳槽|换工作|辞职|升职|加薪|行业|公司|老板|同事|上班|打工|offer|面试/.test(lower)) {
+      return 'career';
+    }
+    if (/女朋友|男朋友|老婆|老公|恋人|恋爱|分手|吵架|复合|喜欢|表白|相亲|对象|感情/.test(lower)) {
+      return 'relationship';
+    }
+    if (/投资|股票|基金|买房|理财|存款|贷款|买车|创业|生意/.test(lower)) {
+      return 'investment';
+    }
+    if (/选|选择|哪个|A方案|B方案|两种|纠结/.test(lower)) {
+      return 'choice';
+    }
+    if (/分析|怎么看|什么看法|什么观点|怎么评价|解读|如何看待/.test(lower)) {
+      return 'analysis';
+    }
+    return 'general';
+  }
+
+  return 'unknown';
+}
+
+function getInformationGaps(type: QuestionType, text: string): InformationGap[] {
+  const gaps: InformationGap[] = [];
+  const lower = text.toLowerCase();
+
+  switch (type) {
+    case 'career':
+      if (!/目前|现在|当前|正在做|在.*做/.test(lower) && !/从事|行业|职位/.test(lower)) {
+        gaps.push({ dimension: '当前工作状况', question: '你现在的工作是什么？岗位和行业能说一下吗？', priority: 1 });
+      }
+      if (!/为什么|原因|背景|因为|由于|想换|考虑换|要不要换/.test(lower)) {
+        gaps.push({ dimension: '换工作的背景原因', question: '是什么原因让你在考虑换工作呢？是薪资、发展空间、还是其他方面？', priority: 2 });
+      }
+      if (!/行业|市场|竞争|趋势|发展前景|情况/.test(lower)) {
+        gaps.push({ dimension: '行业背景情况', question: '你所在的行业目前情况怎么样？有了解过相关行业的动态吗？', priority: 3 });
+      }
+      if (!/优势|劣势|好坏|利弊|优点|缺点/.test(lower) && !/觉得|认为|感觉|考虑/.test(lower)) {
+        gaps.push({ dimension: '利弊权衡', question: '你觉得现在的工作有哪些优势和劣势？新机会可能带来什么？', priority: 4 });
+      }
+      break;
+
+    case 'relationship':
+      if (!/发生|怎么|为什么|原因|因为|由于|什么情况|怎么回事/.test(lower)) {
+        gaps.push({ dimension: '事件经过', question: '能具体说说发生了什么吗？', priority: 1 });
+      }
+      if (!/多久|什么时候|时长|最近/.test(lower)) {
+        gaps.push({ dimension: '时间背景', question: '这是最近发生的事，还是已经有一段时间了？', priority: 2 });
+      }
+      break;
+
+    case 'investment':
+      if (!/什么|哪个|标的|项目|产品|金额/.test(lower)) {
+        gaps.push({ dimension: '投资标的', question: '你具体在考虑什么投资？能详细说一下吗？', priority: 1 });
+      }
+      if (!/风险|承受能力|能接受|损失/.test(lower)) {
+        gaps.push({ dimension: '风险承受能力', question: '你对风险的承受能力怎么样？能接受多大的损失？', priority: 2 });
+      }
+      break;
+
+    case 'choice':
+      if (!/选项|选择|A|B|方案|两种|几种/.test(lower)) {
+        gaps.push({ dimension: '选项内容', question: '你目前有哪些选项？能分别说一下吗？', priority: 1 });
+      }
+      if (!/标准|看重|重要|在意|优先/.test(lower)) {
+        gaps.push({ dimension: '决策标准', question: '你做出选择时，主要看重哪些因素？', priority: 2 });
+      }
+      break;
+
+    case 'analysis':
+      if (!/具体|什么|哪个|哪个方面|什么内容/.test(lower)) {
+        gaps.push({ dimension: '分析对象', question: '你想让我分析的具体是什么？能详细描述一下吗？', priority: 1 });
+      }
+      if (!/背景|情况|来龙去脉|前因后果/.test(lower)) {
+        gaps.push({ dimension: '背景信息', question: '这件事的背景是怎样的？有什么前因后果？', priority: 2 });
+      }
+      break;
+
+    default:
+      gaps.push({ dimension: '事件描述', question: '能具体说说是什么事吗？', priority: 1 });
+      gaps.push({ dimension: '背景信息', question: '这件事的背景是怎样的？', priority: 2 });
+  }
+
+  return gaps;
+}
+
+function generateFollowUp(gaps: InformationGap[]): string {
+  if (gaps.length === 0) return '';
+
+  const intro = ['嗯，我先了解一下情况。', '我想先确认一下：', '在给意见之前，我想先了解几点：'];
+  const selectedIntro = intro[Math.floor(Math.random() * intro.length)];
+
+  if (gaps.length === 1) {
+    return gaps[0].question;
+  }
+
+  const questions = gaps.slice(0, 3).map(g => g.question);
+  return `${selectedIntro}\n${questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`;
+}
+
+export function assessInformationCompleteness(
+  text: string,
+  nluIntent?: { intent: string; confidence: number } | null,
+): { complete: boolean; followUp: string | null; gaps: InformationGap[] } {
+  if (!nluIntent || nluIntent.confidence < 0.5) {
+    return {
+      complete: false,
+      followUp: '你能说得更具体一点吗？我想先了解一下情况。',
+      gaps: [{ dimension: '事件描述', question: '能说得更具体一点吗？', priority: 1 }],
+    };
+  }
+
+  const type = getQuestionType(text, nluIntent);
+  const gaps = getInformationGaps(type, text);
+
+  if (gaps.length === 0) {
+    return { complete: true, followUp: null, gaps: [] };
+  }
+
+  const followUp = generateFollowUp(gaps);
+  return { complete: false, followUp, gaps };
+}
+
 // ── 自然语言合成（非 LLM，模板化）──
 
 function synthesizeResponse(

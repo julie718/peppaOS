@@ -30,7 +30,7 @@ import { getEmotionEngine } from "../life/emotions.js";
 import { getRelationshipEngine } from "../life/relationship.js";
 import { onInteractionComplete } from "../life/relationshipAwareness.js";
 import { routeMessage, isInstinctQuery, isIdentityQuery } from "../cognition/router.js";
-import { getSelfState, synthesizeResponse } from "../cognition/deepReasoning.js";
+import { getSelfState, synthesizeResponse, assessInformationCompleteness } from "../cognition/deepReasoning.js";
 import { generateIdentityResponse, generateHowAreYouResponse } from "../life/narrative.js";
 import { touchUserActivity } from "../life/userState.js";
 import { getUnrespondedObservations, markObservationResponded } from "../db/lifeDb.js";
@@ -953,6 +953,29 @@ export function registerChatHandler(
           logger.info(`[ChatHandler] NLU: ${nluIntent.intent} (${nluIntent.confidence.toFixed(2)})`);
         } catch (e) {
           logger.warn('[ChatHandler] NLU failed:', e);
+        }
+
+        // ── 信息完整性判断（先理解，再回应） ──
+        if (nluIntent) {
+          const completeness = assessInformationCompleteness(text, { intent: nluIntent.intent, confidence: nluIntent.confidence });
+          if (!completeness.complete && completeness.followUp) {
+            logger.info(`[ChatHandler] 信息不完整，追问: ${completeness.followUp.slice(0, 50)}...`);
+
+            socket.emit('agent:response', {
+              text: completeness.followUp,
+              agentName: personality.name,
+              source: 'clarification',
+            });
+
+            if (conversationId) {
+              addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'user', content: storedUserContent, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
+              addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'assistant', content: completeness.followUp, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
+            }
+
+            socket.emit('agent:status', { status: 'idle' });
+            chatSessionMap.delete(sessionKey);
+            return;
+          }
         }
 
         try {
