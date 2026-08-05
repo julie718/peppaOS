@@ -1,0 +1,3356 @@
+{
+  "settings": {
+    "languages": [
+      "zh"
+    ],
+    "tag": "nlp",
+    "threshold": 0.5,
+    "autoLoad": true,
+    "autoSave": true,
+    "modelFileName": "model.nlp",
+    "executeActionsBeforeAnswers": false,
+    "calculateSentiment": true
+  },
+  "nluManager": {
+    "settings": {
+      "tag": "nlu-manager"
+    },
+    "locales": [
+      "zh"
+    ],
+    "languageNames": {},
+    "domainManagers": {
+      "zh": {
+        "settings": {
+          "locale": "zh",
+          "trainByDomain": false,
+          "tag": "domain-manager-zh",
+          "nluByDomain": {
+            "default": {
+              "className": "NeuralNlu",
+              "settings": {}
+            }
+          },
+          "useStemDict": true
+        },
+        "stemDict": {
+          "bu4,de5,gai1,gao4,jue2,ni3,su4,su5,ta1,wo3": {
+            "intent": "ask_opinion",
+            "domain": "default"
+          },
+          "da1,gai1,ma3,ma5,ni3,ren4,ta1,wei2,wo3,ying1,ying5": {
+            "intent": "ask_opinion",
+            "domain": "default"
+          },
+          "bu4,cheng2,gai1,huan4,shi4,wo3": {
+            "intent": "ask_opinion",
+            "domain": "default"
+          },
+          "de5,jue2,ne5,ni2,ni3": {
+            "intent": "ask_opinion",
+            "domain": "default"
+          },
+          "jian4,kan1,kan4,me5,ni3,shi4,zen3,zhe4": {
+            "intent": "ask_opinion",
+            "domain": "default"
+          },
+          "dian3,guan1,me5,ni3,shen2": {
+            "intent": "ask_opinion",
+            "domain": "default"
+          },
+          "gan3,he2,jue2,ni3,ru2": {
+            "intent": "ask_opinion",
+            "domain": "default"
+          },
+          "me5,ni3,xiang3,zen3": {
+            "intent": "ask_opinion",
+            "domain": "default"
+          },
+          "fa3,kan4,me5,ni3,shen2,shi4": {
+            "intent": "ask_opinion",
+            "domain": "default"
+          },
+          "ci3,dui4,jian4,jie3,me5,ni3,shen2,you3": {
+            "intent": "ask_opinion",
+            "domain": "default"
+          },
+          "chi2,ge5,na3,ni3,zhi1": {
+            "intent": "ask_opinion",
+            "domain": "default"
+          },
+          "du5,me5,ni3,shen2,shi4,tai4": {
+            "intent": "ask_opinion",
+            "domain": "default"
+          },
+          "ge5,jia4,me5,ni3,ping2,zen3,zhe4": {
+            "intent": "ask_opinion",
+            "domain": "default"
+          },
+          "de5,gai1,jue2,me5,ni3,wo3,ying1,zen3,zuo4": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "de5,gai1,jue2,me5,ni3,wo3,zen3,zuo4": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "ban4,de5,gai1,jue2,me5,ni3,wo3,ying1,zen3": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "gai1,geng1,geng4,hao3,hao4,hui4,kuai4,me5,wo3,ying1,zen3,zuo4": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "bi3,gai1,he2,jiao4,me5,shi4,wo3,zen3,zuo4": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "bang1,gai1,kan1,kan4,me5,wo3,xia4,yi1,zen3,zuo4": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "de5,duan4,gai1,jue2,me5,ni3,pan4,wo3,zen3": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "de5,ding4,gai1,jue2,me5,ni3,wo3,ying1,zen3": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "gai1,me5,wo3,xian4,zai4,zen3,zuo4": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "de5,gai1,jue2,me5,ni3,wo3,xian4,ying1,zai4,zen3,zuo4": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "ban4,gai1,me5,wo3,zen3": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "gai1,me5,wo3,ying1,zen3,zuo4": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "ge4,gei3,ji3,jian4,ni3,yi4": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "dian3,gei3,ji3,jian4,yi4": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "bang1,chu1,wo3,yi5,zhu3": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "jian4,ni3,ting1,ting4,wo3,xiang3,yi4,yin3": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "de5,gai1,ge5,jue2,na3,ni3,wo3,xuan3": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "bu4,gai1,ni3,qu4,shui4,shuo1,wo3": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "hao3,hao4,jian4,me5,ni3,shen2,yi4,you3": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "bang1,ge4,na2,wo3,yi5,zhu3": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "dian3,gei3,hen3,ji3,jian4,jie2,jiu1,wo3,xian4,yi4,zai4,，": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "gai1,kuang4,me5,qing2,wo3,zen3,zhe4,zhong3,zuo4": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "bang1,fen1,ma3,ma5,neng2,ni3,wo3,xi1,xia4,yi1": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "gei3,ji3,jian4,wo3,xie1,yi1,yi4": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "gai1,me5,wo3,xuan3,ying1,zen3": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "bang1,can1,mou2,ni3,wo3,xia4,yi1": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "gai1,lu4,na3,na5,nei3,tiao2,wo3,zou3": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "jian4,me5,ni3,wo3,yi4,zen3,zuo4": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "bu4,qu4,yao1,yao4": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "bu4,gai1,jie1,shou4": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "da1,de5,gai1,jue2,ma3,ma5,ni3,wo3,ying1,ying5": {
+            "intent": "seek_advice",
+            "domain": "default"
+          },
+          "jin1,me5,qi4,tian1,yang4,zen3": {
+            "intent": "ask_fact",
+            "domain": "default"
+          },
+          "deepseek,duo1,gu3,jia4,shao3,shao5,shi4": {
+            "intent": "ask_fact",
+            "domain": "default"
+          },
+          "hao2,hao4,ji1,ji3,jin1,tian1": {
+            "intent": "ask_fact",
+            "domain": "default"
+          },
+          "dian3,ji3,xian4,zai4": {
+            "intent": "ask_fact",
+            "domain": "default"
+          },
+          "me5,peppaos,shen2,shi4": {
+            "intent": "ask_fact",
+            "domain": "default"
+          },
+          "deepseek,me5,shen2,shi4": {
+            "intent": "ask_fact",
+            "domain": "default"
+          },
+          "me5,ni3,shen2,shi4,zuo4": {
+            "intent": "ask_fact",
+            "domain": "default"
+          },
+          "dai4,ma3,me5,ni3,shen2,shi4,xie3,yan2,yu3": {
+            "intent": "ask_fact",
+            "domain": "default"
+          },
+          "da4,duo1,ni3": {
+            "intent": "ask_fact",
+            "domain": "default"
+          },
+          "me5,neng2,ni3,shen2,zuo4": {
+            "intent": "ask_fact",
+            "domain": "default"
+          },
+          "ge5,gong1,na3,ni3,shi4,si1": {
+            "intent": "ask_fact",
+            "domain": "default"
+          },
+          "me5,peppa,shen2,shi4,si5,yi4": {
+            "intent": "ask_fact",
+            "domain": "default"
+          },
+          "me5,ming4,shen2,sheng1,shi4,shu4,ti3,zi4": {
+            "intent": "ask_fact",
+            "domain": "default"
+          },
+          "ai,bu4,he2,he4,hu2,huo2,huo4,me5,ni3,qi2,shen2,ta1,tong2,you3": {
+            "intent": "ask_fact",
+            "domain": "default"
+          },
+          "me5,ni3,shi4,xi2,xue2,zen3": {
+            "intent": "ask_fact",
+            "domain": "default"
+          },
+          "ji4,ma3,ma5,ni3,yi4,you3": {
+            "intent": "ask_fact",
+            "domain": "default"
+          },
+          "de5,hua4,ji4,ma3,ma5,neng2,ni3,shui4,shuo1,wo3,zhu5": {
+            "intent": "ask_fact",
+            "domain": "default"
+          },
+          "hui4,kuai4,ma3,ma5,ni3,shi4,wang4": {
+            "intent": "ask_fact",
+            "domain": "default"
+          },
+          "cun2,ju4,li3,na3,ni3,shu4": {
+            "intent": "ask_fact",
+            "domain": "default"
+          },
+          "an1,ma3,ma5,ni3,quan2": {
+            "intent": "ask_fact",
+            "domain": "default"
+          },
+          "chuang4,ni3,shei2,zao4": {
+            "intent": "ask_fact",
+            "domain": "default"
+          },
+          "dan4,hou5,me5,ni3,shen2,sheng1,shi2,shi4": {
+            "intent": "ask_fact",
+            "domain": "default"
+          },
+          "bu4,cuo4,jin1,qing2,tian1,xin1": {
+            "intent": "chat",
+            "domain": "default"
+          },
+          "dian3,jin4,lei2,lei3,lei4,wo3,you3,zui4": {
+            "intent": "chat",
+            "domain": "default"
+          },
+          "a1,a2,a3,a4,a5,hao3,hao4,jin1,qi4,tian1,zhen1": {
+            "intent": "chat",
+            "domain": "default"
+          },
+          "bu4,hao3,qing2,tai4,wo3,xin1": {
+            "intent": "chat",
+            "domain": "default"
+          },
+          "hao3,hao4,jin1,kai1,tian1,xin1": {
+            "intent": "chat",
+            "domain": "default"
+          },
+          "a1,a2,a3,a4,a5,hao3,hao4,jin4,mang2,zui4": {
+            "intent": "chat",
+            "domain": "default"
+          },
+          "ge4,ti2,wen4,wo3,xiang3,yi1,zai4": {
+            "intent": "chat",
+            "domain": "default"
+          },
+          "gang1,gang5,ge4,meng4,wo3,yi1,zuo4": {
+            "intent": "chat",
+            "domain": "default"
+          },
+          "cai1,me5,ni3,shen2,wo3,xiang3,zai4": {
+            "intent": "chat",
+            "domain": "default"
+          },
+          "bu4,dui1,jin4,ju4,wo3,yi1,zai4,zhui1,zui4": {
+            "intent": "chat",
+            "domain": "default"
+          },
+          "chi1,hao3,hao4,jin1,me5,shen2,tian1": {
+            "intent": "chat",
+            "domain": "default"
+          },
+          "dian3,fan2,wo3,you3": {
+            "intent": "chat",
+            "domain": "default"
+          },
+          "bian4,jiu4,liao2,mei2,shi4,sui2,，": {
+            "intent": "chat",
+            "domain": "default"
+          },
+          "jin4,me5,ni3,yang4,zen3,zui4": {
+            "intent": "chat",
+            "domain": "default"
+          },
+          "gan4,ma2,ni3,zai4": {
+            "intent": "chat",
+            "domain": "default"
+          },
+          "gen1,hua4,ni3,shuo1,shuo5,wo3,xiang3": {
+            "intent": "chat",
+            "domain": "default"
+          },
+          "ma3,ma5,ni3,shui4": {
+            "intent": "chat",
+            "domain": "default"
+          },
+          "mei2,ni3,wo3,xiang3,you3": {
+            "intent": "chat",
+            "domain": "default"
+          },
+          "hao3,hua4,jian4,jiu3,mei2,mo4,ni3,shuo1,xian4": {
+            "intent": "chat",
+            "domain": "default"
+          },
+          "jin1,me5,ni3,tai4,tian1,yang4,zen3,zhuang4": {
+            "intent": "chat",
+            "domain": "default"
+          },
+          "hao3,ne5,ni2,ni3,ting3,wo3,，": {
+            "intent": "chat",
+            "domain": "default"
+          }
+        },
+        "intentDict": {
+          "ask_opinion": "default",
+          "seek_advice": "default",
+          "ask_fact": "default",
+          "chat": "default"
+        },
+        "sentences": [
+          {
+            "domain": "default",
+            "utterance": "你觉得我该不该告诉他",
+            "intent": "ask_opinion"
+          },
+          {
+            "domain": "default",
+            "utterance": "你认为我应该答应他吗",
+            "intent": "ask_opinion"
+          },
+          {
+            "domain": "default",
+            "utterance": "我该不该换城市",
+            "intent": "ask_opinion"
+          },
+          {
+            "domain": "default",
+            "utterance": "你觉得呢",
+            "intent": "ask_opinion"
+          },
+          {
+            "domain": "default",
+            "utterance": "你怎么看这件事",
+            "intent": "ask_opinion"
+          },
+          {
+            "domain": "default",
+            "utterance": "你什么观点",
+            "intent": "ask_opinion"
+          },
+          {
+            "domain": "default",
+            "utterance": "你感觉如何",
+            "intent": "ask_opinion"
+          },
+          {
+            "domain": "default",
+            "utterance": "你怎么想的",
+            "intent": "ask_opinion"
+          },
+          {
+            "domain": "default",
+            "utterance": "你的看法是什么",
+            "intent": "ask_opinion"
+          },
+          {
+            "domain": "default",
+            "utterance": "对此你有什么见解",
+            "intent": "ask_opinion"
+          },
+          {
+            "domain": "default",
+            "utterance": "你支持哪个",
+            "intent": "ask_opinion"
+          },
+          {
+            "domain": "default",
+            "utterance": "你的态度是什么",
+            "intent": "ask_opinion"
+          },
+          {
+            "domain": "default",
+            "utterance": "你怎么评价这个",
+            "intent": "ask_opinion"
+          },
+          {
+            "domain": "default",
+            "utterance": "你觉得我应该怎么做",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "你觉得我该怎么做",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "你觉得我应该怎么办",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "我应该怎么做会更好",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "我该怎么做比较合适",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "帮我看一下我该怎么做",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "你觉得我该怎么判断",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "你觉得我应该怎么决定",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "我现在该怎么做",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "你觉得我现在应该怎么做",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "我该怎么办",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "我应该怎么做",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "你给个建议",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "给点建议吧",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "帮我出出主意",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "我想听听你的建议",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "你觉得我该选哪个",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "你说我该不该去",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "你有什么好建议",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "帮我拿个主意",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "我现在很纠结，给点建议",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "这种情况我该怎么做",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "你能帮我分析一下吗",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "给我一些建议",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "我应该怎么选",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "你帮我参谋一下",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "我该走哪条路",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "你建议我怎么做",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "要不要去",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "该不该接受",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "你觉得我应该答应吗",
+            "intent": "seek_advice"
+          },
+          {
+            "domain": "default",
+            "utterance": "今天天气怎么样",
+            "intent": "ask_fact"
+          },
+          {
+            "domain": "default",
+            "utterance": "DeepSeek的股价是多少",
+            "intent": "ask_fact"
+          },
+          {
+            "domain": "default",
+            "utterance": "今天几号",
+            "intent": "ask_fact"
+          },
+          {
+            "domain": "default",
+            "utterance": "现在几点",
+            "intent": "ask_fact"
+          },
+          {
+            "domain": "default",
+            "utterance": "什么是PeppaOS",
+            "intent": "ask_fact"
+          },
+          {
+            "domain": "default",
+            "utterance": "DeepSeek是什么",
+            "intent": "ask_fact"
+          },
+          {
+            "domain": "default",
+            "utterance": "你是什么做的",
+            "intent": "ask_fact"
+          },
+          {
+            "domain": "default",
+            "utterance": "你的代码是什么语言写的",
+            "intent": "ask_fact"
+          },
+          {
+            "domain": "default",
+            "utterance": "你多大了",
+            "intent": "ask_fact"
+          },
+          {
+            "domain": "default",
+            "utterance": "你能做什么",
+            "intent": "ask_fact"
+          },
+          {
+            "domain": "default",
+            "utterance": "你是哪个公司的",
+            "intent": "ask_fact"
+          },
+          {
+            "domain": "default",
+            "utterance": "Peppa是什么意思",
+            "intent": "ask_fact"
+          },
+          {
+            "domain": "default",
+            "utterance": "什么是数字生命体",
+            "intent": "ask_fact"
+          },
+          {
+            "domain": "default",
+            "utterance": "你和其他AI有什么不同",
+            "intent": "ask_fact"
+          },
+          {
+            "domain": "default",
+            "utterance": "你是怎么学习的",
+            "intent": "ask_fact"
+          },
+          {
+            "domain": "default",
+            "utterance": "你有记忆吗",
+            "intent": "ask_fact"
+          },
+          {
+            "domain": "default",
+            "utterance": "你能记住我说的话吗",
+            "intent": "ask_fact"
+          },
+          {
+            "domain": "default",
+            "utterance": "你会忘事吗",
+            "intent": "ask_fact"
+          },
+          {
+            "domain": "default",
+            "utterance": "你的数据存哪里",
+            "intent": "ask_fact"
+          },
+          {
+            "domain": "default",
+            "utterance": "你安全吗",
+            "intent": "ask_fact"
+          },
+          {
+            "domain": "default",
+            "utterance": "谁创造了你",
+            "intent": "ask_fact"
+          },
+          {
+            "domain": "default",
+            "utterance": "你是什么时候诞生的",
+            "intent": "ask_fact"
+          },
+          {
+            "domain": "default",
+            "utterance": "今天心情不错",
+            "intent": "chat"
+          },
+          {
+            "domain": "default",
+            "utterance": "我最近有点累",
+            "intent": "chat"
+          },
+          {
+            "domain": "default",
+            "utterance": "今天天气真好啊",
+            "intent": "chat"
+          },
+          {
+            "domain": "default",
+            "utterance": "我心情不太好",
+            "intent": "chat"
+          },
+          {
+            "domain": "default",
+            "utterance": "今天好开心",
+            "intent": "chat"
+          },
+          {
+            "domain": "default",
+            "utterance": "最近好忙啊",
+            "intent": "chat"
+          },
+          {
+            "domain": "default",
+            "utterance": "我在想一个问题",
+            "intent": "chat"
+          },
+          {
+            "domain": "default",
+            "utterance": "我刚刚做了一个梦",
+            "intent": "chat"
+          },
+          {
+            "domain": "default",
+            "utterance": "你猜我在想什么",
+            "intent": "chat"
+          },
+          {
+            "domain": "default",
+            "utterance": "我最近在追一部剧",
+            "intent": "chat"
+          },
+          {
+            "domain": "default",
+            "utterance": "今天吃了什么好吃的",
+            "intent": "chat"
+          },
+          {
+            "domain": "default",
+            "utterance": "我有点烦",
+            "intent": "chat"
+          },
+          {
+            "domain": "default",
+            "utterance": "没事，就是随便聊聊",
+            "intent": "chat"
+          },
+          {
+            "domain": "default",
+            "utterance": "你最近怎么样",
+            "intent": "chat"
+          },
+          {
+            "domain": "default",
+            "utterance": "你在干嘛",
+            "intent": "chat"
+          },
+          {
+            "domain": "default",
+            "utterance": "我想跟你说说话",
+            "intent": "chat"
+          },
+          {
+            "domain": "default",
+            "utterance": "你睡了吗",
+            "intent": "chat"
+          },
+          {
+            "domain": "default",
+            "utterance": "你有没有想我",
+            "intent": "chat"
+          },
+          {
+            "domain": "default",
+            "utterance": "好久没见你说话了",
+            "intent": "chat"
+          },
+          {
+            "domain": "default",
+            "utterance": "你今天状态怎么样",
+            "intent": "chat"
+          },
+          {
+            "domain": "default",
+            "utterance": "我挺好的，你呢",
+            "intent": "chat"
+          }
+        ],
+        "domains": {
+          "master_domain": {
+            "settings": {
+              "locale": "zh",
+              "tag": "nlu-zh",
+              "keepStopwords": true,
+              "nonefeatureValue": 1,
+              "nonedeltaMultiplier": 1.2,
+              "spellCheck": false,
+              "spellCheckDistance": 1,
+              "filterZeros": true,
+              "log": true
+            },
+            "features": {
+              "ni3": 1,
+              "jue2": 1,
+              "de5": 1,
+              "wo3": 1,
+              "gai1": 1,
+              "bu4": 1,
+              "gao4": 1,
+              "su4": 1,
+              "su5": 1,
+              "ta1": 1,
+              "ren4": 1,
+              "wei2": 1,
+              "ying1": 1,
+              "da1": 1,
+              "ying5": 1,
+              "ma3": 1,
+              "ma5": 1,
+              "huan4": 1,
+              "cheng2": 1,
+              "shi4": 1,
+              "ne5": 1,
+              "ni2": 1,
+              "zen3": 1,
+              "me5": 1,
+              "kan1": 1,
+              "kan4": 1,
+              "zhe4": 1,
+              "jian4": 1,
+              "shen2": 1,
+              "guan1": 1,
+              "dian3": 1,
+              "gan3": 1,
+              "ru2": 1,
+              "he2": 1,
+              "xiang3": 1,
+              "fa3": 1,
+              "dui4": 1,
+              "ci3": 1,
+              "you3": 1,
+              "jie3": 1,
+              "zhi1": 1,
+              "chi2": 1,
+              "na3": 1,
+              "ge5": 1,
+              "tai4": 1,
+              "du5": 1,
+              "ping2": 1,
+              "jia4": 1,
+              "zuo4": 1,
+              "ban4": 1,
+              "hui4": 1,
+              "kuai4": 1,
+              "geng1": 1,
+              "geng4": 1,
+              "hao3": 1,
+              "hao4": 1,
+              "bi3": 1,
+              "jiao4": 1,
+              "bang1": 1,
+              "yi1": 1,
+              "xia4": 1,
+              "pan4": 1,
+              "duan4": 1,
+              "ding4": 1,
+              "xian4": 1,
+              "zai4": 1,
+              "gei3": 1,
+              "ji3": 1,
+              "ge4": 1,
+              "yi4": 1,
+              "chu1": 1,
+              "zhu3": 1,
+              "yi5": 1,
+              "yin3": 1,
+              "ting1": 1,
+              "ting4": 1,
+              "xuan3": 1,
+              "shui4": 1,
+              "shuo1": 1,
+              "qu4": 1,
+              "na2": 1,
+              "hen3": 1,
+              "jiu1": 1,
+              "jie2": 1,
+              "，": 1,
+              "zhong3": 1,
+              "qing2": 1,
+              "kuang4": 1,
+              "neng2": 1,
+              "fen1": 1,
+              "xi1": 1,
+              "xie1": 1,
+              "can1": 1,
+              "mou2": 1,
+              "zou3": 1,
+              "na5": 1,
+              "nei3": 1,
+              "tiao2": 1,
+              "lu4": 1,
+              "yao4": 1,
+              "yao1": 1,
+              "jie1": 1,
+              "shou4": 1,
+              "jin1": 1,
+              "tian1": 1,
+              "qi4": 1,
+              "yang4": 1,
+              "deepseek": 1,
+              "gu3": 1,
+              "duo1": 1,
+              "shao3": 1,
+              "shao5": 1,
+              "ji1": 1,
+              "hao2": 1,
+              "peppaos": 1,
+              "dai4": 1,
+              "yu3": 1,
+              "yan2": 1,
+              "xie3": 1,
+              "da4": 1,
+              "gong1": 1,
+              "si1": 1,
+              "peppa": 1,
+              "si5": 1,
+              "shu4": 1,
+              "zi4": 1,
+              "sheng1": 1,
+              "ming4": 1,
+              "ti3": 1,
+              "he4": 1,
+              "hu2": 1,
+              "huo2": 1,
+              "huo4": 1,
+              "qi2": 1,
+              "ai": 1,
+              "tong2": 1,
+              "xue2": 1,
+              "xi2": 1,
+              "ji4": 1,
+              "zhu5": 1,
+              "hua4": 1,
+              "wang4": 1,
+              "ju4": 1,
+              "cun2": 1,
+              "li3": 1,
+              "an1": 1,
+              "quan2": 1,
+              "shei2": 1,
+              "chuang4": 1,
+              "zao4": 1,
+              "shi2": 1,
+              "hou5": 1,
+              "dan4": 1,
+              "xin1": 1,
+              "cuo4": 1,
+              "zui4": 1,
+              "jin4": 1,
+              "lei3": 1,
+              "lei4": 1,
+              "lei2": 1,
+              "zhen1": 1,
+              "a1": 1,
+              "a2": 1,
+              "a3": 1,
+              "a4": 1,
+              "a5": 1,
+              "kai1": 1,
+              "mang2": 1,
+              "wen4": 1,
+              "ti2": 1,
+              "gang1": 1,
+              "gang5": 1,
+              "meng4": 1,
+              "cai1": 1,
+              "dui1": 1,
+              "zhui1": 1,
+              "chi1": 1,
+              "fan2": 1,
+              "mei2": 1,
+              "jiu4": 1,
+              "sui2": 1,
+              "bian4": 1,
+              "liao2": 1,
+              "gan4": 1,
+              "ma2": 1,
+              "gen1": 1,
+              "shuo5": 1,
+              "jiu3": 1,
+              "mo4": 1,
+              "zhuang4": 1,
+              "ting3": 1
+            },
+            "intents": {
+              "ask_opinion": 1,
+              "seek_advice": 1,
+              "ask_fact": 1,
+              "chat": 1
+            },
+            "intentFeatures": {
+              "ask_opinion": {
+                "ni3": 1,
+                "jue2": 1,
+                "de5": 1,
+                "wo3": 1,
+                "gai1": 1,
+                "bu4": 1,
+                "gao4": 1,
+                "su4": 1,
+                "su5": 1,
+                "ta1": 1,
+                "ren4": 1,
+                "wei2": 1,
+                "ying1": 1,
+                "da1": 1,
+                "ying5": 1,
+                "ma3": 1,
+                "ma5": 1,
+                "huan4": 1,
+                "cheng2": 1,
+                "shi4": 1,
+                "ne5": 1,
+                "ni2": 1,
+                "zen3": 1,
+                "me5": 1,
+                "kan1": 1,
+                "kan4": 1,
+                "zhe4": 1,
+                "jian4": 1,
+                "shen2": 1,
+                "guan1": 1,
+                "dian3": 1,
+                "gan3": 1,
+                "ru2": 1,
+                "he2": 1,
+                "xiang3": 1,
+                "fa3": 1,
+                "dui4": 1,
+                "ci3": 1,
+                "you3": 1,
+                "jie3": 1,
+                "zhi1": 1,
+                "chi2": 1,
+                "na3": 1,
+                "ge5": 1,
+                "tai4": 1,
+                "du5": 1,
+                "ping2": 1,
+                "jia4": 1
+              },
+              "seek_advice": {
+                "ni3": 1,
+                "jue2": 1,
+                "de5": 1,
+                "wo3": 1,
+                "ying1": 1,
+                "gai1": 1,
+                "zen3": 1,
+                "me5": 1,
+                "zuo4": 1,
+                "ban4": 1,
+                "hui4": 1,
+                "kuai4": 1,
+                "geng1": 1,
+                "geng4": 1,
+                "hao3": 1,
+                "hao4": 1,
+                "bi3": 1,
+                "jiao4": 1,
+                "he2": 1,
+                "shi4": 1,
+                "bang1": 1,
+                "kan1": 1,
+                "kan4": 1,
+                "yi1": 1,
+                "xia4": 1,
+                "pan4": 1,
+                "duan4": 1,
+                "ding4": 1,
+                "xian4": 1,
+                "zai4": 1,
+                "gei3": 1,
+                "ji3": 1,
+                "ge4": 1,
+                "jian4": 1,
+                "yi4": 1,
+                "dian3": 1,
+                "chu1": 1,
+                "zhu3": 1,
+                "yi5": 1,
+                "xiang3": 1,
+                "yin3": 1,
+                "ting1": 1,
+                "ting4": 1,
+                "xuan3": 1,
+                "na3": 1,
+                "ge5": 1,
+                "shui4": 1,
+                "shuo1": 1,
+                "bu4": 1,
+                "qu4": 1,
+                "you3": 1,
+                "shen2": 1,
+                "na2": 1,
+                "hen3": 1,
+                "jiu1": 1,
+                "jie2": 1,
+                "，": 1,
+                "zhe4": 1,
+                "zhong3": 1,
+                "qing2": 1,
+                "kuang4": 1,
+                "neng2": 1,
+                "fen1": 1,
+                "xi1": 1,
+                "ma3": 1,
+                "ma5": 1,
+                "xie1": 1,
+                "can1": 1,
+                "mou2": 1,
+                "zou3": 1,
+                "na5": 1,
+                "nei3": 1,
+                "tiao2": 1,
+                "lu4": 1,
+                "yao4": 1,
+                "yao1": 1,
+                "jie1": 1,
+                "shou4": 1,
+                "da1": 1,
+                "ying5": 1
+              },
+              "ask_fact": {
+                "jin1": 1,
+                "tian1": 1,
+                "qi4": 1,
+                "zen3": 1,
+                "me5": 1,
+                "yang4": 1,
+                "deepseek": 1,
+                "gu3": 1,
+                "jia4": 1,
+                "shi4": 1,
+                "duo1": 1,
+                "shao3": 1,
+                "shao5": 1,
+                "ji1": 1,
+                "ji3": 1,
+                "hao2": 1,
+                "hao4": 1,
+                "xian4": 1,
+                "zai4": 1,
+                "dian3": 1,
+                "shen2": 1,
+                "peppaos": 1,
+                "ni3": 1,
+                "zuo4": 1,
+                "dai4": 1,
+                "ma3": 1,
+                "yu3": 1,
+                "yan2": 1,
+                "xie3": 1,
+                "da4": 1,
+                "neng2": 1,
+                "na3": 1,
+                "ge5": 1,
+                "gong1": 1,
+                "si1": 1,
+                "peppa": 1,
+                "yi4": 1,
+                "si5": 1,
+                "shu4": 1,
+                "zi4": 1,
+                "sheng1": 1,
+                "ming4": 1,
+                "ti3": 1,
+                "he2": 1,
+                "he4": 1,
+                "hu2": 1,
+                "huo2": 1,
+                "huo4": 1,
+                "qi2": 1,
+                "ta1": 1,
+                "ai": 1,
+                "you3": 1,
+                "bu4": 1,
+                "tong2": 1,
+                "xue2": 1,
+                "xi2": 1,
+                "ji4": 1,
+                "ma5": 1,
+                "zhu5": 1,
+                "wo3": 1,
+                "shui4": 1,
+                "shuo1": 1,
+                "de5": 1,
+                "hua4": 1,
+                "hui4": 1,
+                "kuai4": 1,
+                "wang4": 1,
+                "ju4": 1,
+                "cun2": 1,
+                "li3": 1,
+                "an1": 1,
+                "quan2": 1,
+                "shei2": 1,
+                "chuang4": 1,
+                "zao4": 1,
+                "shi2": 1,
+                "hou5": 1,
+                "dan4": 1
+              },
+              "chat": {
+                "jin1": 1,
+                "tian1": 1,
+                "xin1": 1,
+                "qing2": 1,
+                "bu4": 1,
+                "cuo4": 1,
+                "wo3": 1,
+                "zui4": 1,
+                "jin4": 1,
+                "you3": 1,
+                "dian3": 1,
+                "lei3": 1,
+                "lei4": 1,
+                "lei2": 1,
+                "qi4": 1,
+                "zhen1": 1,
+                "hao3": 1,
+                "hao4": 1,
+                "a1": 1,
+                "a2": 1,
+                "a3": 1,
+                "a4": 1,
+                "a5": 1,
+                "tai4": 1,
+                "kai1": 1,
+                "mang2": 1,
+                "zai4": 1,
+                "xiang3": 1,
+                "yi1": 1,
+                "ge4": 1,
+                "wen4": 1,
+                "ti2": 1,
+                "gang1": 1,
+                "gang5": 1,
+                "zuo4": 1,
+                "meng4": 1,
+                "ni3": 1,
+                "cai1": 1,
+                "shen2": 1,
+                "me5": 1,
+                "dui1": 1,
+                "zhui1": 1,
+                "ju4": 1,
+                "chi1": 1,
+                "fan2": 1,
+                "mei2": 1,
+                "shi4": 1,
+                "，": 1,
+                "jiu4": 1,
+                "sui2": 1,
+                "bian4": 1,
+                "liao2": 1,
+                "zen3": 1,
+                "yang4": 1,
+                "gan4": 1,
+                "ma2": 1,
+                "gen1": 1,
+                "shuo1": 1,
+                "shuo5": 1,
+                "hua4": 1,
+                "shui4": 1,
+                "ma3": 1,
+                "ma5": 1,
+                "jiu3": 1,
+                "mo4": 1,
+                "jian4": 1,
+                "xian4": 1,
+                "zhuang4": 1,
+                "ting3": 1,
+                "ne5": 1,
+                "ni2": 1
+              }
+            },
+            "featuresToIntent": {
+              "ni3": [
+                "ask_opinion",
+                "seek_advice",
+                "ask_fact",
+                "chat"
+              ],
+              "jue2": [
+                "ask_opinion",
+                "seek_advice"
+              ],
+              "de5": [
+                "ask_opinion",
+                "seek_advice",
+                "ask_fact"
+              ],
+              "wo3": [
+                "ask_opinion",
+                "seek_advice",
+                "ask_fact",
+                "chat"
+              ],
+              "gai1": [
+                "ask_opinion",
+                "seek_advice"
+              ],
+              "bu4": [
+                "ask_opinion",
+                "seek_advice",
+                "ask_fact",
+                "chat"
+              ],
+              "gao4": [
+                "ask_opinion"
+              ],
+              "su4": [
+                "ask_opinion"
+              ],
+              "su5": [
+                "ask_opinion"
+              ],
+              "ta1": [
+                "ask_opinion",
+                "ask_fact"
+              ],
+              "ren4": [
+                "ask_opinion"
+              ],
+              "wei2": [
+                "ask_opinion"
+              ],
+              "ying1": [
+                "ask_opinion",
+                "seek_advice"
+              ],
+              "da1": [
+                "ask_opinion",
+                "seek_advice"
+              ],
+              "ying5": [
+                "ask_opinion",
+                "seek_advice"
+              ],
+              "ma3": [
+                "ask_opinion",
+                "seek_advice",
+                "ask_fact",
+                "chat"
+              ],
+              "ma5": [
+                "ask_opinion",
+                "seek_advice",
+                "ask_fact",
+                "chat"
+              ],
+              "huan4": [
+                "ask_opinion"
+              ],
+              "cheng2": [
+                "ask_opinion"
+              ],
+              "shi4": [
+                "ask_opinion",
+                "seek_advice",
+                "ask_fact",
+                "chat"
+              ],
+              "ne5": [
+                "ask_opinion",
+                "chat"
+              ],
+              "ni2": [
+                "ask_opinion",
+                "chat"
+              ],
+              "zen3": [
+                "ask_opinion",
+                "seek_advice",
+                "ask_fact",
+                "chat"
+              ],
+              "me5": [
+                "ask_opinion",
+                "seek_advice",
+                "ask_fact",
+                "chat"
+              ],
+              "kan1": [
+                "ask_opinion",
+                "seek_advice"
+              ],
+              "kan4": [
+                "ask_opinion",
+                "seek_advice"
+              ],
+              "zhe4": [
+                "ask_opinion",
+                "seek_advice"
+              ],
+              "jian4": [
+                "ask_opinion",
+                "seek_advice",
+                "chat"
+              ],
+              "shen2": [
+                "ask_opinion",
+                "seek_advice",
+                "ask_fact",
+                "chat"
+              ],
+              "guan1": [
+                "ask_opinion"
+              ],
+              "dian3": [
+                "ask_opinion",
+                "seek_advice",
+                "ask_fact",
+                "chat"
+              ],
+              "gan3": [
+                "ask_opinion"
+              ],
+              "ru2": [
+                "ask_opinion"
+              ],
+              "he2": [
+                "ask_opinion",
+                "seek_advice",
+                "ask_fact"
+              ],
+              "xiang3": [
+                "ask_opinion",
+                "seek_advice",
+                "chat"
+              ],
+              "fa3": [
+                "ask_opinion"
+              ],
+              "dui4": [
+                "ask_opinion"
+              ],
+              "ci3": [
+                "ask_opinion"
+              ],
+              "you3": [
+                "ask_opinion",
+                "seek_advice",
+                "ask_fact",
+                "chat"
+              ],
+              "jie3": [
+                "ask_opinion"
+              ],
+              "zhi1": [
+                "ask_opinion"
+              ],
+              "chi2": [
+                "ask_opinion"
+              ],
+              "na3": [
+                "ask_opinion",
+                "seek_advice",
+                "ask_fact"
+              ],
+              "ge5": [
+                "ask_opinion",
+                "seek_advice",
+                "ask_fact"
+              ],
+              "tai4": [
+                "ask_opinion",
+                "chat"
+              ],
+              "du5": [
+                "ask_opinion"
+              ],
+              "ping2": [
+                "ask_opinion"
+              ],
+              "jia4": [
+                "ask_opinion",
+                "ask_fact"
+              ],
+              "zuo4": [
+                "seek_advice",
+                "ask_fact",
+                "chat"
+              ],
+              "ban4": [
+                "seek_advice"
+              ],
+              "hui4": [
+                "seek_advice",
+                "ask_fact"
+              ],
+              "kuai4": [
+                "seek_advice",
+                "ask_fact"
+              ],
+              "geng1": [
+                "seek_advice"
+              ],
+              "geng4": [
+                "seek_advice"
+              ],
+              "hao3": [
+                "seek_advice",
+                "chat"
+              ],
+              "hao4": [
+                "seek_advice",
+                "ask_fact",
+                "chat"
+              ],
+              "bi3": [
+                "seek_advice"
+              ],
+              "jiao4": [
+                "seek_advice"
+              ],
+              "bang1": [
+                "seek_advice"
+              ],
+              "yi1": [
+                "seek_advice",
+                "chat"
+              ],
+              "xia4": [
+                "seek_advice"
+              ],
+              "pan4": [
+                "seek_advice"
+              ],
+              "duan4": [
+                "seek_advice"
+              ],
+              "ding4": [
+                "seek_advice"
+              ],
+              "xian4": [
+                "seek_advice",
+                "ask_fact",
+                "chat"
+              ],
+              "zai4": [
+                "seek_advice",
+                "ask_fact",
+                "chat"
+              ],
+              "gei3": [
+                "seek_advice"
+              ],
+              "ji3": [
+                "seek_advice",
+                "ask_fact"
+              ],
+              "ge4": [
+                "seek_advice",
+                "chat"
+              ],
+              "yi4": [
+                "seek_advice",
+                "ask_fact"
+              ],
+              "chu1": [
+                "seek_advice"
+              ],
+              "zhu3": [
+                "seek_advice"
+              ],
+              "yi5": [
+                "seek_advice"
+              ],
+              "yin3": [
+                "seek_advice"
+              ],
+              "ting1": [
+                "seek_advice"
+              ],
+              "ting4": [
+                "seek_advice"
+              ],
+              "xuan3": [
+                "seek_advice"
+              ],
+              "shui4": [
+                "seek_advice",
+                "ask_fact",
+                "chat"
+              ],
+              "shuo1": [
+                "seek_advice",
+                "ask_fact",
+                "chat"
+              ],
+              "qu4": [
+                "seek_advice"
+              ],
+              "na2": [
+                "seek_advice"
+              ],
+              "hen3": [
+                "seek_advice"
+              ],
+              "jiu1": [
+                "seek_advice"
+              ],
+              "jie2": [
+                "seek_advice"
+              ],
+              "，": [
+                "seek_advice",
+                "chat"
+              ],
+              "zhong3": [
+                "seek_advice"
+              ],
+              "qing2": [
+                "seek_advice",
+                "chat"
+              ],
+              "kuang4": [
+                "seek_advice"
+              ],
+              "neng2": [
+                "seek_advice",
+                "ask_fact"
+              ],
+              "fen1": [
+                "seek_advice"
+              ],
+              "xi1": [
+                "seek_advice"
+              ],
+              "xie1": [
+                "seek_advice"
+              ],
+              "can1": [
+                "seek_advice"
+              ],
+              "mou2": [
+                "seek_advice"
+              ],
+              "zou3": [
+                "seek_advice"
+              ],
+              "na5": [
+                "seek_advice"
+              ],
+              "nei3": [
+                "seek_advice"
+              ],
+              "tiao2": [
+                "seek_advice"
+              ],
+              "lu4": [
+                "seek_advice"
+              ],
+              "yao4": [
+                "seek_advice"
+              ],
+              "yao1": [
+                "seek_advice"
+              ],
+              "jie1": [
+                "seek_advice"
+              ],
+              "shou4": [
+                "seek_advice"
+              ],
+              "jin1": [
+                "ask_fact",
+                "chat"
+              ],
+              "tian1": [
+                "ask_fact",
+                "chat"
+              ],
+              "qi4": [
+                "ask_fact",
+                "chat"
+              ],
+              "yang4": [
+                "ask_fact",
+                "chat"
+              ],
+              "deepseek": [
+                "ask_fact"
+              ],
+              "gu3": [
+                "ask_fact"
+              ],
+              "duo1": [
+                "ask_fact"
+              ],
+              "shao3": [
+                "ask_fact"
+              ],
+              "shao5": [
+                "ask_fact"
+              ],
+              "ji1": [
+                "ask_fact"
+              ],
+              "hao2": [
+                "ask_fact"
+              ],
+              "peppaos": [
+                "ask_fact"
+              ],
+              "dai4": [
+                "ask_fact"
+              ],
+              "yu3": [
+                "ask_fact"
+              ],
+              "yan2": [
+                "ask_fact"
+              ],
+              "xie3": [
+                "ask_fact"
+              ],
+              "da4": [
+                "ask_fact"
+              ],
+              "gong1": [
+                "ask_fact"
+              ],
+              "si1": [
+                "ask_fact"
+              ],
+              "peppa": [
+                "ask_fact"
+              ],
+              "si5": [
+                "ask_fact"
+              ],
+              "shu4": [
+                "ask_fact"
+              ],
+              "zi4": [
+                "ask_fact"
+              ],
+              "sheng1": [
+                "ask_fact"
+              ],
+              "ming4": [
+                "ask_fact"
+              ],
+              "ti3": [
+                "ask_fact"
+              ],
+              "he4": [
+                "ask_fact"
+              ],
+              "hu2": [
+                "ask_fact"
+              ],
+              "huo2": [
+                "ask_fact"
+              ],
+              "huo4": [
+                "ask_fact"
+              ],
+              "qi2": [
+                "ask_fact"
+              ],
+              "ai": [
+                "ask_fact"
+              ],
+              "tong2": [
+                "ask_fact"
+              ],
+              "xue2": [
+                "ask_fact"
+              ],
+              "xi2": [
+                "ask_fact"
+              ],
+              "ji4": [
+                "ask_fact"
+              ],
+              "zhu5": [
+                "ask_fact"
+              ],
+              "hua4": [
+                "ask_fact",
+                "chat"
+              ],
+              "wang4": [
+                "ask_fact"
+              ],
+              "ju4": [
+                "ask_fact",
+                "chat"
+              ],
+              "cun2": [
+                "ask_fact"
+              ],
+              "li3": [
+                "ask_fact"
+              ],
+              "an1": [
+                "ask_fact"
+              ],
+              "quan2": [
+                "ask_fact"
+              ],
+              "shei2": [
+                "ask_fact"
+              ],
+              "chuang4": [
+                "ask_fact"
+              ],
+              "zao4": [
+                "ask_fact"
+              ],
+              "shi2": [
+                "ask_fact"
+              ],
+              "hou5": [
+                "ask_fact"
+              ],
+              "dan4": [
+                "ask_fact"
+              ],
+              "xin1": [
+                "chat"
+              ],
+              "cuo4": [
+                "chat"
+              ],
+              "zui4": [
+                "chat"
+              ],
+              "jin4": [
+                "chat"
+              ],
+              "lei3": [
+                "chat"
+              ],
+              "lei4": [
+                "chat"
+              ],
+              "lei2": [
+                "chat"
+              ],
+              "zhen1": [
+                "chat"
+              ],
+              "a1": [
+                "chat"
+              ],
+              "a2": [
+                "chat"
+              ],
+              "a3": [
+                "chat"
+              ],
+              "a4": [
+                "chat"
+              ],
+              "a5": [
+                "chat"
+              ],
+              "kai1": [
+                "chat"
+              ],
+              "mang2": [
+                "chat"
+              ],
+              "wen4": [
+                "chat"
+              ],
+              "ti2": [
+                "chat"
+              ],
+              "gang1": [
+                "chat"
+              ],
+              "gang5": [
+                "chat"
+              ],
+              "meng4": [
+                "chat"
+              ],
+              "cai1": [
+                "chat"
+              ],
+              "dui1": [
+                "chat"
+              ],
+              "zhui1": [
+                "chat"
+              ],
+              "chi1": [
+                "chat"
+              ],
+              "fan2": [
+                "chat"
+              ],
+              "mei2": [
+                "chat"
+              ],
+              "jiu4": [
+                "chat"
+              ],
+              "sui2": [
+                "chat"
+              ],
+              "bian4": [
+                "chat"
+              ],
+              "liao2": [
+                "chat"
+              ],
+              "gan4": [
+                "chat"
+              ],
+              "ma2": [
+                "chat"
+              ],
+              "gen1": [
+                "chat"
+              ],
+              "shuo5": [
+                "chat"
+              ],
+              "jiu3": [
+                "chat"
+              ],
+              "mo4": [
+                "chat"
+              ],
+              "zhuang4": [
+                "chat"
+              ],
+              "ting3": [
+                "chat"
+              ]
+            },
+            "neuralNetwork": {
+              "settings": {
+                "locale": "zh",
+                "tag": "nlu-zh",
+                "keepStopwords": true,
+                "nonefeatureValue": 1,
+                "nonedeltaMultiplier": 1.2,
+                "spellCheck": false,
+                "spellCheckDistance": 1,
+                "filterZeros": true,
+                "log": true
+              },
+              "features": [
+                "ni3",
+                "jue2",
+                "de5",
+                "wo3",
+                "gai1",
+                "bu4",
+                "gao4",
+                "su4",
+                "su5",
+                "ta1",
+                "ren4",
+                "wei2",
+                "ying1",
+                "da1",
+                "ying5",
+                "ma3",
+                "ma5",
+                "huan4",
+                "cheng2",
+                "shi4",
+                "ne5",
+                "ni2",
+                "zen3",
+                "me5",
+                "kan1",
+                "kan4",
+                "zhe4",
+                "jian4",
+                "shen2",
+                "guan1",
+                "dian3",
+                "gan3",
+                "ru2",
+                "he2",
+                "xiang3",
+                "fa3",
+                "dui4",
+                "ci3",
+                "you3",
+                "jie3",
+                "zhi1",
+                "chi2",
+                "na3",
+                "ge5",
+                "tai4",
+                "du5",
+                "ping2",
+                "jia4",
+                "zuo4",
+                "ban4",
+                "hui4",
+                "kuai4",
+                "geng1",
+                "geng4",
+                "hao3",
+                "hao4",
+                "bi3",
+                "jiao4",
+                "bang1",
+                "yi1",
+                "xia4",
+                "pan4",
+                "duan4",
+                "ding4",
+                "xian4",
+                "zai4",
+                "gei3",
+                "ji3",
+                "ge4",
+                "yi4",
+                "chu1",
+                "zhu3",
+                "yi5",
+                "yin3",
+                "ting1",
+                "ting4",
+                "xuan3",
+                "shui4",
+                "shuo1",
+                "qu4",
+                "na2",
+                "hen3",
+                "jiu1",
+                "jie2",
+                "，",
+                "zhong3",
+                "qing2",
+                "kuang4",
+                "neng2",
+                "fen1",
+                "xi1",
+                "xie1",
+                "can1",
+                "mou2",
+                "zou3",
+                "na5",
+                "nei3",
+                "tiao2",
+                "lu4",
+                "yao4",
+                "yao1",
+                "jie1",
+                "shou4",
+                "jin1",
+                "tian1",
+                "qi4",
+                "yang4",
+                "deepseek",
+                "gu3",
+                "duo1",
+                "shao3",
+                "shao5",
+                "ji1",
+                "hao2",
+                "peppaos",
+                "dai4",
+                "yu3",
+                "yan2",
+                "xie3",
+                "da4",
+                "gong1",
+                "si1",
+                "peppa",
+                "si5",
+                "shu4",
+                "zi4",
+                "sheng1",
+                "ming4",
+                "ti3",
+                "he4",
+                "hu2",
+                "huo2",
+                "huo4",
+                "qi2",
+                "ai",
+                "tong2",
+                "xue2",
+                "xi2",
+                "ji4",
+                "zhu5",
+                "hua4",
+                "wang4",
+                "ju4",
+                "cun2",
+                "li3",
+                "an1",
+                "quan2",
+                "shei2",
+                "chuang4",
+                "zao4",
+                "shi2",
+                "hou5",
+                "dan4",
+                "xin1",
+                "cuo4",
+                "zui4",
+                "jin4",
+                "lei3",
+                "lei4",
+                "lei2",
+                "zhen1",
+                "a1",
+                "a2",
+                "a3",
+                "a4",
+                "a5",
+                "kai1",
+                "mang2",
+                "wen4",
+                "ti2",
+                "gang1",
+                "gang5",
+                "meng4",
+                "cai1",
+                "dui1",
+                "zhui1",
+                "chi1",
+                "fan2",
+                "mei2",
+                "jiu4",
+                "sui2",
+                "bian4",
+                "liao2",
+                "gan4",
+                "ma2",
+                "gen1",
+                "shuo5",
+                "jiu3",
+                "mo4",
+                "zhuang4",
+                "ting3"
+              ],
+              "intents": [
+                "ask_opinion",
+                "seek_advice",
+                "ask_fact",
+                "chat"
+              ],
+              "perceptrons": [
+                [
+                  4.068665027618408,
+                  2.0050466060638428,
+                  -1.4749348163604736,
+                  -6.8524088859558105,
+                  0.49260038137435913,
+                  3.4380319118499756,
+                  2.310680389404297,
+                  2.310680389404297,
+                  2.310680389404297,
+                  5.078336715698242,
+                  4.950456142425537,
+                  4.950456142425537,
+                  -1.6429493427276611,
+                  2.6745409965515137,
+                  2.6745409965515137,
+                  -2.2035269737243652,
+                  -0.49730852246284485,
+                  8.423379898071289,
+                  8.423379898071289,
+                  -0.277118057012558,
+                  4.5519866943359375,
+                  4.5519866943359375,
+                  1.0144062042236328,
+                  1.4278301000595093,
+                  0.7679600119590759,
+                  4.394223690032959,
+                  2.680166721343994,
+                  -0.3100038170814514,
+                  0.41416212916374207,
+                  4.531300067901611,
+                  3.3319413661956787,
+                  3.48037052154541,
+                  3.48037052154541,
+                  0.6836997270584106,
+                  6.866591930389404,
+                  3.6296627521514893,
+                  3.55470609664917,
+                  3.55470609664917,
+                  -2.6197004318237305,
+                  3.55470609664917,
+                  4.213959693908691,
+                  4.213959693908691,
+                  -0.7453628182411194,
+                  1.9055182933807373,
+                  3.2207131385803223,
+                  4.75666618347168,
+                  1.5953772068023682,
+                  0.9666532874107361,
+                  -6.455735206604004,
+                  -1.563472867012024,
+                  -0.9790799617767334,
+                  -0.9790799617767334,
+                  0,
+                  0,
+                  -3.5634052753448486,
+                  -1.7528272867202759,
+                  -0.4935281574726105,
+                  -0.4935281574726105,
+                  -1.5000784397125244,
+                  -1.3664103746414185,
+                  -1.3664103746414185,
+                  -0.9911581873893738,
+                  -0.9911581873893738,
+                  -0.5185450315475464,
+                  -0.775354266166687,
+                  -4.039896011352539,
+                  -1.5484322309494019,
+                  -2.4344136714935303,
+                  -1.281699776649475,
+                  -5.00737190246582,
+                  -0.08137071877717972,
+                  -0.08137071877717972,
+                  -0.08137071877717972,
+                  -1.328851342201233,
+                  -1.328851342201233,
+                  -1.328851342201233,
+                  -1.0195746421813965,
+                  -1.9769197702407837,
+                  -2.522340774536133,
+                  -2.5516388416290283,
+                  0,
+                  0,
+                  0,
+                  0,
+                  -1.7807899713516235,
+                  0,
+                  -0.2819783091545105,
+                  0,
+                  -0.7705946564674377,
+                  -0.6276835799217224,
+                  -0.6276835799217224,
+                  0,
+                  -0.3159239590167999,
+                  -0.3159239590167999,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  -0.7504377365112305,
+                  -0.7504377365112305,
+                  -2.2512362003326416,
+                  -2.2512362003326416,
+                  -2.4868762493133545,
+                  -2.4868762493133545,
+                  -0.5282695293426514,
+                  -3.7947280406951904,
+                  -2.213092803955078,
+                  -0.4726518392562866,
+                  -2.9302384853363037,
+                  -0.4726518392562866,
+                  -0.4726518392562866,
+                  -0.00630455557256937,
+                  -0.00630455557256937,
+                  -2.1902048587799072,
+                  -1.6095268726348877,
+                  -1.6095268726348877,
+                  -1.6095268726348877,
+                  -1.6095268726348877,
+                  -2.3015217781066895,
+                  -2.931283950805664,
+                  -2.931283950805664,
+                  0,
+                  0,
+                  -1.2621904611587524,
+                  -0.21132424473762512,
+                  -1.7805330753326416,
+                  -0.21132424473762512,
+                  -0.21132424473762512,
+                  -2.12815260887146,
+                  -2.12815260887146,
+                  -2.12815260887146,
+                  -2.12815260887146,
+                  -2.12815260887146,
+                  -2.12815260887146,
+                  -2.12815260887146,
+                  -3.40533447265625,
+                  -3.40533447265625,
+                  -0.0859355553984642,
+                  0,
+                  -0.7211310267448425,
+                  -0.9790799617767334,
+                  -1.0271848440170288,
+                  -1.0271848440170288,
+                  -1.0271848440170288,
+                  -1.068699598312378,
+                  -1.068699598312378,
+                  -1.6673903465270996,
+                  -1.6673903465270996,
+                  -1.6673903465270996,
+                  -1.5478324890136719,
+                  -1.5478324890136719,
+                  -1.5478324890136719,
+                  -0.2819783091545105,
+                  -0.2819783091545105,
+                  -1.6550015211105347,
+                  -1.6550015211105347,
+                  -0.01726370118558407,
+                  -0.01726370118558407,
+                  -0.01726370118558407,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  -2.4631917476654053,
+                  0,
+                  0,
+                  0,
+                  -0.03340248018503189,
+                  -1.9943208694458008,
+                  -0.04568447545170784,
+                  -0.04568447545170784,
+                  -0.04568447545170784,
+                  -0.04568447545170784,
+                  -0.6991616487503052,
+                  -0.6991616487503052,
+                  -0.7211310267448425,
+                  -0.7211310267448425,
+                  0,
+                  0,
+                  -1.5377249717712402,
+                  -1.7134133577346802,
+                  0.587739529179797
+                ],
+                [
+                  -2.3610494136810303,
+                  1.057359218597412,
+                  1.2305423021316528,
+                  2.468853712081909,
+                  8.946273803710938,
+                  -0.1586432307958603,
+                  -3.3929502964019775,
+                  -3.3929502964019775,
+                  -3.3929502964019775,
+                  -6.495466709136963,
+                  -2.6804046630859375,
+                  -2.6804046630859375,
+                  0.14454881846904755,
+                  1.0380557775497437,
+                  1.0380557775497437,
+                  0.19938170909881592,
+                  0.48304831981658936,
+                  -3.181532859802246,
+                  -3.181532859802246,
+                  -5.300171375274658,
+                  -1.5170241594314575,
+                  -1.5170241594314575,
+                  1.1970853805541992,
+                  0.8299788236618042,
+                  -3.59501314163208,
+                  -3.59501314163208,
+                  -0.33855128288269043,
+                  6.040500164031982,
+                  -0.36770519614219666,
+                  0,
+                  -1.27996027469635,
+                  -1.0439958572387695,
+                  -1.0439958572387695,
+                  0.9348267912864685,
+                  -1.9017473459243774,
+                  0,
+                  -1.2843443155288696,
+                  -1.2843443155288696,
+                  -0.30715736746788025,
+                  -1.2843443155288696,
+                  0,
+                  0,
+                  1.3344424962997437,
+                  0.9080813527107239,
+                  -1.4165005683898926,
+                  0,
+                  -0.5624966621398926,
+                  -0.86223965883255,
+                  0.5875187516212463,
+                  0.766166627407074,
+                  -1.2241257429122925,
+                  -1.2241257429122925,
+                  -1.2241257429122925,
+                  -1.2241257429122925,
+                  1.3793296813964844,
+                  3.525599956512451,
+                  2.2702596187591553,
+                  2.2702596187591553,
+                  5.569492816925049,
+                  -1.4517868757247925,
+                  3.269562244415283,
+                  0.3849843144416809,
+                  0.3849843144416809,
+                  0.8008623123168945,
+                  0.42488986253738403,
+                  -0.10577637702226639,
+                  3.5374114513397217,
+                  0.45190638303756714,
+                  1.1090810298919678,
+                  5.587578773498535,
+                  1.7418553829193115,
+                  2.299814224243164,
+                  2.299814224243164,
+                  1.501871943473816,
+                  1.501871943473816,
+                  1.501871943473816,
+                  0.7738847136497498,
+                  0.46210792660713196,
+                  -0.7394999861717224,
+                  5.740509510040283,
+                  0.5602118372917175,
+                  -0.5643671751022339,
+                  -0.5643671751022339,
+                  -0.5643671751022339,
+                  -1.1473771333694458,
+                  0.7274513244628906,
+                  -0.7699230313301086,
+                  0.7274513244628906,
+                  0.23362675309181213,
+                  2.9737839698791504,
+                  2.9737839698791504,
+                  -2.2527637481689453,
+                  3.408470630645752,
+                  3.408470630645752,
+                  0.3190906345844269,
+                  0.3190906345844269,
+                  0.3190906345844269,
+                  0.3190906345844269,
+                  0.3190906345844269,
+                  4.37313175201416,
+                  4.37313175201416,
+                  2.7722365856170654,
+                  2.7722365856170654,
+                  -2.4134175777435303,
+                  -2.4134175777435303,
+                  -0.9925901293754578,
+                  -1.3779078722000122,
+                  -0.366716206073761,
+                  -0.14990806579589844,
+                  -1.1299190521240234,
+                  -0.14990806579589844,
+                  -0.14990806579589844,
+                  -0.6867223381996155,
+                  -0.6867223381996155,
+                  -0.19011884927749634,
+                  -0.14183330535888672,
+                  -0.14183330535888672,
+                  -0.14183330535888672,
+                  -0.14183330535888672,
+                  -0.8347876667976379,
+                  -0.26570993661880493,
+                  -0.26570993661880493,
+                  -0.45317700505256653,
+                  -0.45317700505256653,
+                  -0.415850430727005,
+                  0,
+                  0,
+                  0,
+                  0,
+                  -0.17131569981575012,
+                  -0.17131569981575012,
+                  -0.17131569981575012,
+                  -0.17131569981575012,
+                  -0.17131569981575012,
+                  -0.17131569981575012,
+                  -0.17131569981575012,
+                  -0.7300209403038025,
+                  -0.7300209403038025,
+                  -3.529299259185791,
+                  -0.7287678122520447,
+                  -2.105792999267578,
+                  0,
+                  -0.5786599516868591,
+                  -0.415850430727005,
+                  -0.415850430727005,
+                  0,
+                  0,
+                  -0.35372015833854675,
+                  -0.35372015833854675,
+                  -0.35372015833854675,
+                  0,
+                  0,
+                  0,
+                  -1.4968639612197876,
+                  -0.040181659162044525,
+                  -1.4858028888702393,
+                  -1.4858028888702393,
+                  -0.5828962326049805,
+                  -0.5828962326049805,
+                  -0.5828962326049805,
+                  0,
+                  -0.3151146471500397,
+                  -0.3151146471500397,
+                  -0.3151146471500397,
+                  -0.3151146471500397,
+                  -0.3151146471500397,
+                  0,
+                  -0.3151146471500397,
+                  -0.8364413976669312,
+                  -0.8364413976669312,
+                  -1.2931612730026245,
+                  -1.2931612730026245,
+                  -1.2931612730026245,
+                  -0.2943270206451416,
+                  -0.11573943495750427,
+                  -0.11573943495750427,
+                  -0.4894269108772278,
+                  -1.1033519506454468,
+                  -1.4184043407440186,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  -0.2773778736591339,
+                  -0.2773778736591339,
+                  -0.8537704944610596,
+                  -0.8537704944610596,
+                  0,
+                  -0.5274844169616699,
+                  -0.04430709193181469
+                ],
+                [
+                  -0.7344285845756531,
+                  -2.1671581268310547,
+                  1.763453722000122,
+                  -7.663318157196045,
+                  -5.118870735168457,
+                  -1.6329646110534668,
+                  -0.0012002798030152917,
+                  -0.0012002798030152917,
+                  -0.0012002798030152917,
+                  0.6718946099281311,
+                  -0.6004878282546997,
+                  -0.6004878282546997,
+                  -0.6004878282546997,
+                  -0.6004878282546997,
+                  -0.6004878282546997,
+                  1.7920249700546265,
+                  1.193987488746643,
+                  -0.8472123146057129,
+                  -0.8472123146057129,
+                  5.67025899887085,
+                  -1.3835718631744385,
+                  -1.3835718631744385,
+                  -0.3182118833065033,
+                  0.7955791354179382,
+                  -1.367667555809021,
+                  -6.1578288078308105,
+                  -1.7426767349243164,
+                  -6.24201774597168,
+                  1.1132649183273315,
+                  -4.125573635101318,
+                  -0.2591622769832611,
+                  -0.6798821091651917,
+                  -0.6798821091651917,
+                  -0.7401713728904724,
+                  -3.2801544666290283,
+                  -4.593352794647217,
+                  -0.766423761844635,
+                  -0.766423761844635,
+                  2.182063102722168,
+                  -0.766423761844635,
+                  -2.276543617248535,
+                  -2.276543617248535,
+                  2.1844398975372314,
+                  -0.40210846066474915,
+                  -6.460533142089844,
+                  -4.358218669891357,
+                  -0.18340523540973663,
+                  -1.0355010032653809,
+                  4.000641345977783,
+                  0,
+                  1.0319889783859253,
+                  1.0319889783859253,
+                  0,
+                  0,
+                  -4.514590740203857,
+                  -1.8181451559066772,
+                  -1.2643051147460938,
+                  -1.2643051147460938,
+                  -0.7425968050956726,
+                  -1.620486855506897,
+                  -0.7425968050956726,
+                  0,
+                  0,
+                  0,
+                  4.826187610626221,
+                  0.31538838148117065,
+                  -3.3964998722076416,
+                  6.02401065826416,
+                  -1.6482988595962524,
+                  0.6676003336906433,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  -5.4211578369140625,
+                  2.514937162399292,
+                  -0.5494956970214844,
+                  0,
+                  0,
+                  0,
+                  0,
+                  -1.6803373098373413,
+                  0,
+                  -1.4441277980804443,
+                  0,
+                  5.902557849884033,
+                  -0.7425968050956726,
+                  -0.7425968050956726,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  -0.5494956970214844,
+                  -0.5494956970214844,
+                  0,
+                  0,
+                  1.4454132318496704,
+                  1.4454132318496704,
+                  5.275579452514648,
+                  2.301800489425659,
+                  3.4703938961029053,
+                  -0.8392432332038879,
+                  5.4519147872924805,
+                  -0.8392432332038879,
+                  -0.8392432332038879,
+                  1.9772424697875977,
+                  1.9772424697875977,
+                  3.575293779373169,
+                  0.5985862016677856,
+                  0.5985862016677856,
+                  0.5985862016677856,
+                  0.5985862016677856,
+                  6.291699409484863,
+                  2.1588966846466064,
+                  2.1588966846466064,
+                  1.3816325664520264,
+                  1.3816325664520264,
+                  2.3936548233032227,
+                  0.0020441163796931505,
+                  1.0423115491867065,
+                  0.0020441163796931505,
+                  0.0020441163796931505,
+                  1.3376970291137695,
+                  1.3376970291137695,
+                  1.3376970291137695,
+                  1.3376970291137695,
+                  1.3376970291137695,
+                  1.3376970291137695,
+                  1.3376970291137695,
+                  2.8025553226470947,
+                  2.8025553226470947,
+                  5.906003952026367,
+                  3.218336582183838,
+                  2.514937162399292,
+                  1.0319889783859253,
+                  2.3840410709381104,
+                  2.391519546508789,
+                  2.391519546508789,
+                  4.359490871429443,
+                  4.359490871429443,
+                  3.913895606994629,
+                  3.913895606994629,
+                  3.913895606994629,
+                  1.0403375625610352,
+                  1.0403375625610352,
+                  1.0403375625610352,
+                  -1.917924165725708,
+                  -1.1671949625015259,
+                  -2.666818857192993,
+                  -2.666818857192993,
+                  -0.38802585005760193,
+                  -0.38802585005760193,
+                  -0.38802585005760193,
+                  -0.7416601181030273,
+                  -0.872255265712738,
+                  -0.872255265712738,
+                  -0.872255265712738,
+                  -0.872255265712738,
+                  -0.872255265712738,
+                  -0.39885979890823364,
+                  -0.06529762595891953,
+                  -0.17512288689613342,
+                  -0.17512288689613342,
+                  -0.45957693457603455,
+                  -0.45957693457603455,
+                  -0.45957693457603455,
+                  -2.1771061420440674,
+                  -0.003739428473636508,
+                  -0.003739428473636508,
+                  -2.376765012741089,
+                  -0.42750266194343567,
+                  -2.1807918548583984,
+                  -1.6803373098373413,
+                  -1.6803373098373413,
+                  -1.6803373098373413,
+                  -1.6803373098373413,
+                  -1.999751091003418,
+                  -1.999751091003418,
+                  -0.1738891452550888,
+                  -0.1738891452550888,
+                  -0.346854031085968,
+                  -0.346854031085968,
+                  -1.7168288230895996,
+                  0,
+                  3.262478023070696
+                ],
+                [
+                  2.9359028339385986,
+                  -2.643580675125122,
+                  -5.2572455406188965,
+                  1.832180380821228,
+                  -7.436970233917236,
+                  -2.240840435028076,
+                  -0.971059262752533,
+                  -0.971059262752533,
+                  -0.971059262752533,
+                  -2.1389403343200684,
+                  -0.7889063954353333,
+                  -0.7889063954353333,
+                  -1.754355549812317,
+                  -0.7889063954353333,
+                  -0.7889063954353333,
+                  1.4675828218460083,
+                  1.6013197898864746,
+                  -0.866805374622345,
+                  -0.866805374622345,
+                  -2.9806108474731445,
+                  0.118900366127491,
+                  0.118900366127491,
+                  -3.1735317707061768,
+                  -2.6220738887786865,
+                  -0.6426344513893127,
+                  -1.45774245262146,
+                  -0.503265917301178,
+                  -3.6419053077697754,
+                  0.5553144216537476,
+                  -2.868194818496704,
+                  0.8132368326187134,
+                  -0.6810035705566406,
+                  -0.6810035705566406,
+                  -0.6810035705566406,
+                  1.6475820541381836,
+                  -0.6423906683921814,
+                  -0.7323009371757507,
+                  -0.7323009371757507,
+                  2.408198595046997,
+                  -0.7323009371757507,
+                  -0.9722437858581543,
+                  -0.9722437858581543,
+                  -1.5312334299087524,
+                  -0.9722437858581543,
+                  2.13096284866333,
+                  -1.6562621593475342,
+                  0,
+                  -0.1737499237060547,
+                  0.677864134311676,
+                  0,
+                  -1.7022209167480469,
+                  -1.7022209167480469,
+                  -0.6481404304504395,
+                  -0.6481404304504395,
+                  4.9371843338012695,
+                  -0.4677543640136719,
+                  0,
+                  0,
+                  -3.626042127609253,
+                  0.953528106212616,
+                  -1.774337649345398,
+                  0,
+                  0,
+                  0,
+                  -1.386011004447937,
+                  4.228607177734375,
+                  -0.9018921852111816,
+                  -5.04323673248291,
+                  2.3608250617980957,
+                  -5.342024326324463,
+                  -0.6490655541419983,
+                  -1.7641233205795288,
+                  -1.7641233205795288,
+                  -0.9090770483016968,
+                  -0.9090770483016968,
+                  -0.9090770483016968,
+                  0,
+                  6.728558540344238,
+                  -0.44234177470207214,
+                  -2.5689661502838135,
+                  -0.8899535536766052,
+                  -0.5684056282043457,
+                  -0.5684056282043457,
+                  -0.5684056282043457,
+                  2.34641170501709,
+                  0,
+                  3.4289491176605225,
+                  0,
+                  -4.199046611785889,
+                  -0.7732350826263428,
+                  -0.7732350826263428,
+                  -0.013826352544128895,
+                  -0.7781285643577576,
+                  -0.7781285643577576,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  -0.35117924213409424,
+                  -0.35117924213409424,
+                  0,
+                  0,
+                  3.0540430545806885,
+                  3.0540430545806885,
+                  -5.216901779174805,
+                  4.4723100662231445,
+                  -0.1737499237060547,
+                  -0.1737499237060547,
+                  -2.138432025909424,
+                  -0.1737499237060547,
+                  -0.1737499237060547,
+                  -1.6581006050109863,
+                  -1.6581006050109863,
+                  0,
+                  -0.13283216953277588,
+                  -0.13283216953277588,
+                  -0.13283216953277588,
+                  -0.13283216953277588,
+                  -1.9218543767929077,
+                  0,
+                  0,
+                  0,
+                  0,
+                  -0.47770872712135315,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  -4.225683212280273,
+                  -3.295438528060913,
+                  1.6986416578292847,
+                  -0.7668840289115906,
+                  -1.1368794441223145,
+                  -0.47770872712135315,
+                  -0.47770872712135315,
+                  -3.520540475845337,
+                  -3.520540475845337,
+                  -1.3453681468963623,
+                  -1.3453681468963623,
+                  -1.3453681468963623,
+                  0,
+                  0,
+                  0,
+                  2.958678722381592,
+                  2.777517557144165,
+                  5.402914047241211,
+                  5.402914047241211,
+                  -0.89973384141922,
+                  -0.89973384141922,
+                  -0.89973384141922,
+                  4.778006076812744,
+                  0.4942225217819214,
+                  0.4942225217819214,
+                  0.4942225217819214,
+                  0.4942225217819214,
+                  0.4942225217819214,
+                  -0.4698594808578491,
+                  -4.300601005554199,
+                  0.9952303171157837,
+                  0.9952303171157837,
+                  2.413738489151001,
+                  2.413738489151001,
+                  2.413738489151001,
+                  4.622797966003418,
+                  -0.6562170386314392,
+                  -0.6562170386314392,
+                  4.495396614074707,
+                  7.80525016784668,
+                  4.246269226074219,
+                  2.3504602909088135,
+                  2.3504602909088135,
+                  2.3504602909088135,
+                  2.3504602909088135,
+                  2.974864959716797,
+                  2.974864959716797,
+                  2.6733920574188232,
+                  2.6733920574188232,
+                  2.321668863296509,
+                  2.321668863296509,
+                  3.1663899421691895,
+                  0.7203001379966736,
+                  1.2925177008800053
+                ]
+              ]
+            }
+          }
+        }
+      }
+    },
+    "intentDomains": {},
+    "extraSentences": [
+      [
+        "zh",
+        "你觉得我该不该告诉他"
+      ],
+      [
+        "zh",
+        "你认为我应该答应他吗"
+      ],
+      [
+        "zh",
+        "我该不该换城市"
+      ],
+      [
+        "zh",
+        "你觉得呢"
+      ],
+      [
+        "zh",
+        "你怎么看这件事"
+      ],
+      [
+        "zh",
+        "你什么观点"
+      ],
+      [
+        "zh",
+        "你感觉如何"
+      ],
+      [
+        "zh",
+        "你怎么想的"
+      ],
+      [
+        "zh",
+        "你的看法是什么"
+      ],
+      [
+        "zh",
+        "对此你有什么见解"
+      ],
+      [
+        "zh",
+        "你支持哪个"
+      ],
+      [
+        "zh",
+        "你的态度是什么"
+      ],
+      [
+        "zh",
+        "你怎么评价这个"
+      ],
+      [
+        "zh",
+        "你觉得我应该怎么做"
+      ],
+      [
+        "zh",
+        "你觉得我该怎么做"
+      ],
+      [
+        "zh",
+        "你觉得我应该怎么办"
+      ],
+      [
+        "zh",
+        "我应该怎么做会更好"
+      ],
+      [
+        "zh",
+        "我该怎么做比较合适"
+      ],
+      [
+        "zh",
+        "帮我看一下我该怎么做"
+      ],
+      [
+        "zh",
+        "你觉得我该怎么判断"
+      ],
+      [
+        "zh",
+        "你觉得我应该怎么决定"
+      ],
+      [
+        "zh",
+        "我现在该怎么做"
+      ],
+      [
+        "zh",
+        "你觉得我现在应该怎么做"
+      ],
+      [
+        "zh",
+        "我该怎么办"
+      ],
+      [
+        "zh",
+        "我应该怎么做"
+      ],
+      [
+        "zh",
+        "你给个建议"
+      ],
+      [
+        "zh",
+        "给点建议吧"
+      ],
+      [
+        "zh",
+        "帮我出出主意"
+      ],
+      [
+        "zh",
+        "我想听听你的建议"
+      ],
+      [
+        "zh",
+        "你觉得我该选哪个"
+      ],
+      [
+        "zh",
+        "你说我该不该去"
+      ],
+      [
+        "zh",
+        "你有什么好建议"
+      ],
+      [
+        "zh",
+        "帮我拿个主意"
+      ],
+      [
+        "zh",
+        "我现在很纠结，给点建议"
+      ],
+      [
+        "zh",
+        "这种情况我该怎么做"
+      ],
+      [
+        "zh",
+        "你能帮我分析一下吗"
+      ],
+      [
+        "zh",
+        "给我一些建议"
+      ],
+      [
+        "zh",
+        "我应该怎么选"
+      ],
+      [
+        "zh",
+        "你帮我参谋一下"
+      ],
+      [
+        "zh",
+        "我该走哪条路"
+      ],
+      [
+        "zh",
+        "你建议我怎么做"
+      ],
+      [
+        "zh",
+        "要不要去"
+      ],
+      [
+        "zh",
+        "该不该接受"
+      ],
+      [
+        "zh",
+        "你觉得我应该答应吗"
+      ],
+      [
+        "zh",
+        "今天天气怎么样"
+      ],
+      [
+        "zh",
+        "DeepSeek的股价是多少"
+      ],
+      [
+        "zh",
+        "今天几号"
+      ],
+      [
+        "zh",
+        "现在几点"
+      ],
+      [
+        "zh",
+        "什么是PeppaOS"
+      ],
+      [
+        "zh",
+        "DeepSeek是什么"
+      ],
+      [
+        "zh",
+        "你是什么做的"
+      ],
+      [
+        "zh",
+        "你的代码是什么语言写的"
+      ],
+      [
+        "zh",
+        "你多大了"
+      ],
+      [
+        "zh",
+        "你能做什么"
+      ],
+      [
+        "zh",
+        "你是哪个公司的"
+      ],
+      [
+        "zh",
+        "Peppa是什么意思"
+      ],
+      [
+        "zh",
+        "什么是数字生命体"
+      ],
+      [
+        "zh",
+        "你和其他AI有什么不同"
+      ],
+      [
+        "zh",
+        "你是怎么学习的"
+      ],
+      [
+        "zh",
+        "你有记忆吗"
+      ],
+      [
+        "zh",
+        "你能记住我说的话吗"
+      ],
+      [
+        "zh",
+        "你会忘事吗"
+      ],
+      [
+        "zh",
+        "你的数据存哪里"
+      ],
+      [
+        "zh",
+        "你安全吗"
+      ],
+      [
+        "zh",
+        "谁创造了你"
+      ],
+      [
+        "zh",
+        "你是什么时候诞生的"
+      ],
+      [
+        "zh",
+        "今天心情不错"
+      ],
+      [
+        "zh",
+        "我最近有点累"
+      ],
+      [
+        "zh",
+        "今天天气真好啊"
+      ],
+      [
+        "zh",
+        "我心情不太好"
+      ],
+      [
+        "zh",
+        "今天好开心"
+      ],
+      [
+        "zh",
+        "最近好忙啊"
+      ],
+      [
+        "zh",
+        "我在想一个问题"
+      ],
+      [
+        "zh",
+        "我刚刚做了一个梦"
+      ],
+      [
+        "zh",
+        "你猜我在想什么"
+      ],
+      [
+        "zh",
+        "我最近在追一部剧"
+      ],
+      [
+        "zh",
+        "今天吃了什么好吃的"
+      ],
+      [
+        "zh",
+        "我有点烦"
+      ],
+      [
+        "zh",
+        "没事，就是随便聊聊"
+      ],
+      [
+        "zh",
+        "你最近怎么样"
+      ],
+      [
+        "zh",
+        "你在干嘛"
+      ],
+      [
+        "zh",
+        "我想跟你说说话"
+      ],
+      [
+        "zh",
+        "你睡了吗"
+      ],
+      [
+        "zh",
+        "你有没有想我"
+      ],
+      [
+        "zh",
+        "好久没见你说话了"
+      ],
+      [
+        "zh",
+        "你今天状态怎么样"
+      ],
+      [
+        "zh",
+        "我挺好的，你呢"
+      ]
+    ]
+  },
+  "ner": {
+    "settings": {
+      "tag": "ner",
+      "entityPreffix": "%",
+      "entitySuffix": "%"
+    },
+    "rules": {}
+  },
+  "nlgManager": {
+    "settings": {
+      "tag": "nlg-manager"
+    },
+    "responses": {}
+  },
+  "actionManager": {
+    "settings": {
+      "tag": "action-manager"
+    },
+    "actions": {}
+  },
+  "slotManager": {}
+}
