@@ -10,6 +10,8 @@ declare global {
   var __lastUserMessageAt: number;
 }
 
+import { setIO } from './server/lib/pushService';
+
 // ── Required environment variables ──
 if (!process.env.JWT_SECRET) {
   console.error('[FATAL] JWT_SECRET is required. Set it in .env or docker-compose.yml.');
@@ -64,6 +66,7 @@ const __dirname = path.dirname(__filename);
 const ROLE = resolveRole();
 
 const { app, server, io, apiRouter, PORT, HOST, JWT_SECRET, getCookieOptions } = createApp();
+setIO(io);
 (global as any).__wsClients = (global as any).__wsClients || [];
 (global as any).__lastUserMessageAt = 0;
 const llm = createLLMRuntime();

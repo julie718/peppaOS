@@ -403,18 +403,10 @@ export class LifeSystem {
         await this.selfAwareness.triggerReflection();
       }, errors);
 
-      // 步骤 5.6: 主动行为检查（直接执行）
-      try {
-        console.log('[主动行为] 检查开始（直接执行）');
-        const { execSync } = require('child_process');
-        const output = execSync('npx tsx server/proactive/index.ts', {
-          encoding: 'utf8',
-          cwd: '/app'
-        });
-        console.log('[主动行为] 输出:', output);
-      } catch (e: any) {
-        console.error('[主动行为] 执行失败:', e.message);
-      }
+      // 步骤 5.6: 主动行为检查
+      await this.safeCall('proactive.run', async () => {
+        await proactiveManager.run();
+      }, errors);
 
       // 步骤 5.5: 自我叙事（每24小时一次）
       await this.safeCall('narrative.daily', async () => {

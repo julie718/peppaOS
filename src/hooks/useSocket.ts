@@ -33,6 +33,9 @@ function registerSharedSocketHandlers(socket: Socket) {
 
   socket.on('connect', registerDevice);
   socket.on('tool:desktop_exec', desktopExecHandler);
+  socket.on('proactive:trigger', (data) => {
+    console.log('[Proactive] Received:', data);
+  });
   if (socket.connected) registerDevice();
 
   registeredSocket = socket;

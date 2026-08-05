@@ -1,5 +1,6 @@
 import { logger } from '../lib/logger';
 import { allTriggers } from './triggers';
+import { emitProactivePush } from '../lib/pushService';
 
 export type ProactiveScene =
   | 'morning_greeting'
@@ -47,7 +48,18 @@ export class ProactiveManager {
         const result = await trigger.check();
         if (result.triggered) {
           logger.info(`[Proactive] 触发: ${result.scene} - ${result.reason}`);
-          // TODO: 推送到前端
+
+          const pushed = emitProactivePush({
+            scene: result.scene!,
+            content: result.content || '主动触发了一条消息',
+            reason: result.reason,
+          });
+
+          if (pushed) {
+            logger.info(`[Proactive] ✅ 推送成功: ${result.scene}`);
+          } else {
+            logger.warn(`[Proactive] ⚠️ 推送失败: IO未就绪`);
+          }
         }
       } catch (e) {
         logger.error(`[Proactive] 触发器 ${trigger.name} 执行失败: ${e}`);

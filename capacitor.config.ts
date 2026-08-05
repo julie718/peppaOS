@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'MayOS',
   webDir: 'dist/mobile',
   server: {
-    url: 'https://qweasd.top:4043/index.mobile.html',
+    url: 'https://peppa.qweasd.top/index.mobile.html',
     cleartext: true
   },
   ios: {

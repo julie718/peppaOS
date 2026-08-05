@@ -707,6 +707,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     };
 
     const onResponse = (data: { text: string; agentName: string; source?: string; requestId?: string }) => {
+      console.log("[前端] 收到 agent:response:", data);
       if (!isCurrentChatEvent(data)) return;
       setIsTyping(false);
       setWorkflowStatus('done');
