@@ -386,10 +386,32 @@ function synthesizeResponse(
   confidence: ConfidenceAssessment,
   retrieval: RetrievalResult,
   degraded: boolean,
+  nluIntent?: { intent: string; entities: Record<string, any>; confidence: number; source: string } | null,
 ): string {
   const direction = deduction?.direction;
   const inclination: string = direction?.inclination || 'neutral';
   const intensity: number = typeof direction?.intensity === 'number' ? direction.intensity : 0.5;
+
+  // ── 意图感知：根据意图调整表达方式 ──
+  let intentPrefix = '';
+  if (nluIntent && nluIntent.confidence >= 0.6) {
+    switch (nluIntent.intent) {
+      case 'ask_opinion':
+        intentPrefix = '你问我的看法，';
+        break;
+      case 'seek_advice':
+        intentPrefix = '你希望我给点建议，';
+        break;
+      case 'ask_fact':
+        intentPrefix = '你在问一个事实性的问题，';
+        break;
+      case 'chat':
+        intentPrefix = '你在跟我聊天，';
+        break;
+      default:
+        intentPrefix = '';
+    }
+  }
 
   const givePhrases = ['我觉得可以', '我倾向于建议', '我想你可以', '不妨试试'];
   const notGivePhrases = ['我觉得先不用', '我倾向于不建议', '暂时可以缓一缓', '也许不用急着'];
@@ -404,6 +426,10 @@ function synthesizeResponse(
     base = pick(notGivePhrases);
   } else {
     base = pick(neutralPhrases);
+  }
+
+  if (intentPrefix) {
+    base = intentPrefix + base;
   }
 
   if (intensity > 0.7) {

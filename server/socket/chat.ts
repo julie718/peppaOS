@@ -946,6 +946,15 @@ export function registerChatHandler(
       // ── 深度推理层：优先使用自身状态生成回复 ──
       if (route.layer === 'deep_reasoning') {
         logger.info('[ChatHandler] 深度推理层触发（自身状态模式）:', text.slice(0, 40));
+        let nluIntent: { intent: string; entities: Record<string, any>; confidence: number; source: string } | null = null;
+        try {
+          const { parseIntent } = await import('../cognition/nlu/index.js');
+          nluIntent = await parseIntent(text);
+          logger.info(`[ChatHandler] NLU: ${nluIntent.intent} (${nluIntent.confidence.toFixed(2)})`);
+        } catch (e) {
+          logger.warn('[ChatHandler] NLU failed:', e);
+        }
+
         try {
           const selfState = await getSelfState();
           logger.info('[Debug] selfState 内容:', JSON.stringify(selfState));
@@ -1019,7 +1028,7 @@ export function registerChatHandler(
             }
           }
 
-          const reply = synthesizeResponse(text, deduction, null, { score: 70, dataCompleteness: 50, ruleSoundness: 70, verifiability: 50, uncertaintyFactors: [] }, { sources: [], summary: '', dataGaps: [] }, false);
+          const reply = synthesizeResponse(text, deduction, null, { score: 70, dataCompleteness: 50, ruleSoundness: 70, verifiability: 50, uncertaintyFactors: [] }, { sources: [], summary: '', dataGaps: [] }, false, nluIntent);
           logger.info('[Debug] reply 内容:', reply);
 
           // 存入数据库
