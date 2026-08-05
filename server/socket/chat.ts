@@ -955,27 +955,30 @@ export function registerChatHandler(
           logger.warn('[ChatHandler] NLU failed:', e);
         }
 
-        // ── 信息完整性判断（先理解，再回应） ──
-        if (nluIntent) {
-          const completeness = assessInformationCompleteness(text, { intent: nluIntent.intent, confidence: nluIntent.confidence });
-          if (!completeness.complete && completeness.followUp) {
-            logger.info(`[ChatHandler] 信息不完整，追问: ${completeness.followUp.slice(0, 50)}...`);
+        // ── 信息完整性判断（无论 NLU 是否成功，都执行） ──
+        const intentForCheck = nluIntent ?? {
+          intent: 'seek_advice',
+          confidence: 0.7,
+          entities: {},
+          source: 'fallback'
+        };
 
-            socket.emit('agent:response', {
-              text: completeness.followUp,
-              agentName: personality.name,
-              source: 'clarification',
-            });
-
-            if (conversationId) {
-              addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'user', content: storedUserContent, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
-              addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'assistant', content: completeness.followUp, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
-            }
-
-            socket.emit('agent:status', { status: 'idle' });
-            chatSessionMap.delete(sessionKey);
-            return;
+        const completeness = assessInformationCompleteness(text, intentForCheck);
+        if (!completeness.complete && completeness.followUp) {
+          logger.info(`[ChatHandler] 信息不完整，追问: ${completeness.followUp.slice(0, 50)}...`);
+          socket.emit('agent:response', {
+            text: completeness.followUp,
+            agentName: personality.name,
+            source: 'clarification'
+          });
+          // 存入数据库
+          if (conversationId) {
+            addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'user', content: storedUserContent, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
+            addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'assistant', content: completeness.followUp, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
           }
+          socket.emit('agent:status', { status: "idle" });
+          chatSessionMap.delete(sessionKey);
+          return;
         }
 
         try {
