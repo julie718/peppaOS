@@ -2,6 +2,7 @@
 // 规则处理明确类型（0 Token），LLM 仅用于模糊边界
 import { logger } from '../lib/logger.js';
 import { isDeepReasoningQuery, getSelfState } from './deepReasoning.js';
+import { parseIntent } from './nlu/index.js';
 
 // ── 路由层级 ──
 export type RouteLayer = 'instinct' | 'tool' | 'cognitive' | 'deep_reasoning' | 'orchestrator' | 'unknown';
@@ -102,14 +103,46 @@ export async function routeMessage(
     return { layer: 'deep_reasoning', reason: 'deep_reasoning_triggered', trace, canSelfRespond };
   }
 
-  // 第3层：工具层（规则，0 Token）
+  // 第3层：NLU 意图识别（在工具层之前执行）
+  try {
+    const nluResult = await parseIntent(trimmed);
+    trace.push(`nlu: intent=${nluResult.intent}, confidence=${nluResult.confidence.toFixed(2)}`);
+    logger.info(`[Router] NLU result: ${nluResult.intent} (${nluResult.confidence.toFixed(2)})`);
+
+    if (nluResult.confidence >= 0.6) {
+      switch (nluResult.intent) {
+        case 'ask_opinion':
+        case 'seek_advice':
+          trace.push(`nlu→deep_reasoning: ${nluResult.intent}`);
+          logger.info(`[Router] ${trimmed.slice(0, 30)} → deep_reasoning via NLU (${nluResult.intent})`);
+          return { layer: 'deep_reasoning', reason: `NLU: ${nluResult.intent}`, trace, canSelfRespond };
+        case 'ask_fact':
+          trace.push(`nlu→tool: ${nluResult.intent}`);
+          logger.info(`[Router] ${trimmed.slice(0, 30)} → tool via NLU (${nluResult.intent})`);
+          return { layer: 'tool', reason: `NLU: ${nluResult.intent} → tool`, trace, canSelfRespond };
+        case 'chat':
+          trace.push(`nlu→cognitive: ${nluResult.intent}`);
+          logger.info(`[Router] ${trimmed.slice(0, 30)} → cognitive via NLU (${nluResult.intent})`);
+          return { layer: 'cognitive', reason: `NLU: ${nluResult.intent}`, trace, canSelfRespond };
+        default:
+          trace.push('nlu→cognitive: unknown intent fallback');
+      }
+    } else {
+      trace.push(`nlu: low confidence (${nluResult.confidence.toFixed(2)}) < 0.6, fallback`);
+    }
+  } catch (e) {
+    trace.push('nlu: error');
+    logger.warn(`[Router] NLU parse error: ${e}`);
+  }
+
+  // 第4层：工具层（规则，0 Token）
   if (hasToolIntent(trimmed)) {
     trace.push('tool: matched tool intent pattern');
     logger.info(`[Router] ${trimmed.slice(0, 30)} → tool`);
     return { layer: 'tool', reason: 'tool_intent_detected', trace, canSelfRespond };
   }
 
-  // 第3层：认知层（复杂度判断）
+  // 第5层：认知层（复杂度判断）
   try {
     const classifyFn = await getClassifyComplexity();
     const complexity = classifyFn(trimmed);
