@@ -8,7 +8,13 @@ import { addMemory } from '../memory/store.js';
 import { addInteractionMemory, saveEmotionVector } from '../db/lifeDb.js';
 import { getEmotionEngine } from '../life/emotions.js';
 import { getRelationshipEngine } from '../life/relationship.js';
-import type { AfterResponseContext } from './chat.js';
+// 本地类型定义（不依赖全局钩子）
+interface AfterResponseContext {
+  uid: string; text: string; response: string; sessionKey: string;
+  personality: { name: string; vector: number[] };
+  emotion: { emotions: number[]; dominant: string };
+  conversationId: string; domain: string; orgId: string; source?: string;
+}
 
 // ── 四类归档 ──
 interface ReviewResult {

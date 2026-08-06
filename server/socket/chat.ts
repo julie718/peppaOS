@@ -27,16 +27,17 @@ import { getPrefetchedContext, clearPrefetchedContext, touchActivity } from "../
 import { getLifeSystem, getDirectionState } from "../life/index.js";
 import { getVitality } from "../life/vitality.js";
 import { getEmotionEngine } from "../life/emotions.js";
+import { getPersonalityEngine } from "../life/personality.js";
 import { getRelationshipEngine } from "../life/relationship.js";
 import { onInteractionComplete } from "../life/relationshipAwareness.js";
 import { routeMessage, isInstinctQuery, isIdentityQuery } from "../cognition/router.js";
 import { getSelfState, synthesizeResponse } from "../cognition/deepReasoning.js";
 import { generateIdentityResponse, generateHowAreYouResponse } from "../life/narrative.js";
-import { updateComprehension, shouldClarify, generateClarification } from '../life/comprehension.js';
+import { updateComprehension, shouldClarify, generateClarification, getComprehensionState } from '../life/comprehension.js';
 import { touchUserActivity } from "../life/userState.js";
-// T80 hooks & interceptor
-import { onBeforeMessage, onAfterResponse, createChatHooks, classifyToolIntent, BeforeMessageContext, AfterResponseContext } from '../hooks/chat.js';
-import { mcpInterceptor, markToolResultTTL, buildToolBlockMessage } from '../tools/interceptor.js';
+// 【新增数字生命体模块】T80 心智 + MCP 拦截器
+import { buildMindContext, classifyToolIntent, MindContext, SEVEN_STEP_MIND } from '../hooks/chat.js';
+import { mcpInterceptor, buildToolBlockMessage } from '../tools/interceptor.js';
 import { getUnrespondedObservations, markObservationResponded } from "../db/lifeDb.js";
 import { retrieveChunks } from "../agents/rag";
 import { getSensory } from "./shared";
@@ -341,8 +342,7 @@ export function registerChatHandler(
     chatSessionMap.set(sessionKey, abortController);
     const llmTimeout = setTimeout(() => { abortController.abort(); logger.warn('[ChatHandler] LLM 超时 30s，强制中止'); }, 30000);
 
-    // ── T80: 初始化钩子 + MCP 拦截器重置 ──
-    createChatHooks();
+    // 【新增数字生命体模块】MCP 拦截器每轮重置
     mcpInterceptor.resetForTurn(sessionKey);
 
     // 抢占 LifeSystem 后台任务
@@ -493,30 +493,9 @@ export function registerChatHandler(
       );
       logger.info('[ChatHandler] systemPrompt built, personality name:', personality?.name);
 
-      // ── T80: 调用 Before 钩子获取 7步心智 + 情绪注入 ──
-      let mindSystemPrompt = '';
-      let emotionStatePrompt = '';
-      const hookSessionKey = sessionKey;
-      if (onBeforeMessage) {
-        try {
-          const hookResult = await onBeforeMessage({
-            uid, text, sessionKey: hookSessionKey,
-            personality: { name: personality?.name || 'Peppa', vector: [] },
-            emotion: { emotions: [], dominant: '' },
-            direction: { inclination: 'neutral', intensity: 0.5 },
-            comprehension: { overall: 1, missingAspects: [] },
-          });
-          mindSystemPrompt = hookResult.mindSystemPrompt;
-          emotionStatePrompt = hookResult.emotionPrompt;
-          logger.info('[ChatHandler] T80 BeforeHook: 7步心智=' + (mindSystemPrompt ? 'injected' : 'empty') + ' 情绪=' + (emotionStatePrompt ? 'injected' : 'empty'));
-        } catch (e) {
-          logger.warn('[ChatHandler] T80 BeforeHook failed:', e);
-        }
-      }
-
       // Inject conversation summary chain for long-running conversations (anti-entropy)
       const beijingTime = new Date(new Date().getTime() + 8 * 3600000).toISOString().replace('Z', '+08:00');
-      let effectiveSystemPrompt = (mindSystemPrompt ? mindSystemPrompt + '\n\n' : '') + (emotionStatePrompt ? emotionStatePrompt + '\n\n' : '') + systemInstruction + `\n\n## Current Time\n${beijingTime} (北京时间). Use this for any time-related questions.`;
+      let effectiveSystemPrompt = systemInstruction + `\n\n## Current Time\n${beijingTime} (北京时间). Use this for any time-related questions.`;
 
       // ── 时间感知上下文：季节、节日、早晚、周末/工作日 ──
       try {
@@ -1010,6 +989,39 @@ export function registerChatHandler(
           }
         }
 
+        // ── 【新增数字生命体模块】7步心智 + 情绪注入 + 场景判定（仅深度推理分支） ──
+        const toolIntent = classifyToolIntent(text);
+        const shouldDisableTools = toolIntent === 'nostalgic';
+
+        // 构建心智上下文
+        const em = getEmotionEngine();
+        const pe = getPersonalityEngine();
+        const dirState = getDirectionState();
+        const compState = getComprehensionState();
+        const mindCtx: MindContext = {
+          ...buildMindContext(
+            em.getEmotions(),
+            pe.getPersonality(),
+            dirState.getInclination(),
+            dirState.getIntensity(),
+            compState.overall,
+          ),
+          toolIntent,
+          shouldDisableTools,
+        };
+
+        if (shouldDisableTools) {
+          logger.info(`[ChatHandler] 【新增数字生命体模块】场景判定: ${toolIntent} → MCP工具已屏蔽`);
+          // 额外兜底：直接消耗本轮 MCP 配额，确保即使后续误判也不会调用
+          mcpInterceptor.recordCall(sessionKey, 'blocked_nostalgic');
+          // 在 System Prompt 中明确告知模型本轮不可使用工具
+          effectiveSystemPrompt += '\n\n【重要】本轮对话属于情感陪伴场景，请勿调用任何工具。用纯共情的方式回应。';
+        }
+
+        // 将7步心智 + 情绪状态注入有效 System Prompt（深度推理专用）
+        effectiveSystemPrompt = mindCtx.mindSystemPrompt + '\n\n' + mindCtx.emotionStatePrompt + '\n\n' + effectiveSystemPrompt;
+        logger.info(`[ChatHandler] 【新增数字生命体模块】心智注入: toolIntent=${toolIntent} disableTools=${shouldDisableTools}`);
+
         let reply = '';
         try {
           const selfState = await getSelfState();
@@ -1138,15 +1150,17 @@ export function registerChatHandler(
             requestId: requestId || undefined,
           });
         }
-        // ── T80 AfterHook (deep_reasoning path) ──
-        if (onAfterResponse && reply) {
-          onAfterResponse({
-            uid, text, response: reply, sessionKey,
-            conversationId, domain: resolvedDomain, orgId: resolvedOrgId,
-            personality: { name: personality?.name || 'Peppa', vector: [] },
-            emotion: { emotions: [], dominant: '' },
-            source: 'deep_reasoning',
-          }).catch(e => logger.warn('[ChatHandler] AfterHook异常:', e?.message || e));
+        // ── 【新增数字生命体模块】对话后置异步复盘（deep_reasoning 路径） ──
+        if (reply) {
+          import('../hooks/review.js').then(({ performPostChatReview }) => {
+            performPostChatReview({
+              uid, text, response: reply, sessionKey,
+              conversationId, domain: resolvedDomain, orgId: resolvedOrgId,
+              personality: { name: personality?.name || 'Peppa', vector: [] },
+              emotion: { emotions: [], dominant: '' },
+              source: 'deep_reasoning',
+            }).catch(e => logger.warn('[ChatHandler] 异步复盘异常:', e?.message || e));
+          }).catch(() => {});
         }
         chatSessionMap.delete(sessionKey);
         return;
@@ -2011,16 +2025,17 @@ export function registerChatHandler(
         }
       } catch {}
 
-      // ── T80: After 钩子异步复盘（fire-and-forget） ──
-      if (onAfterResponse) {
-        const afterCtx: AfterResponseContext = {
-          uid, text, response: responseText,
-          sessionKey, conversationId, domain: resolvedDomain, orgId: resolvedOrgId,
-          personality: { name: personality?.name || 'Peppa', vector: [] },
-          emotion: { emotions: [], dominant: '' },
-          source: 'chat',
-        };
-        onAfterResponse(afterCtx).catch(e => logger.warn('[ChatHandler] AfterHook 异常:', e?.message || e));
+      // ── 【新增数字生命体模块】对话后置异步复盘（主路径，fire-and-forget） ──
+      if (responseText) {
+        import('../hooks/review.js').then(({ performPostChatReview }) => {
+          performPostChatReview({
+            uid, text, response: responseText, sessionKey,
+            conversationId, domain: resolvedDomain, orgId: resolvedOrgId,
+            personality: { name: personality?.name || 'Peppa', vector: [] },
+            emotion: { emotions: [], dominant: '' },
+            source: 'chat',
+          }).catch(e => logger.warn('[ChatHandler] 异步复盘异常:', e?.message || e));
+        }).catch(() => {});
       }
 
       // Clean up abort session
