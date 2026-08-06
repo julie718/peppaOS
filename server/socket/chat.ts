@@ -30,7 +30,7 @@ import { getEmotionEngine } from "../life/emotions.js";
 import { getRelationshipEngine } from "../life/relationship.js";
 import { onInteractionComplete } from "../life/relationshipAwareness.js";
 import { routeMessage, isInstinctQuery, isIdentityQuery } from "../cognition/router.js";
-import { getSelfState, synthesizeResponse, assessInformationCompleteness } from "../cognition/deepReasoning.js";
+import { getSelfState, synthesizeResponse } from "../cognition/deepReasoning.js";
 import { generateIdentityResponse, generateHowAreYouResponse } from "../life/narrative.js";
 import { updateComprehension, shouldClarify, generateClarification } from '../life/comprehension.js';
 import { touchUserActivity } from "../life/userState.js";
@@ -956,41 +956,16 @@ export function registerChatHandler(
           logger.warn('[ChatHandler] NLU failed:', e);
         }
 
-        // ── 信息完整性判断（无论 NLU 是否成功，都执行） ──
-        const intentForCheck = nluIntent ?? {
-          intent: 'seek_advice',
-          confidence: 0.7,
-          entities: {},
-          source: 'fallback'
-        };
-
-        const completeness = assessInformationCompleteness(text, intentForCheck);
-        if (!completeness.complete && completeness.followUp) {
-          logger.info(`[ChatHandler] 信息不完整，追问: ${completeness.followUp.slice(0, 50)}...`);
-          socket.emit('agent:response', {
-            text: completeness.followUp,
-            agentName: personality.name,
-            source: 'clarification'
-          });
-          // 存入数据库
-          if (conversationId) {
-            addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'user', content: storedUserContent, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
-            addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'assistant', content: completeness.followUp, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
-          }
-          socket.emit('agent:status', { status: "idle" });
-          chatSessionMap.delete(sessionKey);
-          return;
-        }
-
-        // ── 理解完整性判断 ──
+        // ── 状态驱动回应（新逻辑） ──
         const comprehensionState = updateComprehension(text, {
           conversationHistory: [],
         });
+        logger.info(`[ChatHandler] 当前理解状态: overall=${comprehensionState.overall.toFixed(2)}, missing=${comprehensionState.missingAspects.join(',')}`);
 
-        if (shouldClarify(comprehensionState)) {
+        if (comprehensionState.overall < 0.5) {
           const followUp = generateClarification(comprehensionState);
           if (followUp) {
-            logger.info(`[ChatHandler] 理解不完整，追问: ${followUp.slice(0, 40)}...`);
+            logger.info(`[ChatHandler] 追问: ${followUp.slice(0, 40)}...`);
             socket.emit('agent:response', {
               text: followUp,
               agentName: personality.name,
