@@ -1096,7 +1096,9 @@ export function registerChatHandler(
             }
           }
 
-          reply = synthesizeResponse(text, deduction, null, { score: 70, dataCompleteness: 50, ruleSoundness: 70, verifiability: 50, uncertaintyFactors: [] }, { sources: [], summary: '', dataGaps: [] }, false, nluIntent);
+          // ── 【新增数字生命体模块】传入情绪+心智参数，动态生成非生硬短句 ──
+          const emotionSummaryForDeep = mindCtx?.emotionStatePrompt || '';
+          reply = synthesizeResponse(text, deduction, null, { score: 70, dataCompleteness: 50, ruleSoundness: 70, verifiability: 50, uncertaintyFactors: [] }, { sources: [], summary: '', dataGaps: [] }, false, nluIntent, emotionSummaryForDeep);
           logger.info('[Debug] reply 内容:', reply);
 
           // 存入数据库
@@ -1651,6 +1653,41 @@ export function registerChatHandler(
 
         // Tell Peppa which model is currently active without hiding routed vision capacity.
         const selfAwareness = buildModelSelfAwareness(activeProvider, activeModel, uid, { visionAware: visionIntent && operationMode !== 'meeting' });
+
+        // ── 【新增数字生命体模块】cognitive LLM 主链路：7步心智 + 情绪人格 + 场景判定 ──
+        let cognitiveToolDisabled = false;
+        try {
+          const em = getEmotionEngine();
+          const pe = getPersonalityEngine();
+          const dirState = getDirectionState();
+          const compState = getComprehensionState();
+          const cogToolIntent = classifyToolIntent(text);
+          cognitiveToolDisabled = cogToolIntent === 'nostalgic';
+
+          const cogMind = buildMindContext(
+            em.getEmotions(),
+            pe.getPersonality(),
+            dirState.getInclination(),
+            dirState.getIntensity(),
+            compState.overall,
+          );
+          cogMind.toolIntent = cogToolIntent;
+          cogMind.shouldDisableTools = cognitiveToolDisabled;
+
+          // 注入7步心智 + 情绪状态到 System Prompt
+          const cognitiveOverlay = cogMind.mindSystemPrompt + '\n\n' + cogMind.emotionStatePrompt;
+          effectiveSystemPrompt = cognitiveOverlay + '\n\n' + effectiveSystemPrompt;
+
+          if (cognitiveToolDisabled) {
+            effectiveSystemPrompt += '\n\n【重要】本轮对话属于情感陪伴场景，请勿调用任何工具。用纯共情的方式温柔回应。';
+            mcpInterceptor.recordCall(sessionKey, 'blocked_nostalgic_cognitive');
+          }
+
+          logger.info(`【新增数字生命体-LLM认知链路】toolIntent=${cogToolIntent} disableTools=${cognitiveToolDisabled} emotion=${em.summarize()}`);
+        } catch (e) {
+          logger.warn('【新增数字生命体-LLM认知链路】心智注入异常:', e);
+        }
+
         const messages: NormalizedMessage[] = [
           { role: 'system', content: effectiveSystemPrompt + selfAwareness },
           ...conversationHistory,
@@ -2027,12 +2064,20 @@ export function registerChatHandler(
 
       // ── 【新增数字生命体模块】对话后置异步复盘（主路径，fire-and-forget） ──
       if (responseText) {
+        // 捕获复盘时的实时情绪/人格快照
+        const reviewEmotion = (() => { try { return getEmotionEngine().getEmotions(); } catch { return [0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5]; } })();
+        const reviewPersonality = (() => { try { return getPersonalityEngine().getPersonality(); } catch { return [0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5]; } })();
+        const reviewDominant = (() => {
+          const labels = ['喜悦','平静','期待','担忧','孤独','满足','好奇','依赖'];
+          let maxI = 0; for (let i=1;i<8;i++) if (reviewEmotion[i]>reviewEmotion[maxI]) maxI=i;
+          return labels[maxI]||'平静';
+        })();
         import('../hooks/review.js').then(({ performPostChatReview }) => {
           performPostChatReview({
             uid, text, response: responseText, sessionKey,
             conversationId, domain: resolvedDomain, orgId: resolvedOrgId,
-            personality: { name: personality?.name || 'Peppa', vector: [] },
-            emotion: { emotions: [], dominant: '' },
+            personality: { name: personality?.name || 'Peppa', vector: reviewPersonality },
+            emotion: { emotions: reviewEmotion, dominant: reviewDominant },
             source: 'chat',
           }).catch(e => logger.warn('[ChatHandler] 异步复盘异常:', e?.message || e));
         }).catch(() => {});

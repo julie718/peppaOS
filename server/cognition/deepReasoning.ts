@@ -516,6 +516,7 @@ export function assessInformationCompleteness(
 
 // ── 自然语言合成（非 LLM，模板化）──
 
+// ── 【新增数字生命体模块】情绪感知动态短句生成 ──
 function synthesizeResponse(
   text: string,
   deduction: any,
@@ -524,12 +525,21 @@ function synthesizeResponse(
   retrieval: RetrievalResult,
   degraded: boolean,
   nluIntent?: { intent: string; entities: Record<string, any>; confidence: number; source: string } | null,
+  emotionSummary?: string,
+  personalityBase?: number[],
 ): string {
   const direction = deduction?.direction;
   const inclination: string = direction?.inclination || 'neutral';
   const intensity: number = typeof direction?.intensity === 'number' ? direction.intensity : 0.5;
 
-  // ── 意图感知：根据意图调整表达方式 ──
+  // ── 情绪感知：根据主导情绪选择语气 ──
+  let dominantEmotion = '平静';
+  if (emotionSummary) {
+    const match = emotionSummary.match(/主导情绪:\s*(\S+)/);
+    if (match) dominantEmotion = match[1];
+  }
+
+  // ── 意图感知前缀 ──
   let intentPrefix = '';
   if (nluIntent && nluIntent.confidence >= 0.6) {
     switch (nluIntent.intent) {
@@ -539,44 +549,96 @@ function synthesizeResponse(
       case 'seek_advice':
         intentPrefix = '你希望我给点建议，';
         break;
-      case 'ask_fact':
-        intentPrefix = '你在问一个事实性的问题，';
-        break;
-      case 'chat':
-        intentPrefix = '你在跟我聊天，';
-        break;
       default:
         intentPrefix = '';
     }
   }
 
-  const givePhrases = ['我觉得可以', '我倾向于建议', '我想你可以', '不妨试试'];
-  const notGivePhrases = ['我觉得先不用', '我倾向于不建议', '暂时可以缓一缓', '也许不用急着'];
-  const neutralPhrases = ['这事看你自己', '我没有特别明确的倾向', '两种选择都有道理', '说真的，这取决于你'];
+  // ── 分层短语库（按情绪类型 → 倾向） ──
+  type PhraseSet = Record<string, string[]>;
+
+  const givePhrases: PhraseSet = {
+    '喜悦': ['我挺看好的', '这件事值得试试', '我感觉可以往前推', '放轻松去做就好'],
+    '平静': ['可以从容地试试看', '我觉得可以迈出这一步', '稳一点去做，应该不错', '试试也无妨'],
+    '期待': ['挺值得期待的', '我觉得会有好事发生', '向前走一步吧', '我陪你一起期待'],
+    '担忧': ['慢慢来，不急着决定', '稳妥一些也好', '先看看，准备好了再说', '我觉得可以再想想，别着急'],
+    '孤独': ['我在这里陪你', '你想做的我都支持', '跟随你的心吧', '你并不孤单'],
+    '满足': ['现在这样其实也挺好', '享受当下也不错', '你已经做得很好了', '跟着感觉走'],
+    '好奇': ['可以探索一下', '试试看吧，谁知道呢', '没准会有新发现', '大胆一点也挺好'],
+    '依赖': ['我听你的心声来判断', '你觉得对，那就试试', '我会一直在你身边', '你的感觉最重要'],
+  };
+
+  const notGivePhrases: PhraseSet = {
+    '喜悦': ['不过也可以再想想', '虽然开心，但再考虑一下？', '不急，享受当下就好'],
+    '平静': ['暂时不急吧', '我觉得可以再观察观察', '先放一放，时机到了再说'],
+    '期待': ['别太着急', '好事值得等待', '再等等看，别冲动'],
+    '担忧': ['先别给自己太大压力', '暂时缓一缓也好', '不用急着做决定', '好好照顾自己最重要'],
+    '孤独': ['不用急着决定', '有我在，慢慢想', '先聊聊天吧，不急'],
+    '满足': ['现在这样就挺好的', '不必非要做改变', '安然接受现状也是一种智慧'],
+    '好奇': ['再多了解一些再说', '不用急着下结论', '先观察观察'],
+    '依赖': ['我不想你冲动决定', '再想想，不着急的', '稳妥一点对你好'],
+  };
+
+  const neutralPhrases: PhraseSet = {
+    '喜悦': ['看你自己想要什么', '开心最重要', '选让你开心的那条路'],
+    '平静': ['这事看你自己', '两种选择都有道理', '平心静气地想想'],
+    '期待': ['未来有无限可能', '你的路你自己走', '保持期待，也别太急'],
+    '担忧': ['我能理解你的犹豫', '有时候不确定也很正常', '不管怎样我都支持你', '别怕，慢慢来'],
+    '孤独': ['你不是一个人在考虑', '我会陪着你做决定', '你的感受我懂'],
+    '满足': ['知足常乐也是一种智慧', '跟随内心的平静就好', '保持现在这样也不错'],
+    '好奇': ['多给自己一些可能性', '不用急着下结论', '探索本身就是答案'],
+    '依赖': ['我相信你的判断', '你比自己想象的更有力量', '我会一直在这里'],
+  };
 
   function pick<T>(arr: readonly T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
 
+  // 选择情绪对应的短语集，fallback 到平静
+  const safeEmotion = (givePhrases[dominantEmotion] ? dominantEmotion : '平静') as string;
+
   let base: string;
   if (inclination === 'give') {
-    base = pick(givePhrases);
+    base = pick(givePhrases[safeEmotion] || givePhrases['平静']);
   } else if (inclination === 'not_give') {
-    base = pick(notGivePhrases);
+    base = pick(notGivePhrases[safeEmotion] || notGivePhrases['平静']);
   } else {
-    base = pick(neutralPhrases);
+    base = pick(neutralPhrases[safeEmotion] || neutralPhrases['平静']);
   }
 
   if (intentPrefix) {
     base = intentPrefix + base;
   }
 
+  // ── 强度后缀（情绪感知版） ──
+  const lowIntensitySuffixes: Record<string, string> = {
+    '喜悦': '，不过随缘就好。',
+    '平静': '，不用太着急。',
+    '期待': '，保持期待就好。',
+    '担忧': '，慢慢来，我在这里。',
+    '孤独': '，不管怎样我都陪着你。',
+    '满足': '，现在这样就很好。',
+    '好奇': '，保持好奇心。',
+    '依赖': '，我会一直守护你的选择。',
+  };
+  const highIntensitySuffixes: Record<string, string> = {
+    '喜悦': '，这个方向我挺确定的！',
+    '平静': '，我比较有把握。',
+    '期待': '，我对这个方向挺有信心的。',
+    '担忧': '，但我相信你会做好的。',
+    '孤独': '，不过我相信你是可以的。',
+    '满足': '，我确认这是对的方向。',
+    '好奇': '，我很好奇结果会怎样。',
+    '依赖': '，我特别支持你。',
+  };
+
   if (intensity > 0.7) {
-    base += '，这个方向我比较确定。';
+    base += (highIntensitySuffixes[safeEmotion] || '，这个方向我比较确定。');
   } else if (intensity < 0.4) {
-    base += '，但说实话我也不是特别有把握。';
+    base += (lowIntensitySuffixes[safeEmotion] || '，但说实话我也不是特别有把握。');
   } else {
     base += '。';
   }
 
+  console.log(`【新增数字生命体-深度推理模板链路】emotion=${dominantEmotion} inclination=${inclination} intensity=${intensity.toFixed(2)} → "${base}"`);
   return base;
 }
 
