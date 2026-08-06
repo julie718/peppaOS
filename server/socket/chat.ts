@@ -34,6 +34,9 @@ import { getSelfState, synthesizeResponse } from "../cognition/deepReasoning.js"
 import { generateIdentityResponse, generateHowAreYouResponse } from "../life/narrative.js";
 import { updateComprehension, shouldClarify, generateClarification } from '../life/comprehension.js';
 import { touchUserActivity } from "../life/userState.js";
+// T80 hooks & interceptor
+import { onBeforeMessage, onAfterResponse, createChatHooks, classifyToolIntent, BeforeMessageContext, AfterResponseContext } from '../hooks/chat.js';
+import { mcpInterceptor, markToolResultTTL, buildToolBlockMessage } from '../tools/interceptor.js';
 import { getUnrespondedObservations, markObservationResponded } from "../db/lifeDb.js";
 import { retrieveChunks } from "../agents/rag";
 import { getSensory } from "./shared";
@@ -338,6 +341,10 @@ export function registerChatHandler(
     chatSessionMap.set(sessionKey, abortController);
     const llmTimeout = setTimeout(() => { abortController.abort(); logger.warn('[ChatHandler] LLM 超时 30s，强制中止'); }, 30000);
 
+    // ── T80: 初始化钩子 + MCP 拦截器重置 ──
+    createChatHooks();
+    mcpInterceptor.resetForTurn(sessionKey);
+
     // 抢占 LifeSystem 后台任务
     touchUserActivity();
     // 检查是否有未回应的主动推送 → 标记为已回复
@@ -486,9 +493,30 @@ export function registerChatHandler(
       );
       logger.info('[ChatHandler] systemPrompt built, personality name:', personality?.name);
 
+      // ── T80: 调用 Before 钩子获取 7步心智 + 情绪注入 ──
+      let mindSystemPrompt = '';
+      let emotionStatePrompt = '';
+      const hookSessionKey = sessionKey;
+      if (onBeforeMessage) {
+        try {
+          const hookResult = await onBeforeMessage({
+            uid, text, sessionKey: hookSessionKey,
+            personality: { name: personality?.name || 'Peppa', vector: [] },
+            emotion: { emotions: [], dominant: '' },
+            direction: { inclination: 'neutral', intensity: 0.5 },
+            comprehension: { overall: 1, missingAspects: [] },
+          });
+          mindSystemPrompt = hookResult.mindSystemPrompt;
+          emotionStatePrompt = hookResult.emotionPrompt;
+          logger.info('[ChatHandler] T80 BeforeHook: 7步心智=' + (mindSystemPrompt ? 'injected' : 'empty') + ' 情绪=' + (emotionStatePrompt ? 'injected' : 'empty'));
+        } catch (e) {
+          logger.warn('[ChatHandler] T80 BeforeHook failed:', e);
+        }
+      }
+
       // Inject conversation summary chain for long-running conversations (anti-entropy)
       const beijingTime = new Date(new Date().getTime() + 8 * 3600000).toISOString().replace('Z', '+08:00');
-      let effectiveSystemPrompt = systemInstruction + `\n\n## Current Time\n${beijingTime} (北京时间). Use this for any time-related questions.`;
+      let effectiveSystemPrompt = (mindSystemPrompt ? mindSystemPrompt + '\n\n' : '') + (emotionStatePrompt ? emotionStatePrompt + '\n\n' : '') + systemInstruction + `\n\n## Current Time\n${beijingTime} (北京时间). Use this for any time-related questions.`;
 
       // ── 时间感知上下文：季节、节日、早晚、周末/工作日 ──
       try {
@@ -982,6 +1010,7 @@ export function registerChatHandler(
           }
         }
 
+        let reply = '';
         try {
           const selfState = await getSelfState();
           logger.info('[Debug] selfState 内容:', JSON.stringify(selfState));
@@ -1055,7 +1084,7 @@ export function registerChatHandler(
             }
           }
 
-          const reply = synthesizeResponse(text, deduction, null, { score: 70, dataCompleteness: 50, ruleSoundness: 70, verifiability: 50, uncertaintyFactors: [] }, { sources: [], summary: '', dataGaps: [] }, false, nluIntent);
+          reply = synthesizeResponse(text, deduction, null, { score: 70, dataCompleteness: 50, ruleSoundness: 70, verifiability: 50, uncertaintyFactors: [] }, { sources: [], summary: '', dataGaps: [] }, false, nluIntent);
           logger.info('[Debug] reply 内容:', reply);
 
           // 存入数据库
@@ -1108,6 +1137,16 @@ export function registerChatHandler(
             source: 'deep_reasoning_degraded',
             requestId: requestId || undefined,
           });
+        }
+        // ── T80 AfterHook (deep_reasoning path) ──
+        if (onAfterResponse && reply) {
+          onAfterResponse({
+            uid, text, response: reply, sessionKey,
+            conversationId, domain: resolvedDomain, orgId: resolvedOrgId,
+            personality: { name: personality?.name || 'Peppa', vector: [] },
+            emotion: { emotions: [], dominant: '' },
+            source: 'deep_reasoning',
+          }).catch(e => logger.warn('[ChatHandler] AfterHook异常:', e?.message || e));
         }
         chatSessionMap.delete(sessionKey);
         return;
@@ -1657,6 +1696,12 @@ export function registerChatHandler(
               }
             }
           } else {
+            // ── T80: MCP 拦截器检查 ──
+            const toolAllowed = mcpInterceptor.canCallTool(sessionKey);
+            if (!toolAllowed) {
+              logger.info(`[ChatHandler] T80 MCP阻断: 本轮已达上限 (${mcpInterceptor.getCallCount(sessionKey)}/${1})`);
+            }
+
             const maxIterations = routedToolPolicy?.maxIterations || personality.toolPolicy.maxIterations || 25;
 
           // Collect tool calls for persistence
@@ -1680,6 +1725,8 @@ export function registerChatHandler(
               };
               emitAgent("agent:tool_call", toolPayload);
               emitAgent("agent:tool", toolPayload);
+              // ── T80: MCP 调用计数 ──
+              mcpInterceptor.recordCall(sessionKey, record.name);
             },
             maxIterations,
             llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
@@ -1963,6 +2010,18 @@ export function registerChatHandler(
           console.log('[Relationship] 💭 检测到感受分享，理解度 +0.05');
         }
       } catch {}
+
+      // ── T80: After 钩子异步复盘（fire-and-forget） ──
+      if (onAfterResponse) {
+        const afterCtx: AfterResponseContext = {
+          uid, text, response: responseText,
+          sessionKey, conversationId, domain: resolvedDomain, orgId: resolvedOrgId,
+          personality: { name: personality?.name || 'Peppa', vector: [] },
+          emotion: { emotions: [], dominant: '' },
+          source: 'chat',
+        };
+        onAfterResponse(afterCtx).catch(e => logger.warn('[ChatHandler] AfterHook 异常:', e?.message || e));
+      }
 
       // Clean up abort session
       chatSessionMap.delete(sessionKey);

@@ -14,6 +14,9 @@ import { shouldTriggerPrefetch, prefetchContext } from '../memory/prefetch.js';
 import { getVitality } from './vitality.js';
 import { dailyNarrativeGeneration } from './narrative.js';
 import { tickComprehension } from './comprehension.js';
+// T80
+import { idleBrain } from '../autonomy/idle_brain.js';
+import { runMemoryGC } from '../memory/gc.js';
 
 const TICK_INTERVAL_MS = 10 * 60000; // 10 分钟
 const DEGRADED_THRESHOLD = 3; // 连续 3 次失败进入降级模式
@@ -155,6 +158,9 @@ export class LifeSystem {
     this.running = true;
     console.log('[LifeSystem] ▶ 主循环启动 (10分钟间隔)');
 
+    // ── T80: IdleBrain 启动 ──
+    idleBrain.start();
+
     // 立即执行首次 tick
     this.tick().catch(e => console.error('[LifeSystem] 首次tick失败:', e.message));
 
@@ -171,6 +177,7 @@ export class LifeSystem {
       this.tickTimer = null;
     }
     this.running = false;
+    idleBrain.stop();
     getVitality().shutdown().catch(() => {});
     console.log('[LifeSystem] ⏸ 主循环停止');
   }
@@ -461,6 +468,16 @@ export class LifeSystem {
       if (!this.preempted) {
         await this.safeCall('lowPriorityTasks', async () => {
           await this.processLowPriorityTasks();
+        }, errors);
+      }
+
+      // ── T80 步骤 10: 记忆降噪（低频降权 + 重复合并 + TTL 清理） ──
+      if (!this.preempted) {
+        await this.safeCall('memoryGarbageCollection', async () => {
+          const gcResult = await runMemoryGC();
+          if (gcResult.downweighted > 0 || gcResult.merged > 0 || gcResult.cleaned > 0) {
+            console.log(`[LifeSystem] 🧹 记忆GC: 降权${gcResult.downweighted} 合并${gcResult.merged} 清理${gcResult.cleaned}`);
+          }
         }, errors);
       }
 

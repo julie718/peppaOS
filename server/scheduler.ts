@@ -1754,6 +1754,22 @@ Output ONLY the prediction message — no preamble, no labels.`;
       return snapshot.changeSummary || 'Scan complete';
     },
   });
+
+  // ── T80: IdleBrain 待机检查（每 5 分钟，静默） ──
+  scheduler.register({
+    id: 'idle_brain_check',
+    cron: 'every_5m',
+    quiet: true,
+    lastRun: null,
+    handler: async () => {
+      try {
+        const { idleBrainCheck } = await import('./autonomy/idle_brain.js');
+        return await idleBrainCheck();
+      } catch {
+        return null;
+      }
+    },
+  });
 }
 
 
