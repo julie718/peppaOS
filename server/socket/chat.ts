@@ -961,6 +961,7 @@ export function registerChatHandler(
           conversationHistory: [],
         });
         logger.info(`[ChatHandler] 当前理解状态: overall=${comprehensionState.overall.toFixed(2)}, missing=${comprehensionState.missingAspects.join(',')}`);
+        console.log(`[DEBUG] overall=${comprehensionState.overall}, missing=${comprehensionState.missingAspects}`);
 
         if (comprehensionState.overall < 0.5) {
           const followUp = generateClarification(comprehensionState);
