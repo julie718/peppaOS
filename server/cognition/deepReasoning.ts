@@ -422,7 +422,7 @@ function getInformationGaps(type: QuestionType, text: string): InformationGap[] 
       if (!/目前|现在|当前|正在做|在.*做/.test(lower) && !/从事|行业|职位/.test(lower)) {
         gaps.push({ dimension: '当前工作状况', question: '你现在的工作是什么？岗位和行业能说一下吗？', priority: 1 });
       }
-      if (!/为什么|原因|背景|因为|由于|想换|考虑换|要不要换/.test(lower)) {
+      if (!/因为|原因|背景|工资|薪资|发展|距离|家庭|兴趣|觉得|认为/.test(lower)) {
         gaps.push({ dimension: '换工作的背景原因', question: '是什么原因让你在考虑换工作呢？是薪资、发展空间、还是其他方面？', priority: 2 });
       }
       if (!/行业|市场|竞争|趋势|发展前景|情况/.test(lower)) {
