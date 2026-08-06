@@ -37,8 +37,12 @@ services:
       - ./server:/app/server
       - ./server.ts:/app/server.ts
       - ./db_layer.ts:/app/db_layer.ts
+      - ./logger.ts:/app/logger.ts
+      - ./launcher.ts:/app/launcher.ts
+      - ./routes:/app/routes
       - ./package.json:/app/package.json
       - ./package-lock.json:/app/package-lock.json
+    entrypoint: ""
     command: npx tsx /app/server.ts
     deploy:
       resources:
