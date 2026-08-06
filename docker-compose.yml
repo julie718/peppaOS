@@ -31,8 +31,15 @@ services:
       # Auth
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       PEPPA_PASSWORD: ${PEPPA_PASSWORD:-peppa_2026}
+      CORS_ORIGINS: http://localhost:3000,https://qweasd.top:4043,http://qweasd.top:3000,capacitor://localhost,https://peppa.qweasd.top,https://qweasd.top
     volumes:
       - ./data:/app/data
+      - ./server:/app/server
+      - ./server.ts:/app/server.ts
+      - ./db_layer.ts:/app/db_layer.ts
+      - ./package.json:/app/package.json
+      - ./package-lock.json:/app/package-lock.json
+    command: npx tsx /app/server.ts
     deploy:
       resources:
         limits:
