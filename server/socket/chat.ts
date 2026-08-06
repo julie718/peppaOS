@@ -1060,20 +1060,41 @@ export function registerChatHandler(
             selfState.personality,
             extractedEntities
           );
-          const emotion = selfState?.emotion;
-          const personality = selfState?.personality;
+          const selfEmotion = selfState?.emotion;
+          const selfPersonality = selfState?.personality;
+          // 【修复】解析情绪状态（兼容 vector_json / emotion_type 两种格式）
+          let selfEmotionText = '平静';
+          if (selfEmotion) {
+            if (selfEmotion.vector_json) {
+              try {
+                const vec = JSON.parse(selfEmotion.vector_json);
+                const labels = ['喜悦','平静','期待','担忧','孤独','满足','好奇','依赖'];
+                let maxI = 0; for (let i=1;i<8;i++) if (vec[i]>vec[maxI]) maxI=i;
+                selfEmotionText = labels[maxI]||'平静';
+              } catch { selfEmotionText = '平静'; }
+            } else if (selfEmotion.emotion_type) {
+              selfEmotionText = selfEmotion.emotion_type;
+            }
+          }
+          let selfPersonalityText = '温和中立';
+          if (selfPersonality?.vector_json) {
+            try {
+              const vec = JSON.parse(selfPersonality.vector_json);
+              selfPersonalityText = (vec[2]||0.5) > 0.6 ? '偏主动' : '偏谨慎';
+            } catch { selfPersonalityText = '温和中立'; }
+          }
           const deduction: any = {
             domain: '人际沟通',
             steps: ['基于当前情绪、人格状态和表达倾向生成判断'],
-            pro_position: emotion && personality
-              ? `基于我的状态（情绪：${emotion.emotion_type}(${Math.round(emotion.intensity * 100)}%)，人格倾向：偏主动，表达倾向：${direction.inclination}），我倾向于...`
+            pro_position: selfEmotion && selfPersonality
+              ? `基于我的状态（情绪：${selfEmotionText}，人格倾向：${selfPersonalityText}，表达倾向：${direction.inclination}），我倾向于...`
               : '我倾向于...',
-            con_position: emotion
-              ? `我现在的状态是${emotion.emotion_type}，表达倾向${direction.inclination}(${direction.reason})，所以...`
+            con_position: selfEmotion
+              ? `我现在的状态是${selfEmotionText}，表达倾向${direction.inclination}，所以...`
               : '我不会盲目鼓励你做任何事。',
-            intermediate_conclusion: emotion && personality
-              ? `我的状态决定了我的判断：${emotion.emotion_type}让我更谨慎，偏主动让我倾向于主动处理。表达倾向${direction.inclination}影响我的立场。`
-              : '我建议你说清楚，但不强求。',
+            intermediate_conclusion: selfEmotion && selfPersonality
+              ? `我的状态决定了我的判断：${selfEmotionText}让我更谨慎，${selfPersonalityText}让我倾向于主动处理。表达倾向${direction.inclination}影响我的立场。`
+              : '我建议你想清楚，但不强求。',
             direction: {
               inclination: direction.inclination,
               intensity: direction.intensity,

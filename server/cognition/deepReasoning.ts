@@ -7,28 +7,39 @@
 import { logger } from '../lib/logger.js';
 
 // ── 自身状态读取 ──
+// ── 【修复】读取 emotion_state（8维向量）而非 emotions（单标签） ──
 function getSelfState(): Promise<{ emotion: any | null; personality: any | null }> {
+  const defaultPersonality = {
+    id: 1,
+    vector_json: '[0.55,0.55,0.55,0.55,0.55,0.55,0.55,0.55]',
+  };
+  const defaultEmotion = {
+    id: 0,
+    vector_json: '[0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5]',
+  };
+
   return new Promise((resolve) => {
     try {
       const sqlite3 = require('sqlite3');
       const db = new sqlite3.Database('/app/data/life.db');
-      db.get('SELECT * FROM emotions ORDER BY id DESC LIMIT 1', (err: any, emotionRow: any) => {
-        if (err) {
+      // 读取 emotion_state 最新快照（完整8维向量）
+      db.get('SELECT * FROM emotion_state ORDER BY id DESC LIMIT 1', (err: any, emotionRow: any) => {
+        if (err || !emotionRow) {
           db.close();
-          resolve({ emotion: null, personality: null });
+          resolve({ emotion: defaultEmotion, personality: defaultPersonality });
           return;
         }
         db.get('SELECT * FROM personality ORDER BY id DESC LIMIT 1', (err2: any, personalityRow: any) => {
           db.close();
-          if (err2) {
-            resolve({ emotion: emotionRow, personality: null });
+          if (err2 || !personalityRow) {
+            resolve({ emotion: emotionRow, personality: defaultPersonality });
             return;
           }
           resolve({ emotion: emotionRow, personality: personalityRow });
         });
       });
     } catch (e) {
-      resolve({ emotion: null, personality: null });
+      resolve({ emotion: defaultEmotion, personality: defaultPersonality });
     }
   });
 }
@@ -108,8 +119,23 @@ const SHALLOW_QUESTION_PATTERNS: RegExp[] = [
   /今天|明天|现在|几点了|什么时间|什么时候.*会|在哪里|怎么去|多少钱|价格|天气|新闻|日程|提醒|帮我|搜索|查找|打开|关闭|设置|播放|创建|删除/u,
 ];
 
+// ── 【修复】重大人生决策：放行至 Cognitive 主链路（LLM 长文本），不拦截到短句模板 ──
+const MAJOR_LIFE_DECISION_PATTERNS: RegExp[] = [
+  /换工作|跳槽|辞职|裸辞|转行|找工作|职业规划|长期规划/,
+  /结婚|分手|离婚|复合|求婚/,
+  /买房|搬家|换城市|定居|移民/,
+  /创业|投资.*方向|人生.*方向|要不要.*放弃|该不该.*坚持/,
+];
+
 export function isDeepReasoningQuery(text: string): boolean {
   const trimmed = text.trim();
+
+  // 【修复】重大人生决策不进入模板短句分支，放行至 Cognitive LLM 长文本
+  if (MAJOR_LIFE_DECISION_PATTERNS.some(p => p.test(trimmed))) {
+    console.log(`[DeepReasoning] 重大决策放行至Cognitive: "${trimmed.slice(0, 30)}"`);
+    return false;
+  }
+
   // 观点类问题优先进入深度推理
   const opinionPatterns = [
     /你觉得|你认为|你怎么看|你怎么想|你怎么判断|你感觉|你的看法|你的观点|你判断|你预测|你估计|你推测/,
@@ -680,14 +706,26 @@ export async function executeDeepReasoning(
     const emotion = selfState2?.emotion;
     const personality = selfState2?.personality;
     let emotionText = '平静';
-    let personalityText = '中立';
+    let personalityText = '温和中立';
     if (emotion) {
-      emotionText = `${emotion.emotion_type}(${Math.round(emotion.intensity * 100)}%)`;
+      // 【修复】兼容 emotion_state 的 vector_json 格式（8维向量），也兼容旧 emotions 表格式
+      if (emotion.vector_json) {
+        try {
+          const vec = JSON.parse(emotion.vector_json);
+          const labels = ['喜悦','平静','期待','担忧','孤独','满足','好奇','依赖'];
+          let maxI = 0; for (let i=1;i<8;i++) if (vec[i]>vec[maxI]) maxI=i;
+          emotionText = `${labels[maxI]||'平静'}(${Math.round((vec[maxI]||0.5)*100)}%)`;
+        } catch { emotionText = '平静'; }
+      } else if (emotion.emotion_type) {
+        emotionText = `${emotion.emotion_type}(${Math.round((emotion.intensity||0.5)*100)}%)`;
+      }
     }
     if (personality) {
-      const vec = JSON.parse(personality.vector_json);
-      const active = vec[2] || 0.5;
-      personalityText = active > 0.6 ? '偏主动' : '偏谨慎';
+      try {
+        const vec = JSON.parse(personality.vector_json);
+        const active = vec[2] || 0.5;
+        personalityText = active > 0.6 ? '偏主动' : '偏谨慎';
+      } catch { personalityText = '温和中立'; }
     }
     const baseJudgment = `基于我的状态（情绪：${emotionText}，人格倾向：${personalityText}），我对这个问题的真实看法是：`;
 
