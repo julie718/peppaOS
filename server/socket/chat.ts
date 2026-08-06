@@ -340,7 +340,7 @@ export function registerChatHandler(
     if (prevController) prevController.abort();
     const abortController = new AbortController();
     chatSessionMap.set(sessionKey, abortController);
-    const llmTimeout = setTimeout(() => { abortController.abort(); logger.warn('[ChatHandler] LLM 超时 30s，强制中止'); }, 30000);
+    const llmTimeout = setTimeout(() => { abortController.abort(); logger.warn('[ChatHandler] LLM 超时 45s，强制中止'); }, 45000);
 
     // 【新增数字生命体模块】MCP 拦截器每轮重置
     mcpInterceptor.resetForTurn(sessionKey);
@@ -921,7 +921,7 @@ export function registerChatHandler(
       }
 
       // ── 统一路由：本能层 → 工具层 → 认知层 → Orchestrator ──
-      const route = await routeMessage(text, operationMode);
+      let route = await routeMessage(text, operationMode);
       logger.info(`[ChatHandler] route: ${route.layer} (${route.reason}) trace: ${route.trace.join(' → ')}`);
       // 注入路由信息到响应，供前端调试
       const routeContext = { layer: route.layer, reason: route.reason, trace: route.trace };

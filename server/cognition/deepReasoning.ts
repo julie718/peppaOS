@@ -7,8 +7,8 @@
 import { logger } from '../lib/logger.js';
 
 // ── 自身状态读取 ──
-// ── 【修复】读取 emotion_state（8维向量）而非 emotions（单标签） ──
-function getSelfState(): Promise<{ emotion: any | null; personality: any | null }> {
+// ── 【修复】读取 emotion_state 和 personality — 使用顶层 await + sqlite3 直接查询 ──
+async function getSelfState(): Promise<{ emotion: any | null; personality: any | null }> {
   const defaultPersonality = {
     id: 1,
     vector_json: '[0.55,0.55,0.55,0.55,0.55,0.55,0.55,0.55]',
@@ -18,30 +18,31 @@ function getSelfState(): Promise<{ emotion: any | null; personality: any | null 
     vector_json: '[0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5]',
   };
 
-  return new Promise((resolve) => {
-    try {
-      const sqlite3 = require('sqlite3');
-      const db = new sqlite3.Database('/app/data/life.db');
-      // 读取 emotion_state 最新快照（完整8维向量）
-      db.get('SELECT * FROM emotion_state ORDER BY id DESC LIMIT 1', (err: any, emotionRow: any) => {
-        if (err || !emotionRow) {
-          db.close();
-          resolve({ emotion: defaultEmotion, personality: defaultPersonality });
-          return;
-        }
-        db.get('SELECT * FROM personality ORDER BY id DESC LIMIT 1', (err2: any, personalityRow: any) => {
-          db.close();
-          if (err2 || !personalityRow) {
-            resolve({ emotion: emotionRow, personality: defaultPersonality });
-            return;
-          }
-          resolve({ emotion: emotionRow, personality: personalityRow });
-        });
+  try {
+    const sqlite3 = require('sqlite3');
+    const db = new sqlite3.Database('/app/data/life.db');
+
+    const emotionRow: any = await new Promise((resolve, reject) => {
+      db.get('SELECT * FROM emotion_state ORDER BY id DESC LIMIT 1', (err: any, row: any) => {
+        if (err) reject(err); else resolve(row);
       });
-    } catch (e) {
-      resolve({ emotion: defaultEmotion, personality: defaultPersonality });
-    }
-  });
+    });
+
+    const personalityRow: any = await new Promise((resolve, reject) => {
+      db.get('SELECT * FROM personality ORDER BY id DESC LIMIT 1', (err: any, row: any) => {
+        if (err) reject(err); else resolve(row);
+      });
+    });
+
+    db.close();
+
+    return {
+      emotion: emotionRow || defaultEmotion,
+      personality: personalityRow || defaultPersonality,
+    };
+  } catch (e) {
+    return { emotion: defaultEmotion, personality: defaultPersonality };
+  }
 }
 
 // ── 类型定义 ──
@@ -127,28 +128,11 @@ const MAJOR_LIFE_DECISION_PATTERNS: RegExp[] = [
   /创业|投资.*方向|人生.*方向|要不要.*放弃|该不该.*坚持/,
 ];
 
-export function isDeepReasoningQuery(text: string): boolean {
-  const trimmed = text.trim();
-
-  // 【修复】重大人生决策不进入模板短句分支，放行至 Cognitive LLM 长文本
-  if (MAJOR_LIFE_DECISION_PATTERNS.some(p => p.test(trimmed))) {
-    console.log(`[DeepReasoning] 重大决策放行至Cognitive: "${trimmed.slice(0, 30)}"`);
-    return false;
-  }
-
-  // 观点类问题优先进入深度推理
-  const opinionPatterns = [
-    /你觉得|你认为|你怎么看|你怎么想|你怎么判断|你感觉|你的看法|你的观点|你判断|你预测|你估计|你推测/,
-    /评价|怎么看|意味着什么|说明了什么|代表什么|预示|前景|趋势|会怎样|会怎么/,
-    /为什么|原因是什么|怎么造成的|背后.*逻辑|底层.*原理|本质|根本上/
-  ];
-  if (opinionPatterns.some(p => p.test(trimmed)) && trimmed.length > 5) {
-    return true;
-  }
-  // 浅层问题（工具可解决的）不走
-  if (SHALLOW_QUESTION_PATTERNS.some(p => p.test(trimmed))) return false;
-  // 必须匹配深度推理模式
-  return DEEP_REASONING_PATTERNS.some(p => p.test(trimmed));
+// ── 【重构】全对话Cognitive统一驱动 — 不再跳转deep_reasoning模板分支 ──
+export function isDeepReasoningQuery(_text: string): boolean {
+  // 所有非本能层消息统一进入Cognitive认知链路，享受7步心智+LLM长文本
+  // 原观点类关键词分流逻辑已下线，synthesizeResponse模板不再触发
+  return false;
 }
 
 // ── 第1层：信息检索层（非 LLM）──

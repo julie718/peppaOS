@@ -113,9 +113,10 @@ export async function routeMessage(
       switch (nluResult.intent) {
         case 'ask_opinion':
         case 'seek_advice':
-          trace.push(`nlu→deep_reasoning: ${nluResult.intent}`);
-          logger.info(`[Router] ${trimmed.slice(0, 30)} → deep_reasoning via NLU (${nluResult.intent})`);
-          return { layer: 'deep_reasoning', reason: `NLU: ${nluResult.intent}`, trace, canSelfRespond };
+          // 【重构】统一汇入Cognitive认知链路，不走模板短句
+          trace.push(`nlu→cognitive: ${nluResult.intent}`);
+          logger.info(`[Router] ${trimmed.slice(0, 30)} → cognitive via NLU (${nluResult.intent})`);
+          return { layer: 'cognitive', reason: `NLU: ${nluResult.intent}`, trace, canSelfRespond };
         case 'ask_fact':
           trace.push(`nlu→tool: ${nluResult.intent}`);
           logger.info(`[Router] ${trimmed.slice(0, 30)} → tool via NLU (${nluResult.intent})`);
