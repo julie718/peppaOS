@@ -13,6 +13,7 @@ import { logSystemEvent, migrateLifeTables, autoBackup, verifyIntegrity, addInte
 import { shouldTriggerPrefetch, prefetchContext } from '../memory/prefetch.js';
 import { getVitality } from './vitality.js';
 import { dailyNarrativeGeneration } from './narrative.js';
+import { tickComprehension } from './comprehension.js';
 
 const TICK_INTERVAL_MS = 10 * 60000; // 10 分钟
 const DEGRADED_THRESHOLD = 3; // 连续 3 次失败进入降级模式
@@ -362,6 +363,11 @@ export class LifeSystem {
         await directionState.tick();
       }, errors);
 
+      // 步骤 1.6: 理解完整性衰减
+      await this.safeCall('comprehension.tick', async () => {
+        tickComprehension();
+      }, errors);
+
       // 步骤 2: 欲望生成与衰减
       await this.safeCall('desires.generate', async () => {
         await this.desires.generateDesires();
@@ -671,6 +677,7 @@ export function getLifeSystem(): LifeSystem {
 
 export { DirectionState, getDirectionState } from './direction.js';
 export type { DirectionSnapshot, DirectionInclination } from './direction.js';
+export { getComprehensionState, updateComprehension, shouldClarify, generateClarification, resetComprehension } from './comprehension.js';
 
 // ---- 导入主动行为管理器 ----
 import { proactiveManager } from '../proactive/index.js';

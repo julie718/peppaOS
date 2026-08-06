@@ -32,6 +32,7 @@ import { onInteractionComplete } from "../life/relationshipAwareness.js";
 import { routeMessage, isInstinctQuery, isIdentityQuery } from "../cognition/router.js";
 import { getSelfState, synthesizeResponse, assessInformationCompleteness } from "../cognition/deepReasoning.js";
 import { generateIdentityResponse, generateHowAreYouResponse } from "../life/narrative.js";
+import { updateComprehension, shouldClarify, generateClarification } from '../life/comprehension.js';
 import { touchUserActivity } from "../life/userState.js";
 import { getUnrespondedObservations, markObservationResponded } from "../db/lifeDb.js";
 import { retrieveChunks } from "../agents/rag";
@@ -979,6 +980,30 @@ export function registerChatHandler(
           socket.emit('agent:status', { status: "idle" });
           chatSessionMap.delete(sessionKey);
           return;
+        }
+
+        // ── 理解完整性判断 ──
+        const comprehensionState = updateComprehension(text, {
+          conversationHistory: [],
+        });
+
+        if (shouldClarify(comprehensionState)) {
+          const followUp = generateClarification(comprehensionState);
+          if (followUp) {
+            logger.info(`[ChatHandler] 理解不完整，追问: ${followUp.slice(0, 40)}...`);
+            socket.emit('agent:response', {
+              text: followUp,
+              agentName: personality.name,
+              source: 'clarification'
+            });
+            if (conversationId) {
+              addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'user', content: storedUserContent, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
+              addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'assistant', content: followUp, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
+            }
+            socket.emit('agent:status', { status: "idle" });
+            chatSessionMap.delete(sessionKey);
+            return;
+          }
         }
 
         try {
