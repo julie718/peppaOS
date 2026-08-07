@@ -17,7 +17,7 @@ import { tickComprehension } from './comprehension.js';
 // T80
 import { idleBrain } from '../autonomy/idle_brain.js';
 import { runMemoryGC } from '../memory/gc.js';
-import { readDB } from '../../db_layer';
+import { readDB, ensureDatabaseInitialized } from '../../db_layer';
 
 /** 聚合全部真实业务用户 ID（与 scheduler 一致），供记忆 GC 逐用户执行 */
 function collectUserIds(): string[] {
@@ -498,6 +498,8 @@ export class LifeSystem {
       if (!this.preempted) {
         await this.safeCall('memoryGarbageCollection', async () => {
           // P0-5: 传入真实业务用户 ID，替代失效的 userId:'system'
+          // P0-5: 确保 db_layer 已初始化 — 首次 tick 可能在 initDatabase 完成前触发
+          await ensureDatabaseInitialized();
           const gcResult = await runMemoryGC(collectUserIds());
           if (gcResult.downweighted > 0 || gcResult.merged > 0 || gcResult.cleaned > 0) {
             console.log(`[LifeSystem] 🧹 记忆GC: 降权${gcResult.downweighted} 合并${gcResult.merged} 清理${gcResult.cleaned}`);

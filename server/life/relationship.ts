@@ -73,19 +73,27 @@ export class RelationshipEngine {
   }
 
   private async load(): Promise<void> {
-    const saved = await loadRelationshipState();
-    if (saved.vector) {
-      this.vector = clampVector(saved.vector);
-      // P0-3: 以磁盘存储时间为准，覆盖构造函数 Date.now() 重置逻辑，
-      // 保证 24h 衰减判定跨重启连续有效
-      if (saved.lastInteractionAt) this.lastInteractionAt = saved.lastInteractionAt;
-      if (saved.lastDecayAt) this.lastDecayAt = saved.lastDecayAt;
-      if (saved.totalInteractions && saved.totalInteractions > 0) this.totalInteractions = saved.totalInteractions;
-      console.log('[Relationship] 已加载:', this.summarize(), `(lastInteraction=${this.lastInteractionAt}, lastDecay=${this.lastDecayAt})`);
-    } else {
-      await saveRelationshipVector(this.vector, this.persistMeta());
-      await addRelationshipSnapshot(this.vector[0], this.vector[1], this.vector[2]);
-      console.log('[Relationship] 初始化:', this.summarize());
+    try {
+      const saved = await loadRelationshipState();
+      if (saved.vector) {
+        this.vector = clampVector(saved.vector);
+        // P0-3: 以磁盘存储时间为准，覆盖构造函数 Date.now() 重置逻辑，
+        // 保证 24h 衰减判定跨重启连续有效
+        if (saved.lastInteractionAt) this.lastInteractionAt = saved.lastInteractionAt;
+        if (saved.lastDecayAt) this.lastDecayAt = saved.lastDecayAt;
+        if (saved.totalInteractions && saved.totalInteractions > 0) this.totalInteractions = saved.totalInteractions;
+        console.log('[Relationship] 已加载:', this.summarize(), `(lastInteraction=${this.lastInteractionAt}, lastDecay=${this.lastDecayAt})`);
+      } else {
+        await saveRelationshipVector(this.vector, this.persistMeta());
+        await addRelationshipSnapshot(this.vector[0], this.vector[1], this.vector[2]);
+        console.log('[Relationship] 初始化:', this.summarize());
+      }
+    } catch (e: any) {
+      // P0-3: 迁移尚未执行（migrateLifeTables 在 LifeSystem 初始化时才补列）——
+      // 此时读 last_interaction_at 会报 no such column。降级为默认值，
+      // 2s 后重试一次（迁移此时已完成），不抛 FATAL。
+      console.warn(`[Relationship] 加载延迟(迁移未完成): ${e?.message || e}，2s 后重试`);
+      setTimeout(() => this.load().catch((e2) => console.warn('[Relationship] 重试加载失败:', e2?.message || e2)), 2000);
     }
   }
 
