@@ -610,7 +610,7 @@ async function makeLLMCallCore(
     const { dispatchLLMCall } = await import('./dispatch');
     const getters = { getDeepSeek, getGemini, getOpenAI: getOpenAI || (() => null), getAnthropic: getAnthropic || (() => null), getQwen: getQwen || (() => null), getArk: getArk || (() => null), getOllama, isOllamaAvailable: () => !!getOllama?.(), getLmStudio, isLmStudioAvailable: () => !!getLmStudio?.() };
     const result = await dispatchLLMCall(messages, toolDeclarations, { provider: 'deepseek', model: 'deepseek-chat', maxTokens: maxTokens, userId: config.userId, signal: config.signal, scene: config.scene }, getters);
-    recordLLMMetrics(config.provider, config.model, result.usage, _start);
+    recordLLMMetrics(config.provider, config.model, result.usage, _start, { scene: config.scene });
     return { text: result.text, toolCalls: result.toolCalls, usage: result.usage };
   }
 
@@ -641,7 +641,7 @@ async function makeLLMCallCore(
       () => client.chat.completions.create(params, { signal: config.signal }),
       { provider: config.provider, model: config.model },
     );
-    const _res = parseDeepSeekResponse(response); recordLLMMetrics(config.provider, config.model, _res.usage, _start); return _res;
+    const _res = parseDeepSeekResponse(response); recordLLMMetrics(config.provider, config.model, _res.usage, _start, { scene: config.scene }); return _res;
   }
 
   if (config.provider === 'gemini') {
@@ -660,7 +660,7 @@ async function makeLLMCallCore(
       () => modelInstance.generateContent({ contents }, { signal: config.signal }),
       { provider: 'gemini', model: config.model },
     );
-    const _res = parseGeminiResponse(result); recordLLMMetrics(config.provider, config.model, _res.usage, _start); return _res;
+    const _res = parseGeminiResponse(result); recordLLMMetrics(config.provider, config.model, _res.usage, _start, { scene: config.scene }); return _res;
   }
 
   if (config.provider === 'openai') {
@@ -679,7 +679,7 @@ async function makeLLMCallCore(
       () => client.chat.completions.create(params, { signal: config.signal }),
       { provider: 'openai', model: config.model },
     );
-    const _res = parseOpenAIResponse(response); recordLLMMetrics(config.provider, config.model, _res.usage, _start); return _res;
+    const _res = parseOpenAIResponse(response); recordLLMMetrics(config.provider, config.model, _res.usage, _start, { scene: config.scene }); return _res;
   }
 
   if (config.provider === 'anthropic') {
@@ -697,7 +697,7 @@ async function makeLLMCallCore(
       () => client.messages.create(params, { signal: config.signal }),
       { provider: 'anthropic', model: config.model },
     );
-    const _res = parseAnthropicResponse(response); recordLLMMetrics(config.provider, config.model, _res.usage, _start); return _res;
+    const _res = parseAnthropicResponse(response); recordLLMMetrics(config.provider, config.model, _res.usage, _start, { scene: config.scene }); return _res;
   }
 
   throw new Error(`Unsupported provider: ${config.provider}`);
@@ -765,7 +765,7 @@ async function makeLLMCallStreamingCore(
     const { dispatchLLMCallStreaming } = await import('./dispatch');
     const getters = { getDeepSeek, getGemini, getOpenAI: getOpenAI || (() => null), getAnthropic: getAnthropic || (() => null), getQwen: getQwen || (() => null), getArk: getArk || (() => null), getOllama, isOllamaAvailable: () => !!getOllama?.(), getLmStudio, isLmStudioAvailable: () => !!getLmStudio?.() };
     const result = await dispatchLLMCallStreaming(messages, toolDeclarations, { provider: 'deepseek', model: 'deepseek-chat', maxTokens: maxTokens, userId: config.userId, signal: config.signal, scene: config.scene }, onChunk, getters);
-    recordLLMMetrics(config.provider, config.model, result.usage, _start);
+    recordLLMMetrics(config.provider, config.model, result.usage, _start, { scene: config.scene });
     return { text: result.text, toolCalls: result.toolCalls, usage: result.usage };
   }
 
