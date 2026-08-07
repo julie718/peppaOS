@@ -745,12 +745,27 @@ export function isDbDirty(): boolean {
   return dbDirty;
 }
 
+// 持久化互斥队列：writeDB debounce 与 flushDB 两个入口共用，
+// 保证任意时刻最多一个 SQLite 事务在运行。
+// 根因修复：flushDB 此前绕过 writeLock 直接调用持久化，与 debounce 回调并发执行
+// 两个 BEGIN TRANSACTION（SQLite 单连接不允许嵌套事务）→
+// SQLITE_ERROR: cannot start a transaction within a transaction
+let persistQueue: Promise<void> = Promise.resolve();
+
 /**
  * Persist all in-memory data to SQLite using an atomic write-via-temp-table pattern.
  * Data is written to temp tables first, then the original tables are atomically
  * replaced. If the process crashes mid-write, the original data is preserved.
+ * 所有调用方（writeDB debounce / flushDB）均经互斥队列串行执行。
  */
-async function persistMemoryDB(): Promise<void> {
+function persistMemoryDB(): Promise<void> {
+  const prev = persistQueue.catch(() => {});
+  const job = prev.then(() => runPersist());
+  persistQueue = job.catch(() => {});
+  return job;
+}
+
+async function runPersist(): Promise<void> {
   // Table definitions: [tableName, createSQL (must match the schema), insertSQL, rowMapper]
   interface TableSpec {
     name: string;
