@@ -20,6 +20,8 @@ export interface LLMConfig {
   orgId?: string;
   // P0-1: AbortSignal 透传 — 允许上层中止在途 LLM 流式推理（思绪搁置用）
   signal?: AbortSignal;
+  // P2-11: 调用场景标记（chat/review/…）用于结构化埋点
+  scene?: string;
 }
 
 export interface LLMResult {
@@ -741,7 +743,7 @@ export async function analyzeScreen(
 
   const result = await makeLLMCall(
     messages, [],
-    { provider: provider as any, model, maxTokens: config.maxTokens || 1000, userId: config.userId },
+    { provider: provider as any, model, maxTokens: config.maxTokens || 1000, userId: config.userId, scene: 'vision' },
     getDeepSeek || (() => null), getGemini || (() => null),
     getOpenAI, getAnthropic, getQwen, getOllama, getLmStudio, getArk,
     getXiaomi, getKimi, getGlm, getRelay,

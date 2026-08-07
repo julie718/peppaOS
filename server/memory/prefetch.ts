@@ -1,6 +1,6 @@
 // ACI 预判式上下文注入 — 在用户可能发消息前提前预取相关信息
-import { queryMemories } from './store.js';
-import { logger } from '../lib/logger.js';
+import { queryMemories } from './store';
+import { logger } from '../lib/logger';
 
 interface PrefetchedData {
   schedule: string | null;        // 今日日程摘要

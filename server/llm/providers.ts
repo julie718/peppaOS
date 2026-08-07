@@ -3,14 +3,34 @@ import { withCloudResilience } from '../cloud/resilience';
 import { isStrictPrivacy, requireLocalProvider } from '../config/privacy';
 import { getScopedPreferredLLM } from './user_preferences';
 import { getUserPreferredVision } from './vision_preferences';
-import { llmCallsTotal, llmTokensTotal, llmCallDuration } from '../lib/metrics';
+import { llmCallsTotal, llmTokensTotal, llmCallDuration, llmCallsCancelledTotal, llmCallsErrorTotal } from '../lib/metrics';
+import { logger } from '../lib/logger';
 
-function recordLLMMetrics(provider: string, model: string, usage: any, startMs: number) {
+// P2-11: 统一 LLM 调用配置 — scene 标记调用场景（chat/review/monologue/…）用于结构化埋点
+export interface LLMCallConfig {
+  provider: 'deepseek' | 'gemini' | 'openai' | 'anthropic' | 'qwen' | 'ark' | 'ollama' | 'lmstudio' | 'xiaomi' | 'kimi' | 'glm' | 'relay' | 'auto';
+  model: string;
+  maxTokens?: number;
+  userId?: string;
+  domain?: string;
+  orgId?: string;
+  signal?: AbortSignal;
+  scene?: string;
+}
+
+function recordLLMMetrics(provider: string, model: string, usage: any, startMs: number, opts?: { cancelled?: boolean; error?: string; scene?: string }) {
   try {
     llmCallsTotal.inc({ provider, model });
     if (usage?.promptTokens) llmTokensTotal.inc({ provider, model, type: 'input' }, usage.promptTokens);
     if (usage?.completionTokens) llmTokensTotal.inc({ provider, model, type: 'output' }, usage.completionTokens);
     llmCallDuration.observe({ provider, model }, (Date.now() - startMs) / 1000);
+    if (opts?.cancelled) llmCallsCancelledTotal.inc({ provider, model });
+    if (opts?.error) llmCallsErrorTotal.inc({ provider, model });
+    // P2-11: 结构化日志埋点 — 场景/模型/供应商/tokens/耗时/取消/错误
+    const status = opts?.cancelled ? 'cancelled' : opts?.error ? 'error' : 'ok';
+    logger.info(
+      `[LLM] ${status} scene=${opts?.scene || 'unknown'} provider=${provider} model=${model} promptTokens=${usage?.promptTokens ?? 0} completionTokens=${usage?.completionTokens ?? 0} durationMs=${Date.now() - startMs}${opts?.error ? ` error="${opts.error}"` : ''}`
+    );
   } catch {}
 }
 
@@ -516,10 +536,10 @@ export function parseAnthropicResponse(rawResponse: any): NormalizedLLMResponse 
 
 // ── LLM Call Router ──
 
-export async function makeLLMCall(
+async function makeLLMCallCore(
   messages: NormalizedMessage[],
   toolDeclarations: ToolDeclaration[],
-  config: { provider: 'deepseek' | 'gemini' | 'openai' | 'anthropic' | 'qwen' | 'ark' | 'ollama' | 'lmstudio' | 'xiaomi' | 'kimi' | 'glm' | 'relay' | 'auto'; model: string; maxTokens?: number; userId?: string; domain?: string; orgId?: string },  getDeepSeek: () => any,
+  config: LLMCallConfig,  getDeepSeek: () => any,
   getGemini: () => any,
   getOpenAI?: () => any,
   getAnthropic?: () => any,
@@ -551,7 +571,7 @@ export async function makeLLMCall(
           const req = formatDeepSeekRequest({ model: 'llama3.2', messages, toolDeclarations, maxTokens: maxTokens, userId: config.userId });
           const client = getOllama();
           const res = await withCloudResilience(
-            () => client.chat.completions.create(req),
+            () => client.chat.completions.create(req, { signal: config.signal }),
             { provider: 'ollama', maxRetries: 1 }
           );
           return parseOpenAIResponse(res);
@@ -560,7 +580,11 @@ export async function makeLLMCall(
             try {
               const req = formatDeepSeekRequest({ model: config.model, messages, toolDeclarations, maxTokens: maxTokens, userId: config.userId });
               const client = getLmStudio();
-              const res = await client.chat.completions.create(req);
+              // P1-1: 本地非流式调用同样透传 AbortSignal + 熔断包装，上层取消时中止在途请求
+              const res = await withCloudResilience(
+                () => client.chat.completions.create(req, { signal: config.signal }),
+                { provider: 'lmstudio', maxRetries: 1 },
+              );
               return parseOpenAIResponse(res);
             } catch {}
           }
@@ -570,7 +594,10 @@ export async function makeLLMCall(
       if (getLmStudio?.()) {
         const req = formatDeepSeekRequest({ model: config.model, messages, toolDeclarations, maxTokens: maxTokens, userId: config.userId });
         const client = getLmStudio();
-        const res = await client.chat.completions.create(req);
+        const res = await withCloudResilience(
+          () => client.chat.completions.create(req, { signal: config.signal }),
+          { provider: 'lmstudio', maxRetries: 1 },
+        );
         return parseOpenAIResponse(res);
       }
       throw new Error('[Privacy] Strict mode: no local LLM provider available. Set up Ollama or LM Studio.');
@@ -582,7 +609,7 @@ export async function makeLLMCall(
   if (config.provider === 'auto' && getOllama) {
     const { dispatchLLMCall } = await import('./dispatch');
     const getters = { getDeepSeek, getGemini, getOpenAI: getOpenAI || (() => null), getAnthropic: getAnthropic || (() => null), getQwen: getQwen || (() => null), getArk: getArk || (() => null), getOllama, isOllamaAvailable: () => !!getOllama?.(), getLmStudio, isLmStudioAvailable: () => !!getLmStudio?.() };
-    const result = await dispatchLLMCall(messages, toolDeclarations, { provider: 'deepseek', model: 'deepseek-chat', maxTokens: maxTokens, userId: config.userId }, getters);
+    const result = await dispatchLLMCall(messages, toolDeclarations, { provider: 'deepseek', model: 'deepseek-chat', maxTokens: maxTokens, userId: config.userId, signal: config.signal, scene: config.scene }, getters);
     recordLLMMetrics(config.provider, config.model, result.usage, _start);
     return { text: result.text, toolCalls: result.toolCalls, usage: result.usage };
   }
@@ -611,7 +638,7 @@ export async function makeLLMCall(
     });
 
     const response = await withCloudResilience(
-      () => client.chat.completions.create(params),
+      () => client.chat.completions.create(params, { signal: config.signal }),
       { provider: config.provider, model: config.model },
     );
     const _res = parseDeepSeekResponse(response); recordLLMMetrics(config.provider, config.model, _res.usage, _start); return _res;
@@ -630,7 +657,7 @@ export async function makeLLMCall(
 
     const modelInstance = client.getGenerativeModel(modelConfig);
     const result = await withCloudResilience(
-      () => modelInstance.generateContent({ contents }),
+      () => modelInstance.generateContent({ contents }, { signal: config.signal }),
       { provider: 'gemini', model: config.model },
     );
     const _res = parseGeminiResponse(result); recordLLMMetrics(config.provider, config.model, _res.usage, _start); return _res;
@@ -649,7 +676,7 @@ export async function makeLLMCall(
     });
 
     const response = await withCloudResilience(
-      () => client.chat.completions.create(params),
+      () => client.chat.completions.create(params, { signal: config.signal }),
       { provider: 'openai', model: config.model },
     );
     const _res = parseOpenAIResponse(response); recordLLMMetrics(config.provider, config.model, _res.usage, _start); return _res;
@@ -667,13 +694,31 @@ export async function makeLLMCall(
     });
 
     const response = await withCloudResilience(
-      () => client.messages.create(params),
+      () => client.messages.create(params, { signal: config.signal }),
       { provider: 'anthropic', model: config.model },
     );
     const _res = parseAnthropicResponse(response); recordLLMMetrics(config.provider, config.model, _res.usage, _start); return _res;
   }
 
   throw new Error(`Unsupported provider: ${config.provider}`);
+}
+
+// P2-11: 统一埋点包装 — 成功路径由 core 各分支 recordLLMMetrics 记录，取消/失败在此兜底
+export async function makeLLMCall(...args: Parameters<typeof makeLLMCallCore>): Promise<NormalizedLLMResponse> {
+  const [messages, toolDeclarations, config] = args;
+  const start = Date.now();
+  try {
+    return await makeLLMCallCore(...args);
+  } catch (err: any) {
+    const msg = String(err?.message || err);
+    const cancelled = err?.name === 'AbortError' || err?.name?.includes('Abort') || /abort/i.test(msg);
+    recordLLMMetrics(config.provider, config.model, undefined, start, {
+      cancelled,
+      error: cancelled ? undefined : msg.slice(0, 300),
+      scene: config.scene,
+    });
+    throw err;
+  }
 }
 
 // ── Streaming LLM Call Router ──
@@ -684,10 +729,10 @@ function isReasoningModel(model: string): boolean {
   return /reasoner|v4-(pro|flash)|o[13]|o4-mini|r1/i.test(model);
 }
 
-export async function makeLLMCallStreaming(
+async function makeLLMCallStreamingCore(
   messages: NormalizedMessage[],
   toolDeclarations: ToolDeclaration[],
-  config: { provider: 'deepseek' | 'gemini' | 'openai' | 'anthropic' | 'qwen' | 'ark' | 'ollama' | 'lmstudio' | 'xiaomi' | 'kimi' | 'glm' | 'relay' | 'auto'; model: string; maxTokens?: number; userId?: string; domain?: string; orgId?: string; signal?: AbortSignal },
+  config: LLMCallConfig,
   onChunk: StreamCallback,
   getDeepSeek: () => any,
   getGemini: () => any,
@@ -719,7 +764,7 @@ export async function makeLLMCallStreaming(
   if (config.provider === 'auto' && getOllama) {
     const { dispatchLLMCallStreaming } = await import('./dispatch');
     const getters = { getDeepSeek, getGemini, getOpenAI: getOpenAI || (() => null), getAnthropic: getAnthropic || (() => null), getQwen: getQwen || (() => null), getArk: getArk || (() => null), getOllama, isOllamaAvailable: () => !!getOllama?.(), getLmStudio, isLmStudioAvailable: () => !!getLmStudio?.() };
-    const result = await dispatchLLMCallStreaming(messages, toolDeclarations, { provider: 'deepseek', model: 'deepseek-chat', maxTokens: maxTokens, userId: config.userId, signal: config.signal }, onChunk, getters);
+    const result = await dispatchLLMCallStreaming(messages, toolDeclarations, { provider: 'deepseek', model: 'deepseek-chat', maxTokens: maxTokens, userId: config.userId, signal: config.signal, scene: config.scene }, onChunk, getters);
     recordLLMMetrics(config.provider, config.model, result.usage, _start);
     return { text: result.text, toolCalls: result.toolCalls, usage: result.usage };
   }
@@ -919,6 +964,24 @@ export async function makeLLMCallStreaming(
   }
 
   throw new Error(`Unsupported streaming provider: ${config.provider}`);
+}
+
+// P2-11: 统一埋点包装（流式）— 取消/失败兜底记录
+export async function makeLLMCallStreaming(...args: Parameters<typeof makeLLMCallStreamingCore>): Promise<NormalizedLLMResponse> {
+  const [messages, toolDeclarations, config] = args;
+  const start = Date.now();
+  try {
+    return await makeLLMCallStreamingCore(...args);
+  } catch (err: any) {
+    const msg = String(err?.message || err);
+    const cancelled = err?.name === 'AbortError' || err?.name?.includes('Abort') || /abort/i.test(msg);
+    recordLLMMetrics(config.provider, config.model, undefined, start, {
+      cancelled,
+      error: cancelled ? undefined : msg.slice(0, 300),
+      scene: config.scene,
+    });
+    throw err;
+  }
 }
 
 // ── Token estimation ──────────────────────────────────────────────────────

@@ -16,7 +16,7 @@ import { resolveWorkSurfaceRoute } from "../cognition/work_surface";
 import { formatToolRouteForPrompt, mergeToolPolicyWithRoute, routeToolsForTurn } from "../cognition/tool_router";
 import { formatClientSelfPrompt } from "../client/self_model";
 import { queryMemories, queryMemoriesVector, addMemory, addReminder, extractMemories, retrieveRelevantMemories, getTimeline, getMemories, storeMemory, extractKeyFacts, applyPreferenceFacts, formatPreferenceTagsForPrompt, getSensitiveTopicGuard, extractKnowledge, storeKnowledge, getKnowledge, formatKnowledgeForContext } from "../memory";
-import { getUserPreferenceTags } from "../db/lifeDb.js";
+import { getUserPreferenceTags } from "../db/lifeDb";
 import { loadEmotionalState, saveEmotionalState, updateEmotionalState, updateEmotionalStateWithHIM, loadHIMState, saveHIMState, generateContextualGreeting, vectorMemoryBias } from "../personality/state";
 import { buildModeOverlay } from "../personality/engine";
 import { personalityRegistry } from "../personality";
@@ -25,23 +25,23 @@ import { getOrCreateActiveConversation, addMessage, getMessages, getMessagesByTo
 import { ensureBranch } from "../memory/tree";
 import { detectAndSwitchTopic } from "../memory/focusStack";
 import { getPrefetchedContext, clearPrefetchedContext, touchActivity } from "../memory/prefetch";
-import { getLifeSystem, getDirectionState } from "../life/index.js";
-import { getVitality } from "../life/vitality.js";
-import { getEmotionEngine } from "../life/emotions.js";
-import { getPersonalityEngine } from "../life/personality.js";
-import { getRelationshipEngine } from "../life/relationship.js";
-import { onInteractionComplete } from "../life/relationshipAwareness.js";
-import { routeMessage, isInstinctQuery, isIdentityQuery } from "../cognition/router.js";
-import { getSelfState, synthesizeResponse } from "../cognition/deepReasoning.js";
-import { generateIdentityResponse, generateHowAreYouResponse } from "../life/narrative.js";
-import { updateComprehension, shouldClarify, generateClarification, getComprehensionState } from '../life/comprehension.js';
-import { touchUserActivity } from "../life/userState.js";
+import { getLifeSystem, getDirectionState } from "../life/index";
+import { getVitality } from "../life/vitality";
+import { getEmotionEngine } from "../life/emotions";
+import { getPersonalityEngine } from "../life/personality";
+import { getRelationshipEngine } from "../life/relationship";
+import { onInteractionComplete } from "../life/relationshipAwareness";
+import { routeMessage, isInstinctQuery, isIdentityQuery } from "../cognition/router";
+import { getSelfState } from "../cognition/selfState";
+import { generateIdentityResponse, generateHowAreYouResponse } from "../life/narrative";
+import { updateComprehension, shouldClarify, generateClarification, getComprehensionState } from '../life/comprehension';
+import { touchUserActivity } from "../life/userState";
 // P0-6: IdleBrain 短待机入口（对话结束标记）
-import { idleBrain } from '../autonomy/idle_brain.js';
+import { idleBrain } from '../autonomy/idle_brain';
 // 【新增数字生命体模块】T80 心智 + MCP 拦截器
-import { buildMindContext, classifyToolIntent, MindContext, SEVEN_STEP_MIND } from '../hooks/chat.js';
-import { mcpInterceptor, buildToolBlockMessage, applyConstitutionGuard, MCP_MAX_CALLS_PER_TURN } from '../tools/interceptor.js';
-import { getUnrespondedObservations, markObservationResponded } from "../db/lifeDb.js";
+import { buildMindContext, classifyToolIntent, MindContext, SEVEN_STEP_MIND } from '../hooks/chat';
+import { mcpInterceptor, buildToolBlockMessage, applyConstitutionGuard, MCP_MAX_CALLS_PER_TURN } from '../tools/interceptor';
+import { getUnrespondedObservations, markObservationResponded } from "../db/lifeDb";
 import { retrieveChunks } from "../agents/rag";
 import { getSensory } from "./shared";
 import { processInput, handleLLMFailure, extractSentiment, CognitiveContext } from "../cognition";
@@ -73,7 +73,7 @@ import { buildResponseLanguageInstruction } from "../utils/language";
 import { guardCompletionClaims, needsCompletionEvidence } from "../work_product/completion_guard";
 import { buildModelSelfAwareness, buildVisionRoutingOverlay, hasVisionIntent } from "../cognition/vision_routing";
 import { DEFAULT_MODELS, getScopedPreferredLLM, getScenarioModel } from "../llm/user_preferences";
-import { generateTemporalContext } from '../time/temporal_context.js';
+import { generateTemporalContext } from '../time/temporal_context';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'peppaOS_default_jwt_secret_2026_local';
 
@@ -521,9 +521,12 @@ export function registerChatHandler(
       effectiveSystemPrompt += '\n当用户问"我们认识多久了"或类似问题时，必须直接使用具体天数回答，不要说"我没有记忆"或"刚认识"。';
 
       // ── ACI 预判上下文注入 ──
+      // P2-14: 保留块引用，超预算时可裁剪
+      let prefetchedBlock: string | null = null;
       const prefetchedContext = getPrefetchedContext(uid);
       if (prefetchedContext) {
-        effectiveSystemPrompt += '\n\n' + prefetchedContext.summary;
+        prefetchedBlock = '\n\n' + prefetchedContext.summary;
+        effectiveSystemPrompt += prefetchedBlock;
         logger.info('[ChatHandler] prefetched context injected:', prefetchedContext.source);
         clearPrefetchedContext(uid);
       }
@@ -539,15 +542,17 @@ export function registerChatHandler(
       }
 
       // ── M4: 跨会话记忆注入 ──
+      // P2-14: 块保留引用，超预算时可裁剪（跨会话记忆为低优先级上下文）
+      let crossMemoryBlock: string | null = null;
       try {
         const crossMemories = await getMemories(uid);
         if (crossMemories.length > 0) {
-          const crossMemoryText = '## 跨会话记忆（关于用户的重要信息）\n以下是你从之前的对话中记住的关于用户的事实：\n'
+          crossMemoryBlock = '\n\n## 跨会话记忆（关于用户的重要信息）\n以下是你从之前的对话中记住的关于用户的事实：\n'
             + crossMemories.map(m =>
                 `- ${formatFactLabel(m.key)}: ${m.value}`
               ).join('\n')
             + '\n请在对话中自然地运用这些信息，让用户感受到你记得关于他们的事情。';
-          effectiveSystemPrompt += '\n\n' + crossMemoryText;
+          effectiveSystemPrompt += crossMemoryBlock;
           logger.info('[ChatHandler] 跨会话记忆:', crossMemories.length, '条');
         }
       } catch (e: any) {
@@ -655,6 +660,30 @@ export function registerChatHandler(
           effectiveSystemPrompt += '\n\nYou know these people personally. Use this information to provide relevant, contextual responses when the user asks about them.';
         }
       } catch {}
+
+      // ── P2-14: System Prompt token 预算管控 ──
+      // 超预算时按优先级从低到高裁剪可选上下文（previousSession → prefetched → crossSession）
+      // 核心 systemInstruction/时间/戒备/偏好标签等必保留
+      {
+        const budget = parseInt(process.env.SYSTEM_PROMPT_TOKEN_BUDGET || '4000', 10);
+        const lowPriorityBlocks: { label: string; text: string }[] = [];
+        if (previousSessionContext) lowPriorityBlocks.push({ label: 'previousSession', text: previousSessionContext });
+        if (prefetchedBlock) lowPriorityBlocks.push({ label: 'prefetched', text: prefetchedBlock });
+        if (crossMemoryBlock) lowPriorityBlocks.push({ label: 'crossSession', text: crossMemoryBlock });
+
+        let promptTokens = estimateTokens(effectiveSystemPrompt);
+        for (const block of lowPriorityBlocks) {
+          if (promptTokens <= budget) break;
+          if (effectiveSystemPrompt.includes(block.text)) {
+            effectiveSystemPrompt = effectiveSystemPrompt.replace(block.text, '');
+            promptTokens = estimateTokens(effectiveSystemPrompt);
+            logger.warn(`[ChatHandler] System Prompt 超预算裁剪: ${block.label}（当前 ${promptTokens} tokens）`);
+          }
+        }
+        if (promptTokens > budget) {
+          logger.warn(`[ChatHandler] System Prompt ${promptTokens} tokens 仍超预算 ${budget}，保留核心指令继续`);
+        }
+      }
 
       const interactionId = crypto.randomUUID();
 
@@ -997,246 +1026,6 @@ export function registerChatHandler(
         return;
       }
 
-      // ── 深度推理层：优先使用自身状态生成回复 ──
-      if (route.layer === 'deep_reasoning') {
-        logger.info('[ChatHandler] 深度推理层触发（自身状态模式）:', text.slice(0, 40));
-        let nluIntent: { intent: string; entities: Record<string, any>; confidence: number; source: string } | null = null;
-        try {
-          const { parseIntent } = await import('../cognition/nlu/index.js');
-          nluIntent = await parseIntent(text);
-          logger.info(`[ChatHandler] NLU: ${nluIntent.intent} (${nluIntent.confidence.toFixed(2)})`);
-        } catch (e) {
-          logger.warn('[ChatHandler] NLU failed:', e);
-        }
-
-        // ── 状态驱动回应（新逻辑） ──
-        const comprehensionState = updateComprehension(text, {
-          conversationHistory: [],
-        });
-        logger.info(`[ChatHandler] 当前理解状态: overall=${comprehensionState.overall.toFixed(2)}, missing=${comprehensionState.missingAspects.join(',')}`);
-        console.log(`[DEBUG] overall=${comprehensionState.overall}, missing=${comprehensionState.missingAspects}`);
-
-        if (comprehensionState.overall < 0.5) {
-          const followUp = generateClarification(comprehensionState);
-          if (followUp) {
-            logger.info(`[ChatHandler] 追问: ${followUp.slice(0, 40)}...`);
-            socket.emit('agent:response', {
-              text: followUp,
-              agentName: personality.name,
-              source: 'clarification'
-            });
-            if (conversationId) {
-              addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'user', content: storedUserContent, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
-              addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'assistant', content: followUp, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
-            }
-            socket.emit('agent:status', { status: "idle" });
-            chatSessionMap.delete(sessionKey);
-            return;
-          }
-        }
-
-        // ── 【新增数字生命体模块】7步心智 + 情绪注入 + 场景判定（仅深度推理分支） ──
-        const toolIntent = classifyToolIntent(text);
-        const shouldDisableTools = toolIntent === 'nostalgic';
-
-        // 构建心智上下文
-        const em = getEmotionEngine();
-        const pe = getPersonalityEngine();
-        const dirState = getDirectionState();
-        const compState = getComprehensionState();
-        const mindCtx: MindContext = {
-          ...buildMindContext(
-            em.getEmotions(),
-            pe.getPersonality(),
-            dirState.getInclination(),
-            dirState.getIntensity(),
-            compState.overall,
-          ),
-          toolIntent,
-          shouldDisableTools,
-        };
-
-        if (shouldDisableTools) {
-          logger.info(`[ChatHandler] 【新增数字生命体模块】场景判定: ${toolIntent} → MCP工具已屏蔽`);
-          // 额外兜底：直接消耗本轮 MCP 配额，确保即使后续误判也不会调用
-          mcpInterceptor.recordCall(sessionKey, 'blocked_nostalgic');
-          // 在 System Prompt 中明确告知模型本轮不可使用工具
-          effectiveSystemPrompt += '\n\n【重要】本轮对话属于情感陪伴场景，请勿调用任何工具。用纯共情的方式回应。';
-        }
-
-        // 将7步心智 + 情绪状态注入有效 System Prompt（深度推理专用）
-        effectiveSystemPrompt = mindCtx.mindSystemPrompt + '\n\n' + mindCtx.emotionStatePrompt + '\n\n' + effectiveSystemPrompt;
-        logger.info(`[ChatHandler] 【新增数字生命体模块】心智注入: toolIntent=${toolIntent} disableTools=${shouldDisableTools}`);
-
-        let reply = '';
-        try {
-          const selfState = await getSelfState();
-          logger.info('[Debug] selfState 内容:', JSON.stringify(selfState));
-
-          // ── 实体提取：从用户消息中提取人物、事件、动作 ──
-          const peopleKeywords = ['同事', '老板', '朋友', '家人', '领导', '同学', '伴侣', '师傅', '邻居', '客户', '合伙人'];
-          const eventKeywords = [
-            // 职业类
-            '换工作', '跳槽', '转行', '裸辞', '辞职', '找工作', '面试', '升职', '加薪',
-            // 生活类
-            '换城市', '搬家', '买房', '租房', '买车', '结婚', '离婚', '分手', '复合',
-            // 情感类
-            '道歉', '表白', '求婚', '感谢', '和好',
-            // 创业/投资类
-            '创业', '投资', '理财', '炒股',
-            // 决策类
-            '决定', '选择', '放弃', '坚持'
-          ];
-          const actionKeywords = [
-            '说', '做', '去', '找', '问', '要', '给', '聊', '谈', '讲', '写', '发',
-            '告诉', '分享', '通知', '转告', '告知', '透露', '交代', '表示', '表达',
-            '聊', '谈', '讨论', '商议', '商量', '协商'
-          ];
-          const extractedEntities = {
-            people: peopleKeywords.filter(k => text.includes(k)),
-            events: eventKeywords.filter(k => text.includes(k)),
-            actions: actionKeywords.filter(k => text.includes(k)),
-          };
-          console.log('[实体提取] 人物:', extractedEntities.people, '事件:', extractedEntities.events, '动作:', extractedEntities.actions);
-
-          const directionState = getDirectionState();
-          await directionState.load();
-          const direction = await directionState.updateFromState(
-            selfState.emotion,
-            selfState.personality,
-            extractedEntities
-          );
-          const selfEmotion = selfState?.emotion;
-          const selfPersonality = selfState?.personality;
-          // 【修复】解析情绪状态（兼容 vector_json / emotion_type 两种格式）
-          let selfEmotionText = '平静';
-          if (selfEmotion) {
-            if (selfEmotion.vector_json) {
-              try {
-                const vec = JSON.parse(selfEmotion.vector_json);
-                const labels = ['喜悦','平静','期待','担忧','孤独','满足','好奇','依赖'];
-                let maxI = 0; for (let i=1;i<8;i++) if (vec[i]>vec[maxI]) maxI=i;
-                selfEmotionText = labels[maxI]||'平静';
-              } catch { selfEmotionText = '平静'; }
-            } else if (selfEmotion.emotion_type) {
-              selfEmotionText = selfEmotion.emotion_type;
-            }
-          }
-          let selfPersonalityText = '温和中立';
-          if (selfPersonality?.vector_json) {
-            try {
-              const vec = JSON.parse(selfPersonality.vector_json);
-              selfPersonalityText = (vec[2]||0.5) > 0.6 ? '偏主动' : '偏谨慎';
-            } catch { selfPersonalityText = '温和中立'; }
-          }
-          const deduction: any = {
-            domain: '人际沟通',
-            steps: ['基于当前情绪、人格状态和表达倾向生成判断'],
-            pro_position: selfEmotion && selfPersonality
-              ? `基于我的状态（情绪：${selfEmotionText}，人格倾向：${selfPersonalityText}，表达倾向：${direction.inclination}），我倾向于...`
-              : '我倾向于...',
-            con_position: selfEmotion
-              ? `我现在的状态是${selfEmotionText}，表达倾向${direction.inclination}，所以...`
-              : '我不会盲目鼓励你做任何事。',
-            intermediate_conclusion: selfEmotion && selfPersonality
-              ? `我的状态决定了我的判断：${selfEmotionText}让我更谨慎，${selfPersonalityText}让我倾向于主动处理。表达倾向${direction.inclination}影响我的立场。`
-              : '我建议你想清楚，但不强求。',
-            direction: {
-              inclination: direction.inclination,
-              intensity: direction.intensity,
-              reason: direction.reason,
-            },
-          };
-          // 将 context 融入 deduction，让回复内容更具针对性
-          if (extractedEntities && (extractedEntities.events.length > 0 || extractedEntities.people.length > 0)) {
-            const contextInfo = [];
-            if (extractedEntities.events.length > 0) {
-              contextInfo.push(`你提到了 ${extractedEntities.events.join('、')}`);
-            }
-            if (extractedEntities.people.length > 0) {
-              contextInfo.push(`涉及 ${extractedEntities.people.join('、')}`);
-            }
-            if (contextInfo.length > 0) {
-              deduction.context_note = contextInfo.join('，');
-              // 将 context 信息融入 intermediate_conclusion
-              deduction.intermediate_conclusion += ` 基于你提到的内容，我给出以下判断。`;
-            }
-          }
-
-          // ── 【新增数字生命体模块】传入情绪+心智参数，动态生成非生硬短句 ──
-          const emotionSummaryForDeep = mindCtx?.emotionStatePrompt || '';
-          reply = synthesizeResponse(text, deduction, null, { score: 70, dataCompleteness: 50, ruleSoundness: 70, verifiability: 50, uncertaintyFactors: [] }, { sources: [], summary: '', dataGaps: [] }, false, nluIntent, emotionSummaryForDeep);
-          logger.info('[Debug] reply 内容:', reply);
-
-          // 存入数据库
-          if (conversationId) {
-            addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'user', content: storedUserContent, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
-            addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'assistant', content: reply, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
-          }
-          try {
-            const db = readDB();
-            db.interactions.push({
-              id: `deep_${Date.now()}`,
-              userId: uid,
-              agentId: agentId || '',
-              conversationId: conversationId || '',
-              content: storedUserContent,
-              response: reply,
-              role: 'user',
-              personality: personality.id,
-              timestamp: new Date().toISOString(),
-              cognitiveIntent: 'deep_reasoning',
-              llmWasCalled: false,
-              domain: resolvedDomain,
-              orgId: resolvedOrgId,
-            });
-            writeDB(db);
-          } catch {}
-
-          logger.info('[Debug] 准备发送 agent:response，reply 长度:', reply?.length);
-          logger.info('[Debug] socket.connected:', socket.connected);
-
-          socket.emit('agent:response', {
-            text: reply,
-            agentName: personality.name,
-            source: 'deep_reasoning',
-            requestId: requestId || undefined,
-            metadata: {
-              confidence: 70,
-              llmCalls: 0,
-              degraded: false,
-              domain: 'self_state',
-              framework: '自身状态判断',
-            },
-          });
-          logger.info('[ChatHandler] 自身状态回复完成');
-        } catch (e: any) {
-          logger.error('[ChatHandler] 深度推理失败:', e.message);
-          socket.emit('agent:response', {
-            text: '这个问题有点复杂，我需要想想… 要不换个角度再问一次？',
-            agentName: personality.name,
-            source: 'deep_reasoning_degraded',
-            requestId: requestId || undefined,
-          });
-        }
-        // ── 【新增数字生命体模块】对话后置异步复盘（deep_reasoning 路径） ──
-        if (reply) {
-          import('../hooks/review.js').then(({ performPostChatReview }) => {
-            performPostChatReview({
-              uid, text, response: reply, sessionKey,
-              conversationId, domain: resolvedDomain, orgId: resolvedOrgId,
-              personality: { name: personality?.name || 'Peppa', vector: [] },
-              emotion: { emotions: [], dominant: '' },
-              source: 'deep_reasoning',
-            }).catch(e => logger.warn('[ChatHandler] 异步复盘异常:', e?.message || e));
-          }).catch(() => {});
-        }
-        chatSessionMap.delete(sessionKey);
-        return;
-      }
-
-      // ── Peppa Cognitive Engine: classify intent BEFORE calling any LLM ──
-      // 路由已判定为 instinct/tool → 跳过认知引擎（节省 Token）
       const skipCognition = route.layer === 'instinct' || route.layer === 'tool';
       const cognitiveCtx: CognitiveContext = {
         userId: uid,
@@ -1785,7 +1574,7 @@ export function registerChatHandler(
             const response = await makeLLMCallStreaming(
               messages,
               [],
-              { provider: activeProvider, model: activeModel, userId: uid, domain: resolvedDomain, orgId: resolvedOrgId, signal: abortController.signal },
+              { provider: activeProvider, model: activeModel, userId: uid, domain: resolvedDomain, orgId: resolvedOrgId, signal: abortController.signal, scene: 'chat' },
               onChunk,
               llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
               llmGetters.getOllama, llmGetters.getLmStudio, llmGetters.getArk, llmGetters.getXiaomi, llmGetters.getKimi, llmGetters.getGlm, llmGetters.getRelay,
@@ -1851,7 +1640,7 @@ export function registerChatHandler(
             messages,
             toolRegistry,
             // P0-1: 透传 abortController.signal，使用户新消息/超时能真正中止在途 LLM 流式推理
-            { provider: activeProvider, model: activeModel, userId: uid, domain: resolvedDomain, orgId: resolvedOrgId, signal: abortController.signal },
+            { provider: activeProvider, model: activeModel, userId: uid, domain: resolvedDomain, orgId: resolvedOrgId, signal: abortController.signal, scene: 'chat' },
             isSanctuary ? undefined : (record) => {
               allToolRecords.push(record);
               if (isDirectDesktopTool(record.name)) return;
@@ -1991,7 +1780,7 @@ export function registerChatHandler(
                 const fallback = await makeLLMCallStreaming(
                   messages,
                   [],
-                  { provider: 'gemini', model: DEFAULT_MODELS.gemini, userId: uid, domain: resolvedDomain, orgId: resolvedOrgId, signal: abortController.signal },
+                  { provider: 'gemini', model: DEFAULT_MODELS.gemini, userId: uid, domain: resolvedDomain, orgId: resolvedOrgId, signal: abortController.signal, scene: 'chat' },
                   (chunk) => {
                     fallbackChunks.push(chunk);
                     emitAgent("agent:chunk", { text: chunk, agentName: personality.name });
@@ -2196,7 +1985,7 @@ export function registerChatHandler(
           let maxI = 0; for (let i=1;i<8;i++) if (reviewEmotion[i]>reviewEmotion[maxI]) maxI=i;
           return labels[maxI]||'平静';
         })();
-        import('../hooks/review.js').then(({ performPostChatReview }) => {
+        import('../hooks/review').then(({ performPostChatReview }) => {
           performPostChatReview({
             uid, text, response: responseText, sessionKey,
             conversationId, domain: resolvedDomain, orgId: resolvedOrgId,
@@ -2275,6 +2064,7 @@ export function registerChatHandler(
             llmGetters.getOpenAI,
             llmGetters.getAnthropic,
             llmGetters.getQwen,
+            responseText, // P2-16: 自身回复样本 → 口头禅沉淀
           );
           if (step) {
             personalityRegistry.applyEvolution(personalityId, step);

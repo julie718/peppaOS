@@ -6,9 +6,9 @@
 // 2. 行为调整 — 基于关系状态动态调整主动沟通频率/内容/语气
 // 3. 关系叙事 — 自然语言描述关系状态与变化
 
-import { getRelationshipEngine } from './relationship.js';
-import { getEmotionEngine } from './emotions.js';
-import { getPersonalityEngine } from './personality.js';
+import { getRelationshipEngine } from './relationship';
+import { getEmotionEngine } from './emotions';
+import { getPersonalityEngine } from './personality';
 
 // ── 类型 ──
 
@@ -486,10 +486,6 @@ export async function onInteractionComplete(interactionType: string): Promise<vo
       // 关系更新已由 LifeSystem.receiveInteraction('user_initiated') 处理
       // 此处仅负责缓存失效 + 快照记录 + 叙事（在 switch 下方）
       break;
-    case 'deep_reasoning':
-      // 深度思考说明用户信任我们的判断
-      await rel.receiveInteraction('user_asked_help');
-      break;
     case 'positive_feedback':
       await rel.receiveInteraction('user_positive');
       break;
@@ -511,7 +507,7 @@ export async function onInteractionComplete(interactionType: string): Promise<vo
   // 如果阶段变化，记录叙事
   const state = rel.getRelationshipState();
   try {
-    const { logSystemEvent } = await import('../db/lifeDb.js');
+    const { logSystemEvent } = await import('../db/lifeDb');
     await logSystemEvent('relation_update', {
       stage: state.stage,
       vector: state.vector,

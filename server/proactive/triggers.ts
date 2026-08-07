@@ -1,10 +1,10 @@
 import { logger } from '../lib/logger';
 import { ProactiveTrigger, TriggerResult, ProactiveScene } from './index';
-import { getLastUserMessageAt } from '../life/userState.js';
-import { getEmotionEngine } from '../life/emotions.js';
-import { getRelationshipEngine } from '../life/relationship.js';
-import { queryMemories } from '../memory/store.js';
-import type { Memory } from '../memory/types.js';
+import { getLastUserMessageAt } from '../life/userState';
+import { getEmotionEngine } from '../life/emotions';
+import { getRelationshipEngine } from '../life/relationship';
+import { queryMemories } from '../memory/store';
+import type { Memory } from '../memory/types';
 
 // 获取当前时间
 function getHour(): number {

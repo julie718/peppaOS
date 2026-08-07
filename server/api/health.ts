@@ -1,5 +1,5 @@
-import { getDesireEngine } from '../desire/engine.js';
-import { triggerHeartbeatIfReady } from '../heartbeat/injector.js';
+import { getDesireEngine } from '../desire/engine';
+import { triggerHeartbeatIfReady } from '../heartbeat/injector';
 
 export async function handleHealthData(req: any, res: any) {
   try {

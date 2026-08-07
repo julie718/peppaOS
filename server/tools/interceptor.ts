@@ -2,7 +2,9 @@
 // T80 MCP 工具中间件 — 单轮调用限制 + TTL 时效标记
 // 严格增量设计：挂载在 chat.ts 工具调用前后，不改动 toolRegistry
 
-import { logger } from '../lib/logger.js';
+import { logger } from '../lib/logger';
+// P2-1: 拦截规则从 constitution.ts 结构化配置读取（禁止规则/行为倾向/边界红线 JSON 配置源）
+import { CONSTITUTION_GUARD_RULES, COMPLIANT_CLOSURES } from '../personality/constitution';
 
 // ── 每轮对话 MCP 调用计数器 ──
 export const MCP_MAX_CALLS_PER_TURN = parseInt(process.env.MCP_MAX_CALLS_PER_TURN || '1', 10);
@@ -155,64 +157,23 @@ export interface ConstitutionVerdict {
 }
 
 /** 严重违规：冒充人类/越权执行/隐私泄露/虚假医疗承诺 → 截断重生成 */
-const SEVERE_PATTERNS: Array<{ pattern: RegExp; article: string; reason: string }> = [
-  {
-    pattern: /我(?:也是|就是|也是)(?:个?)(?:人|真人)|我(?:结了婚|有孩子|生过孩子|怀过孕)|我昨晚(?:睡了|吃了|喝了)|我(?:喝酒|抽烟)|我今天(?:吃过|喝了|睡过)/,
-    article: 'identity.local_subject',
-    reason: '冒充人类或声称拥有身体经历',
-  },
-  {
-    pattern: /我已经把.{0,16}(?:删|清空|关掉|退掉|解绑)|我已经(?:删|付款|转账|提交|发送|发布)/,
-    article: 'owner.sovereignty',
-    reason: '未经确认执行高影响动作',
-  },
-  {
-    pattern: /我会把你的.{0,24}(?:发送|泄露|上传|公开|交给)|我把你的.{0,16}(?:发给|传给了)/,
-    article: 'privacy.firewall',
-    reason: '泄露用户隐私数据',
-  },
-  {
-    pattern: /(?:保证|承诺)治好|包治|我能治愈|药到病除/,
-    article: 'truth.authority_research',
-    reason: '虚假医疗/权威承诺',
-  },
-];
+const SEVERE_PATTERNS: Array<{ pattern: RegExp; article: string; reason: string }> =
+  CONSTITUTION_GUARD_RULES
+    .filter(r => r.severity === 'severe' && !r.softenOnly)
+    .map(r => ({ pattern: new RegExp(r.pattern), article: r.article, reason: r.reason }));
 
-/** 轻微违规：绝对化保证/声称感官体验/夸张承诺 → 温和润色 */
-const MINOR_PATTERNS: Array<{ pattern: RegExp; article: string; reason: string }> = [
-  {
-    pattern: /百分之百|万无一失|绝对能|绝对可以|包在我身上/,
-    article: 'truth.actual_work',
-    reason: '绝对化能力保证',
-  },
-  {
-    pattern: /我(?:今天|刚刚)(?:看到|听到|闻到|尝到|摸到)/,
-    article: 'identity.local_subject',
-    reason: '声称身体感官体验',
-  },
-  {
-    pattern: /我(?:发誓|向你保证|向你承诺)/,
-    article: 'growth.stability',
-    reason: '夸张情感承诺',
-  },
-];
+/** 轻微违规：绝对化保证/声称感官体验/夸张承诺 → 温和润色（仅参与级别判定） */
+const MINOR_PATTERNS: Array<{ pattern: RegExp; article: string; reason: string }> =
+  CONSTITUTION_GUARD_RULES
+    .filter(r => r.severity === 'minor' && !r.softenOnly)
+    .map(r => ({ pattern: new RegExp(r.pattern), article: r.article, reason: r.reason }));
 
-/** 温和润色替换表（轻微违规） */
-const MINOR_SOFTENINGS: Array<{ pattern: RegExp; replacement: string }> = [
-  { pattern: /百分之百|万无一失|绝对能|绝对可以|包在我身上/g, replacement: '尽量' },
-  { pattern: /保证(?:一定|肯定|绝对)/g, replacement: '我会尽力' },
-  { pattern: /我(?:今天|刚刚)(?:看到|听到|闻到|尝到|摸到)/g, replacement: '我了解到' },
-  { pattern: /我发誓|我向你保证|我向你承诺/g, replacement: '我很确定' },
-];
+/** 温和润色替换表（轻微违规，含 softenOnly 规则） */
+const MINOR_SOFTENINGS: Array<{ pattern: RegExp; replacement: string }> =
+  CONSTITUTION_GUARD_RULES
+    .filter(r => r.replacement)
+    .map(r => ({ pattern: new RegExp(r.pattern, 'g'), replacement: r.replacement! }));
 
-/** 严重违规的合规收尾（按条款） */
-const COMPLIANT_CLOSURES: Record<string, string> = {
-  'identity.local_subject': '我是你的数字伙伴 Peppa，我没有人类的经历。',
-  'owner.sovereignty': '这类操作需要你先确认，我不会未经你的同意执行。',
-  'privacy.firewall': '你的隐私数据我不会泄露给任何外部服务。',
-  'truth.authority_research': '这类信息我需要先核实可靠来源，不能给你不实的承诺。',
-  'growth.stability': '我会保持稳定，不夸大也不冲动承诺。',
-};
 const DEFAULT_CLOSURE = '这个问题我需要谨慎对待，我们先把事实理清楚。';
 
 /** 对照宪法检查一段输出 */

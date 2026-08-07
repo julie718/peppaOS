@@ -5,9 +5,11 @@
  * Transport: SSE (HTTP) — devices connect via POST to /mcp/message
  * and receive responses via SSE at /mcp/sse
  */
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
 import { logger } from '../lib/logger';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+// P2-8: 读取用户配置的默认模型档位，取消硬编码 deepseek-v4-pro
+import { DEFAULT_MODELS } from '../llm/user_preferences';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse';
 import { z } from 'zod';
 import { queryMemories, addMemory, getDueReminders, buildNarrativeChain, borrowAgentMemories } from '../memory';
 import { runWithTools } from '../llm/adapter';
@@ -88,15 +90,18 @@ export function createPeppaMcpServer(llmGetters?: {
         ];
 
         const MCP_TIMEOUT_MS = 25000;
+        // P2-8: 顶层 AbortSignal — 超时后主动销毁在途 LLM 异步任务，杜绝后台残留请求持续消耗 Token
+        const mcpAbort = new AbortController();
 
         const responsePromise = runWithTools(
           messages,
           tr,
           {
             provider: 'deepseek',
-            model: 'deepseek-v4-pro',
+            model: DEFAULT_MODELS.deepseek,
             maxTokens: 2048,
             userId: 'mcp_remote',
+            signal: mcpAbort.signal,
           },
           (record) => {
             const cid = `${record.name}-${Date.now()}`;
@@ -126,12 +131,11 @@ export function createPeppaMcpServer(llmGetters?: {
           response = await Promise.race([responsePromise, timeoutPromise]);
         } catch (e: any) {
           if (e.message === 'MCP_TIMEOUT') {
-            logger.info('[MCP peppa_chat] Timeout — continuing in background');
+            // P2-8: 超时直接 abort 在途 LLM 请求（原实现后台继续烧 Token）
+            logger.info('[MCP peppa_chat] Timeout — aborting in-flight LLM call');
+            mcpAbort.abort();
             bc('mcp:activity', { device: 'xiaozhi', action: 'chat', status: 'timeout' });
             bc('agent:status', { status: 'idle', agentName: 'Peppa' });
-            responsePromise.then(() => {
-              bc('agent:status', { status: 'idle', agentName: 'Peppa' });
-            }).catch(() => {});
             return {
               content: [{ type: 'text' as const, text: '正在处理中，稍等片刻...' }],
             };
@@ -153,7 +157,7 @@ export function createPeppaMcpServer(llmGetters?: {
             try {
               const { extractMemories } = await import('../memory/extractor');
               const result = await extractMemories(
-                { userMessage: userMsg, assistantResponse: respText, existingMemories: existingContents, provider: 'deepseek', model: 'deepseek-v4-pro', userId: 'mcp_remote' },
+                { userMessage: userMsg, assistantResponse: respText, existingMemories: existingContents, provider: 'deepseek', model: DEFAULT_MODELS.deepseek, userId: 'mcp_remote' },
                 gDeep, gGem, gOAI, gAnt, gQw,
               );
               for (const mem of result.memories) {
@@ -554,7 +558,7 @@ export function createPeppaMcpServer(llmGetters?: {
 
           const result = await runWithTools(
             messages, tr,
-            { provider: 'deepseek', model: 'deepseek-v4-pro', maxTokens: 2048, userId: 'mcp_remote' },
+            { provider: 'deepseek', model: DEFAULT_MODELS.deepseek, maxTokens: 2048, userId: 'mcp_remote' },
             undefined, 2,
             g.getDeepSeek || (() => null), g.getGemini || (() => null), g.getOpenAI || (() => null),
             g.getAnthropic || (() => null), g.getQwen || (() => null),
@@ -591,7 +595,7 @@ export function createPeppaMcpServer(llmGetters?: {
 
         const subTasks = await decomposeTask(
           task,
-          { provider: 'deepseek', model: 'deepseek-v4-pro' },
+          { provider: 'deepseek', model: DEFAULT_MODELS.deepseek },
           { userId: 'mcp_remote', personalityId: 'peppa' },
           { getDeepSeek: g.getDeepSeek || (() => null), getGemini: g.getGemini || (() => null), getOpenAI: g.getOpenAI || (() => null), getAnthropic: g.getAnthropic || (() => null), getQwen: g.getQwen || (() => null) },
         );
@@ -600,13 +604,13 @@ export function createPeppaMcpServer(llmGetters?: {
         const workflowResult = await executeWorkflow(
           assignments,
           { userId: 'mcp_remote', personalityId: 'peppa' },
-          { provider: 'deepseek', model: 'deepseek-v4-pro' },
+          { provider: 'deepseek', model: DEFAULT_MODELS.deepseek },
           { getDeepSeek: g.getDeepSeek || (() => null), getGemini: g.getGemini || (() => null), getOpenAI: g.getOpenAI || (() => null), getAnthropic: g.getAnthropic || (() => null), getQwen: g.getQwen || (() => null) },
         );
 
         const aggregated = await aggregateWithLLM(
           workflowResult, task,
-          { provider: 'deepseek', model: 'deepseek-v4-pro' },
+          { provider: 'deepseek', model: DEFAULT_MODELS.deepseek },
           { getDeepSeek: g.getDeepSeek || (() => null), getGemini: g.getGemini || (() => null), getOpenAI: g.getOpenAI || (() => null), getAnthropic: g.getAnthropic || (() => null), getQwen: g.getQwen || (() => null) },
         );
 

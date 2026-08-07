@@ -4,7 +4,7 @@
  */
 import { logger } from '../lib/logger';
 import sqlite3 from 'sqlite3';
-import { bumpPreferenceTag, demotePreferenceTag } from '../db/lifeDb.js';
+import { bumpPreferenceTag, demotePreferenceTag } from '../db/lifeDb';
 
 export interface CrossSessionMemory {
   key: string;
@@ -132,7 +132,8 @@ export async function getMemories(
             `SELECT key, value, updated_at as timestamp
              FROM cross_session_memories
              WHERE user_id = ?
-             ORDER BY updated_at DESC`,
+             ORDER BY updated_at DESC
+             LIMIT 50`,
             [userId],
             (err2, rows: any[]) => {
               clearTimeout(timeout);

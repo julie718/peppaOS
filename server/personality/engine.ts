@@ -257,6 +257,10 @@ export function generateSystemPrompt(
     if (growth.ownerExpressions?.length) {
       growthLines.push(`Owner expressions and vocabulary: ${growth.ownerExpressions.slice(0, 8).join(', ')}.`);
     }
+    // P2-16: 自身沉淀的口头禅 — 作为自然表达习惯注入，保持口吻一致性
+    if (growth.selfExpressions?.length) {
+      growthLines.push(`Your own signature expressions: ${growth.selfExpressions.slice(0, 6).join(' ')}.`);
+    }
     if (growth.communicationPatterns?.length) {
       growthLines.push(`Communication patterns: ${growth.communicationPatterns.slice(0, 6).join('; ')}.`);
     }

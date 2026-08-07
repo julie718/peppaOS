@@ -3,7 +3,7 @@
 import {
   saveRelationshipVector, loadRelationshipState,
   addRelationshipSnapshot, logSystemEvent, addReflection,
-} from '../db/lifeDb.js';
+} from '../db/lifeDb';
 
 const DIM_LABELS = ['信任度', '亲密感', '理解度', '依赖度'] as const;
 const BASELINE: number[] = [0.30, 0.20, 0.20, 0.30];

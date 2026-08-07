@@ -13,6 +13,7 @@ export interface DispatchConfig {
   maxTokens?: number;
   userId?: string;
   signal?: AbortSignal;
+  scene?: string;
 }
 
 interface LLMGetters {
@@ -46,7 +47,7 @@ async function tryLocal(
     const result = await makeLLMCall(
       messages,
       toolDeclarations,
-      { provider: 'ollama', model: localModel, maxTokens: config.maxTokens, userId: config.userId },
+      { provider: 'ollama', model: localModel, maxTokens: config.maxTokens, userId: config.userId, signal: config.signal },
       getters.getDeepSeek, getters.getGemini, getters.getOpenAI, getters.getAnthropic, getters.getQwen, getters.getOllama, getters.getLmStudio,
     );
     if (result.text || result.toolCalls) return result;
@@ -84,7 +85,7 @@ export async function dispatchLLMCall(
   const cloudResult = await makeLLMCall(
     messages,
     toolDeclarations,
-    { provider: provider as any, model, maxTokens: config.maxTokens, userId: config.userId },
+    { provider: provider as any, model, maxTokens: config.maxTokens, userId: config.userId, signal: config.signal },
     getters.getDeepSeek, getters.getGemini, getters.getOpenAI, getters.getAnthropic, getters.getQwen, getters.getOllama, getters.getLmStudio,
   );
 

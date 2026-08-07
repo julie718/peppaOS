@@ -1,7 +1,7 @@
-import { checkGates, recordTICKHeartbeat, recordRESTHeartbeat } from './gates.js';
-import { getVitality } from '../life/vitality.js';
-import { assessUserState } from '../life/userState.js';
-import { createProactiveObservation } from '../db/lifeDb.js';
+import { checkGates, recordTICKHeartbeat, recordRESTHeartbeat } from './gates';
+import { getVitality } from '../life/vitality';
+import { assessUserState } from '../life/userState';
+import { createProactiveObservation } from '../db/lifeDb';
 
 function getActiveSessionId(): string | null {
   return (global as any).__activeSessionId || null;

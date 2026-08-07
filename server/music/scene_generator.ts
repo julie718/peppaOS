@@ -103,7 +103,7 @@ export async function generateMusicScene(
     const result = await makeLLMCall(
       messages,
       [],
-      { provider, model, maxTokens: 150, userId },
+      { provider, model, maxTokens: 150, userId, scene: 'music_scene' },
       getDeepSeek,
       getGemini,
     );

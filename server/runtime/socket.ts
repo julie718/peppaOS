@@ -21,8 +21,8 @@ import { personalityRegistry } from "../personality";
 import { setOnAgentPromoted } from "../agents/orchestrator";
 import { initMemorySync, initMemoryAssociations } from "../memory";
 import { handleAutonomousDesktopResult } from "../autonomy/task_executor";
-import { getDesireEngine } from '../desire/engine.js';
-import { triggerHeartbeatIfReady } from '../heartbeat/injector.js';
+import { getDesireEngine } from '../desire/engine';
+import { triggerHeartbeatIfReady } from '../heartbeat/injector';
 
 interface SocketContext {
   io: Server;

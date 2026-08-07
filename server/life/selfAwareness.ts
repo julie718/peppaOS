@@ -4,9 +4,9 @@ import {
   addReflection, getRecentReflections, logSystemEvent,
   getPersonalityEvolutionHistory, getRelationshipHistory,
   getRecentEvents,
-} from '../db/lifeDb.js';
-import { getPersonalityEngine } from './personality.js';
-import { getEmotionEngine } from './emotions.js';
+} from '../db/lifeDb';
+import { getPersonalityEngine } from './personality';
+import { getEmotionEngine } from './emotions';
 
 const DANGER_KEYWORDS = [
   '自我毁灭', '不想存在', '消失', '死', '毫无价值', '废物',
@@ -219,7 +219,7 @@ export class SelfAwarenessEngine {
 
   async getState(): Promise<{ reflectionCount: number; latest: any; assessment: string }> {
     const reflections = await getRecentReflections(10);
-    const rel = (await import('./relationship.js')).getRelationshipEngine();
+    const rel = (await import('./relationship')).getRelationshipEngine();
     const state = rel.getRelationshipState();
     const avg = (state.vector[0] + state.vector[1] + state.vector[2]) / 3;
     let assessment = '我们在互相了解';

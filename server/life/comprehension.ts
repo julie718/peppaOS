@@ -1,6 +1,6 @@
 // server/life/comprehension.ts
 
-import { logger } from '../lib/logger.js';
+import { logger } from '../lib/logger';
 
 export interface ComprehensionState {
   eventCompleteness: number;   // 知道对方在说什么事吗？（0-1）

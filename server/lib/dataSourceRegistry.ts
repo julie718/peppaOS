@@ -1,6 +1,6 @@
 // 金融数据源注册 — hk-stock + stockbot
-import { getDataSourceManager, DataSourceManager } from './dataSourceManager.js';
-import { logger } from './logger.js';
+import { getDataSourceManager, DataSourceManager } from './dataSourceManager';
+import { logger } from './logger';
 
 const HTTP_TIMEOUT = 8000;
 

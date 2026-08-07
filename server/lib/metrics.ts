@@ -38,6 +38,21 @@ export const llmCallDuration = new client.Histogram({
   registers: [register],
 });
 
+// P2-11: 取消/错误计数 — 可观测性建设（不改变现有指标语义）
+export const llmCallsCancelledTotal = new client.Counter({
+  name: 'llm_calls_cancelled_total',
+  help: 'Total LLM API calls cancelled (AbortSignal)',
+  labelNames: ['provider', 'model'] as const,
+  registers: [register],
+});
+
+export const llmCallsErrorTotal = new client.Counter({
+  name: 'llm_calls_error_total',
+  help: 'Total LLM API calls failed with errors',
+  labelNames: ['provider', 'model'] as const,
+  registers: [register],
+});
+
 export async function getMetricsText(): Promise<string> {
   return register.metrics();
 }

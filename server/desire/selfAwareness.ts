@@ -2,9 +2,9 @@
 // 反思自己的状态、关系、成长
 import * as fs from 'fs';
 import * as path from 'path';
-import { getDesireSystem } from './desireSystem.js';
-import { getEmotionSystem } from './emotionSystem.js';
-import { getRelationship } from './relationship.js';
+import { getDesireSystem } from './desireSystem';
+import { getEmotionSystem } from './emotionSystem';
+import { getRelationship } from './relationship';
 
 export interface SelfReflection {
   id: string;

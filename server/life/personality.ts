@@ -5,7 +5,7 @@ import {
   updatePersonality as dbUpdatePersonality,
   recordPersonalityEvolution,
   logSystemEvent,
-} from '../db/lifeDb.js';
+} from '../db/lifeDb';
 
 const DIM_LABELS = [
   '开放性', '亲和性', '主动性', '情绪稳定性',

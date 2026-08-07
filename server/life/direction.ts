@@ -1,5 +1,5 @@
 import sqlite3 from 'sqlite3';
-import { logger } from '../lib/logger.js';
+import { logger } from '../lib/logger';
 
 const LIFE_DB = process.env.LIFE_DB_PATH || '/app/data/life.db';
 
@@ -245,7 +245,7 @@ export class DirectionState {
 
     // ── 方向状态 → 记忆 ──
     try {
-      const { addMemory } = await import('../memory/store.js');
+      const { addMemory } = await import('../memory/store');
       const memoryContent = `判断: ${this.inclination} (${Math.round(this.intensity * 100)}%) — ${this.reason}`;
       await addMemory({
         userId: 'default',
@@ -266,7 +266,7 @@ export class DirectionState {
 
     // ── 方向状态 → 情感 ──
     try {
-      const { getEmotionEngine } = await import('./emotions.js');
+      const { getEmotionEngine } = await import('./emotions');
       const emotionEngine = getEmotionEngine();
       // 根据方向倾向调整情绪（delta 形式）
       if (this.inclination === 'give') {
@@ -288,7 +288,7 @@ export class DirectionState {
 
     // ── 方向状态 → 人格 ──
     try {
-      const { getPersonalityEngine } = await import('./personality.js');
+      const { getPersonalityEngine } = await import('./personality');
       const personalityEngine = getPersonalityEngine();
       // 根据方向倾向微调人格（delta 形式）
       const adjustment = this.inclination === 'give' ? 0.02 : this.inclination === 'neutral' ? 0.01 : -0.01;

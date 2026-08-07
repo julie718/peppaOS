@@ -3,11 +3,11 @@
 // 每次对话结束后异步归档记忆、复盘交互、更新经验
 // 严格使用现有 memory 库和 life.db 存储
 
-import { logger } from '../lib/logger.js';
-import { addMemory } from '../memory/store.js';
-import { addInteractionMemory, saveEmotionVector } from '../db/lifeDb.js';
-import { getEmotionEngine } from '../life/emotions.js';
-import { getRelationshipEngine } from '../life/relationship.js';
+import { logger } from '../lib/logger';
+import { addMemory } from '../memory/store';
+import { addInteractionMemory, saveEmotionVector } from '../db/lifeDb';
+import { getEmotionEngine } from '../life/emotions';
+import { getRelationshipEngine } from '../life/relationship';
 // 本地类型定义（不依赖全局钩子）
 interface AfterResponseContext {
   uid: string; text: string; response: string; sessionKey: string;

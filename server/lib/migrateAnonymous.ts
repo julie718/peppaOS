@@ -1,5 +1,5 @@
 // 迁移 anonymous 用户数据到已登录用户
-import { logger } from './logger.js';
+import { logger } from './logger';
 
 export function migrateAnonymousData(targetUid: string): { migrated: number } {
   try {

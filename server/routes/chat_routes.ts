@@ -15,7 +15,7 @@ import { queryMemoriesVector } from "../memory/store";
 import { loadEmotionalState } from "../personality/state";
 import { getSensory } from "../socket/shared";
 import { readDB, writeDB } from "../../db_layer";
-import { getVitality } from "../life/vitality.js";
+import { getVitality } from "../life/vitality";
 
 export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
   getDeepSeek: any; getGemini: any; getOpenAI: any; getAnthropic: any; getQwen: any;

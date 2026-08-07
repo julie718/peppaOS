@@ -90,6 +90,8 @@ export interface PersonalityGrowthState {
   };
   ownerInterests: string[];
   ownerExpressions: string[];
+  /** P2-16: Peppa 自身对话中的特征口头禅（从自身回复随时间沉淀） */
+  selfExpressions?: string[];
   communicationPatterns: string[];
   adaptationNotes: string[];
 }

@@ -2,7 +2,7 @@
 // 【新增数字生命体模块】T80 7步心智 + 情绪动态注入 + 场景分类
 // 仅导出工具函数，由 chat.ts 深度推理分支局部调用，不使用全局钩子模式。
 
-import { logger } from '../lib/logger.js';
+import { logger } from '../lib/logger';
 
 // ── 上下文类型 ──
 export interface MindContext {

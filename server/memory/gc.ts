@@ -3,14 +3,14 @@
 // 长期低频记忆降权重、重复记忆合并、过期 TTL 清理
 // P0-5: 按真实业务用户 ID 逐用户执行；降权原地修改；合并后物理删除旧记忆；TTL 真删
 
-import { logger } from '../lib/logger.js';
-import { queryMemories, addMemory, removeMemory, setMemoryImportance } from './store.js';
+import { logger } from '../lib/logger';
+import { queryMemories, addMemory, removeMemory, setMemoryImportance } from './store';
 
 // ── 配置 ──
 const CONFIG = {
   LOW_FREQ_DAYS: 30,           // 30 天未检索视为低频
   LOW_FREQ_DECAY_FACTOR: 0.5,  // 低频记忆 importance 折半
-  DUPLICATE_SIMILARITY: 0.9,   // 字符级 Jaccard 相似度阈值
+  DUPLICATE_SIMILARITY: 0.9,   // 词级/Bigram Jaccard 相似度阈值
   TTL_EXPIRY_DAYS: 7,          // TTL 过期天数
   BATCH_SIZE: 50,              // 每用户每次最多处理 50 条
 };
@@ -30,10 +30,35 @@ function isTTLExpired(memory: any): boolean {
   return Date.now() > expiryMs;
 }
 
-/** 字符级 Jaccard 相似度（中文近似） */
+/**
+ * 词级/Bigram Jaccard 相似度（P2-12: 由字符级升级）
+ * 中文无空格分词，以相邻字符对（bigram）为最小语义特征单元；
+ * 英文连续字母数字串按单词计。较字符级更抗单字噪声（如"我喜欢猫" vs "我讨厌猫"）。
+ */
+function tokenizeForSimilarity(text: string): Set<string> {
+  const s = String(text || '')
+    .replace(/\[TTL:\d+d\]/g, '')          // 去除 TTL 标记干扰
+    .replace(/[^\p{L}\p{N}]/gu, '')        // 去标点/空白
+    .toLowerCase()
+    .slice(0, 200);
+  if (!s) return new Set();
+
+  const tokens = new Set<string>();
+  const enWords = s.match(/[a-z0-9]{2,}/g) || [];
+  for (const w of enWords) tokens.add(`w:${w}`);
+
+  const cjkOnly = s.replace(/[a-z0-9]/g, '');
+  for (let i = 0; i < cjkOnly.length - 1; i++) {
+    const gram = cjkOnly.slice(i, i + 2);
+    if (/[一-鿿]{2}/.test(gram)) tokens.add(`b:${gram}`);
+  }
+  return tokens;
+}
+
 function jaccardSimilarity(a: string, b: string): number {
-  const aSet = new Set(String(a || '').slice(0, 100).split(''));
-  const bSet = new Set(String(b || '').slice(0, 100).split(''));
+  const aSet = tokenizeForSimilarity(a);
+  const bSet = tokenizeForSimilarity(b);
+  if (aSet.size === 0 && bSet.size === 0) return 0;
   const intersection = [...aSet].filter(w => bSet.has(w)).length;
   const union = new Set([...aSet, ...bSet]).size;
   return union > 0 ? intersection / union : 0;

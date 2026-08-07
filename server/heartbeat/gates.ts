@@ -1,4 +1,4 @@
-import { getDesireEngine } from '../desire/engine.js';
+import { getDesireEngine } from '../desire/engine';
 import fs from 'fs';
 
 const CONFIG = {
@@ -17,7 +17,7 @@ async function getRelationAdjustment(): Promise<any> {
   const now = Date.now();
   if (cachedAdjustment && (now - lastAdjustFetch) < 300000) return cachedAdjustment;
   try {
-    const { getBehaviorAdjustment } = await import('../life/relationshipAwareness.js');
+    const { getBehaviorAdjustment } = await import('../life/relationshipAwareness');
     cachedAdjustment = await getBehaviorAdjustment();
     lastAdjustFetch = now;
     return cachedAdjustment;

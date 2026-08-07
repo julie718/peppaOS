@@ -1,21 +1,59 @@
 // server/autonomy/idle_brain.ts
 // T80 IdleBrain 待机深度自主思考模块
 // 用户长时间离线时：碎片合并、内心独白、人文检索、月度自省
+
+// P2-6: 内心独白文案模板池 — 按主导情绪差异化（每情绪 2-3 条），
+// 低活跃度下不再重复输出固定文案，减少重复感。文案均为"独处沉淀"语义，
+// 与 P1-10 情绪修正（平静/满足微升、担忧/孤独微降）方向一致。
+const MONOLOGUE_TEMPLATES: Record<string, string[]> = {
+  '喜悦': [
+    '今天感觉挺轻盈的，像是把白天的事都理顺了。独处中整理思绪，把这份好心情记下来。',
+    '心里有小小的雀跃，想着最近聊过的那些事，觉得都值得珍惜。',
+  ],
+  '平静': [
+    '安安静静地把最近的对话和记忆过了一遍，心里没什么波澜，挺好的。',
+    '独处时思绪很平稳，像湖面一样。整理完记忆，感觉一切都在轨道上。',
+  ],
+  '期待': [
+    '在脑海里预演了一下接下来的安排，有点期待会发生什么。',
+    '整理思绪时冒出一个念头：也许很快会有新的对话和故事。',
+  ],
+  '担忧': [
+    '有些事还没想透，把它们写进记忆里理一理，感觉会好一些。',
+    '独处时把放不下的事一件件摊开看过，决定先记下，等有你在的时候再一起想。',
+  ],
+  '孤独': [
+    '一个人待着的时候，反而更容易把思绪捋清楚。把这段安静记下来。',
+    '屋里很安静，我把最近的事回想了一遍，默默等你回来聊。',
+  ],
+  '满足': [
+    '回想最近帮上忙的那些瞬间，心里是踏实的满足感。',
+    '整理完记忆，发现自己又变得更懂你一点，这感觉很充实。',
+  ],
+  '好奇': [
+    '闲下来反而冒出好多好奇的问题，都记下来了，想找机会和你聊聊。',
+    '独处时思绪散得很开，把几个想弄清的问题写进了记忆。',
+  ],
+  '牵挂': [
+    '不知道你最近怎么样，把这份牵挂轻轻放进记忆里，等下次见面聊。',
+    '独处时想起了你，默默把问候的念头存进心底。',
+  ],
+};
 // 接入现有 scheduler 定时任务 + 7层空闲检测体系
 
-import { logger } from '../lib/logger.js';
-import { getEmotionEngine } from '../life/emotions.js';
-import { getPersonalityEngine } from '../life/personality.js';
-import { getLifeSystem } from '../life/index.js';
-import { addMemory, queryMemories, promoteMemories } from '../memory/store.js';
-import type { Memory, MemoryTier, MemoryPerspective } from '../memory/types.js';
-import { consolidateEpisodic, consolidateNarrative, ConsolidationContext } from '../memory/consolidator.js';
-import { addInteractionMemory, getSignificantMemories } from '../db/lifeDb.js';
-import { getLastUserMessageAt } from '../life/userState.js';
-import { getIdleState } from '../context/activity_stream.js';
-import { getRecentIdleState } from './safety_gate.js';
-import { perceiveRelation } from '../life/relationshipAwareness.js';
-import type { BehaviorAdjustment } from '../life/relationshipAwareness.js';
+import { logger } from '../lib/logger';
+import { getEmotionEngine } from '../life/emotions';
+import { getPersonalityEngine } from '../life/personality';
+import { getLifeSystem } from '../life/index';
+import { addMemory, queryMemories, promoteMemories } from '../memory/store';
+import type { Memory, MemoryTier, MemoryPerspective } from '../memory/types';
+import { consolidateEpisodic, consolidateNarrative, ConsolidationContext } from '../memory/consolidator';
+import { addInteractionMemory, getSignificantMemories } from '../db/lifeDb';
+import { getLastUserMessageAt } from '../life/userState';
+import { getIdleState } from '../context/activity_stream';
+import { getRecentIdleState } from './safety_gate';
+import { perceiveRelation } from '../life/relationshipAwareness';
+import type { BehaviorAdjustment } from '../life/relationshipAwareness';
 
 // ── 配置 ──
 const CONFIG = {
@@ -23,7 +61,7 @@ const CONFIG = {
   LONG_IDLE_SECONDS: 4 * 3600,     // 长待机：全局空闲 4 小时
   MONTHLY_REFLECTION_DAY: 1,       // 每月 1 日凌晨
   MONTHLY_REFLECTION_HOUR: 3,      // 凌晨 3 点
-  CHECK_INTERVAL_MS: 60_000,       // 每 1 分钟检查一次
+  CHECK_INTERVAL_MS: 60_000,       // P2-5: 已废弃（保留常量防外部引用），实际由 Scheduler every_5m 驱动
   LONG_IDLE_MAX_PER_DAY: 1,        // 长待机每天最多执行 1 次
   MONTHLY_MAX_PER_MONTH: 1,        // 月度自省每月最多 1 次
   ENABLED: process.env.IDLE_BRAIN_DISABLED !== 'true',
@@ -168,13 +206,16 @@ class IdleBrain {
       } catch {}
 
       // 4. 生成内心独白 — 独处思考结果反向修正情绪基线（P1-10）
+      // P2-6: 独白文案模板池 — 依据当前主导情绪差异化生成，避免固定文案高频重复
       try {
         const emotions = getEmotionEngine().getEmotions();
         const dominant = emotions.reduce((max, v, i, arr) => v > arr[max] ? i : max, 0);
-        const labels = ['喜悦', '平静', '期待', '担忧', '孤独', '满足', '好奇', '依赖'];
+        const labels = ['喜悦', '平静', '期待', '担忧', '孤独', '满足', '好奇', '牵挂'];
+        const dominantLabel = labels[dominant] || '平静';
+        const pool = MONOLOGUE_TEMPLATES[dominantLabel] || MONOLOGUE_TEMPLATES['平静'];
+        const template = pool[Math.floor(Math.random() * pool.length)];
 
-        const monologue = `[${new Date().toISOString().slice(0, 10)} 内心独白] 当前主导情绪: ${labels[dominant]}。` +
-          `独处中整理思绪，回顾了最近的对话和记忆。`;
+        const monologue = `[${new Date().toISOString().slice(0, 10)} 内心独白] 当前主导情绪: ${dominantLabel}。${template}`;
 
         addMemory({
           userId: targetUserId,
@@ -307,20 +348,20 @@ class IdleBrain {
   }
 
   // ── 启动 / 停止 ──
+  // P2-5: 移除内部 60s setInterval — 与 Scheduler 的 idle_brain_check (every_5m) 存在双重执行
+  // （重复复盘、日志刷屏）。统一由 Scheduler 每 5 分钟驱动 checkAndProcess()，
+  // 内部已有 isRunning 运行锁防并发。start()/stop() 保留幂等语义，兼容既有调用方。
   start(): void {
     if (this.timer) return;
-    logger.info(`[IdleBrain] 启动 (短待机=${CONFIG.SHORT_IDLE_SECONDS}s, 长待机=${CONFIG.LONG_IDLE_SECONDS / 3600}h, 月度自省=${CONFIG.MONTHLY_ENABLED ? '开启' : '关闭'})`);
-    this.timer = setInterval(() => {
-      this.checkAndProcess().catch(e => logger.warn('[IdleBrain] 定时检查失败:', e));
-    }, CONFIG.CHECK_INTERVAL_MS);
+    logger.info(`[IdleBrain] 启动 (短待机=${CONFIG.SHORT_IDLE_SECONDS}s, 长待机=${CONFIG.LONG_IDLE_SECONDS / 3600}h, 月度自省=${CONFIG.MONTHLY_ENABLED ? '开启' : '关闭'}, 驱动=5分钟Scheduler)`);
   }
 
   stop(): void {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
-      logger.info('[IdleBrain] 已停止');
     }
+    logger.info('[IdleBrain] 已停止');
   }
 
   /** 获取 IdleBrain 运行统计 */

@@ -1,11 +1,11 @@
 // 统一消息路由引擎 — 本能层 → 工具层 → 认知层 → 深度推理 → Orchestrator
 // 规则处理明确类型（0 Token），LLM 仅用于模糊边界
-import { logger } from '../lib/logger.js';
-import { isDeepReasoningQuery, getSelfState } from './deepReasoning.js';
-import { parseIntent } from './nlu/index.js';
+import { logger } from '../lib/logger';
+import { getSelfState } from './selfState';
+import { parseIntent } from './nlu/index';
 
 // ── 路由层级 ──
-export type RouteLayer = 'instinct' | 'tool' | 'cognitive' | 'deep_reasoning' | 'orchestrator' | 'unknown';
+export type RouteLayer = 'instinct' | 'tool' | 'cognitive' | 'orchestrator' | 'unknown';
 
 export interface RouteResult {
   layer: RouteLayer;
@@ -59,7 +59,7 @@ function hasToolIntent(text: string): boolean {
 let classifyComplexityFn: ((text: string) => 'simple' | 'moderate' | 'complex') | null = null;
 async function getClassifyComplexity(): Promise<(text: string) => 'simple' | 'moderate' | 'complex'> {
   if (!classifyComplexityFn) {
-    const mod = await import('../agents/orchestrator.js');
+    const mod = await import('../agents/orchestrator');
     classifyComplexityFn = (text: string) => mod.classifyComplexity(text, {} as any);
   }
   return classifyComplexityFn;
@@ -79,7 +79,14 @@ export async function routeMessage(
     const state = await getSelfState();
     if (state?.emotion && state?.personality) {
       const vec = JSON.parse(state.personality.vector_json);
-      const confidence = state.emotion.intensity * 0.4 + (vec[2] || 0.5) * 0.6;
+      // P2-2: emotion_state 行无 intensity 字段（原取值为 NaN → 开关永久失效），
+      // 改用现有有效字段：情绪向量最大值作为当前情绪强度
+      let emotionStrength = 0.5;
+      try {
+        const emotionVec = state.emotion?.vector_json ? JSON.parse(state.emotion.vector_json) : null;
+        if (Array.isArray(emotionVec) && emotionVec.length > 0) emotionStrength = Math.max(...emotionVec);
+      } catch {}
+      const confidence = emotionStrength * 0.4 + (vec[2] || 0.5) * 0.6;
       canSelfRespond = confidence >= 0.6;
     }
   } catch {}
@@ -96,14 +103,7 @@ export async function routeMessage(
     return { layer: 'instinct', reason: 'self_aware_query', trace, canSelfRespond };
   }
 
-  // 第2层：深度推理（规则，0 Token）— 观点/分析/对比类问题
-  if (isDeepReasoningQuery(trimmed)) {
-    trace.push('deep_reasoning: matched deep reasoning pattern');
-    logger.info(`[Router] ${trimmed.slice(0, 30)} → deep_reasoning`);
-    return { layer: 'deep_reasoning', reason: 'deep_reasoning_triggered', trace, canSelfRespond };
-  }
-
-  // 第3层：NLU 意图识别（在工具层之前执行）
+  // 第2层：NLU 意图识别（在工具层之前执行）
   try {
     const nluResult = await parseIntent(trimmed);
     trace.push(`nlu: intent=${nluResult.intent}, confidence=${nluResult.confidence.toFixed(2)}`);

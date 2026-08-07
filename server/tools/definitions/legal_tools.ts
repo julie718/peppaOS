@@ -24,7 +24,7 @@ async function runLegalLLM(prompt: string, context?: any, maxTokens = 2048): Pro
   const response = await makeLLMCall(
     messages,
     [],
-    getUserPreferredLLMConfig(userId, { maxTokens, domain: context?.domain, orgId: context?.orgId }),
+    { ...getUserPreferredLLMConfig(userId, { maxTokens, domain: context?.domain, orgId: context?.orgId }), scene: 'legal' },
     getters.getDeepSeek,
     getters.getGemini,
     getters.getOpenAI,

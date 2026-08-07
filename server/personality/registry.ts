@@ -193,6 +193,8 @@ class PersonalityRegistry {
         lastUpdatedAt: new Date().toISOString(),
         ownerInterests: [],
         ownerExpressions: [],
+        // P2-16: 自身口头禅沉淀位（初始为空，随对话积累）
+        selfExpressions: [],
         communicationPatterns: [],
         adaptationNotes: [],
       };

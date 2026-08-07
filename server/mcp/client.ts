@@ -3,10 +3,10 @@ import { WebSocket } from 'ws';
 import { logger } from '../lib/logger';
 globalThis.WebSocket = WebSocket as any;
 
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { WebSocketClientTransport } from '@modelcontextprotocol/sdk/client/websocket.js';
+import { Client } from '@modelcontextprotocol/sdk/client/index';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp';
+import { WebSocketClientTransport } from '@modelcontextprotocol/sdk/client/websocket';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -431,8 +431,8 @@ class MCPClientManager {
   private ensureGeneratedSkillRequire(source: string): string {
     if (!/\brequire\(/.test(source) || source.includes('createRequire(import.meta.url)')) return source;
     source = source.replace(
-      "import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';",
-      "import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';\nimport { createRequire } from 'module';",
+      "import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio';",
+      "import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio';\nimport { createRequire } from 'module';",
     );
     source = source.replace(
       "import fs from 'fs/promises';",
@@ -594,8 +594,8 @@ class MCPClientManager {
     } else if (depPkg.main || depPkg.exports || fs.existsSync(path.join(path.dirname(depPkgPath), 'index.mjs'))) {
       // Standard MCP package: create a tsx wrapper index.ts
       const wrapper = `// Auto-generated wrapper for npm package: ${packageName}
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio';
 
 async function main() {
   // The npm package exports its own MCP server — import and start
@@ -990,6 +990,13 @@ main().catch((err) => { logger.error('[npm-skill] Fatal:', err); process.exit(1)
     const [, serverName, toolName] = match;
     const server = this.servers.get(serverName);
     if (!server) throw new Error(`MCP server "${serverName}" not connected`);
+
+    // P2-7: 前置健康检测 — 僵死/重启中/崩溃的 MCP 服务直接快速失败，
+    // 跳过底层 30s 超时阻塞等待，避免 LLM 工具循环被卡死
+    const health = this.getServerHealth()[serverName];
+    if (health && health.status !== 'connected') {
+      throw new Error(`MCP server "${serverName}" unhealthy (status=${health.status}, crashes=${health.consecutiveCrashes}) — skipped tool "${toolName}"`);
+    }
 
     const result = await server.client.callTool({ name: toolName, arguments: args });
 

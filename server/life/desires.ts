@@ -4,10 +4,10 @@ import {
   addDesire, getActiveDesires, getTopDesire, updateDesireStatus,
   completeDesire as dbCompleteDesire, abandonDesire as dbAbandonDesire,
   countActiveDesires, decayDesires, logSystemEvent,
-} from '../db/lifeDb.js';
-import { getPersonalityEngine } from './personality.js';
-import { getEmotionEngine } from './emotions.js';
-import { getVitality } from './vitality.js';
+} from '../db/lifeDb';
+import { getPersonalityEngine } from './personality';
+import { getEmotionEngine } from './emotions';
+import { getVitality } from './vitality';
 
 const MAX_ACTIVE = 10;
 const GENERATE_INTERVAL_MS = 30 * 60000; // 30分钟

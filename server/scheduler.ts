@@ -677,7 +677,7 @@ Rules:
           const llmResult = await makeLLMCall(
             [{ role: 'user', content: prompt }],
             [],
-            getUserPreferredLLMConfig(userId),
+            { ...getUserPreferredLLMConfig(userId), scene: 'memory_tree' },
             getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
               getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
             );
@@ -823,7 +823,7 @@ Rules:
           const result = await makeLLMCall(
             [{ role: 'user', content: prompt }],
             [],
-            getUserPreferredLLMConfig(userId, { maxTokens: 400 }),
+            { ...getUserPreferredLLMConfig(userId, { maxTokens: 400 }), scene: 'weekly_report' },
             getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
               getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
             );
@@ -891,7 +891,7 @@ Rules:
           const result = await makeLLMCall(
             [{ role: 'user', content: prompt }],
             [],
-            getUserPreferredLLMConfig(userId, { maxTokens: 600 }),
+            { ...getUserPreferredLLMConfig(userId, { maxTokens: 600 }), scene: 'monthly_report' },
             getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
               getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
             );
@@ -958,7 +958,7 @@ Rules:
           const result = await makeLLMCall(
             [{ role: 'user', content: prompt }],
             [],
-            getUserPreferredLLMConfig(userId, { maxTokens: 800 }),
+            { ...getUserPreferredLLMConfig(userId, { maxTokens: 800 }), scene: 'yearly_report' },
             getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
               getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
             );
@@ -1150,7 +1150,7 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
             const narrativeResult = await makeLLMCall(
               [{ role: 'user', content: narrativePrompt }],
               [],
-              getUserPreferredLLMConfig(userId, { maxTokens: 300 }),
+              { ...getUserPreferredLLMConfig(userId, { maxTokens: 300 }), scene: 'growth_journal' },
               getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
               getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
             );
@@ -1253,7 +1253,7 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
             const result = await makeLLMCall(
               [{ role: 'user', content: prompt }],
               [],
-              getUserPreferredLLMConfig(userId, { maxTokens: 200 }),
+              { ...getUserPreferredLLMConfig(userId, { maxTokens: 200 }), scene: 'runtime_tick' },
               getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
               getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
             );
@@ -1694,7 +1694,7 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
     lastRun: null,
     handler: async () => {
       try {
-        const { idleBrainCheck } = await import('./autonomy/idle_brain.js');
+        const { idleBrainCheck } = await import('./autonomy/idle_brain');
         return await idleBrainCheck();
       } catch {
         return null;

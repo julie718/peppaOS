@@ -1,5 +1,5 @@
 // 金融数据源管理器 — 智能路由、健康检查、熔断保护、自动降级
-import { logger } from './logger.js';
+import { logger } from './logger';
 
 interface DataSource {
   name: string;

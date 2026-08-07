@@ -6,17 +6,18 @@
 // 2. 存储叙事 — 持久化到 DB，形成时间轴
 // 3. 身份应答 — 当被问"你是谁"时，返回自然、有温度的身份描述
 
-import { getVitality, VitalityState } from './vitality.js';
-import { getPersonalityEngine } from './personality.js';
-import { getEmotionEngine } from './emotions.js';
-import { getRelationshipEngine } from './relationship.js';
-import { getDesireEngineV2 } from './desires.js';
-import { getSelfAwarenessEngine } from './selfAwareness.js';
-import { perceiveRelation, RelationAwareness } from './relationshipAwareness.js';
-import { retrieveRelevantMemories, getTimeline, getKnowledge } from '../memory/index.js';
-import type { InteractionMemory } from '../memory/index.js';
-import type { TimelineEntry } from '../memory/index.js';
-import type { KnowledgeEntry } from '../memory/index.js';
+import { getVitality, VitalityState } from './vitality';
+import { personalityRegistry } from '../personality/registry';
+import { getPersonalityEngine } from './personality';
+import { getEmotionEngine } from './emotions';
+import { getRelationshipEngine } from './relationship';
+import { getDesireEngineV2 } from './desires';
+import { getSelfAwarenessEngine } from './selfAwareness';
+import { perceiveRelation, RelationAwareness } from './relationshipAwareness';
+import { retrieveRelevantMemories, getTimeline, getKnowledge } from '../memory/index';
+import type { InteractionMemory } from '../memory/index';
+import type { TimelineEntry } from '../memory/index';
+import type { KnowledgeEntry } from '../memory/index';
 
 // ── 类型 ──
 
@@ -332,7 +333,7 @@ export async function generateNarrativeSnapshot(): Promise<NarrativeSnapshot> {
   // 交互次数
   let interactionCount = 0;
   try {
-    const { getRecentEvents } = await import('../db/lifeDb.js');
+    const { getRecentEvents } = await import('../db/lifeDb');
     const events = await getRecentEvents(500);
     interactionCount = events.filter((e: any) => e.event_type === 'interaction_received').length;
   } catch {}
@@ -340,7 +341,7 @@ export async function generateNarrativeSnapshot(): Promise<NarrativeSnapshot> {
   // 上次叙事
   let previousNarrative: NarrativeSnapshot | null = null;
   try {
-    const { getRecentReflections } = await import('../db/lifeDb.js');
+    const { getRecentReflections } = await import('../db/lifeDb');
     const recent = await getRecentReflections(5);
     const prevNarrative = recent.find((r: any) => r.insight?.startsWith('narrative:'));
     if (prevNarrative) {
@@ -475,7 +476,7 @@ export async function generateNarrativeSnapshot(): Promise<NarrativeSnapshot> {
 
   // 存储到 DB（复用 reflection 表，用 narrative: 前缀标记）
   try {
-    const { addReflection, logSystemEvent } = await import('../db/lifeDb.js');
+    const { addReflection, logSystemEvent } = await import('../db/lifeDb');
     await addReflection(JSON.stringify(snapshot), `narrative:${era}`);
     await logSystemEvent('narrative_snapshot', { era, interactionCount, tone: narrative.tone });
   } catch (e: any) {
@@ -490,7 +491,7 @@ export async function generateNarrativeSnapshot(): Promise<NarrativeSnapshot> {
 
 export async function getRecentNarratives(limit = 5): Promise<NarrativeSnapshot[]> {
   try {
-    const { getRecentReflections } = await import('../db/lifeDb.js');
+    const { getRecentReflections } = await import('../db/lifeDb');
     const recent = await getRecentReflections(limit * 3); // 多取一些，过滤非叙事记录
     return recent
       .filter((r: any) => r.insight?.startsWith('narrative:'))
@@ -513,6 +514,18 @@ export async function generateIdentityResponse(): Promise<string> {
   const emotions = getEmotionEngine().getEmotions();
   const relationship = getRelationshipEngine().getRelationshipState();
 
+  // P2-15: 人格演化微调 — 若已发生演化（growthState.version > 0），在身份应答中自然融入演化痕迹
+  let evolutionFlavor = '';
+  try {
+    const growth = personalityRegistry.getDefault()?.growthState;
+    if (growth && growth.version > 0) {
+      const evolvedTip = [...(growth.communicationPatterns || []), ...(growth.adaptationNotes || [])][0];
+      if (evolvedTip) {
+        evolutionFlavor = `跟你相处这段时间，我说话的方式也悄悄变了一点——${evolvedTip}。`;
+      }
+    }
+  } catch {}
+
   // 尝试取最近叙事
   const recentNarratives = await getRecentNarratives(1);
   const latestNarrative = recentNarratives[0] || null;
@@ -534,6 +547,7 @@ export async function generateIdentityResponse(): Promise<string> {
         latestNarrative.selfDescription,
         '',
         `${timeFeel}的现在，${energyNote}。`,
+        ...(evolutionFlavor ? [evolutionFlavor] : []),
         pick([
           '有什么想聊的吗？',
           '你呢，今天怎么样？',
@@ -599,7 +613,7 @@ export async function generateIdentityResponse(): Promise<string> {
     ].join(''),
   ]);
 
-  return response();
+  return response() + (evolutionFlavor ? `\n${evolutionFlavor}` : '');
 }
 
 // ── "你最近怎么样"的回答 ──
@@ -668,9 +682,9 @@ let cachedCreatedAt: number | null = null;
 async function getOrEstimateCreatedAt(): Promise<number> {
   if (cachedCreatedAt) return cachedCreatedAt;
   try {
-    const { logSystemEvent } = await import('../db/lifeDb.js');
+    const { logSystemEvent } = await import('../db/lifeDb');
     // 尝试从最早的事件推断
-    const { getRecentEvents } = await import('../db/lifeDb.js');
+    const { getRecentEvents } = await import('../db/lifeDb');
     const events = await getRecentEvents(1000);
     if (events.length > 0) {
       const earliest = events[events.length - 1];

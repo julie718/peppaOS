@@ -1,7 +1,7 @@
 // 数字生命体 — 情绪系统
 // 8维固定顺序情绪向量：愉悦、平静、期待、担忧、孤独、满足、好奇、牵挂
-import { saveEmotionVector, loadEmotionVector, logSystemEvent, addEmotion } from '../db/lifeDb.js';
-import { getPersonalityEngine } from './personality.js';
+import { saveEmotionVector, loadEmotionVector, logSystemEvent, addEmotion } from '../db/lifeDb';
+import { getPersonalityEngine } from './personality';
 
 const DIM_LABELS = ['愉悦', '平静', '期待', '担忧', '孤独', '满足', '好奇', '牵挂'] as const;
 const BASELINE: number[] = [0.30, 0.60, 0.20, 0.10, 0.15, 0.30, 0.40, 0.25];

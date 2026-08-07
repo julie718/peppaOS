@@ -1,22 +1,22 @@
 // 数字生命体 — 主循环协调器
 // 整合人格、情绪、欲望、自我意识、关系 五个子系统
 // 与现有闸门/注入系统联动
-import { getPersonalityEngine, Personality } from './personality.js';
-import { getEmotionEngine, EmotionEngine } from './emotions.js';
-import { getDesireEngineV2, DesireEngine } from './desires.js';
-import { getDirectionState } from './direction.js';
-import { getSelfAwarenessEngine, SelfAwarenessEngine } from './selfAwareness.js';
-import { getRelationshipEngine, RelationshipEngine } from './relationship.js';
+import { getPersonalityEngine, Personality } from './personality';
+import { getEmotionEngine, EmotionEngine } from './emotions';
+import { getDesireEngineV2, DesireEngine } from './desires';
+import { getDirectionState } from './direction';
+import { getSelfAwarenessEngine, SelfAwarenessEngine } from './selfAwareness';
+import { getRelationshipEngine, RelationshipEngine } from './relationship';
 // checkGates/recordHeartbeat 由 injector.ts 内部调用，life/index.ts 只需 triggerHeartbeatIfReady
-import { triggerHeartbeatIfReady } from '../heartbeat/injector.js';
-import { logSystemEvent, migrateLifeTables, autoBackup, verifyIntegrity, addInteractionMemory, markObservationsIgnored } from '../db/lifeDb.js';
-import { shouldTriggerPrefetch, prefetchContext } from '../memory/prefetch.js';
-import { getVitality } from './vitality.js';
-import { dailyNarrativeGeneration } from './narrative.js';
-import { tickComprehension } from './comprehension.js';
+import { triggerHeartbeatIfReady } from '../heartbeat/injector';
+import { logSystemEvent, migrateLifeTables, autoBackup, verifyIntegrity, addInteractionMemory, markObservationsIgnored } from '../db/lifeDb';
+import { shouldTriggerPrefetch, prefetchContext } from '../memory/prefetch';
+import { getVitality } from './vitality';
+import { dailyNarrativeGeneration } from './narrative';
+import { tickComprehension } from './comprehension';
 // T80
-import { idleBrain } from '../autonomy/idle_brain.js';
-import { runMemoryGC } from '../memory/gc.js';
+import { idleBrain } from '../autonomy/idle_brain';
+import { runMemoryGC } from '../memory/gc';
 import { readDB, ensureDatabaseInitialized } from '../../db_layer';
 
 /** 聚合全部真实业务用户 ID（与 scheduler 一致），供记忆 GC 逐用户执行 */
@@ -124,7 +124,7 @@ export class LifeSystem {
     // 查询交互总数，设置到关系引擎（用于阶段判定）
     // 综合 system_events + interaction_memories，优先使用 peppa.db 实际数据
     try {
-      const { countEvents, getLifeDb } = await import('../db/lifeDb.js');
+      const { countEvents, getLifeDb } = await import('../db/lifeDb');
       const eventCount = await countEvents('interaction_received');
       // 也统计 interaction_memories 中的交互记忆
       const lifeDb = getLifeDb();
@@ -720,9 +720,9 @@ export function getLifeSystem(): LifeSystem {
   return instance;
 }
 
-export { DirectionState, getDirectionState } from './direction.js';
-export type { DirectionSnapshot, DirectionInclination } from './direction.js';
-export { getComprehensionState, updateComprehension, shouldClarify, generateClarification, resetComprehension } from './comprehension.js';
+export { DirectionState, getDirectionState } from './direction';
+export type { DirectionSnapshot, DirectionInclination } from './direction';
+export { getComprehensionState, updateComprehension, shouldClarify, generateClarification, resetComprehension } from './comprehension';
 
 // ---- 导入主动行为管理器 ----
-import { proactiveManager } from '../proactive/index.js';
+import { proactiveManager } from '../proactive/index';

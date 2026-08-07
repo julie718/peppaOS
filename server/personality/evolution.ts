@@ -124,9 +124,63 @@ function buildGrowthState(
     },
     ownerInterests: mergeStableList(previous?.ownerInterests || [], profile.interestClusters || [], 12),
     ownerExpressions: mergeStableList(previous?.ownerExpressions || [], profile.frequentExpressions || [], 16),
+    // P2-16: 自身口头禅由 recordSelfExpression 单独沉淀，不随 owner profile 合成
+    selfExpressions: mergeStableList(previous?.selfExpressions || [], [], 16),
     communicationPatterns: mergeStableList(previous?.communicationPatterns || [], profile.communicationPatterns || [], 12),
     adaptationNotes: mergeStableList(previous?.adaptationNotes || [], [note], 20),
   };
+}
+
+// ── P2-16: 自身对话口头禅沉淀 ──
+
+/**
+ * 从 Peppa 自身回复文本提取特征口头禅候选：
+ * 1. 叠词/叠句模式（好好、没事没事、明白明白）
+ * 2. 回复开头 2-6 字短句（自然的问候/承接语）
+ * 返回去重后的候选列表（最多 4 条/次）。
+ */
+export function extractSelfExpressionsFromText(text: string): string[] {
+  const candidates: string[] = [];
+  if (!text || String(text).length < 4) return candidates;
+  const normalized = String(text).slice(0, 300);
+
+  const redupMatches = normalized.match(/([一-鿿]{1,3})\1/g) || [];
+  for (const m of redupMatches) {
+    if (m.length >= 2 && m.length <= 8) candidates.push(m);
+  }
+
+  const opener = normalized.match(/^([一-鿿]{2,6})[，,。！？!?]/);
+  if (opener) candidates.push(opener[1]);
+
+  return candidates.filter((c, i) => candidates.indexOf(c) === i).slice(0, 4);
+}
+
+/**
+ * 将自身口头禅沉淀进 growthState.selfExpressions（去重合并，上限 16 条）。
+ * 返回是否实际写入。永不抛异常。
+ */
+export function sedimentSelfExpressions(config: PersonalityConfig, responseText: string): boolean {
+  try {
+    const expressions = extractSelfExpressionsFromText(responseText);
+    if (expressions.length === 0) return false;
+    const growth = config.growthState || {
+      version: 0,
+      lastUpdatedAt: new Date().toISOString(),
+      ownerInterests: [],
+      ownerExpressions: [],
+      communicationPatterns: [],
+      adaptationNotes: [],
+    };
+    const prev = growth.selfExpressions || [];
+    const merged = mergeStableList(prev, expressions, 16);
+    if (merged.length === prev.length) return false;
+    growth.selfExpressions = merged;
+    growth.lastUpdatedAt = new Date().toISOString();
+    config.growthState = growth;
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function mergeStableList(current: string[], incoming: string[], limit: number): string[] {
@@ -605,7 +659,17 @@ export async function lightweightEvolve(
   getOpenAI?: () => any,
   getAnthropic?: () => any,
   getQwen?: () => any,
+  responseText?: string,
 ): Promise<EvolutionStep | null> {
+  // P2-16: 自身对话口头禅沉淀 — 每次轻量演化的机会窗口内，从本轮回复提取特征口头禅
+  if (responseText) {
+    try {
+      if (sedimentSelfExpressions(config, responseText)) {
+        logger.info(`[Evolution] 沉淀自身口头禅: "${extractSelfExpressionsFromText(responseText).join('、')}"`);
+      }
+    } catch {}
+  }
+
   const effConfig = existingEvolutionConfig || DEFAULT_EVOLUTION_CONFIG;
 
   // Synthesize owner profile (same as full evolution but halved plasticity)

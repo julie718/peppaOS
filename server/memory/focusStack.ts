@@ -1,7 +1,7 @@
 // BaiLongma 风格焦点栈 — 话题层级管理 + LLM 压缩摘要
-import { addInteractionMemory } from '../db/lifeDb.js';
-import { makeLLMCall, NormalizedMessage } from '../llm/providers.js';
-import { logger } from '../lib/logger.js';
+import { addInteractionMemory } from '../db/lifeDb';
+import { makeLLMCall, NormalizedMessage } from '../llm/providers';
+import { logger } from '../lib/logger';
 
 interface TopicFrame {
   topic: string;

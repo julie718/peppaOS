@@ -63,6 +63,17 @@ const TABLES: { name: string; sql: string }[] = [
     )`,
   },
   {
+    // P2-4: 情绪历史归档附表 — 主表只保留近期记录，90 天前的记录定期迁移至此
+    name: 'emotion_state_history',
+    sql: `CREATE TABLE IF NOT EXISTS emotion_state_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      source_id INTEGER,
+      vector_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      archived_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+  },
+  {
     name: 'desires',
     sql: `CREATE TABLE IF NOT EXISTS desires (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -351,7 +362,40 @@ export async function decayEmotions(): Promise<void> {
   await run('DELETE FROM emotions WHERE intensity < 0.03');
 }
 
+// P2-4: 情绪记录分阶段归档 GC — 超过 ARCHIVE_DAYS 天的历史记录迁移至 emotion_state_history 附表，
+// 主表只保留近期数据，避免单表逐年膨胀导致 ORDER BY DESC 查询性能下滑。
+const EMOTION_ARCHIVE_DAYS = 90;
+const EMOTION_ARCHIVE_INTERVAL_MS = 6 * 60 * 60 * 1000; // 节流：至少间隔 6h 才执行一次
+let lastEmotionArchiveAt = 0;
+
+export async function archiveEmotionState(): Promise<{ archived: number }> {
+  const now = Date.now();
+  if (now - lastEmotionArchiveAt < EMOTION_ARCHIVE_INTERVAL_MS) return { archived: 0 };
+  try {
+    const migrated = await run(
+      `INSERT INTO emotion_state_history (source_id, vector_json, created_at, archived_at)
+       SELECT id, vector_json, created_at, datetime("now")
+       FROM emotion_state
+       WHERE created_at < datetime("now", ?)
+         AND NOT EXISTS (SELECT 1 FROM emotion_state_history h WHERE h.source_id = emotion_state.id)`,
+      [`-${EMOTION_ARCHIVE_DAYS} days`],
+    );
+    const archivedCount = migrated.changes || 0;
+    if (archivedCount > 0) {
+      await run('DELETE FROM emotion_state WHERE created_at < datetime("now", ?)', [`-${EMOTION_ARCHIVE_DAYS} days`]);
+    }
+    lastEmotionArchiveAt = now;
+    if (archivedCount > 0) console.log(`[LifeDB] 情绪归档: ${archivedCount} 条 (>${EMOTION_ARCHIVE_DAYS}天) 已迁移至 emotion_state_history`);
+    return { archived: archivedCount };
+  } catch (e: any) {
+    console.warn('[LifeDB] 情绪归档失败:', e?.message || e);
+    return { archived: 0 };
+  }
+}
+
 export async function saveEmotionVector(vector: number[]): Promise<void> {
+  // P2-4: 写入前顺带执行归档（节流 6h，不新增定时器）
+  await archiveEmotionState();
   const json = JSON.stringify(vector);
   await run(
     'INSERT INTO emotion_state (vector_json, created_at) VALUES (?, datetime("now"))',
