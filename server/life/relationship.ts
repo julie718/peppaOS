@@ -69,6 +69,12 @@ export class RelationshipEngine {
   private totalInteractions: number;  // 交互总数（用于阶段判定）
   // P1-15: 长静默事件最近触发时间 — 防止每 10 分钟 TICK 重复投递（每 24h 至多一次）
   private lastLongSilenceAt = 0;
+  // L-7: 重逢临时折扣截止时间 — 久别重逢后 24h 内亲密/信任增量 ×0.5，关系需重新升温
+  private reunionDiscountUntil = 0;
+  // L-12: 新用户熟络期 — 前 10 轮交互亲密/信任增量减半，且亲密度受初期上限约束，
+  // 防止新用户 10 轮内关系直达"亲密"档（修复前无任何窗口期约束，亲密度可快速拉满）
+  private static readonly NEW_USER_WINDOW = 10;
+  private static readonly NEW_USER_INTIMACY_CAP = 0.35;
 
   constructor() {
     this.vector = [...BASELINE];
@@ -130,7 +136,21 @@ export class RelationshipEngine {
     if (delta.length !== 4) return;
 
     const before = [...this.vector];
-    this.vector = clampVector(this.vector.map((v, i) => v + delta[i]));
+    const adjusted = [...delta];
+    // L-7: 重逢 24h 内亲密/信任增量 ×0.5 — 久别重逢不能瞬间回到峰值亲密度
+    if (Date.now() < this.reunionDiscountUntil) {
+      adjusted[0] *= 0.5;
+      adjusted[1] *= 0.5;
+    }
+    // L-12: 新用户前 10 轮熟络期 — 亲密/信任增量减半，亲密度受初期上限约束
+    if (this.totalInteractions < RelationshipEngine.NEW_USER_WINDOW) {
+      adjusted[0] *= 0.5;
+      adjusted[1] *= 0.5;
+    }
+    this.vector = clampVector(this.vector.map((v, i) => v + adjusted[i]));
+    if (this.totalInteractions < RelationshipEngine.NEW_USER_WINDOW) {
+      this.vector[1] = Math.min(this.vector[1], RelationshipEngine.NEW_USER_INTIMACY_CAP);
+    }
     await this.persist();
 
     // 记录快照（仅显著变化时）
@@ -149,6 +169,11 @@ export class RelationshipEngine {
     console.log(`[Relationship] ${before.map(v=>v.toFixed(2)).join(',')} → ${this.vector.map(v=>v.toFixed(2)).join(',')}`);
   }
 
+  /** L-7: 开启重逢临时折扣 — 此后 hours 小时内亲密/信任增量 ×0.5（由 chat 重逢分支调用） */
+  beginReunionDiscount(hours = 24): void {
+    this.reunionDiscountUntil = Date.now() + hours * 60 * 60 * 1000;
+  }
+
   /** 接收交互事件，自动更新关系 */
   async receiveInteraction(type: string, outcome: 'accepted' | 'ignored' | 'positive' | 'negative' | 'neutral' = 'neutral'): Promise<void> {
     const delta = new Array(4).fill(0);
@@ -159,8 +184,19 @@ export class RelationshipEngine {
 
     switch (type) {
       case 'user_initiated':
-        delta[0] += 0.02; // 信任+0.02
-        delta[1] += 0.01; // 亲密+0.01
+        // L-8: 按 outcome 分支 — negative 交互真实降低亲密/信任（修复前一律正增量，负面反馈被无视）
+        if (outcome === 'negative') {
+          delta[0] -= 0.02; // 信任-0.02
+          delta[1] -= 0.01; // 亲密-0.01
+        } else if (outcome === 'positive') {
+          delta[0] += 0.03; // 信任+0.03
+          delta[1] += 0.02; // 亲密+0.02
+        } else {
+          delta[0] += 0.02; // 信任+0.02
+          delta[1] += 0.01; // 亲密+0.01
+        }
+        // L-12: 用户真实交互计入熟络期窗口计数（持久化，重启不重置）
+        this.totalInteractions++;
         break;
       case 'user_positive':
         delta[0] += 0.05; // 信任+0.05

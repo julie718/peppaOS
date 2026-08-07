@@ -1,10 +1,14 @@
 // 数字生命体 — 生命体征模块
 // 能量、健康度、稳定性：系统"存在基础"
 import * as fs from 'fs';
+import * as path from 'path';
+import { getDataRoot } from '../config/data_path';
 import { logSystemEvent } from '../db/lifeDb';
 import { personalityRegistry } from '../personality/registry';
 
-const STATE_FILE = '/app/data/vitality.json';
+// P1 修复（R-3）：路径硬编码 → VITALITY_FILE 环境变量优先，否则落到 getDataRoot()/data 下
+// （本地开发/测试环境 = ~/Peppa/data/vitality.json，容器内 = /app/data/vitality.json，二者等价）
+const STATE_FILE = process.env.VITALITY_FILE || path.join(getDataRoot(), 'data', 'vitality.json');
 
 export interface VitalityState {
   energy: number;       // 0-100，运行燃料
@@ -52,6 +56,8 @@ export class Vitality {
 
   private save(): void {
     try {
+      // 目标目录可能不存在（如本地首次运行）→ 递归创建后写入，保证非容器环境也能持久化
+      fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true });
       fs.writeFileSync(STATE_FILE, JSON.stringify(this.state, null, 2));
     } catch (e) {
       console.error('[Vitality] 保存失败:', e);

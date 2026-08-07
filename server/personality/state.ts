@@ -66,16 +66,9 @@ export function loadEmotionalState(userId: string): EmotionalState {
       }
     }
 
-    // P1-15: EmotionalState.intimacy 时间衰减 — 亲密感此前只增不减（每轮 +0.002*intensity）。
-    // 用户疏远时亲密感同样冷却：每次加载按距上次交互的天数衰减 0.001/天，地板 0.05（默认初始值）。
-    // 与 P0-4 重逢拘谨呼应：久别归来时 Peppa 的亲密度已随时间回落，需要重新走近。
-    if (current.lastInteractionAt) {
-      const sinceLastMs = now - new Date(current.lastInteractionAt).getTime();
-      if (sinceLastMs >= 24 * 60 * 60 * 1000) {
-        const daysAway = Math.floor(sinceLastMs / (24 * 60 * 60 * 1000));
-        current.intimacy = clamp(current.intimacy - 0.001 * daysAway, 0.05, 1);
-      }
-    }
+    // L-13: 移除 EmotionalState.intimacy 独立时间衰减（P1-15 旧机制）。
+    // 亲密感的疏远回落统一由 RelationshipEngine.tick() 四维衰减承担（0.005/24h，亲密地板 0.10）。
+    // 双衰减叠加会让长期静默后亲密感过度下挫，且两套衰减互相打架。
 
     return current;
   } catch {
@@ -199,8 +192,8 @@ export function updateEmotionalState(state: EmotionalState, event: EmotionEvent)
     updated.lastInteractionAt = event.timestamp || new Date().toISOString();
   }
 
-  // Natural decay
-  updated.curiosity = Math.max(0, updated.curiosity - 0.005);
+  // L-13: 移除 curiosity 每轮 -0.005 自然衰减 — 好奇心由 HIM 驱动（himTick 曲线）与
+  // 新话题事件管理，无条件衰减会让好奇心恒为 0，主动探索意愿名存实亡
   // Initiative slowly decays when idle
   if (event.type === 'idle_recovery') {
     updated.initiative = Math.max(0, updated.initiative - 0.01);

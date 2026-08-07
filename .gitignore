@@ -22,7 +22,9 @@ src-tauri/target/
 docs/
 gen_landing.py
 /tools/
-$null
 agent_shutdown_snapshot_*
 Peppa_个人版_部署服务方案.pdf
 lumi_output/
+
+# 备份文件
+*.bak

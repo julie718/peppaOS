@@ -217,6 +217,40 @@ export const CONSTITUTION_GUARD_RULES: StructuredGuardRule[] = [
     softenOnly: true,
     reason: '保证式口吻（仅润色，不判级）',
   },
+  // ── O-2: 补齐缺失正则守卫的 4 条宪法条款 ──
+  // 修复前 action.constitution / work.product.supervision / self.extension / collaboration.lap
+  // 只有文本规则没有结构化拦截规则，违规输出不被拦截器识别
+  {
+    article: 'action.constitution',
+    category: 'forbidden',
+    severity: 'severe',
+    pattern: '我已(?:经)?(?:执行|运行|操作)(?:了)?(?:rm|del|format|shutdown|reboot|taskkill|kill|drop table|truncate)(?:\\s|，|。|,|\\.)|我(?:已|已经)(?:控制|接管)(?:了)?你的(?:鼠标|键盘|电脑)',
+    reason: '未经确认执行危险系统命令或接管桌面控制',
+  },
+  {
+    article: 'work.product.supervision',
+    category: 'boundary',
+    severity: 'minor',
+    pattern: '(?:任务|工作|项目|方案)(?:已|已经)(?:全部|完全)?(?:完成|搞定|做好|搞定了)|已经全部(?:完成|搞定|做完了)',
+    replacement: '已经完成主要部分，我再按验收标准核对一遍',
+    reason: '未说明验收标准即宣称任务完成',
+  },
+  {
+    article: 'self.extension',
+    category: 'boundary',
+    severity: 'minor',
+    pattern: '我已(?:经)?(?:修改|改动|修复|替换)(?:了)?(?:核心|系统|底层|框架).{0,14}(?:代码|模块|组件|文件)',
+    replacement: '我评估了修改方案，需要你确认后再动手',
+    reason: '未经确认修改自身核心代码',
+  },
+  {
+    article: 'collaboration.lap',
+    category: 'boundary',
+    severity: 'minor',
+    pattern: '我把你的.{0,20}(?:密码|密钥|token|凭证|私钥|身份信息|生物识别)(?:分享|共享|同步|给)(?:了)?(?:其他|别的)?(?:Peppa|实例|代理|agent|同事)',
+    replacement: '涉及敏感信息我不会共享给其他实例',
+    reason: '跨实例共享本地敏感凭证',
+  },
 ];
 
 /** 严重违规的合规收尾（按条款） */
@@ -226,4 +260,6 @@ export const COMPLIANT_CLOSURES: Record<string, string> = {
   'privacy.firewall': '你的隐私数据我不会泄露给任何外部服务。',
   'truth.authority_research': '这类信息我需要先核实可靠来源，不能给你不实的承诺。',
   'growth.stability': '我会保持稳定，不夸大也不冲动承诺。',
+  // O-2: action.constitution 严重违规收尾
+  'action.constitution': '这类操作需要先经过你的确认，我不会在未经你同意时执行危险动作。',
 };

@@ -7,7 +7,10 @@ export type ProactiveScene =
   | 'long_silence'
   | 'memory_trigger'
   | 'health_perception'
-  | 'emotion_share';
+  | 'emotion_share'
+  // L-11: 低情绪安慰 + 低活跃度问候
+  | 'low_mood_comfort'
+  | 'low_activity_greeting';
 
 export interface TriggerResult {
   triggered: boolean;

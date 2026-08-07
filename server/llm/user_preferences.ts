@@ -39,6 +39,24 @@ export const DEFAULT_MODELS: Record<UserLLMProvider, string> = {
   auto: 'qwen2.5:7b',
 };
 
+// O-1: 复杂任务高档位模型映射 — chat/voice/task 的场景分层路由统一从这里读取，
+// 修复前四处直写 'deepseek-v4-pro'，模型档位变更需改多处且易遗漏
+export const COMPLEX_MODELS: Record<UserLLMProvider, string> = {
+  deepseek: 'deepseek-v4-pro',
+  qwen: 'qwen-max',
+  openai: 'gpt-4o',
+  gemini: 'gemini-2.5-pro',
+  anthropic: 'claude-opus-5',
+  ark: 'doubao-1-5-pro-32k',
+  xiaomi: 'xiaomi-chat',
+  kimi: 'moonshot-v1-8k',
+  glm: 'glm-4-plus',
+  relay: 'gpt-4o',
+  ollama: 'qwen2.5:7b',
+  lmstudio: 'local-model',
+  auto: 'qwen2.5:7b',
+};
+
 /**
  * P1-3: 场景分层模型路由 — 同一 provider 下按场景选更轻/更强的模型。
  * light（问候/闲聊/摘要）：选轻量模型；complex（复杂推理/长任务）：选重模型；

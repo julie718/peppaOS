@@ -292,8 +292,10 @@ class IdleBrain {
       }
 
       // 3. 记录月度自省记忆
+      // L-9: 归属真实用户（与长待机整合一致的 __lastActiveUid 模式）— 修复前写死 'system'，
+      // 月度自省记忆永远落不到任何用户记忆库，GC/检索都拿不到它
       addMemory({
-        userId: 'system',
+        userId: ((global as any).__lastActiveUid as string) || 'anonymous',
         type: 'fact' as any,
         keywords: ['月度自省', '反思'],
         content: `[月度自省 ${new Date().toISOString().slice(0, 7)}] ${relation?.narrative || '定期自我审视完成。'}`,

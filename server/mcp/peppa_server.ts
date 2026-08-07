@@ -5,11 +5,11 @@
  * Transport: SSE (HTTP) — devices connect via POST to /mcp/message
  * and receive responses via SSE at /mcp/sse
  */
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { logger } from '../lib/logger';
 // P2-8: 读取用户配置的默认模型档位，取消硬编码 deepseek-v4-pro
 import { DEFAULT_MODELS } from '../llm/user_preferences';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { z } from 'zod';
 import { queryMemories, addMemory, getDueReminders, buildNarrativeChain, borrowAgentMemories } from '../memory';
 import { runWithTools } from '../llm/adapter';

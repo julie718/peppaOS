@@ -40,7 +40,7 @@ import { touchUserActivity } from "../life/userState";
 import { idleBrain } from '../autonomy/idle_brain';
 // 【新增数字生命体模块】T80 心智 + MCP 拦截器
 import { buildMindContext, classifyToolIntent, MindContext, SEVEN_STEP_MIND } from '../hooks/chat';
-import { mcpInterceptor, buildToolBlockMessage, applyConstitutionGuard, MCP_MAX_CALLS_PER_TURN } from '../tools/interceptor';
+import { mcpInterceptor, buildToolBlockMessage, applyConstitutionGuard, MCP_MAX_CALLS_PER_TURN, markToolResultTTL } from '../tools/interceptor';
 import { getUnrespondedObservations, markObservationResponded } from "../db/lifeDb";
 import { retrieveChunks } from "../agents/rag";
 import { getSensory } from "./shared";
@@ -72,7 +72,7 @@ import { analyzeLikedMusicProfile, formatMusicProfileReport, isMusicProfileAnaly
 import { buildResponseLanguageInstruction } from "../utils/language";
 import { guardCompletionClaims, needsCompletionEvidence } from "../work_product/completion_guard";
 import { buildModelSelfAwareness, buildVisionRoutingOverlay, hasVisionIntent } from "../cognition/vision_routing";
-import { DEFAULT_MODELS, getScopedPreferredLLM, getScenarioModel } from "../llm/user_preferences";
+import { DEFAULT_MODELS, COMPLEX_MODELS, getScopedPreferredLLM, getScenarioModel } from "../llm/user_preferences";
 import { generateTemporalContext } from '../time/temporal_context';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'peppaOS_default_jwt_secret_2026_local';
@@ -508,6 +508,12 @@ export function registerChatHandler(
       const beijingTime = new Date(new Date().getTime() + 8 * 3600000).toISOString().replace('Z', '+08:00');
       let effectiveSystemPrompt = systemInstruction + `\n\n## Current Time\n${beijingTime} (北京时间). Use this for any time-related questions.`;
 
+      // L-10: 可裁剪上下文块引用（超预算时按优先级从低到高精简）— 修复前预算裁剪名单
+      // 仅含 previousSession/prefetched/crossSession，记忆块/偏好标签/知识库/时间线超长时不裁剪
+      let summaryBlock: string | null = null;
+      let prefTagsBlock: string | null = null;
+      let knowledgeBlock: string | null = null;
+
       // ── 时间感知上下文：季节、节日、早晚、周末/工作日 ──
       try {
         const temporalBlock = await generateTemporalContext(uid);
@@ -533,7 +539,8 @@ export function registerChatHandler(
       if (conversationId) {
         const summaryContext = getConversationSummary(conversationId);
         if (summaryContext) {
-          effectiveSystemPrompt += `\n\n## Conversation Context\n${summaryContext}`;
+          summaryBlock = `\n\n## Conversation Context\n${summaryContext}`; // L-10: 保留引用供裁剪
+          effectiveSystemPrompt += summaryBlock;
         }
       }
       // Cross-session: inject previous conversation context when starting fresh
@@ -559,11 +566,33 @@ export function registerChatHandler(
         logger.warn('[ChatHandler] 跨会话记忆加载异常:', e.message);
       }
 
+      // ── L-4: 跨轮思绪接续 — 注入未完成的搁置思绪，使中断的思考在下一轮延续 ──
+      // 修复前 P0-1 中断的思绪只"保留不丢"，从不注入下一轮 prompt → 思考断裂、无恢复机制
+      let injectedThoughtIds: number[] = [];
+      try {
+        const { getUnresolvedThoughts } = await import('../db/lifeDb');
+        const thoughts = await getUnresolvedThoughts(3);
+        if (thoughts.length > 0) {
+          injectedThoughtIds = thoughts.map((t: any) => t.id);
+          const thoughtText = thoughts
+            .map((t: any) => t.parsed?.thought || '')
+            .filter(Boolean)
+            .join('\n');
+          if (thoughtText) {
+            effectiveSystemPrompt += `\n\n## 上次未尽思绪（延续思考，无需重复道歉）\n${thoughtText}`;
+            logger.info('[ChatHandler] 跨轮思绪接续: 注入', thoughts.length, '条未尽思绪');
+          }
+        }
+      } catch (e: any) {
+        logger.warn('[ChatHandler] 跨轮思绪接续异常:', e?.message || e);
+      }
+
       // ── P1-17: 偏好标签前置约束（System Prompt 最优先约束）──
       try {
         const prefTags = await getUserPreferenceTags(uid);
         if (prefTags.length > 0) {
-          effectiveSystemPrompt += '\n\n' + formatPreferenceTagsForPrompt(prefTags);
+          prefTagsBlock = '\n\n' + formatPreferenceTagsForPrompt(prefTags); // L-10: 保留引用供裁剪
+          effectiveSystemPrompt += prefTagsBlock;
           logger.info('[ChatHandler] 偏好标签约束注入:', prefTags.length, '条');
         }
       } catch (e: any) {
@@ -586,8 +615,8 @@ export function registerChatHandler(
       try {
         const knowledgeEntries = await getKnowledge(uid, { limit: 15, minConfidence: 0.3 });
         if (knowledgeEntries.length > 0) {
-          const knowledgeContext = formatKnowledgeForContext(knowledgeEntries);
-          effectiveSystemPrompt += '\n\n' + knowledgeContext;
+          knowledgeBlock = '\n\n' + formatKnowledgeForContext(knowledgeEntries); // L-10: 保留引用供裁剪
+          effectiveSystemPrompt += knowledgeBlock;
           logger.info('[ChatHandler] 知识库注入:', knowledgeEntries.length, '条');
         }
       } catch (e: any) {
@@ -662,14 +691,20 @@ export function registerChatHandler(
       } catch {}
 
       // ── P2-14: System Prompt token 预算管控 ──
-      // 超预算时按优先级从低到高裁剪可选上下文（previousSession → prefetched → crossSession）
-      // 核心 systemInstruction/时间/戒备/偏好标签等必保留
+      // 超预算时按优先级从低到高裁剪可选上下文（previousSession → prefetched → crossSession → 历史/时间线 → 知识库 → 摘要 → 偏好标签）
+      // 核心 systemInstruction/时间/戒备/实时心智等必保留
       {
         const budget = parseInt(process.env.SYSTEM_PROMPT_TOKEN_BUDGET || '4000', 10);
         const lowPriorityBlocks: { label: string; text: string }[] = [];
         if (previousSessionContext) lowPriorityBlocks.push({ label: 'previousSession', text: previousSessionContext });
         if (prefetchedBlock) lowPriorityBlocks.push({ label: 'prefetched', text: prefetchedBlock });
         if (crossMemoryBlock) lowPriorityBlocks.push({ label: 'crossSession', text: crossMemoryBlock });
+        // L-10: 预算裁剪扩展 — 对话历史/时间线/知识库/会话摘要/偏好标签均可裁剪（函数级变量直接拼接前缀）
+        if (relevantHistory) lowPriorityBlocks.push({ label: 'relevantHistory', text: '\n\n' + relevantHistory });
+        if (timelineHistory) lowPriorityBlocks.push({ label: 'timelineHistory', text: '\n\n' + timelineHistory });
+        if (knowledgeBlock) lowPriorityBlocks.push({ label: 'knowledge', text: knowledgeBlock });
+        if (summaryBlock) lowPriorityBlocks.push({ label: 'conversationSummary', text: summaryBlock });
+        if (prefTagsBlock) lowPriorityBlocks.push({ label: 'prefTags', text: prefTagsBlock });
 
         let promptTokens = estimateTokens(effectiveSystemPrompt);
         for (const block of lowPriorityBlocks) {
@@ -1076,7 +1111,7 @@ export function registerChatHandler(
       const complexCategories = ['command', 'code', 'question', 'analysis'];
       const isComplex = complexCategories.includes(cognition.intent.category);
       if (activeProvider === 'deepseek') {
-        activeModel = isComplex ? 'deepseek-v4-pro' : (activeModel === 'deepseek-chat' ? 'deepseek-v4-flash' : activeModel);
+        activeModel = isComplex ? COMPLEX_MODELS.deepseek : (activeModel === 'deepseek-chat' ? DEFAULT_MODELS.deepseek : activeModel); // O-1: 硬编码模型名统一走配置
       } else if (activeProvider === 'qwen') {
         activeModel = isComplex ? 'qwen-max' : 'qwen-plus';
       } else if (activeProvider === 'gemini') {
@@ -1094,6 +1129,8 @@ export function registerChatHandler(
       logger.info('[ChatHandler] Model auto-selected:', activeProvider, '/', activeModel, 'for category:', cognition.intent.category);
 
       let responseText = '';
+      // L-16: 本轮 LLM 思考链（deepseek-v4-pro 等带 reasoning 的模型输出），供复盘归档决策链
+      let lastReasoningText: string | null = null;
       let llmWasCalled = false;
       const allToolRecords: ToolExecutionRecord[] = [];
       const deferCompletionStream = needsCompletionEvidence(text);
@@ -1581,6 +1618,7 @@ export function registerChatHandler(
             );
 
             responseText = response.text || streamChunks.join('') || '';
+            lastReasoningText = (response as any).reasoningContent || null; // L-16
             llmWasCalled = true;
             if (response.usage) {
               recordTokenUsage(uid, activeProvider, activeModel, {
@@ -1705,6 +1743,7 @@ export function registerChatHandler(
           );
 
           responseText = result.text || '';
+          lastReasoningText = (result as any).reasoningContent || null; // L-16: 工具链路透出思考链
           } catch (toolErr: any) {
             // P0-1: 中止/超时 → 思绪搁置，保留已生成的流式内容（柔性暂停，非暴力销毁）
             if (thoughtShelved || abortController.signal.aborted) {
@@ -1949,7 +1988,11 @@ export function registerChatHandler(
       // ── 注入交互事件到数字生命体 ──
       try {
         // 主入口：LifeSystem.receiveInteraction('user_initiated') 处理信任/人格/情绪/活力/欲望
-        await getLifeSystem().receiveInteraction('user_initiated', 'accepted');
+        // L-8: 负面情绪对话 → negative outcome，关系真实降温（修复前一律 accepted，负面交互零惩罚）
+        const userInteractionOutcome = sentiment.frustration > 0.5 || sentiment.valence < -0.3
+          ? 'negative'
+          : (sentiment.valence > 0.3 ? 'positive' : 'accepted');
+        await getLifeSystem().receiveInteraction('user_initiated', userInteractionOutcome as 'accepted' | 'positive' | 'negative');
         // 关系感知模块：缓存失效 + 快照历史 + 叙事（不重复调用 rel.receiveInteraction）
         await onInteractionComplete('user_message');
 
@@ -1975,25 +2018,47 @@ export function registerChatHandler(
         }
       } catch {}
 
+      // ── L-4: 本轮已接续的未尽思绪标记为已解决（思绪闭环，防止同一思绪反复注入） ──
+      if (injectedThoughtIds.length > 0 && responseText) {
+        try {
+          const { resolveThoughts } = await import('../db/lifeDb');
+          await resolveThoughts(injectedThoughtIds);
+          logger.info('[ChatHandler] 跨轮思绪闭环: 标记', injectedThoughtIds.length, '条为已解决');
+        } catch (e: any) {
+          logger.warn('[ChatHandler] 思绪闭环失败:', e?.message || e);
+        }
+      }
+
       // ── 【新增数字生命体模块】对话后置异步复盘（主路径，fire-and-forget） ──
-      if (responseText) {
-        // 捕获复盘时的实时情绪/人格快照
-        const reviewEmotion = (() => { try { return getEmotionEngine().getEmotions(); } catch { return [0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5]; } })();
-        const reviewPersonality = (() => { try { return getPersonalityEngine().getPersonality(); } catch { return [0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5]; } })();
-        const reviewDominant = (() => {
-          const labels = ['喜悦','平静','期待','担忧','孤独','满足','好奇','依赖'];
-          let maxI = 0; for (let i=1;i<8;i++) if (reviewEmotion[i]>reviewEmotion[maxI]) maxI=i;
-          return labels[maxI]||'平静';
-        })();
-        import('../hooks/review').then(({ performPostChatReview }) => {
-          performPostChatReview({
-            uid, text, response: responseText, sessionKey,
-            conversationId, domain: resolvedDomain, orgId: resolvedOrgId,
-            personality: { name: personality?.name || 'Peppa', vector: reviewPersonality },
-            emotion: { emotions: reviewEmotion, dominant: reviewDominant },
-            source: 'chat',
-          }).catch(e => logger.warn('[ChatHandler] 异步复盘异常:', e?.message || e));
-        }).catch(() => {});
+      // E-2: 复盘与 socket 生命周期解耦 — 客户端断开不中断复盘。
+      // 修复前：断开→teardown abort→responseText 为空→`if (responseText)` 为假→复盘整体跳过，
+      // 本轮对话的学到的一切（情绪增量/场景经验/思考链）全部丢失。
+      // 现在：只要有部分输出即触发（中止/搁置路径已将流式部分内容写入 responseText），
+      // setImmediate 脱离当前调用栈，复盘内部自带独立 AbortSignal，不再受客户端连接影响。
+      {
+        const reviewInput = responseText || '';
+        if (reviewInput.length > 0) {
+          // 捕获复盘时的实时情绪/人格快照
+          const reviewEmotion = (() => { try { return getEmotionEngine().getEmotions(); } catch { return [0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5]; } })();
+          const reviewPersonality = (() => { try { return getPersonalityEngine().getPersonality(); } catch { return [0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5]; } })();
+          const reviewDominant = (() => {
+            const labels = ['喜悦','平静','期待','担忧','孤独','满足','好奇','依赖'];
+            let maxI = 0; for (let i=1;i<8;i++) if (reviewEmotion[i]>reviewEmotion[maxI]) maxI=i;
+            return labels[maxI]||'平静';
+          })();
+          setImmediate(() => {
+            import('../hooks/review').then(({ performPostChatReview }) => {
+              performPostChatReview({
+                uid, text, response: reviewInput, sessionKey,
+                conversationId, domain: resolvedDomain, orgId: resolvedOrgId,
+                personality: { name: personality?.name || 'Peppa', vector: reviewPersonality },
+                emotion: { emotions: reviewEmotion, dominant: reviewDominant },
+                reasoning: lastReasoningText, // L-16: 决策链随复盘归档
+                source: 'chat',
+              }).catch(e => logger.warn('[ChatHandler] 异步复盘异常:', e?.message || e));
+            }).catch(() => {});
+          });
+        }
       }
 
       // Clean up abort session
@@ -2092,8 +2157,15 @@ export function registerChatHandler(
             const branch = ensureBranch(uid, (mem as any).branchHint, agentId || '', null, { domain: resolvedDomain, orgId: resolvedOrgId });
             parentId = branch.id;
           }
+          // L-6: 时效类场景经验（天气/路况/新闻等）打 TTL 标记 — GC 到期物理清理，
+          // 修复前 extractMemories 产出的时效记忆不带标记，TTL 清理链路永不触发
+          let memContent = mem.content;
+          try {
+            const ttlMark = markToolResultTTL(mem.type || 'mem', mem.content);
+            if (ttlMark?.shouldCache) memContent = `${mem.content} [TTL:${ttlMark.ttl}d]`;
+          } catch {}
           addMemory({
-            userId: uid, type: mem.type, content: mem.content,
+            userId: uid, type: mem.type, content: memContent,
             keywords: mem.keywords, confidence: mem.confidence, sourceInteractionId: interactionId,
             agentId: agentId || '',
           } as any, { parentId, location: locationTag, domain: resolvedDomain, orgId: resolvedOrgId, source: 'chat' });
@@ -2135,7 +2207,8 @@ export function registerChatHandler(
       const hoursSinceLast = emotionalState.lastInteractionAt
         ? (Date.now() - new Date(emotionalState.lastInteractionAt).getTime()) / (1000 * 60 * 60)
         : 24;
-      const isReconnect = hoursSinceLast > 1;
+      // L-7: 重逢判定阈值 1 小时 → 72 小时（3 天）— 修复前短暂离开也被当重逢，重逢情绪/关系升温滥用
+      const isReconnect = hoursSinceLast > 72;
       let updatedState = updateEmotionalState(emotionalState, { type: 'interaction', userId: uid, timestamp: new Date().toISOString() });
       // Apply sentiment analysis results to emotional state
       if (sentiment.valence !== 0 || sentiment.frustration > 0 || sentiment.urgency > 0) {
@@ -2143,6 +2216,11 @@ export function registerChatHandler(
       }
       if (isReconnect) {
         updatedState = updateEmotionalState(updatedState, { type: 'reconnect', intensity: Math.min(1, hoursSinceLast / 72), userId: uid, timestamp: new Date().toISOString() });
+        // L-7: 重逢后 24h 内亲密/信任临时折扣 — 久别重逢不瞬间回到峰值亲密度，需重新升温
+        try {
+          getRelationshipEngine().beginReunionDiscount(24);
+          logger.info(`[ChatHandler] 重逢（${Math.round(hoursSinceLast)}h 后回归）: 开启 24h 亲密/信任折扣`);
+        } catch {}
       }
       if (isNovel) {
         updatedState = updateEmotionalState(updatedState, { type: 'novel_topic', userId: uid, timestamp: new Date().toISOString() });

@@ -6,8 +6,8 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { logger } from '../lib/logger';
 import type { IncomingMessage } from 'http';
 import type { Server } from 'http';
-import type { Transport } from '@modelcontextprotocol/sdk/shared/transport';
-import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
 import { randomUUID } from 'crypto';
 
 export class WebSocketServerTransport implements Transport {

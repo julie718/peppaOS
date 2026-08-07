@@ -9,7 +9,8 @@ export interface AutonomousTask {
   title: string;
   description: string;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
-  source: 'scheduler' | 'curiosity' | 'pattern_detected' | 'user_request';
+  // L-17: 自主任务触发来源细分 — idle 待机 / 情绪关怀 / 记忆驱动 / 上下文驱动，任务可溯源
+  source: 'scheduler' | 'curiosity' | 'pattern_detected' | 'user_request' | 'autonomous_idle' | 'autonomous_emotion' | 'autonomous_memory' | 'autonomous_context';
   workflowId?: string;
   planId?: string;
   priority: number;  // 0-10

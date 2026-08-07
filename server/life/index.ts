@@ -140,7 +140,8 @@ export class LifeSystem {
       let peppaCount = 0;
       try {
         const sqlite3 = (await import('sqlite3')).default;
-        const peppaDbPath = process.env.DB_PATH || '/app/data/peppa.db';
+        const { getPeppaDbPath } = await import('../config/data_path');
+        const peppaDbPath = getPeppaDbPath(); // E-3
         const peppaDb = new sqlite3.Database(peppaDbPath);
         const peppaRow = await new Promise<any>((resolve, reject) => {
           peppaDb.get('SELECT COUNT(*) as cnt FROM interactions', (err, row) => {
@@ -505,6 +506,17 @@ export class LifeSystem {
           const gcResult = await runMemoryGC(collectUserIds());
           if (gcResult.downweighted > 0 || gcResult.merged > 0 || gcResult.cleaned > 0) {
             console.log(`[LifeSystem] 🧹 记忆GC: 降权${gcResult.downweighted} 合并${gcResult.merged} 清理${gcResult.cleaned}`);
+          }
+          // L-18: 搁置思绪 72h 自动归档 — 未在对话中接续的旧思绪标记 expired，
+          // 修复前 internal_thought 只增不减，永不清理
+          try {
+            const { expireStaleThoughts } = await import('../db/lifeDb');
+            const expired = await expireStaleThoughts(72);
+            if (expired > 0) {
+              console.log(`[LifeSystem] 🧹 过期思绪归档: ${expired} 条（超 72h 未接续）`);
+            }
+          } catch (e: any) {
+            console.warn('[LifeSystem] 过期思绪归档异常:', e?.message || e);
           }
         }, errors);
       }

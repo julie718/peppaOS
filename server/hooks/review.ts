@@ -8,12 +8,14 @@ import { addMemory } from '../memory/store';
 import { addInteractionMemory, saveEmotionVector } from '../db/lifeDb';
 import { getEmotionEngine } from '../life/emotions';
 import { getRelationshipEngine } from '../life/relationship';
+import { markToolResultTTL } from '../tools/interceptor';
 // 本地类型定义（不依赖全局钩子）
 interface AfterResponseContext {
   uid: string; text: string; response: string; sessionKey: string;
   personality: { name: string; vector: number[] };
   emotion: { emotions: number[]; dominant: string };
   conversationId: string; domain: string; orgId: string; source?: string;
+  reasoning?: string; // L-16: LLM 思考链文本（复盘时沉淀，供决策链回溯）
 }
 
 // ── 四类归档 ──
@@ -140,6 +142,9 @@ export async function performPostChatReview(ctx: AfterResponseContext): Promise<
           perspective: 'user_trait' as any,
           importance: 0.7,
           source: 'post_chat_review' as any,
+          // 修复死链路：firewall 要求 core_identity 必须 userApproved，
+          // 此前遗漏导致复盘人格洞察记忆永远被防火墙静默拒绝（其余 core_identity 写入方均传 true）
+          userApproved: true,
         });
         result.personalityMemories++;
       } catch {}
@@ -170,11 +175,15 @@ export async function performPostChatReview(ctx: AfterResponseContext): Promise<
     const sceneExp = extractSceneExperience(ctx.text, ctx.response);
     if (sceneExp) {
       try {
+        // L-6: 时效类场景（天气/路况/资讯/行情等）附带 [TTL:n天] 标记 — GC 到期物理清理，
+        // 修复前 markToolResultTTL 无调用方，TTL 标记生产链路永不写入，7 天清理完全不生效
+        const ttlMark = markToolResultTTL('review', sceneExp);
+        const content = ttlMark ? `${sceneExp} [TTL:${ttlMark.ttl}d]` : sceneExp;
         addMemory({
           userId,
           type: 'knowledge' as any,
           keywords: ['场景经验', '方案'],
-          content: sceneExp,
+          content,
           confidence: 0.6,
           sourceInteractionId: ctx.conversationId || 'review',
         }, {
@@ -183,7 +192,28 @@ export async function performPostChatReview(ctx: AfterResponseContext): Promise<
           importance: 0.6,
           source: 'post_chat_review' as any,
         });
-        result.sceneExperiences++;
+        if (ttlMark) result.ttlCachedItems++;
+        else result.sceneExperiences++;
+      } catch {}
+    }
+
+    // 2e. L-16: CoT 思考链沉淀 — 复盘可回溯完整决策链（修复前 7 步推理过程无持久化）
+    if (ctx.reasoning && ctx.reasoning.length > 20) {
+      try {
+        addMemory({
+          userId,
+          type: 'knowledge' as any,
+          keywords: ['思考链', '决策'],
+          content: `[思考链 ${now.slice(0, 10)}] ${ctx.reasoning.slice(0, 600)}`,
+          confidence: 0.5,
+          sourceInteractionId: ctx.conversationId || 'review',
+        }, {
+          tier: 'internalized' as any,
+          perspective: 'peppa_self' as any,
+          importance: 0.5,
+          source: 'post_chat_review' as any,
+        });
+        logger.info(`[Review] 思考链沉淀: ${ctx.reasoning.slice(0, 40)}…`);
       } catch {}
     }
 
@@ -201,7 +231,6 @@ export async function performPostChatReview(ctx: AfterResponseContext): Promise<
     // 3. 更新情绪状态 (life.db)
     try {
       const emotionEngine = getEmotionEngine();
-      const emotions = emotionEngine.getEmotions();
 
       // 正面交互轻微提升情绪
       if (result.qualityScore > 0.6) {
@@ -210,7 +239,9 @@ export async function performPostChatReview(ctx: AfterResponseContext): Promise<
         await emotionEngine.receiveEvent('user_negative');
       }
 
-      await saveEmotionVector(emotions);
+      // L-2: 落库 receiveEvent 后的最新向量 — 修复前 getEmotions() 在增量前取快照，
+      // saveEmotionVector 持久化的是增量前旧值（getEmotions 返回拷贝），重启后复盘情绪增量丢失
+      await saveEmotionVector(emotionEngine.getEmotions());
       result.emotionUpdated = true;
     } catch (e) {
       logger.warn('[Review] 情绪更新失败:', e);

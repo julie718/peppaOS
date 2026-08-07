@@ -831,6 +831,15 @@ async function makeLLMCallStreamingCore(
       if (chunk.usage) streamUsage = chunk.usage;
     }
 
+    // P2 修复：本地 Ollama/LM Studio 在 abort 信号时静默结束流（不抛 AbortError）→
+    // for-await 自然退出会误记为 ok。信号已中断时改记 cancelled，token 置 0（与云端行为一致）。
+    // 云端模型 abort 会抛 AbortError 走异常路径，不经过此分支，原有埋点逻辑不受影响。
+    if ((config.provider === 'ollama' || config.provider === 'lmstudio') && config.signal?.aborted) {
+      const usage0 = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+      recordLLMMetrics(config.provider, config.model, usage0, _start, { scene: config.scene, cancelled: true });
+      return { text: null, toolCalls: null, reasoningContent: null, usage: usage0 };
+    }
+
     const usage = extractUsage({ usage: streamUsage });
     recordLLMMetrics(config.provider, config.model, usage, _start, { scene: config.scene });
 

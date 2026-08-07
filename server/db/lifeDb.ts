@@ -174,8 +174,24 @@ const TABLES: { name: string; sql: string }[] = [
   },
 ];
 
-// ── 自动迁移 ──
-export async function migrateLifeTables(): Promise<{ success: boolean; tables: string[]; errors: string[] }> {
+// ── 全局迁移完成门（P1 修复：新库首启迁移竞态）──
+// 全新库首次启动时，子系统查询与 migrateLifeTables 并发执行 → "no such table" unhandled rejection FATAL。
+// 所有查询/写入（run/get/all）前置等待迁移完成再放行；迁移自身仅用裸 database.*（不经 run/get），
+// 无自等死锁。migrateLifeTables 与 initLifeDb 复用同一 promise，启动仅执行一次迁移；
+// 迁移异常时重置 gate，下次调用自动重试（与 run/get 原有 retry 逻辑叠加，行为不变）。
+let migrationGate: Promise<{ success: boolean; tables: string[]; errors: string[] }> | null = null;
+
+export function migrateLifeTables(): Promise<{ success: boolean; tables: string[]; errors: string[] }> {
+  if (migrationGate) return migrationGate;
+  const promise = migrateLifeTablesImpl();
+  migrationGate = promise.catch((err: unknown) => {
+    migrationGate = null; // 迁移失败 → 重置，允许下次调用重新迁移
+    throw err;
+  });
+  return migrationGate;
+}
+
+async function migrateLifeTablesImpl(): Promise<{ success: boolean; tables: string[]; errors: string[] }> {
   const database = getLifeDb();
   const created: string[] = [];
   const errors: string[] = [];
@@ -276,45 +292,61 @@ function rollback(database: sqlite3.Database): Promise<void> {
   return new Promise((resolve) => database.run('ROLLBACK', () => resolve()));
 }
 
+// ── 全局串行排队锁（P0 修复：事务嵌套竞态）──
+// 主循环 TICK（addDesire/addEmotion）与对话复盘（addEmotion）并发调用 withTransaction 时，
+// 在同一 node-sqlite3 连接上 BEGIN/COMMIT 异步交错 → "cannot start a transaction within a transaction"。
+// 所有事务进入 promise 链串行执行，杜绝 BEGIN 交错；事务流程本身（BEGIN/RUN/COMMIT）保持不变。
+let txQueue: Promise<unknown> = Promise.resolve();
+
+function enqueue<T>(fn: () => Promise<T>): Promise<T> {
+  const next = txQueue.then(fn, fn); // 前一事务失败（reject）不阻断后续事务入队
+  txQueue = next.catch(() => {});    // 队列尾部吞错，避免 promise 链断裂
+  return next;
+}
+
 async function withTransaction<T>(fn: () => Promise<T>): Promise<T> {
-  const database = getLifeDb();
-  await begin(database);
-  try {
-    const result = await fn();
-    await commit(database);
-    return result;
-  } catch (err) {
-    await rollback(database);
-    throw err;
-  }
+  return enqueue(async () => {
+    const database = getLifeDb();
+    await begin(database);
+    try {
+      const result = await fn();
+      await commit(database);
+      return result;
+    } catch (err) {
+      await rollback(database);
+      throw err;
+    }
+  });
 }
 
 // ── run/get 封装 ──
+// P1 修复：所有查询/写入前置等待全局迁移完成（migrateLifeTables 门），杜绝新库首启竞态。
+// 门只等待迁移落定，不改变原有 retry 语义（retry 仍只包裹查询执行本身）。
 function run(sql: string, params: any[] = []): Promise<sqlite3.RunResult> {
-  return retry(() => new Promise((resolve, reject) => {
+  return migrateLifeTables().then(() => retry(() => new Promise((resolve, reject) => {
     getLifeDb().run(sql, params, function (err) {
       if (err) reject(err);
       else resolve(this);
     });
-  }));
+  })));
 }
 
 function get<T = any>(sql: string, params: any[] = []): Promise<T | null> {
-  return retry(() => new Promise((resolve, reject) => {
+  return migrateLifeTables().then(() => retry(() => new Promise((resolve, reject) => {
     getLifeDb().get(sql, params, (err, row) => {
       if (err) reject(err);
       else resolve((row as T) || null);
     });
-  }));
+  })));
 }
 
 function all<T = any>(sql: string, params: any[] = []): Promise<T[]> {
-  return retry(() => new Promise((resolve, reject) => {
+  return migrateLifeTables().then(() => retry(() => new Promise((resolve, reject) => {
     getLifeDb().all(sql, params, (err, rows) => {
       if (err) reject(err);
       else resolve(rows as T[]);
     });
-  }));
+  })));
 }
 
 // ═══════════════════════════════════════════════
@@ -500,6 +532,66 @@ export async function searchMemoriesByType(eventType: string): Promise<any[]> {
     'SELECT * FROM interaction_memories WHERE event_type=? ORDER BY created_at DESC',
     [eventType]
   );
+}
+
+// ── L-4/L-18: 搁置思绪生命周期（跨轮接续 + 过期归档） ──
+
+function parseThoughtContext(row: any): { thought?: string; source?: string; resolved?: boolean; expired?: boolean } {
+  try {
+    const ctx = typeof row.context_json === 'string' ? JSON.parse(row.context_json) : row.context_json;
+    return ctx && typeof ctx === 'object' ? ctx : {};
+  } catch {
+    return {};
+  }
+}
+
+/** L-4: 读取最近的未 resolved 搁置思绪（供下一轮 system prompt 接续） */
+export async function getUnresolvedThoughts(limit = 3): Promise<any[]> {
+  const rows = await all(
+    'SELECT * FROM interaction_memories WHERE event_type=? ORDER BY created_at DESC LIMIT ?',
+    ['internal_thought', Math.max(limit, 50)]
+  );
+  return rows
+    .map((row: any) => ({ ...row, parsed: parseThoughtContext(row) }))
+    .filter((r: any) => r.parsed.resolved === false)
+    .slice(0, limit);
+}
+
+/** L-4: 思绪已在本轮被消费 → 标记 resolved=true（中断未消费时保留，下轮继续接续） */
+export async function resolveThoughts(ids: number[]): Promise<void> {
+  for (const id of ids) {
+    try {
+      const row = await get('SELECT context_json FROM interaction_memories WHERE id=?', [id]);
+      if (!row) continue;
+      const ctx = parseThoughtContext(row);
+      if (ctx.resolved === true) continue;
+      ctx.resolved = true;
+      await run('UPDATE interaction_memories SET context_json=? WHERE id=?', [JSON.stringify(ctx), id]);
+    } catch {}
+  }
+}
+
+/** L-18: 搁置超过 maxAgeHours 的未 resolved 思绪自动归档清理（置 resolved，避免无限堆积） */
+export async function expireStaleThoughts(maxAgeHours = 72): Promise<number> {
+  let expired = 0;
+  const rows = await all(
+    'SELECT id, context_json, created_at FROM interaction_memories WHERE event_type=? AND created_at < datetime("now",?)',
+    ['internal_thought', `-${maxAgeHours} hours`]
+  );
+  for (const row of rows) {
+    try {
+      const ctx = parseThoughtContext(row);
+      if (ctx.resolved === true) continue;
+      ctx.resolved = true;
+      ctx.expired = true;
+      await run('UPDATE interaction_memories SET context_json=? WHERE id=?', [JSON.stringify(ctx), row.id]);
+      expired++;
+    } catch {}
+  }
+  if (expired > 0) {
+    console.log(`[LifeDB] 🧹 过期思绪归档: ${expired} 条（超 ${maxAgeHours}h 未接续）`);
+  }
+  return expired;
 }
 
 export async function decayMemories(): Promise<void> {

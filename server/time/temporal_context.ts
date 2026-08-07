@@ -4,6 +4,7 @@ import { getUserNow, getDateString, getDayOfWeekCN, getTimeOfDay, getSeasonInfo,
 import { queryMemories } from '../memory/store';
 import { readDB } from '../../db_layer';
 import sqlite3 from 'sqlite3';
+import { getPeppaDbPath } from '../config/data_path'; // E-3
 
 export interface TemporalContext {
   dateString: string;
@@ -68,7 +69,7 @@ export async function buildTemporalContext(userId: string): Promise<TemporalCont
   let firstInteractionDate = '';
   let daysSinceFirstInteraction = 0;
   try {
-    const peppaDbPath = process.env.DB_PATH || '/app/data/peppa.db';
+    const peppaDbPath = getPeppaDbPath(); // E-3
     const db = new sqlite3.Database(peppaDbPath);
     await new Promise<void>((resolve) => {
       db.get(

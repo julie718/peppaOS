@@ -1,5 +1,5 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 
 // 公共 SearXNG 实例列表（免费、无需 Key）

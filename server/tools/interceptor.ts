@@ -235,5 +235,12 @@ export function applyConstitutionGuard(text: string): GuardResult {
       return { text: cleaned, severity: 'minor', verdict };
     }
   }
+  // P1 修复（R-7）：softenOnly 规则不参与判级（verdict 仍为 pass），但命中时执行温和替换。
+  // 例如"我保证一定帮你搞定" → "我会尽力"；severity 保持 pass，不升级为 minor。
+  const { text: softened, applied: softenedApplied } = sanitizeMinorViolation(text);
+  if (softenedApplied) {
+    logger.info(`[ConstitutionGuard] 温和软化（softenOnly，不判级）: ${softened.length} 字`);
+    return { text: softened, severity: 'pass', verdict };
+  }
   return { text, severity: 'pass', verdict };
 }

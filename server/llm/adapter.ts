@@ -28,6 +28,8 @@ export interface LLMResult {
   text: string;
   toolCalls: ToolExecutionRecord[];
   usageRecords: LLMUsageRecord[];
+  // L-16: 透出本轮最后一次 LLM 的思考链 — 复盘可归档决策链，供对话复盘/自省查证
+  reasoningContent?: string | null;
 }
 
 export interface LLMUsageRecord {
@@ -456,6 +458,8 @@ export async function runWithTools(
     : config.provider;
 
   const effectiveMaxIterations = Math.max(0, Math.min(maxIterations, context?.toolPolicy?.maxIterations ?? maxIterations));
+  // L-16: 跟踪本轮最后一次 LLM 思考链，随结果透出供复盘归档
+  let lastReasoningContent: string | null = null;
   for (let iteration = 0; iteration < effectiveMaxIterations; iteration++) {
     // Check for cancellation between iterations
     if (context?.isCancelled?.()) {
@@ -463,6 +467,7 @@ export async function runWithTools(
         text: 'Task was cancelled by the user.',
         toolCalls: executionLog,
         usageRecords,
+        reasoningContent: lastReasoningContent,
       };
     }
     const lastUserMsg = conversationHistory.filter(m => m.role === 'user').pop();
@@ -515,6 +520,9 @@ export async function runWithTools(
           getGlm || (() => null),
           getRelay || (() => null),
         );
+    // L-16: 捕获本轮思考链（多轮工具迭代时保留最后一轮）
+    if (response.reasoningContent) lastReasoningContent = response.reasoningContent;
+
     const llmDurationS = (Date.now() - llmStart) / 1000;
     recordLatency('llm', llmDurationS * 1000);
 
@@ -551,6 +559,7 @@ export async function runWithTools(
         text: guarded.text,
         toolCalls: executionLog,
         usageRecords,
+        reasoningContent: lastReasoningContent, // L-16
       };
     }
 
@@ -582,6 +591,7 @@ export async function runWithTools(
           text: guarded.text,
           toolCalls: executionLog,
           usageRecords,
+          reasoningContent: lastReasoningContent, // L-16
         };
       }
     }
@@ -633,6 +643,7 @@ export async function runWithTools(
         text: readyWorkProduct,
         toolCalls: executionLog,
         usageRecords,
+        reasoningContent: lastReasoningContent, // L-16
       };
     }
   }
@@ -644,12 +655,14 @@ export async function runWithTools(
       text: readyWorkProduct,
       toolCalls: executionLog,
       usageRecords,
+      reasoningContent: lastReasoningContent, // L-16
     };
   }
   return {
     text: buildIterationLimitSummary(executionLog),
     toolCalls: executionLog,
     usageRecords,
+    reasoningContent: lastReasoningContent, // L-16
   };
 }
 

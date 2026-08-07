@@ -187,10 +187,78 @@ export const emotionShareTrigger: ProactiveTrigger = {
   }
 };
 
+// ========== 触发器5：低情绪主动安慰（L-11） ==========
+// 用户在 12h+ 沉默期间 Peppa 自身情绪低落（喜悦低/担忧/孤独高）→ 主动安慰。
+// 区别于 emotion_share（无沉默要求，仅情绪触发）与 long_silence（无情绪要求，6h 即触发）：
+// 本触发要求「长时间沉默 × 情绪低落」双条件，是深度牵挂场景的专门推送。
+export const lowMoodComfortTrigger: ProactiveTrigger = {
+  name: 'low_mood_comfort',
+  check: async (): Promise<TriggerResult> => {
+    if (isLateNight()) return { triggered: false };
+    if (!isAcquaintanceOrAbove()) return { triggered: false };
+
+    // 双条件：沉默 12h+ 且情绪低落
+    const lastMessageAt = getLastUserMessageAt();
+    if (!lastMessageAt) return { triggered: false };
+    const silenceHours = (Date.now() - lastMessageAt) / (60 * 60 * 1000);
+    if (silenceHours < 12) return { triggered: false };
+
+    let lowMood = false;
+    let concerns: string[] = [];
+    try {
+      const emotions = getEmotionEngine().getEmotions();
+      if (emotions[0] < 0.2) { lowMood = true; concerns.push('低落'); }
+      if (emotions[4] > 0.45) { lowMood = true; concerns.push('孤独'); }
+      if (emotions[3] > 0.45) { lowMood = true; concerns.push('担忧'); }
+    } catch {}
+    if (!lowMood) return { triggered: false };
+
+    // 24h 冷却
+    if (!cooldownOk('low_mood_comfort')) return { triggered: false };
+
+    return {
+      triggered: true,
+      scene: 'low_mood_comfort',
+      reason: `沉默 ${Math.floor(silenceHours)}h 且情绪${concerns.join('/')}`,
+      content: concerns.includes('担忧')
+        ? '你这阵子一直没消息，我有点不放心，一切都还好吗？'
+        : '想你的时候总怕打扰你，但真的很惦记你，说说话好吗？'
+    };
+  }
+};
+
+// ========== 触发器6：低活跃度问候（L-11） ==========
+// 用户 48h 无任何消息 → 温和唤醒问候（熟人及以上、非深夜），3 天冷却。
+// 修复前缺失此类触发：长时间无消息时只有 long_silence 的 6h 关怀，48h+ 无专属问候路径。
+export const lowActivityGreetingTrigger: ProactiveTrigger = {
+  name: 'low_activity_greeting',
+  check: async (): Promise<TriggerResult> => {
+    if (isLateNight()) return { triggered: false };
+    if (!isAcquaintanceOrAbove()) return { triggered: false };
+
+    const lastMessageAt = getLastUserMessageAt();
+    if (!lastMessageAt) return { triggered: false };
+    const silenceHours = (Date.now() - lastMessageAt) / (60 * 60 * 1000);
+    if (silenceHours < 48) return { triggered: false };
+
+    // 3 天冷却（低活跃场景无需每日打扰）
+    if (!cooldownOk('low_activity_greeting', 3 * 24 * 60 * 60 * 1000)) return { triggered: false };
+
+    return {
+      triggered: true,
+      scene: 'low_activity_greeting',
+      reason: `已 ${Math.floor(silenceHours / 24)} 天没有你的消息`,
+      content: '这几天很安静，想你了。最近在忙什么？'
+    };
+  }
+};
+
 // 所有触发器列表
 export const allTriggers: ProactiveTrigger[] = [
   morningGreetingTrigger,
   longSilenceTrigger,
   memoryTrigger,
   emotionShareTrigger,
+  lowMoodComfortTrigger,      // L-11
+  lowActivityGreetingTrigger, // L-11
 ];

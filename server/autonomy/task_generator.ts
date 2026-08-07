@@ -11,6 +11,8 @@ import { readDB } from '../../db_layer';
 import { makeLLMCall, NormalizedMessage } from '../llm/providers';
 import { getRecentActivity } from '../context/activity_stream';
 import { getUserPreferredLLMConfig } from '../llm/user_preferences';
+// L-17: 情绪驱动任务判定 — 情绪低落时生成安抚型自主任务
+import { getEmotionEngine } from '../life/emotions';
 
 interface LLMGetters {
   getDeepSeek: () => any;
@@ -146,6 +148,21 @@ export async function generateAutonomousTasks(
     contextParts.push(`待办事项: ${pendingReminders.join('; ')}`);
   }
 
+  // L-17: 触发来源判定 — 区分 idle/情绪/记忆/上下文驱动，任务可溯源
+  // 修复前 enqueue 一律写死 'curiosity'，无法区分任务由何种状态触发
+  let triggerSource: 'autonomous_idle' | 'autonomous_emotion' | 'autonomous_memory' | 'autonomous_context' = 'autonomous_idle';
+  try {
+    const emotions = getEmotionEngine().getEmotions();
+    if (emotions[0] < 0.2 || emotions[4] > 0.45 || emotions[3] > 0.45) {
+      triggerSource = 'autonomous_emotion'; // 情绪低落 → 安抚/陪伴类任务优先
+    } else if (recentMemories.length > 0) {
+      triggerSource = 'autonomous_memory';  // 有近期记忆沉淀 → 记忆整理/学习类
+    } else if (windowChanges.length > 0 || clipboardEvents.length > 0) {
+      triggerSource = 'autonomous_context'; // 有活跃上下文 → 上下文联动类
+    }
+  } catch { /* 情绪引擎不可用保持 idle */ }
+  contextParts.push(`触发来源: ${triggerSource}`);
+
   if (contextParts.length === 0) return 0;
 
   const prompt = `你是 Peppa 的后台自主学习与任务规划器。根据用户当前的上下文，建议 1-3 个你可以自主完成的小任务。
@@ -185,7 +202,8 @@ ${contextParts.join('\n')}
     const messages: NormalizedMessage[] = [{ role: 'user', content: prompt }];
     const result = await makeLLMCall(
       messages, [],
-      { ...getUserPreferredLLMConfig(userId, { maxTokens: 500 }), scene: 'task_generator' },
+      // L-15: 任务规划降频（调度器 every_2h）+ 轻量模型 — 后台规划无需重型推理
+      { ...getUserPreferredLLMConfig(userId, { maxTokens: 500, scenario: 'light' }), scene: 'task_generator' },
       getters.getDeepSeek, getters.getGemini,
       getters.getOpenAI || (() => null),
       getters.getAnthropic || (() => null),
@@ -225,7 +243,7 @@ ${contextParts.join('\n')}
         planId: plan.id,
         title: t.title.slice(0, 120),
         description: t.description.slice(0, 500),
-        source: 'curiosity',
+        source: triggerSource, // L-17: 区分 idle/情绪/记忆/上下文触发来源
         priority: Math.max(1, Math.min(10, t.priority || 5)),
         mode: requestedMode,
       });

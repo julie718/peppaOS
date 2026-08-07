@@ -4,16 +4,26 @@
 // P0-5: 按真实业务用户 ID 逐用户执行；降权原地修改；合并后物理删除旧记忆；TTL 真删
 
 import { logger } from '../lib/logger';
-import { queryMemories, addMemory, removeMemory, setMemoryImportance } from './store';
+import { queryMemories, removeMemory, setMemoryImportance } from './store';
 
 // ── 配置 ──
 const CONFIG = {
   LOW_FREQ_DAYS: 30,           // 30 天未检索视为低频
   LOW_FREQ_DECAY_FACTOR: 0.5,  // 低频记忆 importance 折半
-  DUPLICATE_SIMILARITY: 0.9,   // 词级/Bigram Jaccard 相似度阈值
+  DUPLICATE_SIMILARITY: 0.9,   // 词级/Bigram Jaccard 相似度阈值（O-4: 实际生效 0.9×0.8=0.72，见下方合并逻辑）
   TTL_EXPIRY_DAYS: 7,          // TTL 过期天数
-  BATCH_SIZE: 50,              // 每用户每次最多处理 50 条
 };
+
+// L-5: 取消每用户 50 条上限 — 全量扫描全部记忆（内存 JSON 存储，一次性取出后分步处理）
+const ALL_MEMORIES_LIMIT = 100000;
+
+// L-5: 核心/成长层豁免 — 身份与成长记忆不参与低频降权、重复合并与 TTL 清理
+const CORE_TIERS = ['core_identity', 'growth'];
+
+/** L-5: 获取某用户全部记忆（含核心层，由调用方按需豁免） */
+function queryAllForUser(userId: string): any[] {
+  return queryMemories({ userId, limit: ALL_MEMORIES_LIMIT, noTouch: true });
+}
 
 // ── TTL 到期检查辅助 ──
 function isTTLExpired(memory: any): boolean {
@@ -67,11 +77,9 @@ function jaccardSimilarity(a: string, b: string): number {
 /** 对单个用户执行一轮记忆降噪 */
 async function gcForUser(userId: string, result: { downweighted: number; merged: number; cleaned: number }): Promise<void> {
   // 1. 低频记忆降权（原地修改 importance，支持真实下降）
-  const lowFreqMemories = queryMemories({
-    userId,
-    limit: CONFIG.BATCH_SIZE,
-    noTouch: true, // P0-5: 巡检查询不刷新 lastRetrievedAt，保证低频判定真实
-  }).filter(mem => {
+  // L-5: 全量扫描（取消 50 条上限）+ core_identity/growth 核心层豁免
+  const lowFreqMemories = queryAllForUser(userId).filter(mem => {
+    if (CORE_TIERS.includes(mem.tier)) return false; // 核心层不降权
     const lastRetrieved = mem.lastRetrievedAt ? new Date(mem.lastRetrievedAt).getTime() : 0;
     const daysSinceLastRetrieval = (Date.now() - lastRetrieved) / 86400000;
     return daysSinceLastRetrieval > CONFIG.LOW_FREQ_DAYS && (mem.importance || 0) > 0.2;
@@ -91,17 +99,19 @@ async function gcForUser(userId: string, result: { downweighted: number; merged:
   }
 
   // 2. 重复记忆合并（保留较新一条并小幅提升权重，物理删除旧副本）
-  const allMemories = queryMemories({ userId, limit: CONFIG.BATCH_SIZE, noTouch: true });
+  const allMemories = queryAllForUser(userId);
   const processed = new Set<string>();
 
   for (let i = 0; i < allMemories.length; i++) {
     const a = allMemories[i];
     if (processed.has(a.id)) continue;
+    if (CORE_TIERS.includes(a.tier)) continue; // L-5: 核心层不参与合并
 
     for (let j = i + 1; j < allMemories.length; j++) {
       const b = allMemories[j];
       if (processed.has(b.id)) continue;
       if (a.tier !== b.tier) continue;
+      if (CORE_TIERS.includes(b.tier)) continue; // L-5: 核心层不参与合并
 
       const jaccard = jaccardSimilarity(a.content, b.content);
       if (jaccard > CONFIG.DUPLICATE_SIMILARITY * 0.8) {
@@ -126,7 +136,8 @@ async function gcForUser(userId: string, result: { downweighted: number; merged:
   }
 
   // 3. TTL 过期清理（物理删除，不再仅计数）
-  const ttlMemories = queryMemories({ userId, limit: CONFIG.BATCH_SIZE, noTouch: true }).filter(isTTLExpired);
+  // L-5: 全量扫描 + 核心层豁免（L-6: 生产链路已写入 [TTL:n天] 标记，此处开始真实触发）
+  const ttlMemories = queryAllForUser(userId).filter(m => !CORE_TIERS.includes(m.tier) && isTTLExpired(m));
   for (const mem of ttlMemories) {
     if (removeMemory(mem.id)) {
       result.cleaned++;

@@ -15,7 +15,8 @@ import { runHealthAudit, HealthReport } from './agents/health_audit';
 import { readDB, writeDB } from '../db_layer';
 import { AgentRuntime, AgentRecord } from './agents/runtime';
 import { personalityRegistry } from './personality';
-import { evolvePersonality, generateReviewPrompt } from './personality/evolution';
+import { evolvePersonality, generateReviewPrompt, shouldEvolve } from './personality/evolution';
+import { getActiveSocketCount } from './core/mainLoop';
 import { loadEmotionalState } from './personality/state';
 import { getSameMonthDayPast, getMonthDayFromISO } from './time/utils';
 import { detectSpatiotemporalPatterns } from './time/spatiotemporal';
@@ -277,6 +278,7 @@ class Scheduler {
       case 'daily_9am': return { type: 'interval', intervalMs: 24 * 60 * 60 * 1000 };
       case 'evening_8pm': return { type: 'interval', intervalMs: 24 * 60 * 60 * 1000 };
       case 'every_30m': return { type: 'interval', intervalMs: 30 * 60 * 1000 };
+      case 'every_2h': return { type: 'interval', intervalMs: 2 * 60 * 60 * 1000 };
       case 'every_7d': return { type: 'interval', intervalMs: 7 * 24 * 60 * 60 * 1000 };
     }
 
@@ -752,6 +754,15 @@ Rules:
           }
 
           const evolutionConfig = personalityRegistry.getEvolutionConfig('peppa');
+
+          // L-3: 冷却门控接线 — shouldEvolve 校验 7 天冷却期（修复前函数无调用方，
+          // 演化仅靠"新记忆≥20条"数据门槛，冷却时间戳形同虚设）
+          const evolveGate = shouldEvolve(config, evolutionConfig);
+          if (!evolveGate.canEvolve) {
+            logger.info(`[Scheduler] 人格演化跳过: ${evolveGate.reason}`);
+            continue;
+          }
+
           const emotionalState = loadEmotionalState(userId);
 
           const step = await evolvePersonality(
@@ -1608,13 +1619,21 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
     },
   });
 
-  // ── Autonomous work cycle (every 10 min) — background task generation + execution ──
+  // ── Autonomous work cycle — background task generation + execution ──
+  // L-15: 待机成本控制 — 原 every_10m（待机 24h ≈ 144 次 LLM 调用）降频为 every_2h（≤12 次/天），
+  // 且用户在线（有 socket 连接）时跳过，避免与用户对话竞争上下文；模型档位见 task_generator 的 light 场景
   scheduler.register({
     id: 'autonomous_work_cycle',
-    cron: 'every_10m',
+    cron: 'every_2h',
     lastRun: null,
     handler: async () => {
       if (!scheduler.io) return null;
+
+      // L-15: 用户活跃期（有在线连接）跳过 — 后台自主任务不打扰对话、不抢占上下文
+      if (getActiveSocketCount() > 0) {
+        logger.info('[AutoTasks] 用户在线，跳过本轮自主工作周期');
+        return null;
+      }
 
       const userIds = getAllUserIds();
       let totalGenerated = 0;

@@ -8,6 +8,8 @@ import { pushNotification } from "../routes/notifications";
 import { recordTokenUsage } from "../llm/token_tracker";
 import { NormalizedMessage } from "../llm/providers";
 import { runWithTools, LLMUsageRecord } from "../llm/adapter";
+// O-1: 任务链路模型档位统一走 user_preferences 配置（修复前直写 'deepseek-v4-pro'/'deepseek-v4-flash'）
+import { DEFAULT_MODELS, COMPLEX_MODELS } from "../llm/user_preferences";
 import { toolRegistry } from "../tools/registry";
 import { queryMemories, addMemory, addReminder, extractMemories } from "../memory";
 import { loadEmotionalState, saveEmotionalState, updateEmotionalState, vectorMemoryBias } from "../personality/state";
@@ -82,14 +84,14 @@ export function registerTaskHandler(
       } catch {}
       return { provider: '', models: {} };
     })();
-    const DEFAULT_MODELS: Record<string, string> = {
+    const FALLBACK_MODELS: Record<string, string> = {
       deepseek: 'deepseek-chat', qwen: 'qwen-plus', openai: 'gpt-4o',
       gemini: 'gemini-2.0-flash', anthropic: 'claude-sonnet-4-6',
       ark: 'doubao-1-5-pro-32k', xiaomi: 'xiaomi-chat', kimi: 'moonshot-v1-8k',
       glm: 'glm-4-plus', relay: 'gpt-4o', ollama: 'qwen2.5:7b', lmstudio: 'local-model',
     };
     let activeProvider = userLLMPrefs.provider || 'deepseek';
-    let activeModel = (userLLMPrefs.models || {})[activeProvider] || DEFAULT_MODELS[activeProvider] || 'deepseek-chat';
+    let activeModel = (userLLMPrefs.models || {})[activeProvider] || FALLBACK_MODELS[activeProvider] || 'deepseek-chat';
 
     // ── Load persisted conversation history (survives page reload) ──
     const workSurfaceRoute = resolveWorkSurfaceRoute(data.text);
@@ -154,7 +156,7 @@ export function registerTaskHandler(
       const complexCategories = ['command', 'code', 'question', 'analysis'];
       const isComplex = complexCategories.includes(cognition.intent.category);
       if (activeProvider === 'deepseek') {
-        activeModel = isComplex ? 'deepseek-v4-pro' : (activeModel === 'deepseek-chat' ? 'deepseek-v4-flash' : activeModel);
+        activeModel = isComplex ? COMPLEX_MODELS.deepseek : (activeModel === 'deepseek-chat' ? DEFAULT_MODELS.deepseek : activeModel); // O-1
       } else if (activeProvider === 'qwen') {
         activeModel = isComplex ? 'qwen-max' : 'qwen-plus';
       } else if (activeProvider === 'gemini') {

@@ -7,6 +7,7 @@
 // 3. 关系叙事 — 自然语言描述关系状态与变化
 
 import { getRelationshipEngine } from './relationship';
+import { getPeppaDbPath } from '../config/data_path'; // E-3
 import { getEmotionEngine } from './emotions';
 import { getPersonalityEngine } from './personality';
 
@@ -453,7 +454,7 @@ export async function calibrateRelationshipStage(): Promise<string> {
   // 尝试从 peppa.db 获取更准确的交互总数
   try {
     const sqlite3 = (await import('sqlite3')).default;
-    const peppaDbPath = process.env.DB_PATH || '/app/data/peppa.db';
+    const peppaDbPath = getPeppaDbPath(); // E-3
     const peppaDb = new sqlite3.Database(peppaDbPath);
     const row = await new Promise<any>((resolve, reject) => {
       peppaDb.get('SELECT COUNT(*) as cnt FROM interactions WHERE role = ?', ['user'], (err, row) => {

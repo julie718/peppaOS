@@ -6,6 +6,7 @@ import { queryMemories, queryMemoriesVector } from './store';
 import { Memory } from './types';
 import { logger } from '../lib/logger';
 import sqlite3 from 'sqlite3';
+import { getPeppaDbPath } from '../config/data_path'; // E-3: 统一路径解析（含父目录预创建）
 
 export interface RankedMemory {
   memory: Memory;
@@ -82,7 +83,7 @@ export async function retrieveRelevantMemories(
   limit: number = 5,
 ): Promise<InteractionMemory[]> {
   const start = Date.now();
-  const peppaDbPath = process.env.DB_PATH || '/app/data/peppa.db';
+  const peppaDbPath = getPeppaDbPath(); // E-3
 
   let db: sqlite3.Database | null = null;
 
@@ -103,47 +104,61 @@ export async function retrieveRelevantMemories(
             return;
           }
 
-          // 提取关键词
-          const keywords = extractKeywords(text);
-          if (keywords.length === 0) {
-            clearTimeout(timeout);
-            // 回退：返回最近 N 条记录
-            fallbackRecent(db!, limit, resolve, timeout);
-            return;
-          }
+          // E-3: 全新库静默降级 — interactions 表尚未创建时（首次启动未初始化）
+          // 直接返回空数组，不产生 "no such table" WARN 噪音（修复前每轮对话刷 WARN）
+          db!.get(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='interactions'",
+            (tableErr, tableRow) => {
+              if (tableErr || !tableRow) {
+                clearTimeout(timeout);
+                db!.close();
+                resolve([]);
+                return;
+              }
 
-          // 构建关键词 LIKE 查询
-          const likeClauses = keywords.map(() => "message LIKE ?").join(' OR ');
-          const likeParams = keywords.map(k => `%${k}%`);
-          const sql = `SELECT id, message, response, timestamp FROM interactions WHERE ${likeClauses} AND role = 'user' ORDER BY timestamp DESC LIMIT ?`;
-          const params = [...likeParams, Math.max(limit * 3, 20)];
+              // 提取关键词
+              const keywords = extractKeywords(text);
+              if (keywords.length === 0) {
+                clearTimeout(timeout);
+                // 回退：返回最近 N 条记录
+                fallbackRecent(db!, limit, resolve, timeout);
+                return;
+              }
 
-          db!.all(sql, params, (err2, rows: any[]) => {
-            clearTimeout(timeout);
-            if (err2) {
-              logger.warn('[Retriever] interactions 查询失败:', err2.message);
-              resolve([]);
-              return;
-            }
+              // 构建关键词 LIKE 查询
+              const likeClauses = keywords.map(() => "message LIKE ?").join(' OR ');
+              const likeParams = keywords.map(k => `%${k}%`);
+              const sql = `SELECT id, message, response, timestamp FROM interactions WHERE ${likeClauses} AND role = 'user' ORDER BY timestamp DESC LIMIT ?`;
+              const params = [...likeParams, Math.max(limit * 3, 20)];
 
-            if (!rows || rows.length === 0) {
-              // 回退：返回最近 N 条记录
-              fallbackRecent(db!, limit, resolve, null);
-              return;
-            }
+              db!.all(sql, params, (err2, rows: any[]) => {
+                clearTimeout(timeout);
+                if (err2) {
+                  logger.warn('[Retriever] interactions 查询失败:', err2.message);
+                  resolve([]);
+                  return;
+                }
 
-            // 计算相似度并排序
-            const scored = rows.map((row: any) => ({
-              id: row.id,
-              message: row.message || '',
-              response: row.response || '',
-              timestamp: row.timestamp || '',
-              similarity: keywordSimilarity(text, row.message || ''),
-            }));
+                if (!rows || rows.length === 0) {
+                  // 回退：返回最近 N 条记录
+                  fallbackRecent(db!, limit, resolve, null);
+                  return;
+                }
 
-            scored.sort((a, b) => b.similarity - a.similarity);
-            resolve(scored.slice(0, limit));
-          });
+                // 计算相似度并排序
+                const scored = rows.map((row: any) => ({
+                  id: row.id,
+                  message: row.message || '',
+                  response: row.response || '',
+                  timestamp: row.timestamp || '',
+                  similarity: keywordSimilarity(text, row.message || ''),
+                }));
+
+                scored.sort((a, b) => b.similarity - a.similarity);
+                resolve(scored.slice(0, limit));
+              });
+            },
+          );
         });
       } catch (e: any) {
         clearTimeout(timeout);

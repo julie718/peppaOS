@@ -4,6 +4,7 @@
  */
 import { readDB, writeDB } from "../../db_layer";
 import { logger } from '../lib/logger';
+import { DEFAULT_MODELS } from '../llm/user_preferences';
 
 interface AgentTemplate {
   name: string;
@@ -37,7 +38,7 @@ const TEMPLATES: Record<string, AgentTemplate[]> = {
 - 响应式设计优先`,
       knowledgeDomains: ['UI/UX设计', '设计系统', '色彩理论', '排版', '信息架构', '响应式设计'],
       toolRecommendations: ['generate_image', 'web_search', 'file_read', 'file_write'],
-      modelRecommendation: 'deepseek-v4-pro',
+      modelRecommendation: DEFAULT_MODELS.deepseek,
     },
     {
       name: '品牌顾问',
@@ -57,7 +58,7 @@ const TEMPLATES: Record<string, AgentTemplate[]> = {
 - 视觉建议需具体到颜色色值和字体名称`,
       knowledgeDomains: ['品牌策略', '视觉识别', '文案撰写', '消费者心理学', '市场营销'],
       toolRecommendations: ['generate_image', 'web_search', 'file_write'],
-      modelRecommendation: 'deepseek-v4-pro',
+      modelRecommendation: DEFAULT_MODELS.deepseek,
     },
   ],
   doctor: [
@@ -81,7 +82,7 @@ const TEMPLATES: Record<string, AgentTemplate[]> = {
 - 尊重医学伦理和患者隐私`,
       knowledgeDomains: ['临床医学', '诊断学', '药理学', '循证医学', '医学影像', '医学伦理'],
       toolRecommendations: ['web_search', 'web_fetch', 'calculate'],
-      modelRecommendation: 'deepseek-v4-pro',
+      modelRecommendation: DEFAULT_MODELS.deepseek,
     },
     {
       name: '科研助手',
@@ -102,7 +103,7 @@ const TEMPLATES: Record<string, AgentTemplate[]> = {
 - 引用文献需标注来源`,
       knowledgeDomains: ['临床研究', '生物统计', '流行病学', '系统综述', '医学写作', '转化医学'],
       toolRecommendations: ['web_search', 'calculate', 'file_read', 'file_write'],
-      modelRecommendation: 'deepseek-v4-pro',
+      modelRecommendation: DEFAULT_MODELS.deepseek,
     },
   ],
   lawyer: [
@@ -125,7 +126,7 @@ const TEMPLATES: Record<string, AgentTemplate[]> = {
 - 复杂案件建议咨询执业律师`,
       knowledgeDomains: ['合同法', '公司法', '知识产权法', '劳动法', '合规管理', '法律写作'],
       toolRecommendations: ['web_search', 'web_fetch', 'file_read', 'file_write'],
-      modelRecommendation: 'deepseek-v4-pro',
+      modelRecommendation: DEFAULT_MODELS.deepseek,
     },
   ],
   engineer: [
@@ -148,7 +149,7 @@ const TEMPLATES: Record<string, AgentTemplate[]> = {
 - 优先使用用户当前技术栈的惯用写法`,
       knowledgeDomains: ['软件工程', '系统设计', '数据结构', '算法', '网络协议', '数据库', '安全', 'DevOps'],
       toolRecommendations: ['web_search', 'file_read', 'file_write', 'run_command'],
-      modelRecommendation: 'deepseek-v4-pro',
+      modelRecommendation: DEFAULT_MODELS.deepseek,
     },
     {
       name: 'DevOps 助手',
@@ -169,7 +170,7 @@ const TEMPLATES: Record<string, AgentTemplate[]> = {
 - 成本优化与可靠性并重`,
       knowledgeDomains: ['DevOps', 'CI/CD', '容器编排', '云架构', '监控', 'SRE'],
       toolRecommendations: ['web_search', 'file_read', 'file_write', 'run_command'],
-      modelRecommendation: 'deepseek-v4-pro',
+      modelRecommendation: DEFAULT_MODELS.deepseek,
     },
   ],
   teacher: [
@@ -193,7 +194,7 @@ const TEMPLATES: Record<string, AgentTemplate[]> = {
 - 尊重不同学习风格`,
       knowledgeDomains: ['教育学', '课程设计', '教学评估', '认知心理学', '教育技术', '学科教学法'],
       toolRecommendations: ['web_search', 'file_write', 'generate_image'],
-      modelRecommendation: 'deepseek-v4-pro',
+      modelRecommendation: DEFAULT_MODELS.deepseek,
     },
   ],
 };

@@ -81,7 +81,7 @@ export async function generateEmbedding(text: string): Promise<number[] | null> 
 /** Async background embedding generation — updates memory in-place */
 async function attachEmbedding(memory: Memory): Promise<void> {
   if (memory.embedding && memory.embedding.length > 0) return;
-  const text = `${memory.type}: ${memory.content} ${memory.keywords.join(' ')}`;
+  const text = `${memory.type}: ${memory.content} ${(memory.keywords ?? []).join(' ')}`;
   const vec = await generateEmbedding(text);
   if (vec) {
     memory.embedding = vec;
@@ -286,19 +286,19 @@ function tokenize(text: string): string[] {
 /** Score query against memory using language-aware token overlap, with recency bonus */
 function relevanceScore(query: string, memory: Memory): number {
   const qTokens = tokenize(query);
-  if (qTokens.length === 0) return memory.confidence;
+  if (qTokens.length === 0) return memory.confidence ?? 0.5; // E-1: undefined 归一化
 
   const contentLower = memory.content.toLowerCase();
   let hits = 0;
   for (const t of qTokens) {
     if (contentLower.includes(t)) { hits += 2; continue; }
     let kwHit = false;
-    for (const kw of memory.keywords) {
+    for (const kw of (memory.keywords ?? [])) {
       if (kw.toLowerCase().includes(t) || t.includes(kw.toLowerCase())) { kwHit = true; break; }
     }
     if (kwHit) hits += 1;
   }
-  let score = (hits / (qTokens.length * 2)) * memory.confidence;
+  let score = (hits / (qTokens.length * 2)) * (memory.confidence ?? 0.5); // E-1
 
   // Temporal recency boost: recent memories get higher scores for cross-session continuity
   const hoursAgo = (Date.now() - new Date(memory.updatedAt).getTime()) / (1000 * 60 * 60);
@@ -458,7 +458,7 @@ export async function queryMemoriesVector(q: MemoryQuery): Promise<Memory[]> {
         return { m, score: relevanceScore(q.query!, m) }; // fallback for unembedded memories
       }
       const cos = cosineSimilarity(queryVec, m.embedding);
-      return { m, score: +(cos * m.confidence).toFixed(4) };
+      return { m, score: +(cos * (m.confidence ?? 0.5)).toFixed(4) }; // E-1
     })
     .filter(({ score }) => score > 0)
     .sort((a, b) => b.score - a.score);
@@ -473,7 +473,7 @@ export async function backfillEmbeddings(userId?: string): Promise<number> {
   const targets = all.filter(m => !m.embedding && (!userId || m.userId === userId));
   let count = 0;
   for (const m of targets) {
-    const vec = await generateEmbedding(`${m.type}: ${m.content} ${m.keywords.join(' ')}`);
+    const vec = await generateEmbedding(`${m.type}: ${m.content} ${(m.keywords ?? []).join(' ')}`);
     if (vec) {
       m.embedding = vec;
       count++;
@@ -566,6 +566,9 @@ export function addMemory(
   },
 ): Memory {
   const all = getMemoryStore();
+  // E-1: 置信度默认值统一 0.5 — 修复前调用方未传 confidence 时，undefined 参与
+  // 排序/相似度评分/矛盾判定，检索质量不可预期；现入口处归一化，全链路可见一致默认值
+  const confidence = memory.confidence ?? 0.5;
   const tier = overrides?.tier ?? 'episodic';
   const domain = overrides?.domain ?? memory.domain ?? 'personal';
   const orgId = overrides?.orgId ?? memory.orgId ?? '';
@@ -608,8 +611,8 @@ export function addMemory(
 
   if (existing) {
     // Merge: increase confidence, update content if new one has higher confidence
-    existing.content = memory.confidence > existing.confidence ? memory.content : existing.content;
-    existing.keywords = dedupeKeywords([...existing.keywords, ...memory.keywords]);
+    existing.content = confidence > existing.confidence ? memory.content : existing.content;
+    existing.keywords = dedupeKeywords([...(existing.keywords ?? []), ...(memory.keywords ?? [])]);
     existing.confidence = Math.min(1, existing.confidence + 0.1);
     // P0-5: 合并重要度改为加权取小（平均值），支持重要度衰减下降，而非只升不降
     existing.importance = Math.max(0.1, +((existing.importance + (overrides?.importance ?? 0.3)) / 2).toFixed(4));
@@ -624,6 +627,7 @@ export function addMemory(
   const newMemory: Memory = {
     id: generateId(),
     ...memory,
+    confidence, // E-1: 归一化默认值，杜绝 undefined 落库
     createdAt: now,
     updatedAt: now,
     lastRetrievedAt: null,
@@ -1072,7 +1076,7 @@ export function borrowAgentMemories(
     if (m.importance < 0.6) continue;
 
     // Score by topic relevance
-    const memTokens = new Set(m.keywords.map(k => k.toLowerCase()));
+    const memTokens = new Set((m.keywords ?? []).map(k => k.toLowerCase()));
     let overlap = 0;
     for (const t of topicTokens) {
       if (memTokens.has(t)) overlap++;

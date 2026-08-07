@@ -21,7 +21,7 @@ import { runOrchestratedTask, classifyComplexity, type LlmGetters } from "../age
 import { queryMemories, addMemory } from "../memory/store";
 import { matchQuickCommand } from "../cognition/quick_commands";
 import { recordTokenUsage } from "../llm/token_tracker";
-import { DEFAULT_MODELS, getScopedPreferredLLM, getUserPreferredLLMConfig } from "../llm/user_preferences";
+import { DEFAULT_MODELS, COMPLEX_MODELS, getScopedPreferredLLM, getUserPreferredLLMConfig } from "../llm/user_preferences";
 import { getOperationModeConfig, parseStoredOperationMode, OperationMode } from "../cognition/operation_modes";
 import { hasClientActionOnlyIntent, hasExplicitToolIntent, isDiagnosticOrRepairRequest, shouldAllowToolUseForTurn, shouldExposeAgentWork } from "../cognition/tool_intent";
 import { resolveWorkSurfaceRoute } from "../cognition/work_surface";
@@ -466,7 +466,8 @@ async function processVoiceInput(
   const userLLMPrefs = getScopedPreferredLLM(session.userId, voiceScope);
   const provider = userLLMPrefs.provider || 'deepseek';
   const voiceModel = (userLLMPrefs.models || {})[provider]
-    || (provider === 'deepseek' ? 'deepseek-v4-pro' : DEFAULT_MODELS[provider])
+    // O-1: 语音链路高档位模型统一走 COMPLEX_MODELS 配置（修复前直写 'deepseek-v4-pro'）
+    || COMPLEX_MODELS[provider]
     || userLLMPrefs.model
     || 'deepseek-chat';
 
@@ -804,7 +805,7 @@ async function processVoiceInput(
     const isComplex = complexCategories.includes(cognition.intent.category);
     let effectiveModel = voiceModel;
     if (provider === 'deepseek') {
-      effectiveModel = isComplex ? 'deepseek-v4-pro' : 'deepseek-v4-flash';
+      effectiveModel = isComplex ? COMPLEX_MODELS.deepseek : DEFAULT_MODELS.deepseek; // O-1
     }
     logger.info(`[Audio] Cognition: ${cognition.intent.category} (confidence: ${cognition.intent.confidence}), model: ${effectiveModel}`);
 

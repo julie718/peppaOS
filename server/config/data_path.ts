@@ -23,3 +23,17 @@ export function getDataPath(relativePath: string): string {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   return full;
 }
+
+/**
+ * E-3: peppa.db 路径统一解析 — 修复前 7 处直写 `process.env.DB_PATH || '/app/data/peppa.db'`，
+ * 父目录不存在时 sqlite3 抛 SQLITE_CANTOPEN 未捕获异常，全新环境启动直接崩溃。
+ * 统一出口：先确保父目录存在再返回路径（Docker 内 /app/data 已存在，行为不变）。
+ */
+export function getPeppaDbPath(): string {
+  const p = process.env.DB_PATH || '/app/data/peppa.db';
+  try {
+    const dir = path.dirname(p);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  } catch {}
+  return p;
+}

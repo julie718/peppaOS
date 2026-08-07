@@ -5,7 +5,9 @@ import { getPersonalityEngine } from './personality';
 
 const DIM_LABELS = ['愉悦', '平静', '期待', '担忧', '孤独', '满足', '好奇', '牵挂'] as const;
 const BASELINE: number[] = [0.30, 0.60, 0.20, 0.10, 0.15, 0.30, 0.40, 0.25];
-const DECAY_RATE = 0.05; // 每tick衰减5%
+// L-1: 移除向 0 衰减 5% 的双机制叠加 — 该组合稳态 = (0.02/0.07)·B ≈ 0.286·B，基线名存实亡。
+// 改为单机制：每维以 3% 速率向自身 BASELINE 指数收敛，稳态严格等于基线 B。
+const BASELINE_CONVERGE_RATE = 0.03; // 每tick向基线收敛3%
 const EMOTION_FLOOR = 0.05; // 情绪地板值：每个维度不低于 0.05
 const HIGH_EMOTION_THRESHOLD = 0.8;
 const HIGH_EMOTION_DURATION_MS = 86400000; // 24小时
@@ -87,40 +89,35 @@ export class EmotionEngine {
     console.log(`[Emotions] ${before.map(v=>v.toFixed(2)).join(',')} → ${this.vector.map(v=>v.toFixed(2)).join(',')}`);
   }
 
-  /** 每10分钟tick：衰减 + 缓慢影响 */
+  /** 每10分钟tick：基线收敛 + 缓慢影响 */
   async tickEmotions(perceptionVector?: number[]): Promise<void> {
-    // 1. 所有情绪向0衰减5%
-    const decayDelta = this.vector.map(v => -v * DECAY_RATE);
+    // L-1: 情绪基线收敛 — 每维以 3% 速率向自身 BASELINE 回归（单一收敛机制，稳态严格等于基线 B）
+    // 修复前：向 0 衰减 5% + 向基线回弹 2% 双机制叠加 → 稳态 = 0.286×基线，且低于 0.1 的恢复永不触发
+    const baselinePull = this.vector.map((v, i) => (BASELINE[i] - v) * BASELINE_CONVERGE_RATE);
 
-    // P1-12: 基线回弹 — 每维以 2% 速率向自身 BASELINE 回归
-    // 原逻辑只向 0 衰减：负面情绪可长期堆积、正面情绪可长期停滞，回不到各自基线。
-    // 保留原始 DECAY_RATE=0.05 不变，回弹作为独立机制叠加，与衰减合并进同一次落库。
-    const baselinePull = this.vector.map((v, i) => (BASELINE[i] - v) * 0.02);
-
-    // 2. 人格影响：好奇心高 → 好奇衰减更慢（仅作用于衰减分量，不影响基线回弹）
+    // 2. 人格影响：好奇心高 → 好奇收敛更慢（保留原"好奇心越高衰减越慢"语义）
     try {
       const curiosity = getPersonalityEngine().getPersonality()[6];
       if (curiosity > 0.6) {
-        decayDelta[6] *= (1 - (curiosity - 0.6)); // 好奇心越高，好奇情绪衰减越慢
+        baselinePull[6] *= (1 - (curiosity - 0.6)); // 好奇心越高，好奇情绪越贴近当前值（收敛放缓）
       }
     } catch {}
 
-    await this.updateEmotions(decayDelta.map((d, i) => d + baselinePull[i]));
+    await this.updateEmotions(baselinePull);
 
-    // 3. 基线恢复机制：好奇心(index=6)和宁静(index=1)低于 0.1 时每 tick 恢复 0.001
+    // 3. L-14: 低值恢复机制 — 阈值与基线联动（低于各自基线 30% 时每 tick 额外回暖 0.001）
+    // 修复前：阈值 0.1 高于旧稳态 0.143 → 恢复代码恒不执行（死代码）；现稳态=基线，阈值按基线比例可触发
     const recoveryDelta = new Array(8).fill(0);
     let recovered = false;
-    if (this.vector[6] < 0.1) {
-      recoveryDelta[6] += 0.001;
-      recovered = true;
-    }
-    if (this.vector[1] < 0.1) {
-      recoveryDelta[1] += 0.001;
-      recovered = true;
+    for (const dim of [6, 1]) {
+      if (this.vector[dim] < BASELINE[dim] * 0.3) {
+        recoveryDelta[dim] += 0.001;
+        recovered = true;
+      }
     }
     if (recovered) {
       await this.updateEmotions(recoveryDelta);
-      console.log(`[Emotions] 🌱 基线恢复: 好奇心=${this.vector[6].toFixed(4)} 平静=${this.vector[1].toFixed(4)}`);
+      console.log(`[Emotions] 🌱 低值回暖: 好奇心=${this.vector[6].toFixed(4)} 平静=${this.vector[1].toFixed(4)}`);
     }
 
     // 4. 感知特征向量的缓慢影响（如果有）

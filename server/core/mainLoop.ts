@@ -33,6 +33,11 @@ export function notifySocketDisconnect(): void {
   activeSocketCount = Math.max(0, activeSocketCount - 1);
 }
 
+/** L-15: 当前在线 socket 数 — 待机任务据此判断是否处于用户活跃期 */
+export function getActiveSocketCount(): number {
+  return activeSocketCount;
+}
+
 /** Interrupt any running background task — called before processing user message */
 export function preemptBackgroundTask(): void {
   if (abortController) {

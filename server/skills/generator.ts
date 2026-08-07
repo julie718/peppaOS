@@ -79,8 +79,8 @@ const SKILL_TEMPLATE = `/**
  * Generated at: {timestamp}
  * Generator: Peppa Skill SDK
  */
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { createRequire } from 'module';
 import { z } from 'zod';
 import fs from 'fs/promises';

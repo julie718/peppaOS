@@ -5,6 +5,7 @@
 import { logger } from '../lib/logger';
 import sqlite3 from 'sqlite3';
 import { bumpPreferenceTag, demotePreferenceTag } from '../db/lifeDb';
+import { getPeppaDbPath } from '../config/data_path'; // E-3
 
 export interface CrossSessionMemory {
   key: string;
@@ -14,7 +15,7 @@ export interface CrossSessionMemory {
 
 // ── DB path & table init ──
 
-const peppaDbPath = process.env.DB_PATH || '/app/data/peppa.db';
+const peppaDbPath = getPeppaDbPath(); // E-3
 
 function ensureTable(db: sqlite3.Database): Promise<void> {
   return new Promise((resolve) => {
