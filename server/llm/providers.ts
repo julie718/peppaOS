@@ -832,6 +832,7 @@ async function makeLLMCallStreamingCore(
     }
 
     const usage = extractUsage({ usage: streamUsage });
+    recordLLMMetrics(config.provider, config.model, usage, _start, { scene: config.scene });
 
     const text = accumulatedText.length > 0 ? accumulatedText.join('') : null;
     const reasoningContent = accumulatedReasoning.length > 0 ? accumulatedReasoning.join('') : null;
@@ -888,6 +889,7 @@ async function makeLLMCallStreamingCore(
     // Also check the aggregated response for function calls + usage
     const aggregated = await result.response;
     const parsed = parseGeminiResponse(aggregated);
+    recordLLMMetrics(config.provider, config.model, parsed.usage, _start, { scene: config.scene });
 
     return {
       text: accumulatedText.length > 0 ? accumulatedText.join('') : parsed.text,
@@ -956,10 +958,13 @@ async function makeLLMCallStreamingCore(
       }
     }
 
+    const finalUsage = extractUsage(finalMessage);
+    recordLLMMetrics(config.provider, config.model, finalUsage, _start, { scene: config.scene });
+
     return {
       text: textParts.length > 0 ? textParts.join('') : null,
       toolCalls: toolCalls.length > 0 ? toolCalls : null,
-      usage: extractUsage(finalMessage),
+      usage: finalUsage,
     };
   }
 
