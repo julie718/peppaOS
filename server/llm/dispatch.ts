@@ -47,7 +47,7 @@ async function tryLocal(
     const result = await makeLLMCall(
       messages,
       toolDeclarations,
-      { provider: 'ollama', model: localModel, maxTokens: config.maxTokens, userId: config.userId, signal: config.signal },
+      { provider: 'ollama', model: localModel, maxTokens: config.maxTokens, userId: config.userId, signal: config.signal , scene: 'dispatch_ollama'},
       getters.getDeepSeek, getters.getGemini, getters.getOpenAI, getters.getAnthropic, getters.getQwen, getters.getOllama, getters.getLmStudio,
     );
     if (result.text || result.toolCalls) return result;
@@ -85,7 +85,7 @@ export async function dispatchLLMCall(
   const cloudResult = await makeLLMCall(
     messages,
     toolDeclarations,
-    { provider: provider as any, model, maxTokens: config.maxTokens, userId: config.userId, signal: config.signal },
+    { provider: provider as any, model, maxTokens: config.maxTokens, userId: config.userId, signal: config.signal , scene: 'dispatch_cloud'},
     getters.getDeepSeek, getters.getGemini, getters.getOpenAI, getters.getAnthropic, getters.getQwen, getters.getOllama, getters.getLmStudio,
   );
 

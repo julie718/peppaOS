@@ -120,7 +120,7 @@ export async function extractMemories(
     const response = await makeLLMCall(
       messages,
       [],
-      { provider: ctx.provider, model: ctx.model, maxTokens: 1024, userId: ctx.userId, domain: ctx.domain, orgId: ctx.orgId },
+      { provider: ctx.provider, model: ctx.model, maxTokens: 1024, userId: ctx.userId, domain: ctx.domain, orgId: ctx.orgId , scene: 'extract'},
       getDeepSeek,
       getGemini,
       getOpenAI,

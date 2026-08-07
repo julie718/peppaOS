@@ -219,7 +219,7 @@ async function synthesizeDream(
   const result = await makeLLMCall(
     messages,
     [],
-    { provider: ctx.provider, model: ctx.model, maxTokens: 900, userId: ctx.userId },
+    { provider: ctx.provider, model: ctx.model, maxTokens: 900, userId: ctx.userId , scene: 'dream'},
     getters.getDeepSeek,
     getters.getGemini,
     getters.getOpenAI,

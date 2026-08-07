@@ -158,7 +158,7 @@ async function callVisionModel(
 
   const result = await makeLLMCall(
     messages, [],
-    { provider, model, maxTokens: 400, userId },
+    { provider, model, maxTokens: 400, userId , scene: 'agent_computer_use'},
     g.getDeepSeek?.() || (() => null),
     g.getGemini?.() || (() => null),
     g.getOpenAI,

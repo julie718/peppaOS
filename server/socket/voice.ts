@@ -771,7 +771,7 @@ async function processVoiceInput(
       const result = await makeLLMCall(
         [{ role: 'system', content: prompt }, { role: 'user', content: userText }],
         [],
-        { provider, model: classifierModel, userId: session.userId, domain: voiceScope.domain, orgId: voiceScope.orgId, maxTokens: 60 },
+        { provider, model: classifierModel, userId: session.userId, domain: voiceScope.domain, orgId: voiceScope.orgId, maxTokens: 60 , scene: 'voice_classifier'},
         llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
         llmGetters.getOllama, llmGetters.getLmStudio, llmGetters.getArk, llmGetters.getXiaomi, llmGetters.getKimi, llmGetters.getGlm, llmGetters.getRelay,
       );
@@ -1501,7 +1501,7 @@ export function registerVoiceHandlers(
     ].filter(Boolean).join('\n');
 
     try {
-      const greetingLLM = getUserPreferredLLMConfig(session.userId, { maxTokens: 120, domain: session.domain, orgId: session.orgId });
+      const greetingLLM = { ...getUserPreferredLLMConfig(session.userId, { maxTokens: 120, domain: session.domain, orgId: session.orgId }), scene: 'voice_greet' };
       const response = await makeLLMCall(
         [{ role: 'user', content: greetingPrompt }],
         [],

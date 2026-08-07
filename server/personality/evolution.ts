@@ -301,7 +301,7 @@ ${memoryTexts}`;
       if (!model) continue;
       try {
         result = await makeLLMCall(
-          messages, [], { provider, model },
+          messages, [], { provider, model, scene: 'evolution' },
           getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
         );
         succeeded = true;

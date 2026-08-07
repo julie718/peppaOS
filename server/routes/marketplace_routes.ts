@@ -376,7 +376,7 @@ export function mountMarketplaceRoutes(
         const response = await makeLLMCall(
           messages,
           [],
-          getUserPreferredLLMConfig(userId, { maxTokens: 4096 }),
+          { ...getUserPreferredLLMConfig(userId, { maxTokens: 4096 }), scene: 'marketplace' },
           llmGetters.getDeepSeek,
           llmGetters.getGemini,
           llmGetters.getOpenAI,

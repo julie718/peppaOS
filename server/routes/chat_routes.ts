@@ -322,7 +322,7 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
     const result = await makeLLMCall(
       [{ role: 'user', content: prompt }],
       [],
-      { provider, model, maxTokens: 1800, userId },
+      { provider, model, maxTokens: 1800, userId , scene: 'chat_route'},
       llm.getDeepSeek, llm.getGemini, llm.getOpenAI, llm.getAnthropic, llm.getQwen,
     );
 

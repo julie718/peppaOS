@@ -185,7 +185,7 @@ ${contextParts.join('\n')}
     const messages: NormalizedMessage[] = [{ role: 'user', content: prompt }];
     const result = await makeLLMCall(
       messages, [],
-      getUserPreferredLLMConfig(userId, { maxTokens: 500 }),
+      { ...getUserPreferredLLMConfig(userId, { maxTokens: 500 }), scene: 'task_generator' },
       getters.getDeepSeek, getters.getGemini,
       getters.getOpenAI || (() => null),
       getters.getAnthropic || (() => null),

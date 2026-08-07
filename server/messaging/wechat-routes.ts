@@ -140,7 +140,7 @@ async function processWeChatMessage(
   if (!llm) return { text: `收到你的消息："${msg.text.slice(0, 60)}"。当前 AI 服务未配置。` };
 
   try {
-    const config = getUserPreferredLLMConfig(msg.userId || 'anonymous', { maxTokens: 500 });
+    const config = { ...getUserPreferredLLMConfig(msg.userId || 'anonymous', { maxTokens: 500 }), scene: 'wechat' };
     const messages: NormalizedMessage[] = [
       { role: 'system', content: DEFAULT_SYSTEM_PROMPT },
       { role: 'user', content: msg.text },

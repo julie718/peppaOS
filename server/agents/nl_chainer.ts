@@ -112,7 +112,7 @@ async function planTask(
     const result = await makeLLMCall(
       messages,
       [],
-      { provider: provider as any, model, userId, maxTokens: 1500 },
+      { provider: provider as any, model, userId, maxTokens: 1500 , scene: 'agent_nl_chainer'},
       llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
     );
 
@@ -243,7 +243,7 @@ async function synthesizeResponse(
     const result = await makeLLMCall(
       messages,
       [],
-      { provider: provider as any, model, userId, maxTokens: 1000 },
+      { provider: provider as any, model, userId, maxTokens: 1000 , scene: 'agent_nl_chainer'},
       llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
     );
     return result.text || buildSimpleSummary(stepResults);
@@ -356,7 +356,7 @@ If no suitable alternative exists, output: { "toolName": "" }`;
       const result = await makeLLMCall(
         [{ role: 'user', content: prompt }],
         [],
-        { provider: config.provider as any, model: config.model, userId: config.userId, maxTokens: 400 },
+        { provider: config.provider as any, model: config.model, userId: config.userId, maxTokens: 400 , scene: 'agent_nl_chainer'},
         llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
       );
       const jsonMatch = result.text?.match(/\{[\s\S]*\}/);

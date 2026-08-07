@@ -194,7 +194,7 @@ ${topTools(allTools).map(t => `- ${t.name} (${t.count}x)`).join('\n')}
     const response = await makeLLMCall(
       messages,
       [],
-      { provider, model, maxTokens: 2048, userId: request.userId || 'skill_gen' },
+      { provider, model, maxTokens: 2048, userId: request.userId || 'skill_gen' , scene: 'skill_gen'},
       getDeepSeek,
       getGemini,
       getOpenAI,
@@ -224,7 +224,7 @@ ${topTools(allTools).map(t => `- ${t.name} (${t.count}x)`).join('\n')}
         try {
           const convResponse = await makeLLMCall(
             conversionMessages, [],
-            { provider, model, maxTokens: 2048, userId: request.userId || 'skill_gen' },
+            { provider, model, maxTokens: 2048, userId: request.userId || 'skill_gen' , scene: 'skill_gen'},
             getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
           );
           const convText = convResponse.text || '';
@@ -346,7 +346,7 @@ Return ONLY a JSON object with "handlerCode" (the fixed code body).`;
         ];
         const retryResponse = await makeLLMCall(
           retryMessages, [],
-          { provider, model, maxTokens: 2048, userId: request.userId || 'skill_gen' },
+          { provider, model, maxTokens: 2048, userId: request.userId || 'skill_gen' , scene: 'skill_gen'},
           getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
         );
 

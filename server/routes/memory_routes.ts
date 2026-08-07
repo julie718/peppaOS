@@ -481,7 +481,7 @@ Rules:
       const llmResult = await makeLLMCall(
         [{ role: 'user', content: prompt }],
         [],
-        getUserPreferredLLMConfig(userId),
+        { ...getUserPreferredLLMConfig(userId), scene: 'memory_plan' },
         llmGetters.getDeepSeek, llmGetters.getGemini, llmGetters.getOpenAI, llmGetters.getAnthropic, llmGetters.getQwen,
       );
 

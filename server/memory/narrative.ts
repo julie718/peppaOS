@@ -173,7 +173,7 @@ export async function buildNarrativeChain(params: {
     const response = await makeLLMCall(
       messages,
       [],
-      { provider: 'deepseek', model: 'deepseek-chat', maxTokens: 512, userId },
+      { provider: 'deepseek', model: 'deepseek-chat', maxTokens: 512, userId , scene: 'narrative'},
       params.getDeepSeek,
       params.getGemini,
       undefined,

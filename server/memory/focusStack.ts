@@ -63,7 +63,7 @@ async function compressTopic(
     const response = await makeLLMCall(
       messages,
       [],
-      { provider: 'deepseek', model: 'deepseek-v4-flash', maxTokens: 200 },
+      { provider: 'deepseek', model: 'deepseek-v4-flash', maxTokens: 200 , scene: 'focus_stack'},
       providerGetters.getDeepSeek!,
       providerGetters.getGemini || (() => null),
     );
