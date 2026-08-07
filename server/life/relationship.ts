@@ -1,7 +1,7 @@
 // 数字生命体 — 关系系统
 // 4维关系向量：信任度、亲密感、理解度、依赖度
 import {
-  saveRelationshipVector, loadRelationshipVector,
+  saveRelationshipVector, loadRelationshipState,
   addRelationshipSnapshot, logSystemEvent, addReflection,
 } from '../db/lifeDb.js';
 
@@ -73,19 +73,33 @@ export class RelationshipEngine {
   }
 
   private async load(): Promise<void> {
-    const saved = await loadRelationshipVector();
-    if (saved) {
-      this.vector = clampVector(saved);
-      console.log('[Relationship] 已加载:', this.summarize());
+    const saved = await loadRelationshipState();
+    if (saved.vector) {
+      this.vector = clampVector(saved.vector);
+      // P0-3: 以磁盘存储时间为准，覆盖构造函数 Date.now() 重置逻辑，
+      // 保证 24h 衰减判定跨重启连续有效
+      if (saved.lastInteractionAt) this.lastInteractionAt = saved.lastInteractionAt;
+      if (saved.lastDecayAt) this.lastDecayAt = saved.lastDecayAt;
+      if (saved.totalInteractions && saved.totalInteractions > 0) this.totalInteractions = saved.totalInteractions;
+      console.log('[Relationship] 已加载:', this.summarize(), `(lastInteraction=${this.lastInteractionAt}, lastDecay=${this.lastDecayAt})`);
     } else {
-      await saveRelationshipVector(this.vector);
+      await saveRelationshipVector(this.vector, this.persistMeta());
       await addRelationshipSnapshot(this.vector[0], this.vector[1], this.vector[2]);
       console.log('[Relationship] 初始化:', this.summarize());
     }
   }
 
+  /** P0-3: 组装持久化所需的元数据（时间字段随向量一起落库） */
+  private persistMeta() {
+    return {
+      lastInteractionAt: this.lastInteractionAt,
+      lastDecayAt: this.lastDecayAt,
+      totalInteractions: this.totalInteractions,
+    };
+  }
+
   private async persist(): Promise<void> {
-    await saveRelationshipVector(this.vector);
+    await saveRelationshipVector(this.vector, this.persistMeta());
   }
 
   summarize(): string {
@@ -125,8 +139,8 @@ export class RelationshipEngine {
   async receiveInteraction(type: string, outcome: 'accepted' | 'ignored' | 'positive' | 'negative' | 'neutral' = 'neutral'): Promise<void> {
     const delta = new Array(4).fill(0);
 
-    // 记录交互时间（用于衰减计算）
-    this.lastInteractionAt = Date.now();
+    // 记录交互时间（用于衰减计算；P0-3: 随 persist() 一并落库）
+    this.touchInteraction();
 
     switch (type) {
       case 'user_initiated':
@@ -295,6 +309,11 @@ export class RelationshipEngine {
   async reset(): Promise<void> {
     this.vector = [...BASELINE];
     await this.persist();
+  }
+
+  /** P0-3: 记录最近交互时间（receiveInteraction 时同步落库） */
+  private touchInteraction(): void {
+    this.lastInteractionAt = Date.now();
   }
 }
 

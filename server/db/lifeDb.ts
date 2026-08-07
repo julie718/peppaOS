@@ -113,7 +113,10 @@ const TABLES: { name: string; sql: string }[] = [
     sql: `CREATE TABLE IF NOT EXISTS relationship_state (
       id INTEGER PRIMARY KEY CHECK (id = 1),
       vector_json TEXT NOT NULL,
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      last_interaction_at INTEGER,
+      last_decay_at INTEGER,
+      total_interactions INTEGER DEFAULT 0
     )`,
   },
   {
@@ -213,6 +216,26 @@ export async function migrateLifeTables(): Promise<{ success: boolean; tables: s
     }
   } catch (e: any) {
     console.warn('[LifeDB] emotion_state migration skipped:', e.message);
+  }
+
+  // ── P0-3: relationship_state 时间字段兼容迁移（已存在表仅补列，不破坏数据）──
+  for (const col of ['last_interaction_at', 'last_decay_at', 'total_interactions']) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        database.run(
+          `ALTER TABLE relationship_state ADD COLUMN ${col} INTEGER${col === 'total_interactions' ? ' DEFAULT 0' : ''}`,
+          (err) => {
+            if (err && !String(err.message).includes('duplicate column')) {
+              reject(err);
+              return;
+            }
+            resolve();
+          },
+        );
+      });
+    } catch (e: any) {
+      errors.push(`relationship_state.${col}: ${e.message}`);
+    }
   }
 
   console.log(`[LifeDB] 迁移完成: ${created.length} 张表, ${errors.length} 个错误`);
@@ -577,22 +600,60 @@ export async function initLifeDb(): Promise<void> {
 }
 
 // ── Relationship State ──
-export async function saveRelationshipVector(vector: number[]): Promise<void> {
+// P0-3: 关系时间统计字段（lastInteractionAt/lastDecayAt/totalInteractions）随向量一并持久化，
+//       修复服务重启后时间重置导致 24h 衰减逻辑永久无法触发的问题。
+export interface RelationshipStateMeta {
+  lastInteractionAt?: number | null;
+  lastDecayAt?: number | null;
+  totalInteractions?: number | null;
+}
+
+export async function saveRelationshipVector(
+  vector: number[],
+  meta?: RelationshipStateMeta,
+): Promise<void> {
   const json = JSON.stringify(vector);
   await run(
-    'INSERT OR REPLACE INTO relationship_state (id, vector_json, updated_at) VALUES (1, ?, datetime("now"))',
-    [json]
+    `INSERT OR REPLACE INTO relationship_state
+      (id, vector_json, updated_at, last_interaction_at, last_decay_at, total_interactions)
+     VALUES (1, ?, datetime("now"), ?, ?, ?)`,
+    [
+      json,
+      meta?.lastInteractionAt ?? null,
+      meta?.lastDecayAt ?? null,
+      meta?.totalInteractions ?? 0,
+    ]
   );
 }
 
-export async function loadRelationshipVector(): Promise<number[] | null> {
-  const row = await get<{ vector_json: string }>('SELECT vector_json FROM relationship_state WHERE id = 1');
-  if (!row) return null;
+export async function loadRelationshipState(): Promise<
+  { vector: number[] | null } & RelationshipStateMeta
+> {
+  const row = await get<{
+    vector_json: string;
+    last_interaction_at: number | null;
+    last_decay_at: number | null;
+    total_interactions: number | null;
+  }>(
+    'SELECT vector_json, last_interaction_at, last_decay_at, total_interactions FROM relationship_state WHERE id = 1'
+  );
+  if (!row) return { vector: null, lastInteractionAt: null, lastDecayAt: null, totalInteractions: null };
+  let vector: number[] | null = null;
   try {
     const v = JSON.parse(row.vector_json);
-    if (Array.isArray(v) && v.length === 4) return v;
+    if (Array.isArray(v) && v.length === 4) vector = v;
   } catch {}
-  return null;
+  return {
+    vector,
+    lastInteractionAt: row.last_interaction_at,
+    lastDecayAt: row.last_decay_at,
+    totalInteractions: row.total_interactions,
+  };
+}
+
+export async function loadRelationshipVector(): Promise<number[] | null> {
+  const state = await loadRelationshipState();
+  return state.vector;
 }
 
 // ── Personality Evolution ──

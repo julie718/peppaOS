@@ -17,6 +17,29 @@ import { tickComprehension } from './comprehension.js';
 // T80
 import { idleBrain } from '../autonomy/idle_brain.js';
 import { runMemoryGC } from '../memory/gc.js';
+import { readDB } from '../../db_layer';
+
+/** 聚合全部真实业务用户 ID（与 scheduler 一致），供记忆 GC 逐用户执行 */
+function collectUserIds(): string[] {
+  try {
+    const db = readDB();
+    const ids = new Set<string>();
+    for (const u of db.users || []) {
+      if (u.uid) ids.add(u.uid);
+    }
+    for (const m of db.memories || []) {
+      if (m.userId) ids.add(m.userId);
+    }
+    for (const i of db.interactions || []) {
+      if (i.userId) ids.add(i.userId);
+    }
+    const lastActive = (global as any).__lastActiveUid;
+    if (lastActive) ids.add(lastActive);
+    return [...ids];
+  } catch {
+    return ['anonymous'];
+  }
+}
 
 const TICK_INTERVAL_MS = 10 * 60000; // 10 分钟
 const DEGRADED_THRESHOLD = 3; // 连续 3 次失败进入降级模式
@@ -474,7 +497,8 @@ export class LifeSystem {
       // ── T80 步骤 10: 记忆降噪（低频降权 + 重复合并 + TTL 清理） ──
       if (!this.preempted) {
         await this.safeCall('memoryGarbageCollection', async () => {
-          const gcResult = await runMemoryGC();
+          // P0-5: 传入真实业务用户 ID，替代失效的 userId:'system'
+          const gcResult = await runMemoryGC(collectUserIds());
           if (gcResult.downweighted > 0 || gcResult.merged > 0 || gcResult.cleaned > 0) {
             console.log(`[LifeSystem] 🧹 记忆GC: 降权${gcResult.downweighted} 合并${gcResult.merged} 清理${gcResult.cleaned}`);
           }

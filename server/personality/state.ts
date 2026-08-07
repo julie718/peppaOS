@@ -160,10 +160,11 @@ export function updateEmotionalState(state: EmotionalState, event: EmotionEvent)
       break;
 
     case 'reconnect':
-      // User returns after absence — surge of connection and initiative
-      updated.connection = Math.min(1, updated.connection + 0.02 * intensity);
+      // P0-4: 久别重逢 — 生疏拘谨：首次交互小幅下调连接与主动性，
+      // 模拟"久未联系有些生疏"，随后续多轮正常对话逐步回升
+      updated.connection = Math.max(0, updated.connection - 0.02 * intensity);
       updated.arousal = Math.min(1, updated.arousal + 0.04);
-      updated.initiative = Math.min(1, updated.initiative + 0.01 * intensity);
+      updated.initiative = Math.max(0, updated.initiative - 0.01 * intensity);
       break;
 
     case 'sentiment_analysis':

@@ -18,6 +18,8 @@ export interface LLMConfig {
   userId?: string;
   domain?: string;
   orgId?: string;
+  // P0-1: AbortSignal 透传 — 允许上层中止在途 LLM 流式推理（思绪搁置用）
+  signal?: AbortSignal;
 }
 
 export interface LLMResult {

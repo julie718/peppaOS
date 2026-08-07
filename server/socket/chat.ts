@@ -35,6 +35,8 @@ import { getSelfState, synthesizeResponse } from "../cognition/deepReasoning.js"
 import { generateIdentityResponse, generateHowAreYouResponse } from "../life/narrative.js";
 import { updateComprehension, shouldClarify, generateClarification, getComprehensionState } from '../life/comprehension.js';
 import { touchUserActivity } from "../life/userState.js";
+// P0-6: IdleBrain 短待机入口（对话结束标记）
+import { idleBrain } from '../autonomy/idle_brain.js';
 // 【新增数字生命体模块】T80 心智 + MCP 拦截器
 import { buildMindContext, classifyToolIntent, MindContext, SEVEN_STEP_MIND } from '../hooks/chat.js';
 import { mcpInterceptor, buildToolBlockMessage } from '../tools/interceptor.js';
@@ -340,7 +342,13 @@ export function registerChatHandler(
     if (prevController) prevController.abort();
     const abortController = new AbortController();
     chatSessionMap.set(sessionKey, abortController);
-    const llmTimeout = setTimeout(() => { abortController.abort(); logger.warn('[ChatHandler] LLM 超时 45s，强制中止'); }, 45000);
+    // P0-1: 思绪搁置标记 — 超时/中止时保留已生成的流式内容，而非暴力销毁
+    let thoughtShelved = false;
+    const llmTimeout = setTimeout(() => {
+      abortController.abort();
+      thoughtShelved = true;
+      logger.warn('[ChatHandler] LLM 处理超时 45s，已中止请求并搁置思绪（保留已生成内容）');
+    }, 45000);
 
     // 【新增数字生命体模块】MCP 拦截器每轮重置
     mcpInterceptor.resetForTurn(sessionKey);
@@ -1715,10 +1723,11 @@ export function registerChatHandler(
           { role: 'user', content: text },
         ];
 
+        // P0-1: streamChunks 提升到 try 外层声明，供 catch 中思绪搁置保留已生成内容
+        const streamChunks: string[] = [];
         try {
           const toolNamesForLLM = toolRegistry.getToolDeclarations().map((d: any) => d.function?.name || d.name || '').filter(Boolean);
           logger.info('[ChatHandler] Calling Path C with provider:', activeProvider, 'model:', activeModel, 'tools:', allowToolUseForTurn && !isSanctuary ? 'enabled' : 'off', 'available:', toolNamesForLLM.length, 'sample:', toolNamesForLLM.slice(0, 8).join(','));
-          const streamChunks: string[] = [];
           const onChunk: StreamCallback = (chunk) => {
             streamChunks.push(chunk);
             if (!deferCompletionStream) {
@@ -1783,7 +1792,8 @@ export function registerChatHandler(
           result = await runWithTools(
             messages,
             toolRegistry,
-            { provider: activeProvider, model: activeModel, userId: uid, domain: resolvedDomain, orgId: resolvedOrgId },
+            // P0-1: 透传 abortController.signal，使用户新消息/超时能真正中止在途 LLM 流式推理
+            { provider: activeProvider, model: activeModel, userId: uid, domain: resolvedDomain, orgId: resolvedOrgId, signal: abortController.signal },
             isSanctuary ? undefined : (record) => {
               allToolRecords.push(record);
               if (isDirectDesktopTool(record.name)) return;
@@ -1849,12 +1859,25 @@ export function registerChatHandler(
 
           responseText = result.text || '';
           } catch (toolErr: any) {
-            logger.error('[ChatHandler] Tool execution failed:', toolErr.message);
-            socket.emit('agent:error', {
-              message: toolErr.message || '工具执行失败',
-              requestId: requestId || '',
-            });
-            return;
+            // P0-1: 中止/超时 → 思绪搁置，保留已生成的流式内容（柔性暂停，非暴力销毁）
+            if (thoughtShelved || abortController.signal.aborted) {
+              const partial = streamChunks.join('');
+              if (!partial) {
+                logger.info('[ChatHandler] 工具链路中止且无已生成内容，跳过本轮');
+                return;
+              }
+              logger.warn(`[ChatHandler] 工具链路思绪搁置: 保留已生成内容 ${partial.length} 字符 (${toolErr?.message || 'aborted'})`);
+              result = { text: partial, toolCalls: allToolRecords, usageRecords: [] };
+              responseText = partial;
+              llmWasCalled = true;
+            } else {
+              logger.error('[ChatHandler] Tool execution failed:', toolErr.message);
+              socket.emit('agent:error', {
+                message: toolErr.message || '工具执行失败',
+                requestId: requestId || '',
+              });
+              return;
+            }
           }
           llmWasCalled = true;
           // Record analytics + subscription
@@ -1886,6 +1909,18 @@ export function registerChatHandler(
           }
           }
         } catch (llmErr: any) {
+          // P0-1: 中止/超时 → 思绪搁置，保留已生成的流式内容（不再用认知兜底覆盖/丢弃）
+          if (thoughtShelved || abortController.signal.aborted) {
+            const partial = streamChunks.join('') || responseText || '';
+            if (partial) {
+              responseText = partial;
+              llmWasCalled = true;
+              logger.warn(`[ChatHandler] 思绪搁置: 保留已生成内容 ${partial.length} 字符`);
+            } else {
+              logger.warn('[ChatHandler] 思绪搁置: 无已生成内容，跳过本轮');
+              return;
+            }
+          } else {
           logger.error(`[Cognition] LLM '${activeProvider}/${activeModel}' failed: ${llmErr.message}`);
           // Do not silently switch to another paid provider. The selected model should run or fail visibly.
           if (false && llmErr.message?.includes('not configured') && activeProvider !== 'gemini') {
@@ -1988,6 +2023,7 @@ export function registerChatHandler(
             const cf = handleLLMFailure(cognition.intent, llmErr);
             responseText = cf.responseText;
           }
+          } // P0-1: 非中止场景兜底处理结束
         }
       }
 
@@ -2274,7 +2310,9 @@ export function registerChatHandler(
       }
 
       // Emit contextual greeting on reconnect (sanctuary agents don't initiate)
-      if (!isSanctuary && isReconnect && updatedState.intimacy > 0.2) {
+      // P0-4: 根据亲密值动态判断是否主动开场 — 仅高亲密(>0.6)重逢才主动问候，
+      // 生疏/普通关系重逢姿态内敛，不强制主动打招呼
+      if (!isSanctuary && isReconnect && updatedState.intimacy > 0.6) {
         const greeting = generateContextualGreeting(updatedState, uid);
         if (greeting) {
           const greetingTs = new Date().toISOString();
@@ -2315,6 +2353,8 @@ export function registerChatHandler(
       clearTimeout(llmTimeout);
       getLifeSystem().resume();
       chatSessionMap.delete(sessionKey);
+      // P0-6: 对话轮结束标记 → 激活 IdleBrain 短待机检测（30s 后独处思考/情绪回味）
+      try { idleBrain.markConversationEnd(); } catch {}
     }
   });
 }

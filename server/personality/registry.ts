@@ -360,6 +360,22 @@ class PersonalityRegistry {
 
     const extConfig = config as any;
 
+    // ── P0-2 前置双重校验：保护核心身份锚点不被单次 LLM 误判断崖改写 ──
+    // a. 7 天冷却：上一次身份修改后 7 天内直接跳过，防止误判反复触发
+    const IDENTITY_CORRECTION_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+    const lastCorrectionAt = extConfig.lastIdentityCorrectionAt
+      ? new Date(extConfig.lastIdentityCorrectionAt).getTime()
+      : 0;
+    if (lastCorrectionAt && Date.now() - lastCorrectionAt < IDENTITY_CORRECTION_COOLDOWN_MS) {
+      logger.info(`[Personality] ${config.name} identity correction skipped: within 7-day cooldown (last: ${extConfig.lastIdentityCorrectionAt})`);
+      return false;
+    }
+    // b. 人格冻结：evolutionFrozenAt 非空时禁止任何核心动机修改
+    if (config.evolutionFrozenAt) {
+      logger.info(`[Personality] ${config.name} identity correction skipped: evolution frozen`);
+      return false;
+    }
+
     // Remove contradicted interest from motivation text
     if (changes.removeFromMotivation) {
       const target = changes.removeFromMotivation.trim();
@@ -372,9 +388,21 @@ class PersonalityRegistry {
       config.coreMotivation = config.coreMotivation.replace(/\s\.$/, '.');
     }
 
-    // Replace entire motivation if provided
+    // P0-2: 增量修正 — 不整段覆盖核心人设，仅提取差异片段追加
     if (changes.newMotivation) {
-      config.coreMotivation = changes.newMotivation;
+      const existing = config.coreMotivation || '';
+      let delta = changes.newMotivation.trim();
+      if (existing && delta.includes(existing)) {
+        // 新文本包含旧全文 → 差异部分即修正内容
+        delta = delta.replace(existing, '').replace(/^[,，。.\s]+|[,，。.\s]+$/g, '').trim();
+      } else {
+        // 无全文重叠 → 仅取新文本末句（≤120 字）作为增量，绝不整段覆盖
+        const sentences = delta.split(/(?<=[。.!？])/).map(s => s.trim()).filter(Boolean);
+        delta = sentences[sentences.length - 1]?.slice(0, 120) || '';
+      }
+      if (delta) {
+        config.coreMotivation = `${existing.replace(/[\s。.]*$/, '')}。${delta}`.trim();
+      }
     }
 
     // Remove from interest clusters
@@ -412,6 +440,9 @@ class PersonalityRegistry {
     // Bump version to reflect correction
     const [major, minor] = (config.version || '2.3').split('.').map(Number);
     config.version = `${major}.${(minor || 0) + 1}`;
+
+    // P0-2: 记录身份修改时间戳（冷却判断依据），随配置一并持久化
+    extConfig.lastIdentityCorrectionAt = new Date().toISOString();
 
     // Persist immediately
     this.save();

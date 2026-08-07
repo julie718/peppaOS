@@ -112,6 +112,9 @@ export interface MemoryQuery {
   retrievalPerspectiveWeights?: Record<string, number>;
   /** Enable vector semantic search via embedding cosine similarity */
   useVector?: boolean;
+  /** P0-5: 只读检索 — 不把命中记忆标记为"已检索"（GC 等内部巡检用，
+      避免巡检动作本身刷新 lastRetrievedAt 导致低频降权永远无法触发） */
+  noTouch?: boolean;
   /** Filter by domain */
   domain?: string;
   /** Filter by organization ID */

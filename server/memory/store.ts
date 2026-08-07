@@ -421,11 +421,13 @@ export function queryMemories(q: MemoryQuery): Memory[] {
   }
 
   // Mark as retrieved (including associated ones)
+  // P0-5: noTouch 查询（GC 巡检）不刷新检索时间，避免污染低频判定
   const now = new Date().toISOString();
   const store = getMemoryStore();
   for (const m of result) {
     const stored = store.find(s => s.id === m.id);
     if (stored) {
+      if (q.noTouch) continue;
       stored.lastRetrievedAt = now;
       stored.retrieveCount = (stored.retrieveCount || 0) + 1;
     }
@@ -609,7 +611,8 @@ export function addMemory(
     existing.content = memory.confidence > existing.confidence ? memory.content : existing.content;
     existing.keywords = dedupeKeywords([...existing.keywords, ...memory.keywords]);
     existing.confidence = Math.min(1, existing.confidence + 0.1);
-    existing.importance = Math.max(existing.importance, overrides?.importance ?? 0.3);
+    // P0-5: 合并重要度改为加权取小（平均值），支持重要度衰减下降，而非只升不降
+    existing.importance = Math.max(0.1, +((existing.importance + (overrides?.importance ?? 0.3)) / 2).toFixed(4));
     existing.updatedAt = now;
     existing.domain = domain;
     existing.orgId = orgId;
@@ -651,6 +654,20 @@ export function removeMemory(id: string): boolean {
   const idx = all.findIndex(m => m.id === id);
   if (idx === -1) return false;
   all.splice(idx, 1);
+  saveMemoryStore(all);
+  return true;
+}
+
+/**
+ * P0-5: 直接调整单条记忆重要度（原地修改，不触发合并/置信度副作用）。
+ * 供 MemoryGC 低频降权与合并固化使用，支持重要度双向变化。
+ */
+export function setMemoryImportance(id: string, importance: number): boolean {
+  const all = getMemoryStore();
+  const mem = all.find(m => m.id === id);
+  if (!mem) return false;
+  mem.importance = Math.max(0.1, Math.min(1, +(importance).toFixed(4)));
+  mem.updatedAt = new Date().toISOString();
   saveMemoryStore(all);
   return true;
 }
