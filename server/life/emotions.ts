@@ -92,7 +92,12 @@ export class EmotionEngine {
     // 1. 所有情绪向0衰减5%
     const decayDelta = this.vector.map(v => -v * DECAY_RATE);
 
-    // 2. 人格影响：好奇心高 → 好奇衰减更慢
+    // P1-12: 基线回弹 — 每维以 2% 速率向自身 BASELINE 回归
+    // 原逻辑只向 0 衰减：负面情绪可长期堆积、正面情绪可长期停滞，回不到各自基线。
+    // 保留原始 DECAY_RATE=0.05 不变，回弹作为独立机制叠加，与衰减合并进同一次落库。
+    const baselinePull = this.vector.map((v, i) => (BASELINE[i] - v) * 0.02);
+
+    // 2. 人格影响：好奇心高 → 好奇衰减更慢（仅作用于衰减分量，不影响基线回弹）
     try {
       const curiosity = getPersonalityEngine().getPersonality()[6];
       if (curiosity > 0.6) {
@@ -100,7 +105,7 @@ export class EmotionEngine {
       }
     } catch {}
 
-    await this.updateEmotions(decayDelta);
+    await this.updateEmotions(decayDelta.map((d, i) => d + baselinePull[i]));
 
     // 3. 基线恢复机制：好奇心(index=6)和宁静(index=1)低于 0.1 时每 tick 恢复 0.001
     const recoveryDelta = new Array(8).fill(0);

@@ -4,6 +4,7 @@
  */
 import { logger } from '../lib/logger';
 import sqlite3 from 'sqlite3';
+import { bumpPreferenceTag, demotePreferenceTag } from '../db/lifeDb.js';
 
 export interface CrossSessionMemory {
   key: string;
@@ -228,4 +229,57 @@ export function extractKeyFacts(text: string, response?: string): ExtractedFact[
   }
 
   return facts;
+}
+
+// ── P1-17: 偏好标签权重应用 — 可升可降（替代只增不减的单向累计）──
+
+/**
+ * 将提取的关键事实同步到独立偏好标签表（lifeDb.user_preference_tags）：
+ * - preference / hobby → 权重上升（喜欢被再次确认 → 更强偏好）
+ * - dislike → 权重下降（反感提及 → 偏好弱化，可下探至移除）
+ * - 其余 key（name/workplace/location/pet）无权重语义，仍由 storeMemory 存原文
+ */
+export async function applyPreferenceFacts(userId: string, facts: ExtractedFact[]): Promise<void> {
+  for (const fact of facts) {
+    if (fact.key === 'preference' || fact.key === 'hobby') {
+      await bumpPreferenceTag(userId, fact.value, 0.1);
+    } else if (fact.key === 'dislike') {
+      await demotePreferenceTag(userId, fact.value, 0.1);
+    }
+  }
+}
+
+/** 格式化偏好标签为 System Prompt 前置约束文本 */
+export function formatPreferenceTagsForPrompt(tags: { tag: string; weight: number }[]): string {
+  if (tags.length === 0) return '';
+  const ranked = tags
+    .map(t => `- ${t.tag}（偏好强度 ${t.weight.toFixed(2)}）`)
+    .join('\n');
+  return '## 用户偏好（长期记忆，回答的前置约束）\n以下是你长期观察到的用户偏好，任何回答都应优先尊重：\n' + ranked;
+}
+
+// ── P1-16: 话题戒备 — 低亲密回避敏感话题 ──
+
+/** 敏感话题清单：关系尚浅时不得主动发起或追问 */
+export const SENSITIVE_TOPICS: string[] = [
+  '收入', '薪水', '工资',
+  '疾病', '病情', '医疗',
+  '婚姻状况', '前任', '感情经历',
+  '宗教', '政治立场',
+  '家庭矛盾', '家庭纠纷',
+  '身材', '体重', '身体缺陷',
+];
+
+/**
+ * 生成话题戒备约束（System Prompt 前置约束，按关系亲密感分级）：
+ * - 亲密感 ≥ 0.6：信任已建立，不做话题限制
+ * - 0.35 ≤ 亲密感 < 0.6：轻度戒备，不主动发起敏感话题
+ * - 亲密感 < 0.35：严格戒备，禁止主动发起/追问敏感话题
+ */
+export function getSensitiveTopicGuard(intimacy: number): string {
+  if (intimacy >= 0.6) return '';
+  if (intimacy >= 0.35) {
+    return '## 话题边界（轻度戒备）\n你与用户的关系尚浅，不要主动提起收入、疾病、感情经历等敏感话题；若用户主动提起，尊重回应但不深入追问。';
+  }
+  return '## 话题边界（严格戒备）\n你与用户的关系尚浅（陌生/初识），严禁主动发起或追问以下敏感话题：收入、疾病、婚姻、前任、宗教、政治立场、家庭矛盾、身材体重。仅当用户主动明确提出时方可回应，且须克制、不深入探究。';
 }

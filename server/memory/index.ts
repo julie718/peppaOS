@@ -13,7 +13,7 @@ export { dualRetrieve, retrieveRelevantMemories } from './retriever';
 export type { RankedMemory, InteractionMemory } from './retriever';
 export { getTimeline } from './timeline';
 export type { TimelineEntry, TimelineOptions } from './timeline';
-export { storeMemory, getMemories, extractKeyFacts } from './crossSession';
+export { storeMemory, getMemories, extractKeyFacts, applyPreferenceFacts, formatPreferenceTagsForPrompt, getSensitiveTopicGuard, SENSITIVE_TOPICS } from './crossSession';
 export type { CrossSessionMemory, ExtractedFact } from './crossSession';
 export { extractKnowledge, storeKnowledge, getKnowledge, formatKnowledgeForContext } from './knowledgeBase';
 export type { KnowledgeEntry, ExtractedKnowledge } from './knowledgeBase';

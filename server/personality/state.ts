@@ -58,16 +58,26 @@ export function loadEmotionalState(userId: string): EmotionalState {
     const now = Date.now();
     const last = new Date(state.lastUpdated).getTime();
     const hoursIdle = (now - last) / (1000 * 60 * 60);
+    let current = state;
     if (hoursIdle > 0.1) {
       const recoveryEvents = Math.floor(hoursIdle * 6); // ~6 recovery ticks per hour
-      let current = state;
       for (let i = 0; i < Math.min(recoveryEvents, 24); i++) {
         current = updateEmotionalState(current, { type: 'idle_recovery' });
       }
-      return current;
     }
 
-    return state;
+    // P1-15: EmotionalState.intimacy 时间衰减 — 亲密感此前只增不减（每轮 +0.002*intensity）。
+    // 用户疏远时亲密感同样冷却：每次加载按距上次交互的天数衰减 0.001/天，地板 0.05（默认初始值）。
+    // 与 P0-4 重逢拘谨呼应：久别归来时 Peppa 的亲密度已随时间回落，需要重新走近。
+    if (current.lastInteractionAt) {
+      const sinceLastMs = now - new Date(current.lastInteractionAt).getTime();
+      if (sinceLastMs >= 24 * 60 * 60 * 1000) {
+        const daysAway = Math.floor(sinceLastMs / (24 * 60 * 60 * 1000));
+        current.intimacy = clamp(current.intimacy - 0.001 * daysAway, 0.05, 1);
+      }
+    }
+
+    return current;
   } catch {
     return createDefaultEmotionalState();
   }

@@ -15,7 +15,8 @@ import { hasClientActionOnlyIntent, isDiagnosticOrRepairRequest, shouldAllowTool
 import { resolveWorkSurfaceRoute } from "../cognition/work_surface";
 import { formatToolRouteForPrompt, mergeToolPolicyWithRoute, routeToolsForTurn } from "../cognition/tool_router";
 import { formatClientSelfPrompt } from "../client/self_model";
-import { queryMemories, queryMemoriesVector, addMemory, addReminder, extractMemories, retrieveRelevantMemories, getTimeline, getMemories, storeMemory, extractKeyFacts, extractKnowledge, storeKnowledge, getKnowledge, formatKnowledgeForContext } from "../memory";
+import { queryMemories, queryMemoriesVector, addMemory, addReminder, extractMemories, retrieveRelevantMemories, getTimeline, getMemories, storeMemory, extractKeyFacts, applyPreferenceFacts, formatPreferenceTagsForPrompt, getSensitiveTopicGuard, extractKnowledge, storeKnowledge, getKnowledge, formatKnowledgeForContext } from "../memory";
+import { getUserPreferenceTags } from "../db/lifeDb.js";
 import { loadEmotionalState, saveEmotionalState, updateEmotionalState, updateEmotionalStateWithHIM, loadHIMState, saveHIMState, generateContextualGreeting, vectorMemoryBias } from "../personality/state";
 import { buildModeOverlay } from "../personality/engine";
 import { personalityRegistry } from "../personality";
@@ -39,7 +40,7 @@ import { touchUserActivity } from "../life/userState.js";
 import { idleBrain } from '../autonomy/idle_brain.js';
 // 【新增数字生命体模块】T80 心智 + MCP 拦截器
 import { buildMindContext, classifyToolIntent, MindContext, SEVEN_STEP_MIND } from '../hooks/chat.js';
-import { mcpInterceptor, buildToolBlockMessage } from '../tools/interceptor.js';
+import { mcpInterceptor, buildToolBlockMessage, applyConstitutionGuard, MCP_MAX_CALLS_PER_TURN } from '../tools/interceptor.js';
 import { getUnrespondedObservations, markObservationResponded } from "../db/lifeDb.js";
 import { retrieveChunks } from "../agents/rag";
 import { getSensory } from "./shared";
@@ -71,7 +72,7 @@ import { analyzeLikedMusicProfile, formatMusicProfileReport, isMusicProfileAnaly
 import { buildResponseLanguageInstruction } from "../utils/language";
 import { guardCompletionClaims, needsCompletionEvidence } from "../work_product/completion_guard";
 import { buildModelSelfAwareness, buildVisionRoutingOverlay, hasVisionIntent } from "../cognition/vision_routing";
-import { DEFAULT_MODELS, getScopedPreferredLLM } from "../llm/user_preferences";
+import { DEFAULT_MODELS, getScopedPreferredLLM, getScenarioModel } from "../llm/user_preferences";
 import { generateTemporalContext } from '../time/temporal_context.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'peppaOS_default_jwt_secret_2026_local';
@@ -283,6 +284,8 @@ export function registerChatHandler(
     logger.info('[ChatHandler] agent:chat RECEIVED:', JSON.stringify(data).slice(0, 300));
     touchActivity(); // 更新最后活跃时间，供 prefetch 判断空闲
     (global as any).__lastActiveUid = userIdFn(socket); // 记录最后活跃用户，供 TICK 预判
+    // P1-9: 注册真实 LLM Getter 供 IdleBrain 等后台模块复用（consolidateEpisodic 需要非空回调）
+    (global as any).__llmGetters = llmGetters;
     const { history, personalityId = "peppa", category, agentId, mode: payloadMode, source } = data;
     const attachments = normalizeIncomingAttachments(data.attachments);
     const rawUserText = typeof data.text === 'string' ? data.text.trim() : '';
@@ -549,6 +552,29 @@ export function registerChatHandler(
         }
       } catch (e: any) {
         logger.warn('[ChatHandler] 跨会话记忆加载异常:', e.message);
+      }
+
+      // ── P1-17: 偏好标签前置约束（System Prompt 最优先约束）──
+      try {
+        const prefTags = await getUserPreferenceTags(uid);
+        if (prefTags.length > 0) {
+          effectiveSystemPrompt += '\n\n' + formatPreferenceTagsForPrompt(prefTags);
+          logger.info('[ChatHandler] 偏好标签约束注入:', prefTags.length, '条');
+        }
+      } catch (e: any) {
+        logger.warn('[ChatHandler] 偏好标签加载异常:', e.message);
+      }
+
+      // ── P1-16: 话题戒备 — 低亲密回避敏感话题（按关系亲密感分级约束）──
+      try {
+        const relationIntimacy = getRelationshipEngine().getRelationship()[1];
+        const guard = getSensitiveTopicGuard(relationIntimacy);
+        if (guard) {
+          effectiveSystemPrompt += '\n\n' + guard;
+          logger.info(`[ChatHandler] 话题戒备注入: intimacy=${relationIntimacy.toFixed(2)}`);
+        }
+      } catch (e: any) {
+        logger.warn('[ChatHandler] 话题戒备注入失败:', e.message);
       }
 
       // ── M5: 知识库注入 ──
@@ -841,6 +867,12 @@ export function registerChatHandler(
 
       if (workflowQuickResult) {
         emitAgent("agent:status", { status: "responding" });
+        // P1-7: 人格合规拦截 — LLM/模板文本落地前对照宪法（轻微润色/严重截断重生成）
+        const guardedQuick = applyConstitutionGuard(workflowQuickResult);
+        if (guardedQuick.severity !== 'pass') {
+          logger.info(`[ChatHandler] 宪法拦截(workflow): ${guardedQuick.severity}`);
+          workflowQuickResult = guardedQuick.text;
+        }
         emitAgent("agent:response", { text: workflowQuickResult, agentName: personality.name });
         emitAgent("agent:status", { status: "idle" });
         return;
@@ -881,6 +913,12 @@ export function registerChatHandler(
                 });
               }
             }
+          }
+          // P1-7: 人格合规拦截 — 落地前对照宪法（轻微润色/严重截断重生成）
+          const guardedQuick = applyConstitutionGuard(quickResult.responseText);
+          if (guardedQuick.severity !== 'pass') {
+            logger.info(`[ChatHandler] 宪法拦截(quick): ${guardedQuick.severity}`);
+            quickResult.responseText = guardedQuick.text;
           }
           emitAgent("agent:response", { text: quickResult.responseText, agentName: personality.name });
           if (conversationId) {
@@ -1256,6 +1294,13 @@ export function registerChatHandler(
         activeModel = isComplex ? 'gemini-2.5-pro' : 'gemini-2.0-flash';
       } else if (activeProvider === 'openai') {
         activeModel = isComplex ? 'gpt-4o' : 'gpt-4o-mini';
+      } else {
+        // P1-3: 补全其余渠道场景分层路由 — 原逻辑仅覆盖四渠道，
+        // anthropic/ark/xiaomi/kimi/glm/relay/ollama/lmstudio/auto 无分级。
+        // 统一走 getScenarioModel 场景映射（light/complex），未映射的 provider 保持用户配置。
+        try {
+          activeModel = getScenarioModel(activeProvider as any, isComplex ? 'complex' : 'light');
+        } catch {}
       }
       logger.info('[ChatHandler] Model auto-selected:', activeProvider, '/', activeModel, 'for category:', cognition.intent.category);
 
@@ -1735,8 +1780,8 @@ export function registerChatHandler(
             }
           };
 
-          // Sanctuary agents get zero tool access — they can only talk
-          if (!allowToolUseForTurn || isSanctuary) {
+          // P1-2: 纯对话路径（无工具）— Sanctuary / 工具禁用 / 概率阻断时使用
+          const runChatOnlyPath = async (): Promise<void> => {
             const response = await makeLLMCallStreaming(
               messages,
               [],
@@ -1776,13 +1821,26 @@ export function registerChatHandler(
                 pushNotification(uid, { type: 'token_warning', title: 'Token Quota Warning', message: `Token usage at ${Math.round(pct * 100)}%` });
               }
             }
-          } else {
-            // ── T80: MCP 拦截器检查 ──
-            const toolAllowed = mcpInterceptor.canCallTool(sessionKey);
-            if (!toolAllowed) {
-              logger.info(`[ChatHandler] T80 MCP阻断: 本轮已达上限 (${mcpInterceptor.getCallCount(sessionKey)}/${1})`);
-            }
+          };
 
+          // P1-2: 工具放行改为情绪/场景概率阈值（闲聊×0.3 / 挫败×0.4 / 查询×0.9）
+          // + 强制关闭开关；概率未通过时真正阻断 runWithTools，路由到纯对话路径
+          // （原实现只打日志后仍无条件执行工具链路）
+          const toolGatePassed = allowToolUseForTurn && !isSanctuary && mcpInterceptor.shouldAllowTool(sessionKey, {
+            isSmallTalk: isSanctuary || ['chat', 'conversation'].includes(cognition?.intent?.category || ''),
+            frustration: (sentiment?.frustration as number) || 0,
+            isQuery: cognition?.intent?.category === 'question',
+          });
+
+          // Sanctuary agents get zero tool access — they can only talk
+          if (!toolGatePassed) {
+            if (!allowToolUseForTurn || isSanctuary) {
+              logger.info('[ChatHandler] 工具门未开启: chat-only 模式');
+            } else {
+              logger.info(`[ChatHandler] T80 MCP 柔性阻断: 概率未通过 (count=${mcpInterceptor.getCallCount(sessionKey)}/${MCP_MAX_CALLS_PER_TURN})`);
+            }
+            await runChatOnlyPath();
+          } else {
             const maxIterations = routedToolPolicy?.maxIterations || personality.toolPolicy.maxIterations || 25;
 
           // Collect tool calls for persistence
@@ -2081,6 +2139,15 @@ export function registerChatHandler(
       });
       writeDB(db);
 
+      // ── P1-7: 人格合规拦截 — 流式输出最终落地前对照宪法（轻微润色/严重截断重生成）──
+      if (responseText) {
+        const guard = applyConstitutionGuard(responseText);
+        responseText = guard.text;
+        if (guard.severity !== 'pass') {
+          logger.info(`[ChatHandler] 宪法拦截(主路径): ${guard.severity} [${guard.verdict.articles.join(',')}]`);
+        }
+      }
+
       // Emit response BEFORE conversation_updated so the client finalizes streaming first
       emitAgent("agent:progress", { stage: 'finalizing', message: '正在整理结果…' });
       emitAgent("agent:response", { text: responseText, agentName: personality.name });
@@ -2253,6 +2320,11 @@ export function registerChatHandler(
         for (const fact of keyFacts) {
           storeMemory(fact.key, fact.value, uid).catch(e =>
             logger.warn('[ChatHandler] 跨会话存储失败:', e.message));
+        }
+        // P1-17: 偏好标签权重更新 — 喜欢/爱好升权重，讨厌降权重（可升可降）
+        if (keyFacts.some(f => f.key === 'preference' || f.key === 'hobby' || f.key === 'dislike')) {
+          applyPreferenceFacts(uid, keyFacts).catch(e =>
+            logger.warn('[ChatHandler] 偏好标签更新失败:', e.message));
         }
       } catch (e: any) {
         logger.warn('[ChatHandler] 跨会话提取异常:', e.message);

@@ -149,6 +149,18 @@ const TABLES: { name: string; sql: string }[] = [
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`,
   },
+  {
+    // P1-17: 独立偏好标签表 — 权重可升可降（替代只增不减的单向累计）
+    name: 'user_preference_tags',
+    sql: `CREATE TABLE IF NOT EXISTS user_preference_tags (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      tag TEXT NOT NULL,
+      weight REAL NOT NULL DEFAULT 0.3 CHECK(weight >= 0 AND weight <= 1),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(user_id, tag)
+    )`,
+  },
 ];
 
 // ── 自动迁移 ──
@@ -483,6 +495,49 @@ export async function logSystemEvent(eventType: string, data: Record<string, any
 
 export async function getRecentEvents(limit = 50): Promise<any[]> {
   return all('SELECT * FROM system_events ORDER BY created_at DESC LIMIT ?', [limit]);
+}
+
+// ── P1-17: 用户偏好标签（独立表，权重可升可降）──
+
+const PREF_DROP_THRESHOLD = 0.05; // 权重低于该值视为无偏好，删除标签
+
+/** 提升偏好权重（升：喜欢被再次提及）。缺标签则创建（默认权重 0.3）。 */
+export async function bumpPreferenceTag(userId: string, tag: string, amount = 0.1): Promise<void> {
+  await run(
+    `INSERT INTO user_preference_tags (user_id, tag, updated_at)
+     VALUES (?, ?, datetime('now'))
+     ON CONFLICT(user_id, tag) DO UPDATE SET
+       weight = MIN(1, weight + ?),
+       updated_at = datetime('now')`,
+    [userId, tag, amount],
+  );
+}
+
+/** 降低偏好权重（降：反感被提及可下探到 0）。低于阈值则删除该标签。 */
+export async function demotePreferenceTag(userId: string, tag: string, amount = 0.1): Promise<void> {
+  await run(
+    `UPDATE user_preference_tags SET weight = MAX(0, weight - ?), updated_at = datetime('now')
+     WHERE user_id = ? AND tag = ?`,
+    [amount, userId, tag],
+  );
+  await run(
+    `DELETE FROM user_preference_tags WHERE user_id = ? AND tag = ? AND weight < ?`,
+    [userId, tag, PREF_DROP_THRESHOLD],
+  );
+}
+
+/** 读取用户偏好标签（按权重降序）。无数据返回空数组。 */
+export async function getUserPreferenceTags(
+  userId: string,
+  minWeight = 0.1,
+): Promise<{ tag: string; weight: number; updatedAt: string }[]> {
+  const rows = await all<{ tag: string; weight: number; updated_at: string }>(
+    `SELECT tag, weight, updated_at FROM user_preference_tags
+     WHERE user_id = ? AND weight >= ?
+     ORDER BY weight DESC, updated_at DESC`,
+    [userId, minWeight],
+  );
+  return (rows || []).map(r => ({ tag: r.tag, weight: r.weight, updatedAt: r.updated_at || '' }));
 }
 
 export async function countEvents(eventType: string): Promise<number> {

@@ -39,6 +39,45 @@ export const DEFAULT_MODELS: Record<UserLLMProvider, string> = {
   auto: 'qwen2.5:7b',
 };
 
+/**
+ * P1-3: 场景分层模型路由 — 同一 provider 下按场景选更轻/更强的模型。
+ * light（问候/闲聊/摘要）：选轻量模型；complex（复杂推理/长任务）：选重模型；
+ * standard（默认）：保持用户配置的主模型。未映射的 provider 回退主模型。
+ */
+export type LLMScenario = 'light' | 'standard' | 'complex';
+
+const SCENARIO_MODELS: Record<LLMScenario, Partial<Record<UserLLMProvider, string>>> = {
+  light: {
+    deepseek: 'deepseek-v4-flash',
+    qwen: 'qwen-turbo',
+    openai: 'gpt-4o-mini',
+    gemini: 'gemini-2.0-flash',
+    anthropic: 'claude-haiku-4-5-20251001',
+    ark: 'doubao-lite-4k',
+    kimi: 'moonshot-v1-8k',
+    glm: 'glm-4-flash',
+    relay: 'gpt-4o-mini',
+  },
+  standard: {},
+  complex: {
+    deepseek: 'deepseek-chat',
+    qwen: 'qwen-max',
+    openai: 'gpt-4o',
+    gemini: 'gemini-2.5-pro',
+    anthropic: 'claude-sonnet-4-6',
+    ark: 'doubao-1-5-pro-32k',
+    kimi: 'moonshot-v1-128k',
+    glm: 'glm-4-plus',
+    relay: 'gpt-4o',
+  },
+};
+
+/** 取某 provider 在某场景下的模型名（未映射/standard → 主模型） */
+export function getScenarioModel(provider: UserLLMProvider, scenario: LLMScenario = 'standard'): string {
+  if (scenario === 'standard') return DEFAULT_MODELS[provider];
+  return SCENARIO_MODELS[scenario][provider] || DEFAULT_MODELS[provider];
+}
+
 const VALID_PROVIDERS = new Set<UserLLMProvider>([
   'deepseek',
   'qwen',
@@ -139,12 +178,13 @@ export function upsertOrgPreferredLLM(
 
 export function getUserPreferredLLMConfig(
   userId: string,
-  options: { maxTokens?: number; domain?: string; orgId?: string } = {},
+  options: { maxTokens?: number; domain?: string; orgId?: string; scenario?: LLMScenario } = {},
 ): { provider: UserLLMProvider; model: string; userId: string; maxTokens?: number; domain?: string; orgId?: string } {
   const pref = getScopedPreferredLLM(userId, { domain: options.domain, orgId: options.orgId });
   return {
     provider: pref.provider,
-    model: pref.model,
+    // P1-3: 场景分层 — light/complex 场景按映射选更轻/更强的模型；standard 保持用户配置
+    model: options.scenario ? getScenarioModel(pref.provider, options.scenario) : pref.model,
     userId,
     ...(options.maxTokens ? { maxTokens: options.maxTokens } : {}),
     ...(options.domain ? { domain: options.domain } : {}),

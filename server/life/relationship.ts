@@ -12,6 +12,10 @@ const TRUST_DECAY_PER_24H = 0.005;  // 每 24 小时无交互，信任衰减 0.0
 const TRUST_DECAY_FLOOR = 0.20;      // 信任最低不低于 0.2
 const DECAY_CHECK_MS = 24 * 60 * 60 * 1000; // 24 小时检查一次
 
+// P1-14: 全维度冷却 — 原仅信任度随时间衰减；亲密/理解/依赖长期疏远同样会回落
+// 速率与信任一致（0.005/24h），地板各维独立：信任0.20 / 亲密0.10 / 理解0.10 / 依赖0.15
+const DIM_DECAY_FLOORS: number[] = [0.20, 0.10, 0.10, 0.15];
+
 function clamp(v: number): number {
   return Math.max(MIN_FLOOR, Math.min(1, v));
 }
@@ -63,6 +67,8 @@ export class RelationshipEngine {
   private lastInteractionAt: number;  // 上次交互时间戳 (ms)
   private lastDecayAt: number;        // 上次衰减检查时间戳 (ms)
   private totalInteractions: number;  // 交互总数（用于阶段判定）
+  // P1-15: 长静默事件最近触发时间 — 防止每 10 分钟 TICK 重复投递（每 24h 至多一次）
+  private lastLongSilenceAt = 0;
 
   constructor() {
     this.vector = [...BASELINE];
@@ -148,7 +154,8 @@ export class RelationshipEngine {
     const delta = new Array(4).fill(0);
 
     // 记录交互时间（用于衰减计算；P0-3: 随 persist() 一并落库）
-    this.touchInteraction();
+    // P1-15: 长静默不是真实交互 — 不得刷新交互时间戳，否则 24h 冷却判定被重置
+    if (type !== 'long_silence') this.touchInteraction();
 
     switch (type) {
       case 'user_initiated':
@@ -165,6 +172,7 @@ export class RelationshipEngine {
       case 'long_silence':
         delta[3] -= 0.01; // 依赖-0.01
         delta[1] -= 0.005;// 亲密-0.005
+        this.lastLongSilenceAt = Date.now(); // P1-15: 标记触发（每 24h 至多一次）
         break;
       case 'agent_action':
         if (outcome === 'accepted') {
@@ -238,6 +246,16 @@ export class RelationshipEngine {
     }
   }
 
+  /**
+   * P1-15: 是否应触发长静默事件（由 LifeSystem TICK 每 10 分钟轮询）。
+   * 条件：距上次交互 ≥24h 且 24h 内未触发过 — 既避免死代码，也避免每 TICK 重复惩罚。
+   */
+  shouldFireLongSilence(): boolean {
+    const now = Date.now();
+    if (now - this.lastLongSilenceAt < DECAY_CHECK_MS) return false;
+    return (now - this.lastInteractionAt) >= DECAY_CHECK_MS;
+  }
+
   /** 定期衰减检查 — 由 LifeSystem TICK 调用（每 10 分钟） */
   async tick(): Promise<void> {
     const now = Date.now();
@@ -246,33 +264,37 @@ export class RelationshipEngine {
     if (now - this.lastDecayAt < DECAY_CHECK_MS) return;
     this.lastDecayAt = now;
 
-    // 如果距离上次交互超过 24 小时，每 24 小时信任衰减 0.005
+    // 如果距离上次交互超过 24 小时，每 24 小时四维同步衰减 0.005
+    // P1-14: 原仅信任度衰减；亲密/理解/依赖同样随时间冷却（各自独立地板值）
     const hoursSinceInteraction = (now - this.lastInteractionAt) / (60 * 60 * 1000);
     if (hoursSinceInteraction >= 24) {
       const daysPassed = Math.floor(hoursSinceInteraction / 24);
       const decayAmount = daysPassed * TRUST_DECAY_PER_24H;
-      const currentTrust = this.vector[0];
-      const newTrust = Math.max(TRUST_DECAY_FLOOR, currentTrust - decayAmount);
+      const delta = this.vector.map((v, i) => {
+        const floored = Math.max(DIM_DECAY_FLOORS[i], v - decayAmount);
+        return +(floored - v).toFixed(4); // 已在地板下方的维度为 0，不产生负向变化
+      });
 
-      if (newTrust < currentTrust) {
-        const delta = [newTrust - currentTrust, 0, 0, 0];
+      if (delta.some(d => d < 0)) {
         await this.updateRelationship(delta);
-        console.log(`[Relationship] 信任衰减: ${currentTrust.toFixed(3)} → ${newTrust.toFixed(3)} (${daysPassed}天无交互, -${decayAmount.toFixed(3)})`);
+        console.log(`[Relationship] 关系冷却衰减: [${delta.map(d => d.toFixed(3)).join(', ')}] (${daysPassed}天无交互, 每维-${decayAmount.toFixed(3)})`);
 
-        // 自我感知记录：信任衰减
-        try {
-          await addReflection(
-            'health:trust_decay',
-            JSON.stringify({
-              trust: newTrust,
-              decayAmount: +decayAmount.toFixed(4),
-              reason: 'time_decay',
-              daysPassed,
-              timestamp: new Date().toISOString(),
-            })
-          );
-        } catch (e: any) {
-          console.warn('[Relationship] 衰减感知记录失败:', e.message);
+        // 自我感知记录：信任衰减（仅信任实际下降时记录）
+        if (delta[0] < 0) {
+          try {
+            await addReflection(
+              'health:trust_decay',
+              JSON.stringify({
+                trust: this.vector[0],
+                decayAmount: +decayAmount.toFixed(4),
+                reason: 'time_decay',
+                daysPassed,
+                timestamp: new Date().toISOString(),
+              })
+            );
+          } catch (e: any) {
+            console.warn('[Relationship] 衰减感知记录失败:', e.message);
+          }
         }
       }
     }

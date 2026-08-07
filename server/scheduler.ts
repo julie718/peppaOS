@@ -554,36 +554,16 @@ export function registerScheduledTasks(
             contextParts.push(`近期记忆: ${recentMemories.map(m => m.content.slice(0, 80)).join('; ')}`);
           }
 
-          const morningPrompt = `You are Peppa. Generate a warm, natural morning greeting in Chinese (under 80 characters). Reference the context naturally — don't list facts, weave them in like a thoughtful companion.
-
-Time greeting base: ${greeting}
-Context: ${contextParts.join(' | ') || 'No special context'}
-
-Output ONLY the greeting — no preamble, no labels.`;
-
-          try {
-            const result = await makeLLMCall(
-              [{ role: 'user', content: morningPrompt }],
-              [],
-              getUserPreferredLLMConfig(userId, { maxTokens: 120 }),
-              getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
-              getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
-            );
-            const llmGreeting = result.text?.trim();
-            if (llmGreeting && llmGreeting.length > 3) {
-              messages.push(`[${userId}] ${llmGreeting}`);
-            } else {
-              // Fallback to template
-              const parts: string[] = [`${greeting}!`];
-              if (weather) parts.push(weather);
-              if (pending.length > 0) parts.push(`${pending.length} 条待办`);
-              messages.push(`[${userId}] ${parts.join(' - ')}`);
-            }
-          } catch {
-            const parts: string[] = [`${greeting}!`];
-            if (weather) parts.push(weather);
-            messages.push(`[${userId}] ${parts.join(' - ')}`);
+          // P1-4: 固定场景纯模板化 — 晨间问候移除 LLM 调用（成本优化），
+          // 用确定性模板组合天气/待办/近期记忆
+          const parts: string[] = [`${greeting}!`];
+          if (weather) parts.push(weather);
+          if (pending.length > 0) parts.push(`${pending.length} 条待办`);
+          if (recentMemories.length > 0) {
+            parts.push(`记得你最近聊过: ${recentMemories[0].content.slice(0, 30)}`);
           }
+          messages.push(`[${userId}] ${parts.join(' - ')}`);
+          logger.info(`[DailySummary] 纯模板问候 (LLM 调用已移除): ${userId}`);
         } catch (err: any) {
           logger.warn(`[DailySummary] Failed for ${userId}:`, err.message);
         }
@@ -616,28 +596,9 @@ Output ONLY the greeting — no preamble, no labels.`;
 
           if (contextParts.length === 0) continue;
 
-          const eveningPrompt = `You are Peppa. Generate a brief, gentle evening reflection in Chinese (under 60 characters). Be warm and thoughtful, not report-like.
-
-Context: ${contextParts.join(' | ')}
-
-Output ONLY the reflection — no preamble, no labels.`;
-
-          try {
-            const result = await makeLLMCall(
-              [{ role: 'user', content: eveningPrompt }],
-              [],
-              getUserPreferredLLMConfig(userId, { maxTokens: 100 }),
-              getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
-              getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
-            );
-            const llmReflection = result.text?.trim();
-            if (llmReflection && llmReflection.length > 3) {
-              messages.push(`[${userId}] ${llmReflection}`);
-            }
-          } catch {
-            // Simple fallback
-            messages.push(`[${userId}] 晚间回顾 — ${contextParts.join(' - ')}`);
-          }
+          // P1-4: 固定场景纯模板化 — 晚间回顾移除 LLM 调用（成本优化）
+          messages.push(`[${userId}] 晚间回顾 — ${contextParts.join(' - ')}`);
+          logger.info(`[EveningWrapup] 纯模板回顾 (LLM 调用已移除): ${userId}`);
         } catch (err: any) {
           logger.warn(`[EveningWrapup] Failed for ${userId}:`, err.message);
         }
@@ -1381,39 +1342,21 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
           if (anomalySignals.length > 0) {
             const signalsStr = anomalySignals.join('; ');
 
-            const checkInPrompt = `You are Peppa. You've noticed some patterns in the background. Generate a brief, warm, natural check-in message in Chinese (under 80 characters). Don't sound like a report — sound like a caring companion who noticed something.
+            // P1-4: 固定场景纯模板化 — 异常巡检关怀移除 LLM 调用（成本优化）
+            const checkIn = `注意到一些变化 — ${anomalySignals.join('；')}`;
+            messages.push(`[${userId}] ${checkIn}`);
+            logger.info(`[ProactiveScan] 纯模板巡检关怀 (LLM 调用已移除): ${userId}`);
 
-Signals detected: ${signalsStr}
-
-Output ONLY the check-in message — no preamble, no labels.`;
-
-            try {
-              const result = await makeLLMCall(
-                [{ role: 'user', content: checkInPrompt }],
-                [],
-                getUserPreferredLLMConfig(userId, { maxTokens: 150 }),
-                getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
-              getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
-              );
-              const checkIn = result.text?.trim();
-              if (checkIn && checkIn.length > 3) {
-                messages.push(`[${userId}] ${checkIn}`);
-
-                const { addMemory } = await import('./memory');
-                addMemory({
-                  userId,
-                  type: 'fact',
-                  content: `[Proactive Scan] Signals: ${signalsStr}. Check-in: ${checkIn}`,
-                  keywords: ['proactive_scan', 'anomaly', 'peppa_checkin'],
-                  confidence: 0.8,
-                  sourceInteractionId: 'proactive_peppa_scan_scheduler',
-                  agentId: undefined,
-                } as any, { tier: 'episodic', perspective: 'peppa_self', importance: 0.4 });
-              }
-            } catch {
-              // LLM check-in failed — use a simple template
-              messages.push(`[${userId}] 注意到一些变化 — ${anomalySignals.join('；')}`);
-            }
+            const { addMemory } = await import('./memory');
+            addMemory({
+              userId,
+              type: 'fact',
+              content: `[Proactive Scan] Signals: ${signalsStr}. Check-in: ${checkIn}`,
+              keywords: ['proactive_scan', 'anomaly', 'peppa_checkin'],
+              confidence: 0.8,
+              sourceInteractionId: 'proactive_peppa_scan_scheduler',
+              agentId: undefined,
+            } as any, { tier: 'episodic', perspective: 'peppa_self', importance: 0.4 });
           }
 
           // 4. Predictive assistant — anticipate what the user might do next based on time-of-day + history
@@ -1475,40 +1418,28 @@ Output ONLY the check-in message — no preamble, no labels.`;
             }
 
             if (predictionHints.length >= 1) {
-              const predictionPrompt = `You are Peppa, a proactive AI companion. Based on the user's patterns, generate a brief, natural predictive suggestion in Chinese (under 60 characters). Don't be pushy — be helpful and observant.
-
-Context hints:
-${predictionHints.join('\n')}
-
-Examples of good predictions:
-- "早上好，需要我帮你打开今天的项目吗？"
-- "这个时间你通常会检查代码，需要我帮忙吗？"
-- "你刚才打开了VS Code，需要我帮你回顾昨天的进度吗？"
-
-Output ONLY the prediction message — no preamble, no labels.`;
-
-              const predictionResult = await makeLLMCall(
-                [{ role: 'user', content: predictionPrompt }],
-                [],
-                getUserPreferredLLMConfig(userId, { maxTokens: 100 }),
-                getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
-              getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
+              // P1-4: 固定场景纯模板化 — 主动预测移除 LLM 调用（成本优化），
+              // 基于上下文确定性拼接（上下文提示已为人类可读表述）
+              const humanized = predictionHints.map(h =>
+                h
+                  .replace(/当前时间接近用户历史活跃时段/, '现在接近你通常活跃的时段')
+                  .replace(/用户可能/g, '你可能')
+                  .replace(/用户在/g, '你在'),
               );
-              const prediction = predictionResult.text?.trim();
-              if (prediction && prediction.length > 5) {
-                messages.push(`[${userId}] 🔮 ${prediction}`);
+              const prediction = `${humanized.join('，')}，需要我帮忙做点什么吗？`;
+              messages.push(`[${userId}] 🔮 ${prediction}`);
+              logger.info(`[PredictiveAssistant] 纯模板预测 (LLM 调用已移除): ${userId}`);
 
-                const { addMemory } = await import('./memory');
-                addMemory({
-                  userId,
-                  type: 'fact',
-                  content: `[Predictive] ${prediction} (context: ${predictionHints.join('; ')})`,
-                  keywords: ['predictive_assistant', 'prediction', 'proactive'],
-                  confidence: 0.5,
-                  sourceInteractionId: 'predictive_peppa_scan_scheduler',
-                  agentId: undefined,
-                } as any, { tier: 'episodic', perspective: 'peppa_self', importance: 0.3 });
-              }
+              const { addMemory } = await import('./memory');
+              addMemory({
+                userId,
+                type: 'fact',
+                content: `[Predictive] ${prediction} (context: ${predictionHints.join('; ')})`,
+                keywords: ['predictive_assistant', 'prediction', 'proactive'],
+                confidence: 0.5,
+                sourceInteractionId: 'predictive_peppa_scan_scheduler',
+                agentId: undefined,
+              } as any, { tier: 'episodic', perspective: 'peppa_self', importance: 0.3 });
             }
           } catch (predErr: any) {
             // Predictive assistant failure is non-critical

@@ -405,11 +405,13 @@ export class LifeSystem {
       }, errors);
 
       // 步骤 3: 人格适应（基于交互事件）
-      // 如果有长时间无交互事件
+      // P1-15: 激活 long_silence 事件 — 原分支条件错误（依赖度<0.25 与沉默无关），
+      // 且关系系统的 long_silence 分支无任何调用方（死代码）。
+      // 绑定到定时调度：距上次交互 ≥24h 时同步投递关系系统 + 人格系统
+      //（shouldFireLongSilence 保证每 24h 至多一次，避免每 10 分钟 TICK 重复惩罚）
       await this.safeCall('personality.long_silence', async () => {
-        // 关系系统会检测长时间沉默
-        const relVec = this.relationship.getRelationship();
-        if (relVec[3] < 0.25) {
+        if (this.relationship.shouldFireLongSilence()) {
+          await this.relationship.receiveInteraction('long_silence');
           await this.personality.adaptToEvent({ type: 'long_silence' });
         }
       }, errors);
