@@ -4,7 +4,8 @@ import { logger } from '../../../logger';
 import { formatWeatherCurrent, formatWeatherForecast } from '../responseFormatter';
 
 // 城市名→坐标映射
-const cityCoords: Record<string, [number, number]> = {
+// 阶段一·模块1: 导出供 travel-cal-mcp 复用（统一底层，杜绝重复编码）
+export const cityCoords: Record<string, [number, number]> = {
   '北京': [39.9, 116.4], '上海': [31.2, 121.5], '广州': [23.1, 113.3],
   '深圳': [22.5, 114.1], '杭州': [30.3, 120.2], '南京': [32.1, 118.8],
   '成都': [30.6, 104.1], '武汉': [30.6, 114.3], '重庆': [29.6, 106.5],
@@ -33,7 +34,7 @@ const weatherCodes: Record<number, string> = {
   85: '小阵雪', 86: '大阵雪', 95: '雷暴', 96: '冰雹雷暴', 99: '大冰雹雷暴',
 };
 
-function resolveCoords(city: string): [number, number] {
+export function resolveCoords(city: string): [number, number] {
   // 精确匹配
   if (cityCoords[city]) return cityCoords[city];
   // 模糊匹配：输入包含已知城市名，或已知城市名包含输入
@@ -41,13 +42,21 @@ function resolveCoords(city: string): [number, number] {
   return key ? cityCoords[key] : [39.9, 116.4]; // fallback 北京
 }
 
-async function fetchWeather(lat: number, lng: number): Promise<any> {
+// 阶段一·模块1: 导出供 travel-cal-mcp 复用（统一底层，杜绝重复编码）
+export async function fetchWeather(lat: number, lng: number): Promise<any> {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}`
     + `&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code`
     + `&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max`
     + `&timezone=auto&forecast_days=5`;
   const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
   return resp.json();
+}
+
+/** 阶段一·模块1: 城市天气直查（travel-cal-mcp 复用入口） */
+export async function fetchWeatherByCity(city: string): Promise<any> {
+  const [lat, lng] = resolveCoords(city);
+  const data = await fetchWeather(lat, lng);
+  return { city, lat, lng, data };
 }
 
 async function weatherCurrent(args: Record<string, any>): Promise<string> {

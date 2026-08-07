@@ -10,7 +10,9 @@ export type ProactiveScene =
   | 'emotion_share'
   // L-11: 低情绪安慰 + 低活跃度问候
   | 'low_mood_comfort'
-  | 'low_activity_greeting';
+  | 'low_activity_greeting'
+  // 阶段一·模块2: 行程临近批量拉取出行信息推送
+  | 'travel_upcoming';
 
 export interface TriggerResult {
   triggered: boolean;

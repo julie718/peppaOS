@@ -39,6 +39,10 @@ import { registerAuthorityResearchTools } from './authority_research_tools';
 import { registerWeatherTools } from './weather_tools';
 import { registerNewsTools } from './news_tools';
 import { registerReminderTools } from './reminder_tools';
+// 阶段一·模块1: 5 套标准 MCP（行程日历 / 多源搜索 / 股票财经 / 本地通知 / 工具类）
+import { registerMcpServers } from '../mcp_servers';
+// 阶段一·模块3: 深度认知 — 并行多路径因果推理
+import { registerCognitionTools } from './cognition_tools';
 
 export function registerAllTools(
   registry: ToolRegistry,
@@ -90,6 +94,8 @@ export function registerAllTools(
   registerWeatherTools(registry);
   registerNewsTools(registry);
   registerReminderTools(registry);
+  registerMcpServers(registry);
+  registerCognitionTools(registry);
   if (llmGetters) {
     setSkillLLMGetters(llmGetters);
   }

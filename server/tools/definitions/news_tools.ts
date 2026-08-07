@@ -10,7 +10,8 @@ interface NewsItem {
   published?: string;
 }
 
-const NEWS_SOURCES: { name: string; url: string; category: string }[] = [
+// 阶段一·模块1: 导出供 web-search-mcp 复用（多源实时新闻检索 / 24h·7d 时效过滤 / 多源对比去偏见）
+export const NEWS_SOURCES: { name: string; url: string; category: string }[] = [
   // 国内综合
   { name: '36氪', url: 'https://36kr.com/feed', category: '科技' },
   { name: '少数派', url: 'https://sspai.com/feed', category: '科技' },
@@ -90,11 +91,13 @@ async function newsHeadlines(args: Record<string, any>): Promise<string> {
   return formatNewsHeadlines({ category, items: results.slice(0, limit) });
 }
 
-async function fetchFromSources(sources: typeof NEWS_SOURCES, limit: number): Promise<NewsItem[]> {
+// 阶段一·模块1: 导出供 web-search-mcp 复用（fetchRSS 由 web_search 模块独立实现可并发抓取更多源）
+export async function fetchFromSources(sources: typeof NEWS_SOURCES, limit: number, fetchRSSImpl?: (url: string) => Promise<NewsItem[]>): Promise<NewsItem[]> {
   // Fetch up to 3 sources in parallel for speed
   const selected = sources.slice(0, 3);
+  const fetcher = fetchRSSImpl || fetchRSS;
   const results = await Promise.all(selected.map(async s => {
-    const items = await fetchRSS(s.url);
+    const items = await fetcher(s.url);
     return items.map(i => ({ ...i, source: s.name }));
   }));
   return results.flat().slice(0, limit);

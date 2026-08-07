@@ -239,6 +239,15 @@ class IdleBrain {
         logger.info('[IdleBrain] 独处思绪已反向修正情绪基线');
       } catch {}
 
+      // 阶段一·模块2: 5. 空闲资讯简报 — 长待机时用多源新闻生成简报推送（复用 NEWS_SOURCES 底座）
+      try {
+        const { generateIdleBriefing } = await import('./psi_motivation');
+        const briefing = await generateIdleBriefing(targetUserId);
+        if (briefing) logger.info(`[IdleBrain] 空闲资讯简报已生成 → ${targetUserId}`);
+      } catch (e: any) {
+        logger.warn(`[IdleBrain] 资讯简报跳过: ${e?.message || '网络不可用'}`);
+      }
+
       // 记录执行日期
       this.state.lastLongRun = new Date().toISOString().slice(0, 10);
       logger.info('[IdleBrain] 长待机完成');

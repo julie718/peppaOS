@@ -172,6 +172,23 @@ const TABLES: { name: string; sql: string }[] = [
       UNIQUE(user_id, tag)
     )`,
   },
+  {
+    // 阶段一·模块1: travel-cal-mcp 行程库 — 行程内容 AES-256-GCM 加密存储（encrypted 字段），
+    // remind_hours 为购票/出行提醒阈值（行程临近触发器按此批量拉取出行信息推送）
+    name: 'travel_itineraries',
+    sql: `CREATE TABLE IF NOT EXISTS travel_itineraries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      encrypted TEXT NOT NULL,
+      destination TEXT DEFAULT '',
+      depart_at TEXT DEFAULT '',
+      remind_hours INTEGER NOT NULL DEFAULT 24,
+      status TEXT NOT NULL DEFAULT 'upcoming',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+  },
 ];
 
 // ── 全局迁移完成门（P1 修复：新库首启迁移竞态）──
@@ -860,6 +877,74 @@ export async function recordPersonalityEvolution(
 
 export async function getPersonalityEvolutionHistory(limit = 20): Promise<any[]> {
   return all('SELECT * FROM personality_evolution ORDER BY created_at DESC LIMIT ?', [limit]);
+}
+
+// ── 阶段一·模块1: travel-cal-mcp 行程库 CRUD ──
+// 行程详情由 travel_cal 模块 AES-256-GCM 加密后写入 encrypted 字段，此处只做存取，不接触明文。
+
+export interface TravelItineraryRow {
+  id: number;
+  user_id: string;
+  title: string;
+  encrypted: string;
+  destination: string;
+  depart_at: string;
+  remind_hours: number;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function addTravelItinerary(
+  userId: string,
+  data: { title: string; encrypted: string; destination?: string; departAt?: string; remindHours?: number },
+): Promise<number> {
+  const result = await run(
+    `INSERT INTO travel_itineraries (user_id, title, encrypted, destination, depart_at, remind_hours)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [userId, data.title, data.encrypted, data.destination || '', data.departAt || '', data.remindHours ?? 24],
+  );
+  return result.lastID!;
+}
+
+export async function listTravelItineraries(userId: string, status?: string): Promise<TravelItineraryRow[]> {
+  if (status) {
+    return all<TravelItineraryRow>('SELECT * FROM travel_itineraries WHERE user_id = ? AND status = ? ORDER BY depart_at', [userId, status]);
+  }
+  return all<TravelItineraryRow>('SELECT * FROM travel_itineraries WHERE user_id = ? ORDER BY depart_at', [userId]);
+}
+
+export async function getTravelItinerary(id: number): Promise<TravelItineraryRow | null> {
+  return get<TravelItineraryRow>('SELECT * FROM travel_itineraries WHERE id = ?', [id]);
+}
+
+export async function updateTravelItinerary(id: number, patch: Partial<Pick<TravelItineraryRow, 'title' | 'encrypted' | 'destination' | 'depart_at' | 'remind_hours' | 'status'>>): Promise<void> {
+  const sets: string[] = [];
+  const params: any[] = [];
+  for (const key of ['title', 'encrypted', 'destination', 'depart_at', 'remind_hours', 'status'] as const) {
+    const v = (patch as any)[key];
+    if (v !== undefined) { sets.push(`${key} = ?`); params.push(v); }
+  }
+  if (sets.length === 0) return;
+  sets.push(`updated_at = datetime('now')`);
+  params.push(id);
+  await run(`UPDATE travel_itineraries SET ${sets.join(', ')} WHERE id = ?`, params);
+}
+
+export async function deleteTravelItinerary(id: number): Promise<void> {
+  await run('DELETE FROM travel_itineraries WHERE id = ?', [id]);
+}
+
+/** 行程临近查询：未来 withinHours 小时内出发、且已到提醒阈值（depart_at - now <= remind_hours）的未完成行程 */
+export async function getUpcomingTravels(userId: string, withinHours: number): Promise<TravelItineraryRow[]> {
+  return all<TravelItineraryRow>(
+    `SELECT * FROM travel_itineraries
+     WHERE user_id = ? AND status = 'upcoming' AND depart_at != ''
+       AND julianday(depart_at) - julianday('now') BETWEEN 0 AND ?
+       AND julianday(depart_at) - julianday('now') <= (remind_hours / 24.0)
+     ORDER BY depart_at`,
+    [userId, withinHours / 24.0],
+  );
 }
 
 // ── 关闭连接 ──

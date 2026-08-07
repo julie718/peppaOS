@@ -157,11 +157,16 @@ export class Personality {
   /** 根据交互事件自动微调人格 */
   async adaptToEvent(event: {
     type: 'user_positive' | 'user_negative' | 'user_initiated' | 'exploration_success'
-      | 'long_silence' | 'user_high_arousal';
+      | 'long_silence' | 'user_high_arousal' | 'news_reading';
   }): Promise<void> {
     const delta = new Array(8).fill(0);
 
     switch (event.type) {
+      // 阶段一·模块3: 资讯阅读后缓慢微调（持续阅读 → 好奇心/开放性微升，单次幅度极小）
+      case 'news_reading':
+        delta[6] = 0.003; // 好奇心+
+        delta[0] = 0.003; // 开放性+
+        break;
       case 'user_positive':
         delta[1] = 0.005;  // 亲和性+
         delta[4] = 0.005;  // 同理心+

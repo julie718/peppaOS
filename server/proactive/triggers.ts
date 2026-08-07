@@ -5,6 +5,8 @@ import { getEmotionEngine } from '../life/emotions';
 import { getRelationshipEngine } from '../life/relationship';
 import { queryMemories } from '../memory/store';
 import type { Memory } from '../memory/types';
+// 阶段一·模块2: 行程临近批量拉取推送（复用 travel-cal-mcp 的 pushUpcomingTravelInfo）
+import { pushUpcomingTravelInfo } from '../tools/mcp_servers/travel_cal';
 
 // 获取当前时间
 function getHour(): number {
@@ -253,6 +255,35 @@ export const lowActivityGreetingTrigger: ProactiveTrigger = {
   }
 };
 
+// ========== 触发器7：行程临近批量拉取推送（阶段一·模块2） ==========
+// 72h 内出发的行程 → 批量拉取行程+目的地天气信息推送；8h 冷却防重复。
+// 无活跃业务用户时跳过（与 TICK 预判一致）。
+export const travelUpcomingTrigger: ProactiveTrigger = {
+  name: 'travel_upcoming',
+  check: async (): Promise<TriggerResult> => {
+    const userId = getActiveUserId();
+    if (!userId || userId === 'anonymous') return { triggered: false };
+    if (isLateNight()) return { triggered: false };
+    if (!cooldownOk('travel_upcoming', 8 * 60 * 60 * 1000)) return { triggered: false };
+
+    let pushed = 0;
+    try {
+      pushed = await pushUpcomingTravelInfo(userId, 72);
+    } catch (e: any) {
+      logger.warn(`[Proactive] 行程临近检查失败: ${e?.message}`);
+      return { triggered: false };
+    }
+    if (pushed <= 0) return { triggered: false };
+
+    return {
+      triggered: true,
+      scene: 'travel_upcoming',
+      reason: `${pushed} 个行程 72h 内临近`,
+      content: `行程临近提醒：${pushed} 个行程即将出发，详情与目的地天气已推送。`
+    };
+  }
+};
+
 // 所有触发器列表
 export const allTriggers: ProactiveTrigger[] = [
   morningGreetingTrigger,
@@ -261,4 +292,5 @@ export const allTriggers: ProactiveTrigger[] = [
   emotionShareTrigger,
   lowMoodComfortTrigger,      // L-11
   lowActivityGreetingTrigger, // L-11
+  travelUpcomingTrigger,      // 阶段一·模块2: 行程临近批量推送
 ];

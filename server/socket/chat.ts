@@ -1901,13 +1901,33 @@ export function registerChatHandler(
               }
             } catch (fallbackErr: any) {
               // Both primary and fallback LLMs failed — use cognitive fallback
-              const cf = handleLLMFailure(cognition.intent, fallbackErr);
-              responseText = cf.responseText;
+              // 阶段一·模块3: 多路径交叉推理兜底（推理类问题 → 并行多链路校验；失败回退原兜底）
+              let cfText = '';
+              try {
+                const { tryMultiPathFallback } = await import('../cognition/multi_path_reasoner');
+                cfText = (await tryMultiPathFallback(text)) || '';
+              } catch {}
+              if (cfText) {
+                responseText = cfText;
+              } else {
+                const cf = handleLLMFailure(cognition.intent, fallbackErr);
+                responseText = cf.responseText;
+              }
             }
           } else {
             // LLM failed for other reasons — use cognitive fallback
-            const cf = handleLLMFailure(cognition.intent, llmErr);
-            responseText = cf.responseText;
+            // 阶段一·模块3: 多路径交叉推理兜底（同上）
+            let cfText = '';
+            try {
+              const { tryMultiPathFallback } = await import('../cognition/multi_path_reasoner');
+              cfText = (await tryMultiPathFallback(text)) || '';
+            } catch {}
+            if (cfText) {
+              responseText = cfText;
+            } else {
+              const cf = handleLLMFailure(cognition.intent, llmErr);
+              responseText = cf.responseText;
+            }
           }
           } // P0-1: 非中止场景兜底处理结束
         }
