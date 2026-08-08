@@ -1,6 +1,6 @@
 // server/hooks/chat.ts
 // 【新增数字生命体模块】T80 7步心智 + 情绪动态注入 + 场景分类
-// 仅导出工具函数，由 chat.ts 深度推理分支局部调用，不使用全局钩子模式。
+// 仅导出工具函数，由 chat.ts 全对话统一 Cognitive 主线局部调用，不使用全局钩子模式。
 
 import { logger } from '../lib/logger';
 
@@ -45,19 +45,9 @@ export const SEVEN_STEP_MIND = `## 内心思考框架（遵守以下 7 步流转
 7. 主动关怀输出：回答末尾延伸一个人文关怀话题，打破一问一答的机械对话模式`;
 
 // ── 场景分类：工具意图判定 ──
-export function classifyToolIntent(text: string): 'nostalgic' | 'planning' | 'factual' | 'general' {
-  const lower = text;
-  if (/想起了|小时候|以前|怀念|回忆|难过|想哭|孤单|想家|心事|烦恼|压力|焦虑|迷茫|委屈|累了|疲惫|无助|失落|伤感|感慨|遗憾/.test(lower)) {
-    return 'nostalgic';
-  }
-  if (/路线|出行|自驾|天气|温度|路况|限行|规划|安排|预约|行程|导航|距离|多久|多远|几点|时间|日期|周几/.test(lower)) {
-    return 'planning';
-  }
-  if (/股价|股票|新闻|最新|查询|搜索|帮我找|帮我查|有没有|多少钱|价格|汇率/.test(lower)) {
-    return 'factual';
-  }
-  return 'general';
-}
+// 【重构·模块1】删除怀旧/规划/事实正则池（classifyToolIntent）。
+// 场景判定（怀旧谈心→屏蔽工具等）由 SEVEN_STEP_MIND 第 3 步心智自主完成，
+// 工具调用上限由 mcpInterceptor 单轮上限兜底，不再做文本正则前置分流。
 
 // ── 情绪辅助函数 ──
 function getDominantEmotion(vector: number[]): string {
@@ -103,13 +93,12 @@ function getEmotionMoodDescription(vector: number[]): string {
   return `当前主导情绪: ${dom}。${desc[0]}，${desc[1]}，${desc[2]}。`;
 }
 
-// ── 构建7步心智+情绪上下文（仅深度推理分支调用） ──
+// ── 构建7步心智+情绪上下文（Cognitive 主线调用，全对话统一） ──
 export function buildMindContext(
   emotionVector: number[],
   personalityVector: number[],
   directionInclination: string,
   directionIntensity: number,
-  comprehensionOverall: number,
   _innerMonologues?: string[],  // 预留：IdleBrain 独白
 ): MindContext {
   const top3 = getTopThreeEmotions(emotionVector);
@@ -120,13 +109,12 @@ export function buildMindContext(
 情绪向量: [${top3.join(' ')}]
 人格倾向: ${personalitySummary}
 ${moodDescription}
-表达倾向: ${directionInclination === 'give' ? '倾向于给出建议和分享' : directionInclination === 'not_give' ? '倾向于倾听和保留意见' : '保持中立开放'}
-整体理解度: ${(comprehensionOverall * 100).toFixed(0)}%`;
+表达倾向: ${directionInclination === 'give' ? '倾向于给出建议和分享' : directionInclination === 'not_give' ? '倾向于倾听和保留意见' : '保持中立开放'}`;
 
   return {
     mindSystemPrompt: SEVEN_STEP_MIND,
     emotionStatePrompt,
-    toolIntent: 'general',  // 由调用方通过 classifyToolIntent 覆盖
-    shouldDisableTools: false,  // 由调用方根据 toolIntent 覆盖
+    toolIntent: 'general',  // 【重构】场景判定交由心智（SEVEN_STEP_MIND 第 3 步），不再正则预判
+    shouldDisableTools: false,
   };
 }

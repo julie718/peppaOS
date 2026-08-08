@@ -361,71 +361,6 @@ function filterToolDeclarationsForPolicy(
   });
 }
 
-// ── Tool Selector: keyword-based dynamic tool injection ──
-
-const TOOL_KEYWORD_MAP: Array<{ keywords: RegExp[]; toolPatterns: RegExp[] }> = [
-  { keywords: [/文件|目录|文件夹|读文件|写文件|列表|查看.*文件|打开.*文件|ls|cat|read|write.*file|list|folder|directory/i], toolPatterns: [/list_directory|read_file|write_file|search_files|grep_files|read_files_batch|mcp_filesystem/i] },
-  { keywords: [/记忆|记得|记住|回忆|忘|memory|remember|recall/i], toolPatterns: [/search_memory|peppa_memory|add_memory|query_memories|mcp_notes/i] },
-  { keywords: [/天气|气温|下雨|晴天|温度|weather|rain|sunny|temperature/i], toolPatterns: [/get_weather|mcp_weather|weather/i] },
-  { keywords: [/股票|股价|行情|K线|涨|跌|市值|板块|stock|price|kline|market/i], toolPatterns: [/stock_quote|stock_search|stock_kline|market_index|hot_sectors|stock_news|mcp_stockbot/i] },
-  { keywords: [/搜索|查一下|查查|搜搜|搜|找|看看|上网|网页|浏览|search|lookup|find|browse|web/i], toolPatterns: [/web_search|url_fetch|firecrawl_search|firecrawl_scrape|firecrawl_crawl|search_cn|mcp_firecrawl|mcp_cn-search/i] },
-  { keywords: [/邮件|邮箱|email|mail|发送/i], toolPatterns: [/send_email|email|mail|mcp_email/i] },
-  { keywords: [/提醒|日程|日历|安排|明天|后天|几点|闹钟|定时|remind|calendar|schedule|timer|alarm/i], toolPatterns: [/create_reminder|calendar|reminder|timer|mcp_timer|peppa_reminder/i] },
-  { keywords: [/PDF|合并|拆分|文档|表格|报告|pdf|merge|split|document|report|spreadsheet/i], toolPatterns: [/merge_pdf|split_pdf|read_pdf|create_pdf|create_docx|create_xlsx|mcp_pdftools/i] },
-  { keywords: [/代码|编程|写.*代码|运行|执行|测试|code|program|run|execute|test|debug/i], toolPatterns: [/code_execution|python_exec|type_check|run_tests|mcp_code-sandbox/i] },
-  { keywords: [/图片|照片|图像|画|生成.*图|image|picture|photo|generate.*image|draw/i], toolPatterns: [/generate_image|ocr_image|edit_image|process_image|mcp_image/i] },
-  { keywords: [/翻译|translate|英文|中文|翻译.*成/i], toolPatterns: [/translate|mcp_translator/i] },
-  { keywords: [/计算|算|等于|calculator|math|calculate/i], toolPatterns: [/calculate|mcp_calculator/i] },
-];
-
-const DEFAULT_TOOL_PATTERNS = [/search_memory|peppa_memory/i, /^send_message$|agent_send_message|chat/i, /read_file|list_directory|search_files/i];
-
-function selectRelevantTools<T extends { function: { name: string; description?: string } }>(
-  declarations: T[],
-  userText: string,
-  recentHistory: NormalizedMessage[],
-): T[] {
-  // Simple greetings — no tools needed
-  const trimmed = userText.trim().toLowerCase();
-  const greetings = ['你好', '嗨', '在吗', 'hello', 'hi', 'hey', '您好', 'hi there', '早上好', '晚上好', '晚安'];
-  if (greetings.some(g => trimmed === g || trimmed.startsWith(g + ' ') || trimmed.endsWith(' ' + g) || trimmed === g + '!')) {
-    logger.debug(`[ToolSelector] "${userText.slice(0, 40)}" → greeting, 0 tools`);
-    return [];
-  }
-
-  const histText = recentHistory.map(m => typeof m.content === 'string' ? m.content : '').join(' ');
-  const combined = userText + ' ' + histText;
-
-  // Match keywords → collect relevant tool patterns
-  const matchedPatterns = new Set<RegExp>();
-  for (const entry of TOOL_KEYWORD_MAP) {
-    if (entry.keywords.some(kw => kw.test(combined))) {
-      entry.toolPatterns.forEach(p => matchedPatterns.add(p));
-    }
-  }
-
-  // Filter tools by matched patterns
-  const matchedArr = Array.from(matchedPatterns);
-  const selected = matchedArr.length > 0
-    ? declarations.filter(d => matchedArr.some(p => p.test(d.function.name)))
-    : [];
-
-  // Default fallback: 3 most useful tools
-  if (selected.length === 0) {
-    for (const toolName of ['search_files', 'list_directory', 'read_file']) {
-      const tool = declarations.find(d => d.function.name === toolName);
-      if (tool) selected.push(tool);
-    }
-    // If those don't exist, take first 3 available
-    if (selected.length === 0) {
-      selected.push(...declarations.slice(0, 3));
-    }
-  }
-
-  // Cap at 12 tools max to keep prompt lean
-  const final = selected.slice(0, 12);
-  return final;
-}
 
 export async function runWithTools(
   messages: NormalizedMessage[],
@@ -473,11 +408,9 @@ export async function runWithTools(
     const lastUserMsg = conversationHistory.filter(m => m.role === 'user').pop();
     const userText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : '';
 
-    const toolDeclarations = selectRelevantTools(
-      filterToolDeclarationsForPolicy(toolRegistry.getToolDeclarations(), context),
-      userText,
-      conversationHistory.slice(-3),
-    );
+    // 【重构·模块1】工具选择不再做关键词→工具静态映射（TOOL_KEYWORD_MAP/selectRelevantTools 已删除，目标⑦）：
+    // 全量 policy 放行声明交由心智内核自主调度（工具自描述驱动），MCP 上限由 interceptor 每轮计数兜底。
+    const toolDeclarations = filterToolDeclarationsForPolicy(toolRegistry.getToolDeclarations(), context);
 
     logger.debug(`[ToolSelector] "${userText.slice(0, 60)}" → ${toolDeclarations.map((d: any) => d.function.name).join(', ')}`);
 

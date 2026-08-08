@@ -8,7 +8,9 @@ import { consolidateEpisodic, consolidateNarrative, ConsolidationContext } from 
 import { runDreamCycle } from './memory/dream';
 import { buildTree, ensureBranch, moveNode } from './memory/tree';
 import { makeLLMCall } from './llm/providers';
-import { getWeatherBrief, getTimeGreeting } from './services/weather';
+import { getWeatherBrief } from './services/weather';
+// 【重构·模块4】固定话术模板剔除：晨间/晚间摘要由心智润色组成（触发数据 → LLM 组织表述）
+import { composeTriggerContent } from './proactive/rhythm';
 import { autoGenerateSkill } from './skills/generator';
 import { autoGenerateWorkflows } from './agents/workflows';
 import { runHealthAudit, HealthReport } from './agents/health_audit';
@@ -544,28 +546,21 @@ export function registerScheduledTasks(
 
       for (const userId of userIds) {
         try {
-          const greeting = getTimeGreeting();
           const weather = await getWeatherBrief();
           const pending = getDueReminders();
           const recentMemories = queryMemories({ userId, limit: 3, minConfidence: 0.4 });
 
-          const contextParts: string[] = [];
-          if (weather) contextParts.push(`天气: ${weather}`);
-          if (pending.length > 0) contextParts.push(`${pending.length} 条待办: ${pending.map(r => r.content).join('; ')}`);
-          if (recentMemories.length > 0) {
-            contextParts.push(`近期记忆: ${recentMemories.map(m => m.content.slice(0, 80)).join('; ')}`);
-          }
-
-          // P1-4: 固定场景纯模板化 — 晨间问候移除 LLM 调用（成本优化），
-          // 用确定性模板组合天气/待办/近期记忆
-          const parts: string[] = [`${greeting}!`];
-          if (weather) parts.push(weather);
-          if (pending.length > 0) parts.push(`${pending.length} 条待办`);
-          if (recentMemories.length > 0) {
-            parts.push(`记得你最近聊过: ${recentMemories[0].content.slice(0, 30)}`);
-          }
-          messages.push(`[${userId}] ${parts.join(' - ')}`);
-          logger.info(`[DailySummary] 纯模板问候 (LLM 调用已移除): ${userId}`);
+          // 【重构·模块4】固定话术模板移除（原: getTimeGreeting 固定问候 + "N 条待办/记得你最近聊过" 模板句）：
+          // 晨间摘要由 composeTriggerContent 心智润色组成（实时触发数据 → 心智内核组织表述），
+          // 离线时回退结构化摘要（容灾），不再存在任何固定句子。
+          const content = await composeTriggerContent('morning_digest', {
+            weather: weather || '无天气数据',
+            pendingCount: pending.length,
+            pending: pending.map(r => r.content).join('; ').slice(0, 80),
+            recentMemory: recentMemories.length > 0 ? recentMemories[0].content.slice(0, 50) : '无',
+          });
+          messages.push(`[${userId}] ${content}`);
+          logger.info(`[DailySummary] 心智润色晨间摘要: ${userId}`);
         } catch (err: any) {
           logger.warn(`[DailySummary] Failed for ${userId}:`, err.message);
         }
@@ -589,18 +584,18 @@ export function registerScheduledTasks(
           const pending = getDueReminders();
           const recentMemories = queryMemories({ userId, limit: 3, minConfidence: 0.4 });
 
-          const contextParts: string[] = [];
-          if (pending.length > 0) contextParts.push(`${pending.length} 条待办仍然未完成`);
-          if (recentMemories.length > 0) {
-            const habits = recentMemories.filter(m => m.type === 'habit');
-            if (habits.length > 0) contextParts.push(`今天注意到: ${habits[0].content.slice(0, 100)}`);
-          }
+          const habits = recentMemories.filter(m => m.type === 'habit');
+          if (pending.length === 0 && habits.length === 0) continue;
 
-          if (contextParts.length === 0) continue;
-
-          // P1-4: 固定场景纯模板化 — 晚间回顾移除 LLM 调用（成本优化）
-          messages.push(`[${userId}] 晚间回顾 — ${contextParts.join(' - ')}`);
-          logger.info(`[EveningWrapup] 纯模板回顾 (LLM 调用已移除): ${userId}`);
+          // 【重构·模块4】固定话术模板移除（原: "N 条待办仍然未完成" / "今天注意到:" / "晚间回顾 —" 固定句）：
+          // 晚间回顾由 composeTriggerContent 心智润色组成，离线回退结构化摘要。
+          const content = await composeTriggerContent('evening_wrapup', {
+            pendingCount: pending.length,
+            pending: pending.map(r => r.content).join('; ').slice(0, 80),
+            habit: habits.length > 0 ? habits[0].content.slice(0, 50) : '无',
+          });
+          messages.push(`[${userId}] ${content}`);
+          logger.info(`[EveningWrapup] 心智润色晚间回顾: ${userId}`);
         } catch (err: any) {
           logger.warn(`[EveningWrapup] Failed for ${userId}:`, err.message);
         }
@@ -1040,6 +1035,27 @@ Rules:
         }
       } catch (err) {
         logger.error('[Scheduler] auto_workflow_gen failed:', err);
+      }
+      return null;
+    },
+  });
+
+  // [阶段二·自诊疗] 每日 3:00 后台静默全域定时自检（隔离库、只读诊断；缺陷自动修复+回滚留痕）
+  scheduler.register({
+    id: 'self_heal_daily',
+    cron: '0 3 * * *',
+    quiet: true,
+    lastRun: null,
+    handler: async () => {
+      try {
+        const { runSelfHeal } = await import('./self_heal/engine');
+        const report = await runSelfHeal({ isolated: false });
+        if (report.defects.length > 0) {
+          logger.info(`[SelfHeal] 完成一轮自检: 断言 ${report.assertionPassed}/${report.assertionTotal}, 缺陷 ${report.defects.length}, 自动修复 ${report.autoRepaired}, 回滚 ${report.rollbackCount}, 健康分 ${report.healthScore}(${report.verdict})`);
+        }
+        return `SelfHeal: ${report.verdict} score=${report.healthScore}`;
+      } catch (err) {
+        logger.error('[Scheduler] self_heal_daily failed:', err);
       }
       return null;
     },

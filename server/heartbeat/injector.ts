@@ -43,7 +43,7 @@ export async function triggerHeartbeatIfReady(source: 'tick' | 'rest' = 'tick'):
         const wsClients = (global as any).__wsClients || [];
         for (const client of wsClients) {
           if (client.sessionId === sessionId) {
-            const msg = vitality.generateLowEnergyMessage();
+            const msg = await vitality.generateLowEnergyMessage();
             console.log(`[Heartbeat] 低生命体征推送: ${msg} (用户状态: ${JSON.stringify(userState)})`);
             // 创建观察记录
             createProactiveObservation(vitality.getVitality().energy, JSON.stringify(userState), msg).catch(() => {});

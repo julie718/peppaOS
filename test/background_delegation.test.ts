@@ -6,49 +6,50 @@ const BASE = {
   category: 'command',
   complexity: 'moderate' as const,
   allowToolUse: true,
-  clientActionOnly: false,
-  selfRepair: false,
   sanctuary: false,
-  directDesktop: false,
-  prefersSequentialWorkflow: false,
   availableAgentCount: 2,
 };
 
-describe('background delegation', () => {
+describe('background delegation (心智驱动)', () => {
   it('delegates moderate or complex work to background agents', () => {
     const decision = shouldDelegateWorkInBackground(BASE);
     expect(decision.shouldDelegate).toBe(true);
     expect(decision.reason).toBe('work_complexity_moderate');
   });
 
-  it('honors explicit background delegation preference', () => {
-    const decision = shouldDelegateWorkInBackground({
-      ...BASE,
-      text: '这个不用等，交给子agent后台处理',
-      complexity: 'simple',
-    });
+  it('honors explicit background preference entity (entities.background)', () => {
+    const decision = shouldDelegateWorkInBackground({ ...BASE, complexity: 'simple', explicitBackground: true });
     expect(decision.shouldDelegate).toBe(true);
     expect(decision.reason).toBe('explicit_background_preference');
   });
 
-  it('keeps simple foreground chat and visible desktop work in the foreground', () => {
+  it('keeps simple foreground chat in the foreground', () => {
     expect(shouldDelegateWorkInBackground({
       ...BASE,
       text: '你觉得这个想法怎么样',
       category: 'question',
       complexity: 'simple',
     }).shouldDelegate).toBe(false);
-
-    expect(shouldDelegateWorkInBackground({
-      ...BASE,
-      directDesktop: true,
-    }).shouldDelegate).toBe(false);
   });
 
-  it('builds a concise foreground acknowledgement', () => {
+  it('does not delegate when tools are disabled, in sanctuary, or without workers', () => {
+    expect(shouldDelegateWorkInBackground({ ...BASE, allowToolUse: false }).shouldDelegate).toBe(false);
+    expect(shouldDelegateWorkInBackground({ ...BASE, sanctuary: true }).shouldDelegate).toBe(false);
+    expect(shouldDelegateWorkInBackground({ ...BASE, availableAgentCount: 0 }).shouldDelegate).toBe(false);
+  });
+
+  it('does not delegate non-work categories', () => {
+    expect(shouldDelegateWorkInBackground({ ...BASE, category: 'conversation', complexity: 'complex' }).shouldDelegate).toBe(false);
+  });
+
+  it('rejects empty input', () => {
+    expect(shouldDelegateWorkInBackground({ ...BASE, text: '  ' }).shouldDelegate).toBe(false);
+  });
+
+  it('builds a data-driven foreground acknowledgement', () => {
     const ack = buildDelegationAck(['法律检索员', '文书整理员'], 'bg_123');
+    expect(ack).toContain('后台任务已启动');
     expect(ack).toContain('法律检索员、文书整理员');
     expect(ack).toContain('bg_123');
-    expect(ack).toContain('继续和你聊天');
   });
 });

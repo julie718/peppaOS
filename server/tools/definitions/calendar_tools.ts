@@ -3,7 +3,6 @@ import { execSync } from 'child_process';
 import { writeFileSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { formatCalendarToday, formatCalendarUpcoming } from '../responseFormatter';
 
 /**
  * Windows Calendar & Email tools using Outlook COM automation via PowerShell.
@@ -301,15 +300,16 @@ async function systemCalendarToday(_args: Record<string, any>): Promise<string> 
   if (output.startsWith('__ERROR__:')) {
     return output.slice(9);
   }
+  // 【重构·模块4】固定话术模板移除：返回结构化数据，由心智内核组织表述
   if (output === 'EMPTY' || !output) {
-    return formatCalendarToday({ events: [] });
+    return JSON.stringify({ events: [] });
   }
 
   const events = output.split('\n').filter(Boolean).map(line => {
     const [time, title, location, desc, calName] = line.split('|');
     return { time, title, location: location || undefined, desc: desc || undefined, calendar: calName || undefined };
   });
-  return formatCalendarToday({ events });
+  return JSON.stringify({ events });
 }
 
 async function systemCalendarUpcoming(args: Record<string, any>): Promise<string> {
@@ -368,14 +368,14 @@ async function systemCalendarUpcoming(args: Record<string, any>): Promise<string
     return output.slice(9);
   }
   if (output === 'EMPTY' || !output) {
-    return formatCalendarUpcoming({ days, events: [] });
+    return JSON.stringify({ days, events: [] });
   }
 
   const events = output.split('\n').filter(Boolean).map(line => {
     const [date, time, title, location, desc, calName] = line.split('|');
     return { date, time, title, location: location || undefined, desc: desc || undefined, calendar: calName || undefined };
   });
-  return formatCalendarUpcoming({ days, events });
+  return JSON.stringify({ days, events });
 }
 
 export function registerCalendarTools(registry: ToolRegistry): void {

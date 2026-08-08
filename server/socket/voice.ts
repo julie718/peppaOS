@@ -19,18 +19,17 @@ import { getOrCreateActiveConversation, addMessage, getMessagesByTokenBudget, ex
 import { processInput, CognitiveContext, extractSentiment } from "../cognition";
 import { runOrchestratedTask, classifyComplexity, type LlmGetters } from "../agents/orchestrator";
 import { queryMemories, addMemory } from "../memory/store";
-import { matchQuickCommand } from "../cognition/quick_commands";
 import { recordTokenUsage } from "../llm/token_tracker";
 import { DEFAULT_MODELS, COMPLEX_MODELS, getScopedPreferredLLM, getUserPreferredLLMConfig } from "../llm/user_preferences";
+// 【重构·模块4】语音唤醒问候回退由心智润色组成
+import { composeTriggerContent } from '../proactive/rhythm';
 import { getOperationModeConfig, parseStoredOperationMode, OperationMode } from "../cognition/operation_modes";
-import { hasClientActionOnlyIntent, hasExplicitToolIntent, isDiagnosticOrRepairRequest, shouldAllowToolUseForTurn, shouldExposeAgentWork } from "../cognition/tool_intent";
-import { resolveWorkSurfaceRoute } from "../cognition/work_surface";
 import { updatePresence } from "../biometrics/presence";
 import { getVoiceprints } from "../biometrics/store";
 import { formatClientSelfPrompt } from "../client/self_model";
 import { getIdleState } from "../context/activity_stream";
 import { adjustMusicPlayback, getMusicFailureMessage, isMusicAdjustmentRequest, isMusicPlaybackRequest, searchAndPlay } from "../music/search_play";
-import { analyzeLikedMusicProfile, formatMusicProfileReport, isMusicProfileAnalysisRequest } from "../music/library_profile";
+import { analyzeLikedMusicProfile, formatMusicProfileReport } from "../music/library_profile";
 import { guardCompletionClaims, needsCompletionEvidence } from "../work_product/completion_guard";
 import { buildVisionRoutingOverlay, hasVisionIntent } from "../cognition/vision_routing";
 
@@ -145,44 +144,10 @@ function isPureInterruptCommand(text: string): boolean {
   return /^(停|停下|停止|打断|闭嘴|别说|不要说|先别说|别讲|不要讲|等下|等一下|暂停|好了|行了|够了|停一下|停一停|先停|先停一下|别说了|不要说了|先别说了|别讲了|不要讲了|打断一下|等我一下|暂停一下|可以了|不用说了|先这样|stop|wait|pause|interrupt|holdon|shutup)$/.test(normalized);
 }
 
-function detectVoiceClientModeSwitch(text: string): OperationMode | null {
-  const normalized = text.replace(/\s+/g, '').toLowerCase();
-  const hasSwitchVerb = /(切换|切到|切成|换到|进入|打开|开启|启动|设为|设置为|切回|回到|switch|change|enter|start|open)/i.test(normalized);
-  if (!hasSwitchVerb) return null;
-  if (/(会议模式|会议|meetingmode|meeting)/i.test(normalized)) return 'meeting';
-  if (/(聊天模式|聊天|chatmode|chat)/i.test(normalized)) return 'chat';
-  if (/(助手模式|助手|assistantmode|assistant)/i.test(normalized)) return 'assistant';
-  if (/(自主模式|自主|自主执行|自动执行|autonomymode|autonomousmode|autonomy|autonomous|autoexecute)/i.test(normalized)) return 'autonomous';
-  return null;
-}
-
-function isPureModeSwitchRequest(text: string, mode: OperationMode | null): boolean {
-  if (!mode) return false;
-  const normalized = text.replace(/\s+/g, '').toLowerCase();
-  return /^(peppa|露米)?(请|帮我|给我|麻烦)?(切换|切到|切成|换到|进入|打开|开启|启动|设为|设置为|切回|回到|switch|change|enter|start|open)(到|成)?(会议|聊天|助手|自主|自主执行|自动执行|meeting|chat|assistant|autonomy|autonomous|autoexecute)(模式|mode)?[。.!！?？]*$/i.test(normalized);
-}
-function shouldAutoPromoteVoiceWork(text: string, operationMode: OperationMode, requestedMode: OperationMode | null): boolean {
-  if (operationMode !== 'chat' || requestedMode) return false;
-  if (isMusicPlaybackRequest(text) || isMusicAdjustmentRequest(text)) return false;
-  if (/[?？]\s*$/.test(text) || /是不是|为什么|怎么回事|有没有|找到了吗|听见了吗/.test(text)) return false;
-  if (!hasExplicitToolIntent(text)) return false;
-  return /桌面|文件|文件夹|目录|草稿图|图纸|平面图|施工图|设计图|cad|CAD|DXF|运行日志|日志|生成|创建|画一|画个|按照.*画|找|搜索|打开|执行|运行|去干活|开始干活|开始处理|继续处理|继续做|接着做/.test(text);
-}
-
-function saveOperationModePreference(userId: string, mode: OperationMode): void {
-  try {
-    const db = readDB();
-    if (!db.settings) db.settings = [];
-    const key = `op_mode_${userId}`;
-    const value = JSON.stringify({ mode });
-    const existing = db.settings.findIndex((s: any) => s.key === key);
-    if (existing >= 0) db.settings[existing].value = value;
-    else db.settings.push({ key, value });
-    writeDB(db);
-  } catch (err: any) {
-    logger.warn(`[Audio] Failed to persist operation mode: ${err?.message || err}`);
-  }
-}
+// 【重构·模块1】删除模式切换/工作升级的正则前置分流：
+// - detectVoiceClientModeSwitch/isPureModeSwitchRequest（"切换到XX模式"正则池）→ 由心智内核调用
+//   client_action 工具自主完成模式切换（工具自描述驱动，无静态绑定）
+// - shouldAutoPromoteVoiceWork（chat→assistant 升级正则）→ 工具决策统一由心智 + 模式配置策略承担
 
 function cancelActiveVoiceTurn(session: AudioSession): void {
   session.bgGeneration++;
@@ -407,61 +372,24 @@ async function processVoiceInput(
     } catch {}
     return 'assistant';
   })();
-  const requestedMode = detectVoiceClientModeSwitch(userText);
-  const autoPromoteToAssistant = shouldAutoPromoteVoiceWork(userText, operationMode, requestedMode);
-  const effectiveOperationMode: OperationMode = requestedMode || (autoPromoteToAssistant ? 'assistant' : operationMode);
 
+  // 【重构·模块1】移除正则前置分流（selfRepair/clientActionOnly/workSurface/exposeAgentWork/toolRoute）。
+  // 工具决策交由心智内核（SEVEN_STEP_MIND 第3步 + 模式配置策略），安全边界由
+  // personality.toolPolicy / interceptor 确认流 / action_constitution 承担（保留类别①④）。
+  const effectiveOperationMode: OperationMode = operationMode;
   const effectiveOpModeConfig = getOperationModeConfig(effectiveOperationMode);
-  const allowToolUseForTurn = autoPromoteToAssistant || shouldAllowToolUseForTurn(userText, undefined, effectiveOperationMode);
-  const selfRepairTurn = isDiagnosticOrRepairRequest(userText);
-  const clientActionOnlyTurn = !selfRepairTurn && hasClientActionOnlyIntent(userText) && (effectiveOperationMode === 'chat' || effectiveOperationMode === 'meeting');
-  const workSurfaceRoute = resolveWorkSurfaceRoute(userText);
+  const allowToolUseForTurn = effectiveOperationMode !== 'meeting';
   const visionIntent = hasVisionIntent(userText);
-  const clientActionToolPolicy = clientActionOnlyTurn
-    ? { allowedTools: ['client_get_state', 'client_action'], requireConfirmation: [], forbiddenTools: [], maxIterations: 4 }
-    : null;
-  const selfRepairToolPolicy = selfRepairTurn
-    ? {
-        allowedTools: ['*'],
-        requireConfirmation: [
-          'desktop_run_command',
-          'run_command',
-          'write_file',
-          'file_delete',
-          'delete_file',
-          'rm',
-          'unlink',
-          'format',
-          'rmdir',
-          'uninstall',
-          'computer_use',
-        ],
-        forbiddenTools: [],
-        maxIterations: 8,
-      }
-    : null;
-  const exposeAgentWork = shouldExposeAgentWork(userText);
-  const routedToolPolicy = selfRepairToolPolicy
-    ? selfRepairToolPolicy
-    : clientActionToolPolicy
-      ? clientActionToolPolicy
-      : allowToolUseForTurn
-        ? (workSurfaceRoute.toolPolicy || effectiveOpModeConfig?.toolPolicy)
-        : { allowedTools: [], requireConfirmation: [], forbiddenTools: ['*'], maxIterations: 0 };
-  logger.info(`[Audio] tool gate: ${allowToolUseForTurn ? 'enabled' : 'chat-only'} mode=${operationMode} effective=${effectiveOperationMode} clientActionOnly=${clientActionOnlyTurn} selfRepair=${selfRepairTurn}`);
-  const opModeOverlay = clientActionOnlyTurn
-    ? '\n\n## Client Mode Control\nThe user is asking Peppa to change client mode or open a client-native surface. You may only use client_get_state and client_action. Do not use file, terminal, desktop mouse/keyboard, web, team, or external-app tools. Music is a playback/atmosphere capability, not a top-level work mode: open the music center or mood layer without switching client mode. For meeting/autonomous mode, use the client action confirmation flow when required.'
-    : selfRepairTurn
-    ? '\n\n## Client Self-Repair Turn\nThe user is reporting that Peppa or one of its client workflows is failing. Do not only apologize or repeat the raw error. Use client_get_state first when tools are available, inspect relevant status/log/config surfaces, apply one safe recovery or retry when the cause is clear, verify the result, and then give a concise spoken report. Reads and status checks are allowed; writes, desktop control, external app automation, and system changes still require confirmation.'
-    : (effectiveOpModeConfig && (allowToolUseForTurn || effectiveOperationMode === 'meeting') ? '\n\n' + effectiveOpModeConfig.promptOverlay : '');
-  const workSurfaceOverlay = workSurfaceRoute.promptOverlay ? '\n\n' + workSurfaceRoute.promptOverlay : '';
+  const routedToolPolicy = effectiveOpModeConfig?.toolPolicy;
+  logger.info(`[Audio] tool gate: ${allowToolUseForTurn ? 'enabled' : 'chat-only'} mode=${operationMode} effective=${effectiveOperationMode}`);
+  const opModeOverlay = effectiveOpModeConfig ? '\n\n' + effectiveOpModeConfig.promptOverlay : '';
   const visionRoutingOverlay = visionIntent && effectiveOperationMode !== 'meeting' ? '\n\n' + buildVisionRoutingOverlay(session.userId, userText) : '';
   const interactionOverlay = allowToolUseForTurn
     ? toolVoiceOverlay
-    : baseVoiceOverlay + '\n\n## Interaction Mode\nThis turn is chat-only. Do not call tools, operate the desktop, assemble a team, or claim that you are taking actions. Answer naturally unless the user gives an explicit command.';
+    : baseVoiceOverlay;
 
   const clientSelfPrompt = '\n\n' + formatClientSelfPrompt(session.userId);
-  const voiceSystemPrompt = fullPersonalityPrompt + interactionOverlay + opModeOverlay + workSurfaceOverlay + visionRoutingOverlay + buildVoiceReplyStyleOverlay() + clientSelfPrompt + topicContext;
+  const voiceSystemPrompt = fullPersonalityPrompt + interactionOverlay + opModeOverlay + visionRoutingOverlay + buildVoiceReplyStyleOverlay() + clientSelfPrompt + topicContext;
 
   const userLLMPrefs = getScopedPreferredLLM(session.userId, voiceScope);
   const provider = userLLMPrefs.provider || 'deepseek';
@@ -530,7 +458,7 @@ async function processVoiceInput(
     desktopRelay,
     llmGetters,
     source: 'voice',
-    ...(effectiveOperationMode === 'assistant' || effectiveOperationMode === 'autonomous' || clientActionOnlyTurn || selfRepairTurn ? { requestConfirmation } : {}),
+    ...(effectiveOperationMode === 'assistant' || effectiveOperationMode === 'autonomous' ? { requestConfirmation } : {}),
     isCancelled: () => pipelineAbort?.signal.aborted ?? false,
     toolPolicy: routedToolPolicy,
   };
@@ -600,160 +528,11 @@ async function processVoiceInput(
     ttsPromises.push(ttsQueue);
   };
 
-  // ── Quick Command Fast-Path: deterministic commands skip LLM entirely ──
-  const directlyAppliedMode: OperationMode | null =
-    autoPromoteToAssistant ? 'assistant'
-    : requestedMode && ['meeting', 'chat', 'assistant', 'autonomous'].includes(requestedMode) ? requestedMode
-    : null;
-  if (directlyAppliedMode) {
-    let modeSynced = true;
-    try {
-      await desktopRelay('client_action', {
-        action: 'set_client_mode',
-        mode: directlyAppliedMode,
-        confirmed: directlyAppliedMode === 'meeting' || directlyAppliedMode === 'autonomous',
-      });
-    } catch (err: any) {
-      modeSynced = false;
-      socket.emit('agent:notification', {
-        type: 'client_action',
-        level: 'warning',
-        message: `Mode switch did not reach the client: ${err?.message || err}`,
-      });
-    }
-    if (modeSynced) {
-      saveOperationModePreference(session.userId, directlyAppliedMode);
-    }
+  // 【重构·模块1】删除模式切换 Fast-Path（directlyAppliedMode）与 Quick Command 静态映射
+  // （matchQuickCommand 关键词→工具绑定）：模式切换由心智调用 client_action 工具完成，
+  // 工具执行由心智在 runWithTools / Orchestrator 中自主调度。
 
-    if (isPureModeSwitchRequest(userText, requestedMode)) {
-      const modeLabel = directlyAppliedMode === 'meeting' ? '会议模式'
-        : directlyAppliedMode === 'chat' ? '聊天模式'
-        : directlyAppliedMode === 'assistant' ? '助手模式'
-        : '自主模式';
-      responseText = modeSynced ? `已切到${modeLabel}。` : `我收到切换到${modeLabel}的请求了，但前端没有完成切换。`;
-      flushSentence(responseText);
-      await Promise.allSettled(ttsPromises);
-      const conv = getOrCreateActiveConversation(session.userId, session.agentId, voiceScope.domain, voiceScope.orgId);
-      addMessage({ userId: session.userId, agentId: session.agentId, conversationId: conv.id, role: 'user', content: userText, personality: session.personalityId, mode: 'voice', domain: voiceScope.domain, orgId: voiceScope.orgId });
-      addMessage({ userId: session.userId, agentId: session.agentId, conversationId: conv.id, role: 'assistant', content: responseText, personality: session.personalityId, mode: 'voice', domain: voiceScope.domain, orgId: voiceScope.orgId });
-      session.isProcessing = false;
-      session.isSpeaking = false;
-      session.pipelineAbortController = null;
-      socket.emit('chat:conversation_updated', { conversationId: conv.id, agentId: session.agentId, source: 'voice' });
-      socket.emit("audio:status", { status: "listening" });
-      socket.emit("agent:status", { status: "idle" });
-      socket.emit("agent:response", { text: responseText, agentName: "Peppa", source: "voice_mode" });
-      return;
-    }
-  }
-
-  try {
-    const quickResult = await matchQuickCommand(userText, session.userId);
-    if (quickResult?.matched) {
-      logger.info(`[Audio] Quick command: "${userText}" → "${quickResult.responseText.slice(0, 50)}"`);
-      if (quickResult.toolCall && session.isActive) {
-        const correlationId = `qc-${Date.now()}`;
-        try {
-          const tcResult = await toolRegistry.execute(quickResult.toolCall.name, quickResult.toolCall.arguments, toolContext);
-          socket.emit("agent:tool_call", {
-            correlationId,
-            name: quickResult.toolCall.name,
-            arguments: quickResult.toolCall.arguments,
-            result: tcResult?.slice(0, 500) || '',
-          });
-        } catch (toolErr: any) {
-          socket.emit("agent:tool_call", {
-            correlationId,
-            name: quickResult.toolCall.name,
-            arguments: quickResult.toolCall.arguments,
-            error: toolErr.message,
-          });
-        }
-      }
-      flushSentence(quickResult.responseText);
-      await Promise.allSettled(ttsPromises);
-      responseText = quickResult.responseText;
-      const conv = getOrCreateActiveConversation(session.userId, session.agentId, voiceScope.domain, voiceScope.orgId);
-      addMessage({ userId: session.userId, agentId: session.agentId, conversationId: conv.id, role: 'user', content: userText, personality: session.personalityId, mode: 'voice', domain: voiceScope.domain, orgId: voiceScope.orgId });
-      addMessage({ userId: session.userId, agentId: session.agentId, conversationId: conv.id, role: 'assistant', content: responseText, personality: session.personalityId, mode: 'voice', toolCalls: quickResult.toolCall ? [quickResult.toolCall] : undefined, domain: voiceScope.domain, orgId: voiceScope.orgId });
-      session.isProcessing = false;
-      session.isSpeaking = false;
-      session.pipelineAbortController = null;
-      socket.emit('chat:conversation_updated', { conversationId: conv.id, agentId: session.agentId, source: 'voice' });
-      socket.emit("audio:status", { status: "listening" });
-      socket.emit("agent:status", { status: "idle" });
-      socket.emit("agent:response", { text: responseText, agentName: "Peppa", source: "quick_command" });
-      return;
-    }
-  } catch (qcErr: any) {
-    logger.warn(`[Audio] Quick command check failed, falling through to LLM: ${qcErr.message}`);
-  }
-
-  if (isMusicProfileAnalysisRequest(userText)) {
-    try {
-      const profile = await analyzeLikedMusicProfile(session.userId, { maxSongs: 3000 });
-      responseText = formatMusicProfileReport(profile);
-      flushSentence(profile.summaryCn);
-    } catch (profileErr: any) {
-      responseText = `我现在还没能完成网易云喜欢歌单分析。${profileErr?.message || '请确认网易云已经登录，再试一次。'}`;
-      socket.emit('music:error', { message: responseText });
-      flushSentence(responseText);
-    }
-    await Promise.allSettled(ttsPromises);
-    const conv = getOrCreateActiveConversation(session.userId, session.agentId, voiceScope.domain, voiceScope.orgId);
-    addMessage({ userId: session.userId, agentId: session.agentId, conversationId: conv.id, role: 'user', content: userText, personality: session.personalityId, mode: 'voice', domain: voiceScope.domain, orgId: voiceScope.orgId });
-    addMessage({ userId: session.userId, agentId: session.agentId, conversationId: conv.id, role: 'assistant', content: responseText, personality: session.personalityId, mode: 'voice', domain: voiceScope.domain, orgId: voiceScope.orgId });
-    session.isProcessing = false;
-    session.isSpeaking = false;
-    session.pipelineAbortController = null;
-    socket.emit('chat:conversation_updated', { conversationId: conv.id, agentId: session.agentId, source: 'voice' });
-    socket.emit("audio:status", { status: "listening" });
-    socket.emit("agent:status", { status: "idle" });
-    socket.emit("agent:response", { text: responseText, agentName: "Peppa", source: "music_profile" });
-    return;
-  }
-
-  const immediateMusicAdjustment = isMusicAdjustmentRequest(userText);
-  if (isMusicPlaybackRequest(userText) || immediateMusicAdjustment) {
-    logger.info('[Audio] Music intent matched, acknowledging before playback...');
-    responseText = immediateMusicAdjustment
-      ? '\u597d\uff0c\u6211\u7ed9\u4f60\u6362\u4e00\u4e0b\u3002'
-      : '\u597d\uff0c\u6211\u6765\u653e\u3002';
-    flushSentence(responseText);
-    await Promise.allSettled(ttsPromises);
-
-    const conv = getOrCreateActiveConversation(session.userId, session.agentId, voiceScope.domain, voiceScope.orgId);
-    addMessage({ userId: session.userId, agentId: session.agentId, conversationId: conv.id, role: 'user', content: userText, personality: session.personalityId, mode: 'voice', domain: voiceScope.domain, orgId: voiceScope.orgId });
-    addMessage({ userId: session.userId, agentId: session.agentId, conversationId: conv.id, role: 'assistant', content: responseText, personality: session.personalityId, mode: 'voice', domain: voiceScope.domain, orgId: voiceScope.orgId });
-    session.isProcessing = false;
-    session.isSpeaking = false;
-    session.pipelineAbortController = null;
-    socket.emit('chat:conversation_updated', { conversationId: conv.id, agentId: session.agentId, source: 'voice' });
-    socket.emit("audio:status", { status: "listening" });
-    socket.emit("agent:status", { status: "idle" });
-    socket.emit("agent:response", { text: responseText, agentName: "Peppa", source: "music_voice_ack" });
-
-    const musicUserId = session.userId;
-    void (async () => {
-
-      try {
-        const result = immediateMusicAdjustment
-          ? await adjustMusicPlayback(musicUserId, socket, userText)
-          : await searchAndPlay(musicUserId, socket, userText);
-        if (!result.success) {
-          const message = getMusicFailureMessage(result.reason);
-          socket.emit('music:error', { message });
-          socket.emit('agent:notification', { type: 'music', level: 'warning', message });
-        }
-      } catch (musicErr: any) {
-        logger.warn('[Audio] Music background playback failed:', musicErr.message);
-        const message = getMusicFailureMessage(musicErr?.message);
-        socket.emit('music:error', { message });
-        socket.emit('agent:notification', { type: 'music', level: 'warning', message });
-      }
-    })();
-    return;
-  }
+  // 【重构·模块1】音乐/音乐画像意图在 cognition 心智分类后由 entities 实体统一门控（见后文 shortcut），此处不再做文本正则前置分流。
 
   try {
     // ── Peppa Cognitive Engine: classify intent BEFORE calling any LLM ──
@@ -809,17 +588,26 @@ async function processVoiceInput(
     }
     logger.info(`[Audio] Cognition: ${cognition.intent.category} (confidence: ${cognition.intent.confidence}), model: ${effectiveModel}`);
 
-    // ── Music intent shortcut — intercept before LLM tool-call loop ──
-    const isMusicAdjustment = isMusicAdjustmentRequest(userText);
-    if (isMusicPlaybackRequest(userText) || isMusicAdjustment) {
-      logger.info('[Audio] Music intent matched, attempting shortcut...');
+    // ── Music / MusicProfile intent shortcut — 心智实体驱动（entities.music / entities.musicProfile）──
+    // 【重构·模块1】门控由 LLM 分类器实体判定，无正则文本猜测；调节/播放动作在实体值上做数据层归一。
+    const musicEntity = cognition.intent?.entities?.music as string | undefined;
+    const musicProfileRequest = cognition.intent?.entities?.musicProfile === 'true';
+    const isMusicAdjustment = isMusicAdjustmentRequest(musicEntity);
+    if (isMusicPlaybackRequest(musicEntity) || musicProfileRequest) {
+      logger.info(`[Audio] Music intent matched (mind entity): ${musicProfileRequest ? 'musicProfile' : `"${musicEntity}"`}, attempting shortcut...`);
       try {
-        const result = isMusicAdjustment
-          ? await adjustMusicPlayback(session.userId, socket, userText)
-          : await searchAndPlay(session.userId, socket, userText);
-        responseText = result.success && result.text ? result.text : getMusicFailureMessage(result.reason);
-        if (!result.success) socket.emit('music:error', { message: responseText });
-        flushSentence(responseText);
+        if (musicProfileRequest) {
+          const profile = await analyzeLikedMusicProfile(session.userId, { maxSongs: 3000 });
+          responseText = formatMusicProfileReport(profile);
+          flushSentence(profile.summaryCn || responseText);
+        } else {
+          const result = isMusicAdjustment
+            ? await adjustMusicPlayback(session.userId, socket, musicEntity || userText)
+            : await searchAndPlay(session.userId, socket, musicEntity || userText);
+          responseText = result.success && result.text ? result.text : getMusicFailureMessage(result.reason);
+          if (!result.success) socket.emit('music:error', { message: responseText });
+          flushSentence(responseText);
+        }
         await Promise.allSettled(ttsPromises);
         const conv = getOrCreateActiveConversation(session.userId, session.agentId, voiceScope.domain, voiceScope.orgId);
         addMessage({ userId: session.userId, agentId: session.agentId, conversationId: conv.id, role: 'user', content: userText, personality: session.personalityId, mode: 'voice', domain: voiceScope.domain, orgId: voiceScope.orgId });
@@ -853,13 +641,11 @@ async function processVoiceInput(
     // ── Orchestrator: complex/moderate tasks → multi-agent decomposition ──
     let usedOrchestrator = false;
     const complexity = classifyComplexity(userText, { userId: session.userId, personalityId: session.personalityId });
-    if (allowToolUseForTurn && !clientActionOnlyTurn && !selfRepairTurn && !(workSurfaceRoute.artifactFirst && !workSurfaceRoute.directDesktop) && (complexity === 'complex' || complexity === 'moderate')) {
+    if (allowToolUseForTurn && (complexity === 'complex' || complexity === 'moderate')) {
       try {
-        socket.emit("agent:status", { status: "thinking", agentName: "Peppa", phase: exposeAgentWork ? 'orchestrator' : 'background' });
-        const voiceLeadIn = exposeAgentWork
-          ? "\u6536\u5230\uff0c\u6b63\u5728\u8ba9\u56e2\u961f\u534f\u4f5c\u5904\u7406\u8fd9\u4e2a\u4efb\u52a1\u3002"
-          : "\u6536\u5230\uff0c\u6211\u6765\u5904\u7406\u3002";
-        flushSentence(voiceLeadIn);
+        socket.emit("agent:status", { status: "thinking", agentName: "Peppa", phase: 'orchestrator' });
+        // \u8bed\u97f3\u7ba1\u9053\u5373\u65f6\u5e94\u7b54\uff08\u5de5\u7a0b\u4fdd\u7559\uff09\uff1aOrchestrator \u6267\u884c\u671f\u95f4\u907f\u514d TTS \u9759\u9ed8
+        flushSentence("\u6536\u5230\uff0c\u6211\u6765\u5904\u7406\u3002");
         session.isOrchestrating = true;
 
         const orchResult = await runOrchestratedTask(
@@ -867,7 +653,7 @@ async function processVoiceInput(
           { userId: session.userId, personalityId: session.personalityId, domain: voiceScope.domain, orgId: voiceScope.orgId, desktopRelay },
           { provider, model: effectiveModel },
           llmGetters,
-          exposeAgentWork ? (msg) => socket.emit("agent:chunk", { text: msg, agentName: "Peppa" }) : undefined,
+          (msg) => socket.emit("agent:chunk", { text: msg, agentName: "Peppa" }),
           (record, meta) => {
             toolResults.push({
               id: record.id,
@@ -1549,8 +1335,13 @@ export function registerVoiceHandlers(
       logger.info(`[Greeting] LLM-generated for ${userId}: "${greeting}"`);
     } catch (err: any) {
       logger.warn(`[Greeting] LLM generation failed, using fallback: ${err.message}`);
-      const hour = new Date().getHours();
-      const fallback = hour < 6 ? '夜深了，还在忙吗？' : hour < 12 ? '早上好，欢迎回来。' : hour < 18 ? '下午好，继续吧。' : '晚上好，欢迎回来。';
+      // 【重构·模块4】固定话术模板移除（原: 按 6/12/18 小时写死问候句，目标⑥④）：回退由
+      // composeTriggerContent 心智润色组成（实时状态数据 → 心智内核组织表述），离线再回退结构化摘要（容灾）。
+      const fallback = await composeTriggerContent('voice_return_greeting', {
+        hour: new Date().getHours(),
+        intimacy: (es.intimacy || 0.3).toFixed(2),
+        scene: data.scene || 'return',
+      });
       try {
         const ttsProvider = resolveVoiceTtsProvider({ provider: session.currentVoiceProvider || undefined });
         if (ttsProvider) {

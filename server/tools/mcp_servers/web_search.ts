@@ -5,7 +5,7 @@ import { ToolRegistry } from '../registry';
 import { buildMcpServerFromRegistry } from './mcp_helpers';
 import { logger } from '../../lib/logger';
 import { NEWS_SOURCES } from '../definitions/news_tools';
-import { bumpPreferenceTag } from '../../db/lifeDb';
+import { bumpPreferenceTag, getUserPreferenceTags } from '../../db/lifeDb';
 // 阶段一·模块2: 数字孪生行为采集（阅读维度）＋ 模块3: 资讯阅读后人格微调
 import { collectBehavior } from '../../autonomy/digital_twin';
 import { getPersonalityEngine } from '../../life/personality';
@@ -58,19 +58,17 @@ export function isWithinWindow(pubDate: string | undefined, hours: number): bool
   return Date.now() - t <= hours * 60 * 60 * 1000 && t <= Date.now() + 60 * 60 * 1000;
 }
 
-/** 多源抓取：并发抓全部源（限 8 个），保留来源标注 */
-export async function fetchMultiSource(keyword: string, hours: number, limit: number): Promise<Array<FeedItem & { sources: string[] }>> {
+/** 并发抓全部源原始条目（限 8 个，供单/多词检索复用，避免重复抓取） */
+async function fetchAllRaw(): Promise<Array<FeedItem & { source: string; category: string }>> {
   const sources = NEWS_SOURCES.slice(0, 8);
-  const raw = await Promise.all(sources.map(async s => {
+  return (await Promise.all(sources.map(async s => {
     const items = await fetchRSS(s.url);
     return items.map(i => ({ ...i, source: s.name, category: s.category }));
-  }));
-  const kw = keyword.toLowerCase();
-  const matched = raw.flat()
-    .filter(i => i.title.toLowerCase().includes(kw))
-    .filter(i => isWithinWindow(i.pubDate, hours))
-    .slice(0, limit);
-  // 去重：同标题不同源合并，标注多源数
+  }))).flat();
+}
+
+/** 去重聚合：同标题不同源合并，标注多源数 */
+function dedupeItems(matched: Array<FeedItem & { source: string }>, limit: number): Array<FeedItem & { sources: string[] }> {
   const seen = new Map<string, FeedItem[]>();
   for (const item of matched) {
     const key = item.title.replace(/[^\p{L}\p{N}]/gu, '').slice(0, 30).toLowerCase();
@@ -85,15 +83,43 @@ export async function fetchMultiSource(keyword: string, hours: number, limit: nu
   return deduped.slice(0, limit);
 }
 
+/** 多源抓取：并发抓全部源（限 8 个），保留来源标注 */
+export async function fetchMultiSource(keyword: string, hours: number, limit: number): Promise<Array<FeedItem & { sources: string[] }>> {
+  const raw = await fetchAllRaw();
+  const kw = keyword.toLowerCase();
+  const matched = raw
+    .filter(i => i.title.toLowerCase().includes(kw))
+    .filter(i => isWithinWindow(i.pubDate, hours))
+    .slice(0, limit);
+  return dedupeItems(matched, limit);
+}
+
 // ── handlers ──
 async function websearchMulti(args: Record<string, any>, userId: string): Promise<string> {
   const keyword = String(args.keyword || '').trim();
   if (!keyword) throw new Error('keyword 为必填');
   const hours = Math.min(Math.max(Number(args.hours) || 24, 1), 24 * 7);
   const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 20);
-  const items = await fetchMultiSource(keyword, hours, limit);
+
+  // 【重构·模块1补充】泛化时事请求 → 数据驱动检索词：由 deriveSearchTerms 从用户资讯偏好标签
+  // 派生活跃检索词（无偏好数据回落先验锚点），取代固定关键词数组作为检索依据（目标类别①）。
+  const terms = GENERIC_TOPIC_REQUESTS.includes(keyword) ? await deriveSearchTerms(userId) : null;
+  let items: Array<FeedItem & { sources: string[] }>;
+  let usedKeyword = keyword;
+  if (terms) {
+    const raw = await fetchAllRaw();
+    const kws = terms.map(t => t.toLowerCase());
+    const matched = raw
+      .filter(i => kws.some(k => i.title.toLowerCase().includes(k)))
+      .filter(i => isWithinWindow(i.pubDate, hours))
+      .slice(0, limit);
+    items = dedupeItems(matched, limit);
+    usedKeyword = terms[0];
+  } else {
+    items = await fetchMultiSource(keyword, hours, limit);
+  }
   // 工具结果沉淀用户偏好（资讯关注主题）
-  await bumpPreferenceTag(userId, `资讯-${keyword.slice(0, 10)}`, 0.1).catch(() => {});
+  await bumpPreferenceTag(userId, `资讯-${usedKeyword.slice(0, 10)}`, 0.1).catch(() => {});
   // 阶段一·模块2: 数字孪生采集（阅读维度）
   await collectBehavior(userId, '阅读', keyword.slice(0, 10), 0.1).catch(() => {});
   // 阶段一·模块3: 资讯阅读后缓慢微调 8 维人格（持续了解某主题 → 好奇/开放微升）
@@ -135,8 +161,33 @@ async function websearchCompare(args: Record<string, any>, userId: string): Prom
   return lines.join('\n');
 }
 
-// ── 时事类提问强制检索词表（chat 工具路由复用；命中即强制走检索而非直接答） ──
+// ── 时事检索词（先验锚点 + 数据驱动派生） ──
+// 【重构·模块1补充】原实现: 固定关键词数组 MUST_SEARCH_TERMS 作为检索依据（目标类别① 硬编码关键词数组）。
+// 重构后: 泛化时事请求的检索词由 deriveSearchTerms(userId) 从用户资讯偏好标签（websearch 阅读行为沉淀的
+// 资讯-* 标签）数据驱动派生；MUST_SEARCH_TERMS 保留为「无偏好数据时的统计先验锚点」——
+// 底层数学模型常量（保留类别⑥，同 rhythm.ts PRIOR 语义），E2E S7-B4 断言其覆盖时事类术语。
 export const MUST_SEARCH_TERMS = ['时事', '国际', '战争', '冲突', '选举', '峰会', '关税', '制裁', '美联储', '央行', '最新消息', '突发'];
+
+/** 泛化时事请求的固定表述（工具输入同义形式，对应工具自描述，非用户意图识别） */
+const GENERIC_TOPIC_REQUESTS = ['最新消息', '突发', '时事', '今日要闻'];
+
+/**
+ * 数据驱动检索词：读取用户资讯偏好标签（资讯-* 前缀，由 websearch 阅读行为沉淀），
+ * 派生活跃检索词（用户主题优先）并与先验锚点合并保证时事覆盖；无偏好数据时回落先验锚点（容灾）。
+ */
+export async function deriveSearchTerms(userId: string): Promise<string[]> {
+  try {
+    const tags = await getUserPreferenceTags(userId, 0.15);
+    const interests = (tags || [])
+      .filter(t => t.tag.startsWith('资讯-'))
+      .map(t => t.tag.slice('资讯-'.length))
+      .filter(k => k && k.length >= 2)
+      .slice(0, 4);
+    return interests.length > 0 ? [...interests, ...MUST_SEARCH_TERMS] : MUST_SEARCH_TERMS;
+  } catch {
+    return MUST_SEARCH_TERMS;
+  }
+}
 
 export function registerWebSearchTools(registry: ToolRegistry): void {
   const tools = [

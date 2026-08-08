@@ -1,24 +1,20 @@
 /**
  * Peppa Cognitive Engine — the independent decision-making layer.
  *
- * This engine sits BETWEEN the socket handlers and the LLM. It:
- * 1. Classifies every user input before it reaches any LLM
- * 2. Executes simple commands directly (no LLM call needed)
- * 3. Passes complex requests to the LLM with enriched context
- * 4. Falls back to local responses when the LLM is unavailable
+ * 【重构】移除正则前置分类与 directToolCall 静态映射（模块1/模块5）：
+ * 原流程"正则意图 → 直接工具执行(0 Token)"整体移除，意图全部由 LLM 心智判定，
+ * 工具调度由心智在 runWithTools 中自主完成（DAG 由 LLM 决策）。
  *
  * Architecture:
- *   User Input → [Cognitive Engine] → Direct Tool OR LLM → Response
+ *   User Input → [Cognitive Engine: LLM 心智分类] → LLM (带工具自主调度)
  *
  * Peppa is the dominant decision-maker. The LLM is just a swappable
- * text generation module — Peppa's identity, intent understanding,
- * and tool routing all work independently of it.
+ * text generation module — Peppa's identity and safety boundaries work independently of it.
  */
 
 import { classifyIntent, classifyIntentLLM, extractSentiment, IntentResult, SentimentResult } from './intent';
 import { logger } from '../lib/logger';
 import { generateFallback, isLLMDown } from './fallback';
-import { toolRegistry } from '../tools/registry';
 import { getModeConfig, ConversationMode, ModeConfig } from './modes';
 
 export { classifyIntent, classifyIntentLLM, extractSentiment, generateFallback, isLLMDown, getModeConfig };
@@ -37,13 +33,13 @@ export interface CognitiveContext {
 }
 
 export interface CognitiveResult {
-  /** The final response text to send to the user */
+  /** The final response text to send to the user (null/'' = pass through to LLM) */
   responseText: string;
-  /** The classified intent (for logging / workflow recording) */
+  /** The classified intent (LLM 心智判定) */
   intent: IntentResult;
   /** Whether the LLM was actually called */
   llmWasCalled: boolean;
-  /** Whether a direct tool was executed (no LLM) */
+  /** Whether a direct tool was executed (no LLM) — 重构后恒 false（心智调度） */
   directToolExecuted: boolean;
   /** Result from direct tool execution, if any */
   toolResult?: string;
@@ -55,58 +51,32 @@ export interface CognitiveResult {
  * Run the full cognitive pipeline on a user input.
  *
  * Flow:
- * 1. Classify intent
- * 2. If direct tool call possible and confidence high → execute and return
- * 3. Otherwise → caller should invoke LLM (we return null for responseText,
- *    signaling "pass through to LLM")
+ * 1. LLM 心智分类意图（classifier 快速调用，50 tokens）
+ * 2. 返回意图供上层决策；所有消息均进入 LLM 主链路（心智自主决定工具调度）
  *
- * Returns a CognitiveResult with responseText = null if the LLM should handle it.
+ * Returns a CognitiveResult with responseText = '' signaling "pass through to LLM".
  */
 export async function processInput(
   input: string,
   ctx: CognitiveContext,
   llmClassifier?: (prompt: string, userText: string) => Promise<string>,
 ): Promise<CognitiveResult> {
-  const regexIntent = classifyIntent(input);
-
-  // Second-stage LLM classification for ambiguous inputs
-  let intent: IntentResult = regexIntent;
-  if (llmClassifier && regexIntent.confidence < 0.65) {
-    intent = await classifyIntentLLM(input, regexIntent, llmClassifier);
-  }
-
-  // ── Path A: Direct tool call (skip LLM entirely) ──
-  if (intent.directToolCall && intent.confidence >= 0.75 && !intent.needsLLM) {
+  // ── 心智分类：LLM 一次判定类别/实体/情绪（无正则前置） ──
+  let intent: IntentResult;
+  if (llmClassifier) {
     try {
-      const toolResult = await toolRegistry.execute(
-        intent.directToolCall.name,
-        intent.directToolCall.args,
-      );
-
-      const fallback = generateFallback(intent, toolResult);
-      return {
-        responseText: fallback?.text || toolResult,
-        intent,
-        llmWasCalled: false,
-        directToolExecuted: true,
-        toolResult,
-        isFallback: !!fallback,
-      };
-    } catch (err: any) {
-      // Direct tool failed — fall through to LLM path
-      logger.info(`[Cognition] Direct tool '${intent.directToolCall.name}' failed: ${err.message}, falling through to LLM`);
-      return {
-        responseText: '',
-        intent,
-        llmWasCalled: false,
-        directToolExecuted: false,
-        toolResult: err.message,
-        isFallback: false,
-      };
+      intent = await classifyIntent(input, llmClassifier);
+    } catch (e: any) {
+      logger.warn(`[Cognition] 心智分类失败，走默认意图: ${e?.message}`);
+      intent = { category: 'conversation', confidence: 0.5, entities: {}, needsLLM: true };
     }
+  } else {
+    intent = { category: 'conversation', confidence: 0.5, entities: {}, needsLLM: true };
   }
 
-  // ── Path B: Needs LLM — signal caller to invoke LLM ──
+  logger.info(`[Cognition] 心智判定: ${intent.category} (${intent.confidence.toFixed(2)}) sentiment=${intent.sentiment ? JSON.stringify(intent.sentiment) : 'neutral'}`);
+
+  // ── 所有消息统一直送 LLM 主链路（心智自主调度工具） ──
   return {
     responseText: '',
     intent,

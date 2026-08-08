@@ -1,17 +1,23 @@
 import type { TaskComplexity } from './orchestrator';
 
+/**
+ * 【重构·模块1】后台分派判定移除全部正则池：
+ * - BACKGROUND_REQUEST_PATTERNS（后台/异步/子agent 关键词）→ 由心智实体 entities.background 驱动（LLM 判定显式后台请求）
+ * - STOCK_PATTERNS（股票关键词静态放行）→ 模块3：意图层静态市场识别移除，股票路由由心智依据工具自描述自主完成
+ * 仅保留：模式策略配置（WORK_CATEGORY_ALLOWLIST 保留类别⑤）+ 结构化复杂度兜底。
+ */
+
 export interface BackgroundDelegationDecisionInput {
   text: string;
-  source?: string;
+  /** 心智意图类别（LLM 判定） */
   category?: string;
+  /** 结构化复杂度兜底（长度/列表/分句） */
   complexity: TaskComplexity;
   allowToolUse: boolean;
-  clientActionOnly: boolean;
-  selfRepair: boolean;
   sanctuary: boolean;
-  directDesktop: boolean;
-  prefersSequentialWorkflow: boolean;
   availableAgentCount: number;
+  /** 心智实体 entities.background==='true'：用户显式要求后台/异步处理 */
+  explicitBackground?: boolean;
 }
 
 export interface BackgroundDelegationDecision {
@@ -19,37 +25,17 @@ export interface BackgroundDelegationDecision {
   reason: string;
 }
 
-const BACKGROUND_REQUEST_PATTERNS = [
-  /后台|子\s*agent|子智能体|交给.*agent|分派|派给|不用等|不要等|慢慢做|异步|并行/u,
-  /\b(background|sub-?agent|delegate|dispatch|async|parallel|don't wait|do not wait)\b/i,
-];
-
 const WORK_CATEGORY_ALLOWLIST = new Set(['command', 'code', 'question', 'analysis']);
-
-export function hasExplicitBackgroundDelegationPreference(text: string): boolean {
-  return BACKGROUND_REQUEST_PATTERNS.some(pattern => pattern.test(text));
-}
 
 export function shouldDelegateWorkInBackground(input: BackgroundDelegationDecisionInput): BackgroundDelegationDecision {
   if (!input.text.trim()) return { shouldDelegate: false, reason: 'empty_text' };
   if (!input.allowToolUse) return { shouldDelegate: false, reason: 'tools_disabled' };
-  if (input.clientActionOnly) return { shouldDelegate: false, reason: 'client_action_only' };
-  if (input.selfRepair) return { shouldDelegate: false, reason: 'self_repair' };
   if (input.sanctuary) return { shouldDelegate: false, reason: 'sanctuary_agent' };
-
-  // 股票查询放行：不进入 Orchestrator，直接调用 MCP 工具
-  const STOCK_PATTERNS = /股价|股票|行情|收盘价|开盘价|涨跌幅|市盈率|市净率|成交量|换手率|市值|PE|PB|ROE|EPS|K线|大盘|指数|涨停|跌停|板块|财报/;
-  if (STOCK_PATTERNS.test(input.text)) {
-    console.log('[Orchestrator] 股票查询直接放行，不进入后台');
-    return { shouldDelegate: false, reason: 'stock_direct_query' };
-  }
-  if (input.directDesktop) return { shouldDelegate: false, reason: 'direct_desktop_visible_work' };
-  if (input.prefersSequentialWorkflow) return { shouldDelegate: false, reason: 'artifact_first_sequential_workflow' };
   if (input.availableAgentCount < 1) return { shouldDelegate: false, reason: 'no_available_workers' };
   if (!WORK_CATEGORY_ALLOWLIST.has(input.category || '')) return { shouldDelegate: false, reason: 'non_work_category' };
 
-  const explicitlyRequested = hasExplicitBackgroundDelegationPreference(input.text);
-  if (explicitlyRequested) return { shouldDelegate: true, reason: 'explicit_background_preference' };
+  // 显式后台请求由心智实体判定（无正则文本猜测）
+  if (input.explicitBackground) return { shouldDelegate: true, reason: 'explicit_background_preference' };
   if (input.complexity === 'complex' || input.complexity === 'moderate') {
     return { shouldDelegate: true, reason: `work_complexity_${input.complexity}` };
   }
@@ -57,13 +43,9 @@ export function shouldDelegateWorkInBackground(input: BackgroundDelegationDecisi
   return { shouldDelegate: false, reason: 'simple_foreground_chat' };
 }
 
+/** 后台任务确认话术 — 数据化呈现（任务号/工作者名单来自真实执行上下文，无固定文案模板） */
 export function buildDelegationAck(workerNames: string[], taskId: string): string {
   const names = workerNames.slice(0, 3).filter(Boolean);
-  const workerLine = names.length > 0
-    ? `我先交给 ${names.join('、')} 这些子 agent 在后台处理。`
-    : '我先交给后台子 agent 处理。';
-  return [
-    `${workerLine}你不用等在这里，我会继续和你聊天。`,
-    `后台任务号：${taskId}。有阶段结果或最终结果时，我会直接推回来。`,
-  ].join('\n');
+  const workerPart = names.length > 0 ? `，由 ${names.join('、')} 处理` : '';
+  return `后台任务已启动（任务号：${taskId}${workerPart}）。完成后我会推送阶段结果和最终结果。`;
 }

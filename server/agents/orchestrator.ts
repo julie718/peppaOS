@@ -208,181 +208,57 @@ function throwIfCancelled(context: OrchestrationContext): void {
 // ── Complexity classification ──
 
 /**
- * Signals are organized by WHAT they reveal about task structure,
- * not just keyword matching.
+ * 【重构·模块1】复杂度判定移除全部关键词/正则标记数组
+ * （SEQUENTIAL_MARKERS/PARALLEL_MARKERS/CROSS_DOMAIN_PAIRS/DEEP_VERBS/
+ *  TEAM_TRIGGERS/ACTION_VERBS/SIMPLE_VERBS/opinionPatterns）。
+ * 复杂度的真正判定由心智内核（LLM）在 cognition 意图分类中完成，
+ * 此处仅保留结构化数据信号（列表项/分句/长度/问号）作为后台任务分级的兜底估计。
  */
 
-// Multi-step sequential markers: the user is describing a chain of actions
-const SEQUENTIAL_MARKERS = [
-  '先', '再', '然后', '接着', '之后', '最后',
-  '第一步', '第二步', '第三步', '首先', '其次', '最后',
-  'first', 'then', 'next', 'finally', 'after that',
-  'step 1', 'step 2', 'step 3',
-];
-
-// Parallel markers: the user explicitly wants things done concurrently
-const PARALLEL_MARKERS = [
-  '同时', '并行', '一边', '各自', '分别', '分开',
-  'simultaneously', 'in parallel', 'at the same time', 'concurrently',
-  'both', 'each', 'separately',
-];
-
-// Numbered/bulleted list: user already decomposed the task themselves
+// 结构化列表信号（数据形态，非关键词）：编号/项目符号行
 const LIST_PATTERN = /(?:^|\n)\s*(?:\d+[.、)]|[-*+•])\s+/gm;
 
-// Cross-domain verb pairs: one message touching fundamentally different domains
-// Each pair = [domain1_verb, domain2_verb] — both must appear
-const CROSS_DOMAIN_PAIRS: [string[], string[]][] = [
-  [['写', '开发', '实现', 'build', 'code', 'implement', 'create'], ['部署', '上线', '发布', 'deploy', 'release', 'publish']],
-  [['分析', '研究', 'analyze', 'research', 'investigate'], ['写', '生成', '报告', 'write', 'generate', 'report']],
-  [['设计', 'design', 'plan'], ['实现', '开发', '搭建', 'implement', 'build', 'code']],
-  [['修复', '排查', 'debug', 'fix', 'troubleshoot'], ['测试', '验证', '部署', 'test', 'verify', 'deploy']],
-  [['查', '搜索', 'search', 'find', 'look up'], ['整理', '汇总', '对比', 'organize', 'summarize', 'compare']],
-];
-
-// High-depth verbs: these verbs imply multiple implicit sub-steps
-const DEEP_VERBS = [
-  '搭建', '重构', '架构', '迁移', '集成', '部署方案',
-  'build a', 'set up a', 'architect', 'refactor', 'migrate', 'bootstrap',
-  '从零', 'from scratch', '整套', '完整的', '完整的',
-  'end-to-end', 'full stack', 'pipeline', 'workflow',
-];
-
-// Team/orchestration triggers — user explicitly wants multi-agent work
-const TEAM_TRIGGERS = [
-  '组个团队', '组建团队', '创建团队', '组个队', '找几个', '组队',
-  'assemble a team', 'create a team', 'form a team', 'team up',
-  '多个agent', '多个智能体', 'multi-agent', 'crew',
-];
-
-// Tool-requiring action verbs: user wants Peppa to DO something with tools.
-// These imply at least moderate complexity — dispatch to worker for execution.
-const ACTION_VERBS = [
-  '做', '帮我做', '制作', '创建', '生成', '写', '编写', '画', '绘制',
-  '打开', '启动', '运行', '执行', '关闭', '停止',
-  '搜索', '查', '查找', '找', '下载', '安装', '部署',
-  '删除', '移除', '清理', '整理',
-  '发送', '发', '推送', '上传', '分享',
-  '翻译', '转换', '导出', '导入', '提取',
-  'create', 'make', 'generate', 'build', 'write', 'draw', 'design',
-  'open', 'start', 'launch', 'run', 'execute', 'close', 'stop',
-  'search', 'find', 'look up', 'download', 'install', 'deploy',
-  'delete', 'remove', 'clean', 'organize',
-  'send', 'push', 'upload', 'share',
-  'translate', 'convert', 'export', 'import', 'extract',
-];
-
-// Pure Q&A / single-step verbs — these stay with Peppa directly
-const SIMPLE_VERBS = [
-  '是什么', '什么是', '什么意思', '怎么用', '用法',
-  'what is', 'how do i', 'how to', 'why is',
-  '解释一下', 'explain', '查一下', 'find', 'search for',
-  '哪个', 'which', 'when', 'where',
-];
-
 /**
- * Classify task complexity using structural heuristics.
+ * Classify task complexity using structural heuristics only (list/length/clauses/question mark).
  *
  * The goal: only send a task to the orchestrator when it genuinely
  * benefits from decomposition + parallel worker execution.
  *
- * Simple: single question or action, one domain, one step.
- * Moderate: 2-3 related steps, possible tool use but single domain.
- * Complex: multi-step + multi-domain, or explicit parallelism, or deep-task verbs.
+ * Simple: single short question/action.
+ * Moderate: 2-3 clauses or longer text.
+ * Complex: explicit numbered list, very long text, or many clauses.
+ * Semantic complexity (multi-domain/parallel/deep) is decided by the mind (LLM intent).
  */
 export function classifyComplexity(
   text: string,
   _context: OrchestrationContext,
 ): TaskComplexity {
-  const lower = text.toLowerCase();
   const trimmed = text.trim();
 
-  // ── Structural checks ──
+  // ── 结构化数据信号分级（无关键词/正则池） ──
+  // 多域/并行/深度等语义复杂度由心智内核（LLM 意图分类）判定；
+  // 此处仅用长度/列表/分句/问号等数据形态为后台任务分级兜底。
 
-  // 1. Explicit list: user already broke it down → complex
+  // 1. 显式列表：用户已自行分解 → 复杂
   const listMatches = trimmed.match(LIST_PATTERN);
   if (listMatches && listMatches.length >= 3) return 'complex';
   if (listMatches && listMatches.length >= 2) return 'moderate';
 
-  // 2. Sequential chain: "先X, 再Y, 然后Z" → complex
-  const seqMatches = SEQUENTIAL_MARKERS.filter(s => lower.includes(s));
-  if (seqMatches.length >= 3) return 'complex';
-  if (seqMatches.length >= 2) return 'moderate';
-
-  // 3. Explicit parallelism → at least moderate, usually complex
-  const paraMatches = PARALLEL_MARKERS.filter(s => lower.includes(s));
-  if (paraMatches.length >= 2) return 'complex';
-  if (paraMatches.length >= 1) return 'moderate';
-
-  // 4. Cross-domain detection: e.g., "写代码" + "部署"
-  let crossDomainHits = 0;
-  for (const [domain1, domain2] of CROSS_DOMAIN_PAIRS) {
-    const hit1 = domain1.some(v => lower.includes(v));
-    const hit2 = domain2.some(v => lower.includes(v));
-    if (hit1 && hit2) crossDomainHits++;
-  }
-  if (crossDomainHits >= 2) return 'complex';
-  if (crossDomainHits >= 1) return 'moderate';
-
-  // 5. Deep verbs that imply multi-step work
-  const deepHits = DEEP_VERBS.filter(s => lower.includes(s));
-  if (deepHits.length >= 1) return 'complex';
-
-  // 6. Team/orchestration triggers → explicit multi-agent intent
-  const teamHits = TEAM_TRIGGERS.filter(s => lower.includes(s));
-  if (teamHits.length >= 1) return 'complex';
-
-  // 7. Question detection — short questions with question markers are always simple.
-  //    "你能帮我做什么" is a question about capabilities, not an action request.
-  const QUESTION_MARKERS = [
-    '吗', '呢', '什么', '怎么', '谁', '哪', '干嘛', '干什么',
-    '能不能', '可不可以', '会不会', '可以吗', '行吗', '如何',
-    'what', 'how', 'why', 'when', 'where', 'who', 'can you', 'could you',
-  ];
-  const isQuestion = QUESTION_MARKERS.some(q => lower.includes(q));
+  // 2. 数据形态统计
+  const clauseCount = trimmed.split(/[。.!！?？；;\n]+/).filter(s => s.trim().length > 0).length;
   const chChars = (text.match(/[一-鿿]/g) || []).length;
-  if (isQuestion && chChars < 30 && text.split(/\s+/).length < 20) return 'simple';
-
-  // 8. Action verbs: user wants something DONE with tools → at least moderate, dispatch to worker
-  const actionHits = ACTION_VERBS.filter(s => lower.includes(s));
-  if (actionHits.length >= 1) return 'moderate';
-
-  // 9. Pure Q&A — single question, single domain → simple
-  const simpleHits = SIMPLE_VERBS.filter(s => lower.includes(s));
-  const clauseCount = trimmed.split(/[.。!！?？\n]+/).filter(s => s.trim().length > 0).length;
-  if (simpleHits.length >= 1 && clauseCount <= 1) return 'simple';
-
-  // 观点类问题 → 进入深度推理
-  const opinionPatterns = [
-    /你觉得|你认为|你怎么看|你怎么想|你怎么判断|你感觉|你的看法|你的观点|你判断|你预测|你估计|你推测/,
-    /评价|怎么看|意味着什么|说明了什么|代表什么|预示|前景|趋势|会怎样|会怎么/,
-    /为什么|原因是什么|怎么造成的|背后.*逻辑|底层.*原理|本质|根本上/
-  ];
-  if (opinionPatterns.some(p => p.test(text)) && text.length > 5) {
-    return 'moderate';
-  }
-
-  // ── Fallback size-based heuristics ──
-  const chineseChars = (text.match(/[一-鿿]/g) || []).length;
   const wordCount = text.split(/\s+/).length;
+  const endsWithQuestion = /[？?]$/.test(trimmed);
 
-  // Simple query detection: short single-intent request → skip Orchestrator
-  const hasMultiVerb = ACTION_VERBS.filter(s => lower.includes(s)).length >= 2;
-  const hasConjunction = /[和与及或并且而且]/.test(text);
-  const hasConditional = /如果|因为|所以|但是|虽然|然而|万一/.test(text);
-  const hasComplexOutput = /报告|建议|计划|方案|总结|分析|评估|策略/.test(text);
-  const isShortSimple = chineseChars < 30 && !hasMultiVerb && !hasConjunction && !hasConditional && !hasComplexOutput;
-  if (isShortSimple) {
-    console.log('[Orchestrator] 简单查询放行:', text.slice(0, 40));
-    return 'simple';
-  }
+  // 3. 短提问（问号收尾）→ simple
+  if (endsWithQuestion && chChars < 30 && wordCount < 20) return 'simple';
 
-  // Very short → simple
-  if (chineseChars < 20 && wordCount < 15) return 'simple';
+  // 4. 长度/句数分级
+  if (chChars > 200 || wordCount > 80 || clauseCount >= 6) return 'complex';
+  if (chChars > 80 || wordCount > 40 || clauseCount >= 3) return 'moderate';
 
-  // Very long → at least moderate
-  if (chineseChars > 200 || wordCount > 80) return 'complex';
-  if (chineseChars > 80 || wordCount > 40) return 'moderate';
+  // 5. 单句短输入 → simple
+  if (clauseCount <= 1 && chChars < 30) return 'simple';
 
   return 'simple';
 }

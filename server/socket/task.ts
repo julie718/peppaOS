@@ -20,8 +20,8 @@ import { processInput, handleLLMFailure, extractSentiment, CognitiveContext, Cog
 import { classifyComplexity, decomposeTask, matchWorkers, executeWorkflow, aggregateWithLLM, recordWorkflowPattern, shouldDistillSkill, buildSkillDescription } from "../agents/orchestrator";
 import { getMessagesByTokenBudget, addMessage, extractTopics, trackTopic, getTopicContext, getConversationSummary } from "../conversation/manager";
 import { loadHIMState, saveHIMState, updateEmotionalStateWithHIM } from "../personality/state";
-import { shouldExposeAgentWork } from "../cognition/tool_intent";
-import { resolveWorkSurfaceRoute } from "../cognition/work_surface";
+// tool_intent 正则门控已移除（shouldExposeAgentWork 删除）
+// work_surface 正则门控已移除（resolveWorkSurfaceRoute 删除）
 import { formatClientSelfPrompt } from "../client/self_model";
 import { buildVisionRoutingOverlay, hasVisionIntent } from "../cognition/vision_routing";
 
@@ -47,7 +47,7 @@ export function registerTaskHandler(
   socket.on("agent:task", async (data: { text: string; history?: any[]; personalityId?: string; conversationId?: string }) => {
     const uid = userIdFn(socket);
     const interactionId = crypto.randomUUID();
-    const exposeAgentWork = shouldExposeAgentWork(data.text);
+    // 【重构·模块1】exposeAgentWork 正则判定移除：Orchestrator 阶段消息默认展示。
 
     // Retrieve personality vector early to bias memory retrieval (cross-system fusion: vector→memory)
     const personalityPreConfig = personalityRegistry.get(data.personalityId || 'peppa');
@@ -94,12 +94,8 @@ export function registerTaskHandler(
     let activeModel = (userLLMPrefs.models || {})[activeProvider] || FALLBACK_MODELS[activeProvider] || 'deepseek-chat';
 
     // ── Load persisted conversation history (survives page reload) ──
-    const workSurfaceRoute = resolveWorkSurfaceRoute(data.text);
     const visionIntent = hasVisionIntent(data.text);
     let effectiveSystemPrompt = systemInstruction + '\n\n' + formatClientSelfPrompt(uid);
-    if (workSurfaceRoute.promptOverlay) {
-      effectiveSystemPrompt += '\n\n' + workSurfaceRoute.promptOverlay;
-    }
     const visionRoutingOverlay = visionIntent ? buildVisionRoutingOverlay(uid, data.text) : '';
     if (visionRoutingOverlay) {
       effectiveSystemPrompt += '\n\n' + visionRoutingOverlay;
@@ -209,17 +205,17 @@ export function registerTaskHandler(
       let orchestratedText = '';
       if (cognition.intent.category === 'command' || cognition.intent.category === 'code' || cognition.intent.category === 'question') {
         const complexity = classifyComplexity(data.text, { userId: uid, personalityId: data.personalityId || 'peppa' });
-        if (!workSurfaceRoute.forbidComputerUse && (complexity === 'complex' || complexity === 'moderate')) {
+        if (complexity === 'complex' || complexity === 'moderate') {
           const db = readDB();
           const availableAgents = (db.agents || []).filter((a: any) => a.status !== 'offline');
           if (availableAgents.length >= 1) {
             try {
-              socket.emit("agent:status", { status: "thinking", agentName: exposeAgentWork ? "Peppa Orchestrator" : personality.name, phase: exposeAgentWork ? 'orchestrator' : 'background' });
+              socket.emit("agent:status", { status: "thinking", agentName: personality.name, phase: 'orchestrator' });
               const subTasks = await decomposeTask(data.text, { provider: activeProvider, model: activeModel }, { userId: uid, personalityId: data.personalityId || 'peppa' }, llmGetters);
-              if (exposeAgentWork) socket.emit("task:chunk", { text: `[Orchestrator] Decomposed into ${subTasks.length} sub-tasks\n`, agentName: "Peppa" });
+              socket.emit("task:chunk", { text: `[Orchestrator] Decomposed into ${subTasks.length} sub-tasks\n`, agentName: "Peppa" });
 
               const assignments = matchWorkers(subTasks, availableAgents);
-              if (exposeAgentWork) socket.emit("task:chunk", { text: `[Orchestrator] Assigned to ${assignments.length} worker(s)\n`, agentName: "Peppa" });
+              socket.emit("task:chunk", { text: `[Orchestrator] Assigned to ${assignments.length} worker(s)\n`, agentName: "Peppa" });
 
               const workflowResult = await executeWorkflow(assignments, { userId: uid, personalityId: data.personalityId || 'peppa', desktopRelay }, { provider: activeProvider, model: activeModel }, llmGetters);
               const aggregated = await aggregateWithLLM(workflowResult, data.text, { provider: activeProvider, model: activeModel }, llmGetters);
@@ -237,9 +233,7 @@ export function registerTaskHandler(
                   timestamp: new Date().toISOString(),
                 });
               }
-              if (exposeAgentWork) {
               socket.emit("task:chunk", { text: `\n[Orchestrator] Workflow complete — ${workflowResult.totalAgentsUsed} agent(s) used\n`, agentName: "Peppa" });
-              }
             } catch (orchErr: any) {
               logger.error('[Orchestrator] Task workflow failed, falling back to normal execution:', orchErr.message);
             }
@@ -327,7 +321,7 @@ export function registerTaskHandler(
             socket.emit("agent:chunk", { text: chunk, agentName: personality.name });
           }
         },
-        { userId: uid, desktopRelay, requestConfirmation, toolPolicy: workSurfaceRoute.toolPolicy || personality.toolPolicy, isCancelled: () => cancelled, llmGetters },
+        { userId: uid, desktopRelay, requestConfirmation, toolPolicy: personality.toolPolicy, isCancelled: () => cancelled, llmGetters },
         llmGetters.getOllama,
         llmGetters.getLmStudio,
         llmGetters.getArk,

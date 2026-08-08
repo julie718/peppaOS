@@ -2,7 +2,8 @@
 // 运行方式（必须从项目根目录，sqlite3 解析依赖项目 node_modules）：
 //   TZ=America/New_York npx tsx e2e_isolated_25fix.test.ts
 // 隔离数据目录：/tmp/lumi_e2e_run（LIFE_DB_PATH / LUMI_DATA_DIR / DB_PATH 全覆盖，不影响生产数据）
-// TZ=America/New_York：保证 isLateNight() 判定为非深夜（本地当前为深夜 23 点，会误伤 L-11 触发器运行时验证）
+// D-1 修复：S5 触发器用例强制注入 (global as any).__forcedHour（日间 12 / 深夜 23），与运行时刻/时区完全解耦；
+//           server/proactive/triggers.ts 的 isLateNight() 优先读取该强制值，TZ=America/New_York 任意时段执行均稳定
 //
 // 场景：
 //   S1 三轮对话复盘落库（E-2 解耦 / L-2 情绪增量落库 / L-16 思考链 / L-6 复盘 TTL / 无事务错误）
@@ -26,6 +27,7 @@ fs.writeFileSync(path.join(TEST_DIR, 'data', '.nomigrate_marker'), 'block auto-m
 process.env.LIFE_DB_PATH = LIFEDB;
 process.env.LUMI_DATA_DIR = TEST_DIR;
 process.env.DB_PATH = PEPPA_DB;
+process.env.SELF_HEAL_DB_PATH = path.join(TEST_DIR, 'self_heal.db'); // S8: 自诊疗独立持久化库（隔离）
 delete process.env.MCP_TOOLS_DISABLED;
 
 let passed = 0;
@@ -314,6 +316,7 @@ async function main(): Promise<void> {
   (rel as any).vector = [0.6, 0.6, 0.6, 0.6];
   check('S5-5 前置：关系阶段达到熟人以上', rel.getRelationshipState().stage !== '陌生人', rel.getRelationshipState().stage);
   (emo as any).vector = [0.1, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]; // 喜悦 0.1 < 0.2 → 低落
+  (global as any).__forcedHour = 12; // D-1 修复：固定日间小时，与运行时刻/时区解耦（深夜 23-7 会误伤触发）
   (global as any).__lastUserMessageAt = Date.now() - 13 * 3600 * 1000;
   const lowMoodRes = await lowMoodComfortTrigger.check();
   check('S5-6 (L-11) 沉默13h+低情绪 → 触发 low_mood_comfort', lowMoodRes.triggered === true && lowMoodRes.scene === 'low_mood_comfort', JSON.stringify(lowMoodRes).slice(0, 120));
@@ -322,6 +325,13 @@ async function main(): Promise<void> {
   (global as any).__lastUserMessageAt = Date.now() - 49 * 3600 * 1000;
   const lowAct49 = await lowActivityGreetingTrigger.check();
   check('S5-8 (L-11) 沉默49h → 触发 low_activity_greeting', lowAct49.triggered === true && lowAct49.scene === 'low_activity_greeting', JSON.stringify(lowAct49).slice(0, 120));
+  // D-1 新增：深夜反向断言 — 强制 hour=23，安抚/问候均须静默（深夜不打扰设计）
+  (global as any).__forcedHour = 23;
+  const lowMoodNight = await lowMoodComfortTrigger.check();
+  check('S5-9 (D-1) 深夜(23点) 低情绪安抚不触发（不打扰设计）', lowMoodNight.triggered === false, JSON.stringify(lowMoodNight).slice(0, 80));
+  const lowActNight = await lowActivityGreetingTrigger.check();
+  check('S5-10 (D-1) 深夜(23点) 低活跃问候不触发（不打扰设计）', lowActNight.triggered === false, JSON.stringify(lowActNight).slice(0, 80));
+  delete (global as any).__forcedHour; // 恢复系统时间
 
   // ═══════════ S6 静态接线复核 ═══════════
   section('S6 静态接线复核');
@@ -412,9 +422,16 @@ async function main(): Promise<void> {
     check('S7-A6 行程更新状态生效', after?.status === 'cancelled');
     await (await import('./server/db/lifeDb')).deleteTravelItinerary(id);
     check('S7-A7 行程删除生效', (await (await import('./server/db/lifeDb')).getTravelItinerary(id)) === null);
-    // 临近推送（无网络时也应能走通知表通道，返回 0 不报错）
+    // D-2 修复验证：28h 后出发 + 默认 remind_hours=24 的行程，必须进入 72h 推送窗口（旧 SQL 被 24h 截断漏推）
+    const id28 = await (await import('./server/db/lifeDb')).addTravelItinerary(uid, {
+      title: '上海开会', encrypted: tc.encryptTravelPlan({ title: '上海开会', destination: '上海' }), destination: '上海',
+      departAt: new Date(Date.now() + 28 * 3600 * 1000).toISOString().slice(0, 16).replace('T', ' '), // 不传 remindHours → 默认 24
+    });
+    check('S7-A8a 24-72h 行程落库（默认 remind_hours=24）', typeof id28 === 'number', `id=${id28}`);
+    // 临近推送（无网络时走通知表通道；D-2 修复后 24-72h 行程必须被推送，pushed >= 1）
     const pushed = await tc.pushUpcomingTravelInfo(uid, 72).catch(() => 0);
-    check('S7-A8 行程临近推送函数可执行（无异常）', typeof pushed === 'number');
+    check('S7-A8 行程临近推送: 72h 窗口内 24-72h 行程正常推送（D-2 修复）', typeof pushed === 'number' && pushed >= 1, `pushed=${pushed}`);
+    await (await import('./server/db/lifeDb')).deleteTravelItinerary(id28);
     // 偏好沉淀
     await (await import('./server/db/lifeDb')).bumpPreferenceTag(uid, '孪生-出行-杭州', 0.2);
     const twinTags = await (await import('./server/autonomy/digital_twin')).predictBehaviors(uid);
@@ -535,6 +552,128 @@ async function main(): Promise<void> {
     const div = util.calculate('1/3');
     check('S7-F13 高精度除法 1/3 精确 18 位', div.ok === true && div.value.startsWith('0.333333333333333333'), div.ok === true ? div.value : 'err');
     check('S7-F14 除零错误优雅返回', !util.calculate('1/0').ok);
+  }
+
+  // ═══════════ S8 自诊疗模块（阶段二）：五场景（模拟修复 / TTL 死链路 / 错误回滚 / 手动触发 / 隔离性） ═══════════
+  // 全部操作基于 /tmp/lumi_selfheal_e2e 源码副本（rootDir 注入），正式代码严格只读。
+  {
+    section('S8 自诊疗引擎（阶段二）');
+    const { runSelfHeal } = await import('./server/self_heal/engine');
+    const { applyTemplateFix, checkSyntax, createSnapshot, rollbackFromSnapshot } = await import('./server/self_heal/editor');
+    const { listSelfHealRecords, countOpenDefects, listRepairHistory, getSelfHealDbPath } = await import('./server/self_heal/store');
+    const { REPAIR_TEMPLATES } = await import('./server/self_heal/templates');
+    type RepairTemplate = import('./server/self_heal/types').RepairTemplate;
+    type Defect = import('./server/self_heal/types').Defect;
+
+    const SH_ROOT = '/tmp/lumi_selfheal_e2e';
+    const shCopy = (rel: string) => path.join(SH_ROOT, rel);
+    const readSh = (rel: string) => fs.readFileSync(shCopy(rel), 'utf8');
+    const realRead = (rel: string) => fs.readFileSync(rel, 'utf8');
+    // 正式源码只读基线：记录 S8 关键文件内容哈希（结束对比必须全部一致）
+    const PROTECTED = [
+      'server/life/emotions.ts',
+      'server/tools/interceptor.ts',
+      'server/memory/store.ts',
+      'server/hooks/review.ts',
+      'server/db/lifeDb.ts',
+    ];
+    const hashOf = (p: string) => {
+      const c = fs.readFileSync(p, 'utf8');
+      let h = 0;
+      for (let i = 0; i < c.length; i++) h = (h * 31 + c.charCodeAt(i)) >>> 0;
+      return h;
+    };
+    const beforeHash = PROTECTED.map(p => hashOf(p));
+
+    // 准备源码副本（排除 self_heal/dist/snapshots，引擎从项目实时 import）
+    fs.rmSync(SH_ROOT, { recursive: true, force: true });
+    fs.mkdirSync(SH_ROOT, { recursive: true });
+    fs.cpSync('./server', path.join(SH_ROOT, 'server'), {
+      recursive: true,
+      filter: (src: string) => !/self_heal|snapshots|dist|node_modules/.test(src),
+    });
+
+    // ── S8-L1 模拟修复闭环：破坏情绪收敛率 → 引擎检测 → 模板 TPL-L1 自动修复 → 回归 ──
+    {
+      const emo = shCopy('server/life/emotions.ts');
+      const emoSrc = fs.readFileSync(emo, 'utf8');
+      check('S8-L1a 副本破坏点就位（收敛率 0.03→0.10）', emoSrc.includes('BASELINE_CONVERGE_RATE = 0.03'));
+      fs.writeFileSync(emo, emoSrc.replace('BASELINE_CONVERGE_RATE = 0.03', 'BASELINE_CONVERGE_RATE = 0.10'));
+      const r1 = await runSelfHeal({ rootDir: SH_ROOT, isolated: true });
+      const tpl1 = r1.defects.find(d => d.templateId === 'TPL-L1');
+      check('S8-L1b 自检报告结构完整（runId/断言数/评分/判定/隔离标记）', !!r1.runId.startsWith('SH-') && r1.assertionTotal === 73 && typeof r1.healthScore === 'number' && ['healthy', 'degraded', 'critical'].includes(r1.verdict) && r1.isolated === true, `runId=${r1.runId} total=${r1.assertionTotal} score=${r1.healthScore}`);
+      check('S8-L1c 收敛率破坏被标准断言 S6-23 捕获', r1.defects.some(d => d.source === 'assertion_failure' && d.symptom.includes('S6-23') && d.file === 'server/life/emotions.ts'), JSON.stringify(r1.defects.map(d => d.symptom).slice(0, 3)));
+      check('S8-L1d 已知高频 bug 分类命中模板 TPL-L1（known/可自动修复）', !!tpl1 && tpl1.category === 'known' && tpl1.autoRepairable === true && tpl1.severity === 'P1', JSON.stringify(tpl1));
+      check('S8-L1e 自动修复执行（autoRepaired>=1）', r1.autoRepaired >= 1, `auto=${r1.autoRepaired}`);
+      check('S8-L1f 修复落盘：副本收敛率恢复 0.03', readSh('server/life/emotions.ts').includes('BASELINE_CONVERGE_RATE = 0.03'));
+      check('S8-L1g 缺陷标记已解决（resolved+repairedBy=TPL-L1）', !!tpl1 && tpl1.resolved === true && tpl1.repairedBy === 'TPL-L1', JSON.stringify({ resolved: tpl1?.resolved, by: tpl1?.repairedBy }));
+    }
+
+    // ── S8-L2 TTL 死链路捕获+修复：删除 markToolResultTTL → 断言 S1-3 捕获 → 模板 TPL-TTL 恢复 ──
+    {
+      const itc = shCopy('server/tools/interceptor.ts');
+      const src = fs.readFileSync(itc, 'utf8');
+      const broken = src.replace(/export function markToolResultTTL[\s\S]*?\n}\n\n/, '// [S8-L2] TTL 标记函数已删除（模拟死链路）\n\n');
+      fs.writeFileSync(itc, broken);
+      check('S8-L2a 副本破坏点就位（TTL 函数移除）', !broken.includes('export function markToolResultTTL'));
+      const r2 = await runSelfHeal({ rootDir: SH_ROOT, isolated: true });
+      const tpl2 = r2.defects.find(d => d.templateId === 'TPL-TTL');
+      check('S8-L2b TTL 死链路被断言 S1-3 捕获并归因 interceptor.ts', r2.defects.some(d => d.file === 'server/tools/interceptor.ts' && d.symptom.includes('S1-3')), JSON.stringify(r2.defects.map(d => ({ f: d.file, s: d.symptom.slice(0, 40) })).slice(0, 4)));
+      check('S8-L2c 分类为已知 bug（templateId=TPL-TTL）', !!tpl2 && tpl2.templateId === 'TPL-TTL' && tpl2.autoRepairable === true, JSON.stringify(tpl2));
+      check('S8-L2d 自动修复恢复 TTL 标记函数', r2.autoRepaired >= 1 && readSh('server/tools/interceptor.ts').includes('markToolResultTTL'));
+      check('S8-L2e 修复后副本文件语法检查通过', checkSyntax(readSh('server/tools/interceptor.ts'), 'interceptor.ts').ok);
+    }
+
+    // ── S8-L3 错误修改自动回滚：坏模板产出语法错误 → 快照恢复 + 回滚日志 ──
+    {
+      const badFile = shCopy('mod.ts');
+      fs.writeFileSync(badFile, 'export const x = 1;\n');
+      const badTpl: RepairTemplate = {
+        id: 'TPL-BAD', name: '坏模板（E2E 专用）', category: '测试', target: 'mod.ts', severity: 'P1' as any,
+        detect: () => 'x', apply: (s) => s + 'function {\n', verify: () => true,
+      };
+      const badDefect: Defect = {
+        id: 'D9999', source: 'assertion_failure', category: 'known', severity: 'P1',
+        file: 'mod.ts', symptom: 'E2E 坏模板', criterion: '测试', templateId: 'TPL-BAD',
+        autoRepairable: true, humanRequired: false, resolved: false,
+      };
+      const snap = createSnapshot(SH_ROOT, 'mod.ts');
+      const exec = applyTemplateFix(SH_ROOT, badDefect, badTpl);
+      check('S8-L3a 坏模板修改被语法检查拦截（applied=false）', exec.applied === false, JSON.stringify(exec));
+      check('S8-L3b 语法错误触发自动回滚（rolledBack=true）', exec.rolledBack === true && exec.syntaxOk === false, JSON.stringify({ rb: exec.rolledBack, syn: exec.syntaxOk }));
+      check('S8-L3c 快照回滚生效：文件恢复原内容', readSh('mod.ts') === 'export const x = 1;\n');
+      const log = fs.readFileSync(path.join(SH_ROOT, '.self_heal_snapshots', 'rollback.log'), 'utf8');
+      check('S8-L3d 回滚日志留痕（含缺陷编号 D9999）', log.includes('D9999') && log.includes('mod.ts'));
+      rollbackFromSnapshot(SH_ROOT, 'mod.ts', snap);
+    }
+
+    // ── S8-L4 手动触发报告输出 + 持久化（SELF_HEAL_DB_PATH 隔离库） ──
+    {
+      // 重新破坏副本（非隔离轮次 → 自动修复 + 落库留痕，供 L4f 历史查询）
+      const emo4 = shCopy('server/life/emotions.ts');
+      const emoSrc4 = fs.readFileSync(emo4, 'utf8');
+      fs.writeFileSync(emo4, emoSrc4.replace('BASELINE_CONVERGE_RATE = 0.03', 'BASELINE_CONVERGE_RATE = 0.10'));
+      const r4 = await runSelfHeal({ rootDir: SH_ROOT, isolated: false }); // 非隔离标记 → 落库（库路径已隔离）
+      check('S8-L4a 手动触发返回完整报告（73 断言/健康分/判定）', r4.runId.startsWith('SH-') && r4.assertionTotal === 73 && r4.assertionPassed >= 70, `pass=${r4.assertionPassed}/73`);
+      check('S8-L4b 报告携带结构缺陷明细（编号/文件/症状/判定标准）', r4.defects.every(d => !!d.id && !!d.symptom && !!d.criterion) && r4.defects.length >= 0);
+      const recs = await listSelfHealRecords(5);
+      check('S8-L4c 自检记录持久化成功（最新记录=本次 runId）', recs.length >= 1 && recs[0].runId === r4.runId, `got=${recs[0]?.runId}`);
+      check('S8-L4d 持久化库位于隔离目录（self_heal.db 在 /tmp 测试目录）', getSelfHealDbPath().startsWith(TEST_DIR), getSelfHealDbPath());
+      const counts = await countOpenDefects();
+      check('S8-L4e 开放缺陷/待自动修复计数接口返回', typeof counts.open === 'number' && typeof counts.pendingAuto === 'number');
+      const repairs = await listRepairHistory(20);
+      check('S8-L4f 历史修复记录可查询（含本轮 TPL-L1 自动修复）', Array.isArray(repairs) && repairs.some(rp => rp.templateId === 'TPL-L1' && rp.resolved === 1), JSON.stringify(repairs.map(r => ({ t: r.templateId, r: r.resolved }))));
+    }
+
+    // ── S8-L5 隔离性：正式代码全程只读（hash 对比）+ 副本清理 ──
+    {
+      const afterHash = PROTECTED.map(p => hashOf(p));
+      check('S8-L5a 五份关键正式源码 S8 前后哈希完全一致（零改动）', PROTECTED.every((_, i) => beforeHash[i] === afterHash[i]), PROTECTED.filter((_, i) => beforeHash[i] !== afterHash[i]).join(','));
+      const snapshots = fs.readdirSync(path.join(SH_ROOT, '.self_heal_snapshots')).filter(f => f.endsWith('.bak'));
+      check('S8-L5b 修复全程留下快照备份（>=2 份）', snapshots.length >= 2, `n=${snapshots.length}`);
+      fs.rmSync(SH_ROOT, { recursive: true, force: true });
+      check('S8-L5c 副本目录已清理（不影响工作区）', !fs.existsSync(SH_ROOT));
+    }
   }
 
   // ═══════════ 汇总 ═══════════

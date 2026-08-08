@@ -1,7 +1,6 @@
 // 新闻工具 — 免费 RSS 源，无需 API Key
 import { ToolRegistry } from '../registry';
 import { logger } from '../../../logger';
-import { formatNewsHeadlines, formatNewsSearch } from '../responseFormatter';
 
 interface NewsItem {
   title: string;
@@ -26,15 +25,6 @@ export const NEWS_SOURCES: { name: string; url: string; category: string }[] = [
   { name: 'BBC News', url: 'https://feeds.bbci.co.uk/news/rss.xml', category: '综合' },
   { name: 'Reuters', url: 'https://www.rss-bridge.org/bridge01/?action=display&bridge=FilterBridge&url=https%3A%2F%2Fwww.reuters.com&content_filter=&content_filter_type=text&title_filter=&title_filter_type=text&author_filter=&author_filter_type=text&uri_filter=&uri_filter_type=text&case_insensitive=on&fix_encoding=on&format=Atom', category: '综合' },
 ];
-
-// Fallback categories when RSS parsing fails: use keyword-based search suggestions
-const CATEGORY_KEYWORDS: Record<string, string> = {
-  '科技': '科技 AI 人工智能',
-  '商业': '商业 财经 经济',
-  '综合': '今日要闻',
-  '体育': '体育 赛事',
-  '娱乐': '娱乐 影视',
-};
 
 async function fetchRSS(url: string): Promise<NewsItem[]> {
   const controller = new AbortController();
@@ -88,7 +78,8 @@ async function newsHeadlines(args: Record<string, any>): Promise<string> {
   const sources = NEWS_SOURCES.filter(s => s.category === category);
   const results = await fetchFromSources(sources.length > 0 ? sources : NEWS_SOURCES, limit);
   logger.info(`[News] headlines ${category} → ${results.length} items`);
-  return formatNewsHeadlines({ category, items: results.slice(0, limit) });
+  // 【重构·模块4】固定话术模板移除：返回结构化数据，由心智内核组织表述
+  return JSON.stringify({ category, items: results.slice(0, limit) });
 }
 
 // 阶段一·模块1: 导出供 web-search-mcp 复用（fetchRSS 由 web_search 模块独立实现可并发抓取更多源）
@@ -114,7 +105,7 @@ async function newsSearch(args: Record<string, any>): Promise<string> {
   ).slice(0, limit);
 
   logger.info(`[News] search "${keyword}" → ${matched.length} items`);
-  return formatNewsSearch({ keyword, items: matched });
+  return JSON.stringify({ keyword, items: matched });
 }
 
 export function registerNewsTools(registry: ToolRegistry): void {

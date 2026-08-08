@@ -1,7 +1,6 @@
 // 天气查询工具 — Open-Meteo 免费 API（无需 Key）
 import { ToolRegistry } from '../registry';
 import { logger } from '../../../logger';
-import { formatWeatherCurrent, formatWeatherForecast } from '../responseFormatter';
 
 // 城市名→坐标映射
 // 阶段一·模块1: 导出供 travel-cal-mcp 复用（统一底层，杜绝重复编码）
@@ -74,7 +73,8 @@ async function weatherCurrent(args: Record<string, any>): Promise<string> {
 
     logger.info(`[Weather] ${city} → ${temp}°C ${condition}`);
 
-    return formatWeatherCurrent({ city, temp, condition, code, humidity, wind });
+    // 【重构·模块4】固定话术模板移除：返回结构化数据，由心智内核组织表述
+    return JSON.stringify({ city, temp, condition, code, humidity, wind, tempUnit: '°C', windUnit: 'km/h' });
   } catch (e: any) {
     logger.error('[Weather] 查询失败:', e.message);
     return `天气查询失败: ${e.message}`;
@@ -103,7 +103,7 @@ async function weatherForecast(args: Record<string, any>): Promise<string> {
     }
 
     logger.info(`[Weather] forecast ${city} × ${days} days`);
-    return formatWeatherForecast({ city, days, items });
+    return JSON.stringify({ city, days, items, tempUnit: '°C' });
   } catch (e: any) {
     logger.error('[Weather] 预报失败:', e.message);
     return `天气预报查询失败: ${e.message}`;

@@ -15,17 +15,10 @@ await build({
   },
 });
 
-// 复制 proactive 目录到 dist-server
-const srcProactive = join(process.cwd(), 'server/proactive');
-const destProactive = join(process.cwd(), 'dist-server/proactive');
-try {
-  cpSync(srcProactive, destProactive, { recursive: true, force: true });
-  // 编译 proactive 目录中的 TypeScript 文件
-  execSync('npx tsc dist-server/proactive/*.ts --outDir dist-server/proactive --module commonjs --target es2020 --esModuleInterop', { stdio: 'inherit' });
-  console.log('[build-server] Copied and compiled proactive/ to dist-server/');
-} catch (e) {
-  console.log('[build-server] proactive/ not found, skipping');
-}
+// 【重构·模块2】proactive/ 已被 esbuild 从入口 server.ts 静态依赖图打包进 server.mjs
+// （含懒加载 require('../proactive/rhythm')，验证无外部化引用），无需单独复制+编译；
+// 原复制后 tsc 编译步骤因相对路径（../lib/logger 等）在 dist-server 下不存在而恒失败，
+// 错误被 catch 吞掉后仅打印误导性的 "not found, skipping" —— 已移除（打包脚本属保留类别⑤，仅清理失效步骤）。
 
 // Generate entry.cjs for CommonJS environments
 mkdirSync('dist-server', { recursive: true });

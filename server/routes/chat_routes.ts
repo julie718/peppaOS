@@ -15,7 +15,6 @@ import { queryMemoriesVector } from "../memory/store";
 import { loadEmotionalState } from "../personality/state";
 import { getSensory } from "../socket/shared";
 import { readDB, writeDB } from "../../db_layer";
-import { getVitality } from "../life/vitality";
 
 export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
   getDeepSeek: any; getGemini: any; getOpenAI: any; getAnthropic: any; getQwen: any;
@@ -66,17 +65,8 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
         } catch {}
       };
 
-      // ── 本能层：自检消息直接回复 ──
-      const SELF_AWARE_PATTERNS = [
-        /你还好吗|你还好么|你怎么样|感觉怎么样|你累不累|你现在状态|你感觉如何|你最近怎么样|你在吗|你还在吗|你忙不忙|你有没有精力|你是不是累了|你的状态怎么样|你还活着吗|你还有电吗|好点没|缓过来了吗/i,
-      ];
-      if (prompt && SELF_AWARE_PATTERNS.some(p => p.test(prompt))) {
-        const vt = getVitality();
-        responseText = vt.generateSelfAwareResponse();
-        persistInteraction(responseText);
-        logger.info('[ChatHandler:REST] 本能层拦截:', (prompt || '').slice(0, 30));
-        return res.json({ text: responseText });
-      }
+      // 【重构·模块1补充】REST 本能层正则拦截已移除（原 SELF_AWARE_PATTERNS 正则池 + 固定话术回复，
+      // 与 WebSocket 路径保持一致）：自检类消息现统一走心智主线，由认知链 LLM 自主理解与回复。
 
       // ── 检查客户端是否已传入 system prompt（如 runAgentLogic 传来的）──
       const clientSystemMsg = messages?.find((m: any) => m.role === 'system');

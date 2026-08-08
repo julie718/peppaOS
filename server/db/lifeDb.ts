@@ -4,7 +4,9 @@ import sqlite3 from 'sqlite3';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const DB_PATH = process.env.LIFE_DB_PATH || '/app/data/life.db';
+// 【重构·校验修复】默认路径回落数据根统一解析（Docker 内 LUMI_DATA_DIR=/app → /app/data/life.db 不变）
+import { getDataPath } from '../config/data_path'; // E-3: 统一路径解析
+const DB_PATH = process.env.LIFE_DB_PATH || getDataPath('life.db');
 const BACKUP_DIR = path.dirname(DB_PATH);
 
 let db: sqlite3.Database | null = null;
@@ -935,15 +937,15 @@ export async function deleteTravelItinerary(id: number): Promise<void> {
   await run('DELETE FROM travel_itineraries WHERE id = ?', [id]);
 }
 
-/** 行程临近查询：未来 withinHours 小时内出发、且已到提醒阈值（depart_at - now <= remind_hours）的未完成行程 */
+/** 行程临近查询：未来 withinHours 小时内出发、且已到提醒窗口上限（depart_at - now <= MAX(remind_hours, withinHours)）的未完成行程 */
 export async function getUpcomingTravels(userId: string, withinHours: number): Promise<TravelItineraryRow[]> {
   return all<TravelItineraryRow>(
     `SELECT * FROM travel_itineraries
      WHERE user_id = ? AND status = 'upcoming' AND depart_at != ''
        AND julianday(depart_at) - julianday('now') BETWEEN 0 AND ?
-       AND julianday(depart_at) - julianday('now') <= (remind_hours / 24.0)
+       AND julianday(depart_at) - julianday('now') <= MAX(remind_hours / 24.0, ?)
      ORDER BY depart_at`,
-    [userId, withinHours / 24.0],
+    [userId, withinHours / 24.0, withinHours / 24.0],
   );
 }
 

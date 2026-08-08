@@ -43,13 +43,17 @@ export async function prefetchForMessage(userMessage: string, userId?: string): 
   return result;
 }
 
-/** Fetch tool names relevant to the user message */
-async function fetchRelevantTools(userMessage: string): Promise<string[]> {
+/**
+ * 【重构·模块1】工具预取不再做关键词路由（routeToolsForTurn/TOOL_KEYWORD_MAP 已删除）：
+ * 全量声明名作为提示注入（policy 过滤在 runWithTools 实际执行时进行），数据驱动。
+ */
+async function fetchRelevantTools(_userMessage: string): Promise<string[]> {
   try {
-    const { routeToolsForTurn } = await import('../cognition/tool_router');
     const { toolRegistry } = await import('../tools/registry');
-    const route = routeToolsForTurn(userMessage, toolRegistry.getToolDeclarations());
-    return route.toolNames.slice(0, 10);
+    return toolRegistry.getToolDeclarations()
+      .map((d: any) => d.function?.name || d.name || '')
+      .filter(Boolean)
+      .slice(0, 10);
   } catch {
     return [];
   }

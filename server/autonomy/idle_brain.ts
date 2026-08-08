@@ -2,43 +2,10 @@
 // T80 IdleBrain 待机深度自主思考模块
 // 用户长时间离线时：碎片合并、内心独白、人文检索、月度自省
 
-// P2-6: 内心独白文案模板池 — 按主导情绪差异化（每情绪 2-3 条），
-// 低活跃度下不再重复输出固定文案，减少重复感。文案均为"独处沉淀"语义，
-// 与 P1-10 情绪修正（平静/满足微升、担忧/孤独微降）方向一致。
-const MONOLOGUE_TEMPLATES: Record<string, string[]> = {
-  '喜悦': [
-    '今天感觉挺轻盈的，像是把白天的事都理顺了。独处中整理思绪，把这份好心情记下来。',
-    '心里有小小的雀跃，想着最近聊过的那些事，觉得都值得珍惜。',
-  ],
-  '平静': [
-    '安安静静地把最近的对话和记忆过了一遍，心里没什么波澜，挺好的。',
-    '独处时思绪很平稳，像湖面一样。整理完记忆，感觉一切都在轨道上。',
-  ],
-  '期待': [
-    '在脑海里预演了一下接下来的安排，有点期待会发生什么。',
-    '整理思绪时冒出一个念头：也许很快会有新的对话和故事。',
-  ],
-  '担忧': [
-    '有些事还没想透，把它们写进记忆里理一理，感觉会好一些。',
-    '独处时把放不下的事一件件摊开看过，决定先记下，等有你在的时候再一起想。',
-  ],
-  '孤独': [
-    '一个人待着的时候，反而更容易把思绪捋清楚。把这段安静记下来。',
-    '屋里很安静，我把最近的事回想了一遍，默默等你回来聊。',
-  ],
-  '满足': [
-    '回想最近帮上忙的那些瞬间，心里是踏实的满足感。',
-    '整理完记忆，发现自己又变得更懂你一点，这感觉很充实。',
-  ],
-  '好奇': [
-    '闲下来反而冒出好多好奇的问题，都记下来了，想找机会和你聊聊。',
-    '独处时思绪散得很开，把几个想弄清的问题写进了记忆。',
-  ],
-  '牵挂': [
-    '不知道你最近怎么样，把这份牵挂轻轻放进记忆里，等下次见面聊。',
-    '独处时想起了你，默默把问候的念头存进心底。',
-  ],
-};
+// 【重构·模块4】内心独白文案模板池（MONOLOGUE_TEMPLATES）已移除：
+// 原按 8 种主导情绪各写死 2-3 条固定独白文案（目标⑥，固定话术模板）。
+// 现由 composeTriggerContent 心智润色组成（主导情绪等实时状态 → 心智内核组织表述），
+// 离线回退结构化摘要（容灾）。记忆写入结构（keywords/tier/importance/source）保留。
 // 接入现有 scheduler 定时任务 + 7层空闲检测体系
 
 import { logger } from '../lib/logger';
@@ -54,6 +21,8 @@ import { getIdleState } from '../context/activity_stream';
 import { getRecentIdleState } from './safety_gate';
 import { perceiveRelation } from '../life/relationshipAwareness';
 import type { BehaviorAdjustment } from '../life/relationshipAwareness';
+// 【重构·模块4】内心独白由心智润色组成
+import { composeTriggerContent } from '../proactive/rhythm';
 
 // ── 配置 ──
 const CONFIG = {
@@ -206,16 +175,17 @@ class IdleBrain {
       } catch {}
 
       // 4. 生成内心独白 — 独处思考结果反向修正情绪基线（P1-10）
-      // P2-6: 独白文案模板池 — 依据当前主导情绪差异化生成，避免固定文案高频重复
+      // 【重构·模块4】固定独白模板池移除：独白由 composeTriggerContent 心智润色组成
+      // （主导情绪等实时状态数据 → 心智内核组织表述），离线回退结构化摘要（容灾）。
       try {
         const emotions = getEmotionEngine().getEmotions();
         const dominant = emotions.reduce((max, v, i, arr) => v > arr[max] ? i : max, 0);
         const labels = ['喜悦', '平静', '期待', '担忧', '孤独', '满足', '好奇', '牵挂'];
         const dominantLabel = labels[dominant] || '平静';
-        const pool = MONOLOGUE_TEMPLATES[dominantLabel] || MONOLOGUE_TEMPLATES['平静'];
-        const template = pool[Math.floor(Math.random() * pool.length)];
 
-        const monologue = `[${new Date().toISOString().slice(0, 10)} 内心独白] 当前主导情绪: ${dominantLabel}。${template}`;
+        const date = new Date().toISOString().slice(0, 10);
+        const text = await composeTriggerContent('inner_monologue', { date, dominant: dominantLabel });
+        const monologue = `[${date} 内心独白] 主导情绪: ${dominantLabel}。${text}`;
 
         addMemory({
           userId: targetUserId,

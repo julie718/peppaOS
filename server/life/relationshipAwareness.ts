@@ -455,7 +455,8 @@ export async function calibrateRelationshipStage(): Promise<string> {
   try {
     const sqlite3 = (await import('sqlite3')).default;
     const peppaDbPath = getPeppaDbPath(); // E-3
-    const peppaDb = new sqlite3.Database(peppaDbPath);
+    // 【重构·校验修复】带回调构造：打开失败时错误进回调而非未捕获 'error' 事件（try/catch 捕获不到事件型崩溃）
+    const peppaDb = new sqlite3.Database(peppaDbPath, () => {});
     const row = await new Promise<any>((resolve, reject) => {
       peppaDb.get('SELECT COUNT(*) as cnt FROM interactions WHERE role = ?', ['user'], (err, row) => {
         if (err) reject(err);

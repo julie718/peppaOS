@@ -11,13 +11,13 @@ import { LLMUsage, ToolExecutionRecord } from "../tools/types";
 import { toolRegistry } from "../tools/registry";
 import { runWithTools } from "../llm/adapter";
 import { getOperationModeConfig, parseStoredOperationMode } from "../cognition/operation_modes";
-import { hasClientActionOnlyIntent, isDiagnosticOrRepairRequest, shouldAllowToolUseForTurn, shouldExposeAgentWork } from "../cognition/tool_intent";
-import { resolveWorkSurfaceRoute } from "../cognition/work_surface";
-import { formatToolRouteForPrompt, mergeToolPolicyWithRoute, routeToolsForTurn } from "../cognition/tool_router";
+// tool_intent 正则门控已移除（shouldAllowToolUseForTurn 由模式配置 + 心智接管）
+// work_surface 正则门控已移除（resolveWorkSurfaceRoute 删除）
+// tool_router 静态工具路由已移除（routeToolsForTurn 删除）
 import { formatClientSelfPrompt } from "../client/self_model";
 import { queryMemories, queryMemoriesVector, addMemory, addReminder, extractMemories, retrieveRelevantMemories, getTimeline, getMemories, storeMemory, extractKeyFacts, applyPreferenceFacts, formatPreferenceTagsForPrompt, getSensitiveTopicGuard, extractKnowledge, storeKnowledge, getKnowledge, formatKnowledgeForContext } from "../memory";
 import { getUserPreferenceTags } from "../db/lifeDb";
-import { loadEmotionalState, saveEmotionalState, updateEmotionalState, updateEmotionalStateWithHIM, loadHIMState, saveHIMState, generateContextualGreeting, vectorMemoryBias } from "../personality/state";
+import { loadEmotionalState, saveEmotionalState, updateEmotionalState, updateEmotionalStateWithHIM, loadHIMState, saveHIMState, vectorMemoryBias } from "../personality/state";
 import { buildModeOverlay } from "../personality/engine";
 import { personalityRegistry } from "../personality";
 import { lightweightEvolve } from "../personality/evolution";
@@ -26,26 +26,27 @@ import { ensureBranch } from "../memory/tree";
 import { detectAndSwitchTopic } from "../memory/focusStack";
 import { getPrefetchedContext, clearPrefetchedContext, touchActivity } from "../memory/prefetch";
 import { getLifeSystem, getDirectionState } from "../life/index";
-import { getVitality } from "../life/vitality";
+// getVitality 仅本能层使用，已随正则池移除
 import { getEmotionEngine } from "../life/emotions";
 import { getPersonalityEngine } from "../life/personality";
 import { getRelationshipEngine } from "../life/relationship";
 import { onInteractionComplete } from "../life/relationshipAwareness";
-import { routeMessage, isInstinctQuery, isIdentityQuery } from "../cognition/router";
+import { routeMessage } from "../cognition/router";
 import { getSelfState } from "../cognition/selfState";
-import { generateIdentityResponse, generateHowAreYouResponse } from "../life/narrative";
-import { updateComprehension, shouldClarify, generateClarification, getComprehensionState } from '../life/comprehension';
+// narrative 本能话术模板已随正则池移除
 import { touchUserActivity } from "../life/userState";
 // P0-6: IdleBrain 短待机入口（对话结束标记）
 import { idleBrain } from '../autonomy/idle_brain';
 // 【新增数字生命体模块】T80 心智 + MCP 拦截器
-import { buildMindContext, classifyToolIntent, MindContext, SEVEN_STEP_MIND } from '../hooks/chat';
+import { buildMindContext, MindContext, SEVEN_STEP_MIND } from '../hooks/chat';
+// 【重构·模块4】固定话术剔除：重逢问候由心智润色组成
+import { composeTriggerContent } from '../proactive/rhythm';
 import { mcpInterceptor, buildToolBlockMessage, applyConstitutionGuard, MCP_MAX_CALLS_PER_TURN, markToolResultTTL } from '../tools/interceptor';
 import { getUnrespondedObservations, markObservationResponded } from "../db/lifeDb";
 import { retrieveChunks } from "../agents/rag";
 import { getSensory } from "./shared";
 import { processInput, handleLLMFailure, extractSentiment, CognitiveContext } from "../cognition";
-import { matchQuickCommand } from "../cognition/quick_commands";
+// quick_commands 关键词→MCP 映射已移除
 import { checkLLMAccess, recordUsage, estimateTokens } from "../subscription/proxy";
 import { recordTokenUsage } from "../llm/token_tracker";
 import { runOrchestratedTask, shouldDistillSkill, buildSkillDescription, classifyComplexity } from "../agents/orchestrator";
@@ -61,14 +62,14 @@ import {
   registerBackgroundTask,
   requestCancelBackgroundTask,
 } from "../agents/background_tasks";
-import { runNLChainer, shouldChainTask } from "../agents/nl_chainer";
-import { autoInstallForTask } from "../agents/auto_installer";
+// nl_chainer 正则链式任务判定已移除
+// auto_installer 已随 nl_chainer 移除
 import { adjustMusicPlayback, getMusicFailureMessage, isMusicAdjustmentRequest, isMusicPlaybackRequest, searchAndPlay } from "../music/search_play";
 import { searchKnowledgeBase } from "../org/kb";
 import { getMember } from "../org/db";
 import { getWorkflow, recordWorkflowRun, listWorkflows } from "../agents/workflows";
 import { buildProfessionOverlay } from "../autonomy/professions";
-import { analyzeLikedMusicProfile, formatMusicProfileReport, isMusicProfileAnalysisRequest } from "../music/library_profile";
+import { analyzeLikedMusicProfile, formatMusicProfileReport } from "../music/library_profile";
 import { buildResponseLanguageInstruction } from "../utils/language";
 import { guardCompletionClaims, needsCompletionEvidence } from "../work_product/completion_guard";
 import { buildModelSelfAwareness, buildVisionRoutingOverlay, hasVisionIntent } from "../cognition/vision_routing";
@@ -791,75 +792,23 @@ export function registerChatHandler(
         return 'assistant';
       })();
 
-      // Inject operation mode prompt overlay
+      // Inject operation mode prompt overlay — 【重构·模块1】移除正则前置分流
+      // （selfRepair/clientActionOnly/workSurfaceRoute/toolRoute/exposeAgentWork 全删）：
+      // 工具决策交由心智内核（SEVEN_STEP_MIND 第3步 + 模式配置策略），
+      // 安全边界由 personality.toolPolicy / interceptor 确认流 / action_constitution 承担（保留类别①④）。
       const opModeConfig = getOperationModeConfig(operationMode);
-      const allowToolUseForTurn = shouldAllowToolUseForTurn(text, source, operationMode);
-      const selfRepairTurn = isDiagnosticOrRepairRequest(text);
-      const clientActionOnlyTurn = !selfRepairTurn && hasClientActionOnlyIntent(text) && (operationMode === 'chat' || operationMode === 'meeting');
-      const workSurfaceRoute = resolveWorkSurfaceRoute(text);
+      const allowToolUseForTurn = operationMode !== 'meeting';
       const visionIntent = hasVisionIntent(text);
-      const clientActionToolPolicy = clientActionOnlyTurn
-        ? { allowedTools: ['client_get_state', 'client_action'], requireConfirmation: [], forbiddenTools: [], maxIterations: 4 }
-        : null;
-      const selfRepairToolPolicy = selfRepairTurn
-        ? {
-            allowedTools: ['*'],
-            requireConfirmation: [
-              'desktop_run_command',
-              'run_command',
-              'write_file',
-              'file_delete',
-              'delete_file',
-              'rm',
-              'unlink',
-              'format',
-              'rmdir',
-              'uninstall',
-              'computer_use',
-            ],
-            forbiddenTools: [],
-            maxIterations: 8,
-          }
-        : null;
       const baseRoutedToolPolicy = isSanctuary
         ? { allowedTools: [], requireConfirmation: [], forbiddenTools: ['*'], maxIterations: 0 }
-        : selfRepairToolPolicy
-          ? selfRepairToolPolicy
-          : clientActionToolPolicy
-            ? clientActionToolPolicy
-            : (workSurfaceRoute.toolPolicy || opModeConfig?.toolPolicy);
-      const toolRoute = allowToolUseForTurn && !clientActionOnlyTurn && !selfRepairTurn && !isSanctuary
-        ? routeToolsForTurn(text, toolRegistry.getToolDeclarations())
-        : null;
-      const routedToolPolicy = toolRoute && baseRoutedToolPolicy
-        ? mergeToolPolicyWithRoute(baseRoutedToolPolicy, toolRoute)
-        : baseRoutedToolPolicy;
-      const exposeAgentWork = shouldExposeAgentWork(text);
+        : (opModeConfig?.toolPolicy || personality.toolPolicy);
+      const routedToolPolicy = baseRoutedToolPolicy;
       effectiveSystemPrompt += '\n\n' + formatClientSelfPrompt(uid);
-      logger.info('[ChatHandler] tool gate:', allowToolUseForTurn ? 'enabled' : 'chat-only', 'operationMode:', operationMode, 'clientActionOnly:', clientActionOnlyTurn, 'selfRepair:', selfRepairTurn, 'route:', toolRoute ? `${toolRoute.toolNames.length}/${toolRoute.totalAvailable} ${toolRoute.categories.join(',') || 'fallback'}` : 'none');
-      if (toolRoute) {
-        socket.emit('agent:tool_route', {
-          categories: toolRoute.categories,
-          reasons: toolRoute.reasons,
-          toolNames: toolRoute.toolNames,
-          totalAvailable: toolRoute.totalAvailable,
-          truncated: toolRoute.truncated,
-        });
-      }
-      if (clientActionOnlyTurn) {
-        effectiveSystemPrompt += '\n\n## Client Mode Control\nThe user is asking Peppa to change a client mode or open a client-native surface. You may only use client_get_state and client_action. Do not use file, terminal, desktop mouse/keyboard, web, team, or external-app tools. Music is a playback/atmosphere capability, not a top-level work mode: open the music center or mood layer without switching client mode. For meeting/autonomous mode, use the client action confirmation flow when required.';
-      } else if (selfRepairTurn) {
-        effectiveSystemPrompt += '\n\n## Client Self-Repair Turn\nThe user is reporting that Peppa or one of its client workflows is failing. Do not only apologize or repeat the raw error. Use client_get_state first when tools are available, inspect relevant status/log/config surfaces, apply one safe recovery or retry when the cause is clear, verify the result, and then give a concise report. Reads and status checks are allowed; writes, desktop control, external app automation, and system changes still require confirmation.';
-      } else if (opModeConfig && (allowToolUseForTurn || operationMode === 'meeting')) {
+      logger.info('[ChatHandler] tool gate:', allowToolUseForTurn ? 'enabled' : 'chat-only', 'operationMode:', operationMode);
+      if (opModeConfig) {
         effectiveSystemPrompt += '\n\n' + opModeConfig.promptOverlay;
-      } else {
+      } else if (!allowToolUseForTurn) {
         effectiveSystemPrompt += '\n\n## Interaction Mode\nThis turn is chat-only. Do not call tools, operate the desktop, or claim that you are taking actions. Answer naturally unless the user gives an explicit command.';
-      }
-      if (workSurfaceRoute.promptOverlay) {
-        effectiveSystemPrompt += '\n\n' + workSurfaceRoute.promptOverlay;
-      }
-      if (toolRoute) {
-        effectiveSystemPrompt += '\n\n' + formatToolRouteForPrompt(toolRoute);
       }
       const visionRoutingOverlay = operationMode !== 'meeting' ? buildVisionRoutingOverlay(uid, text) : '';
       if (visionRoutingOverlay) {
@@ -942,126 +891,17 @@ export function registerChatHandler(
         return;
       }
 
-      // ── Quick Command Fast-Path: deterministic commands skip LLM entirely ──
-      try {
-        const quickResult = await matchQuickCommand(text, uid);
-        if (quickResult?.matched) {
-          logger.info('[ChatHandler] Quick command:', text.slice(0, 60));
-          if (quickResult.toolCall) {
-            const toolCid = `qc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-            const shouldEmitQuickTool = !isDirectDesktopTool(quickResult.toolCall.name);
-            if (shouldEmitQuickTool) {
-              emitToolLifecycle({
-                correlationId: toolCid,
-                name: quickResult.toolCall.name,
-                arguments: quickResult.toolCall.arguments,
-              });
-            }
-            try {
-              const tcResult = await toolRegistry.execute(quickResult.toolCall.name, quickResult.toolCall.arguments, { userId: uid, domain: resolvedDomain, orgId: resolvedOrgId, desktopRelay, llmGetters });
-              if (shouldEmitQuickTool) {
-                emitToolLifecycle({
-                  correlationId: toolCid,
-                  name: quickResult.toolCall.name,
-                  arguments: quickResult.toolCall.arguments,
-                  result: formatToolResultForUi(tcResult),
-                });
-              }
-            } catch (toolErr: any) {
-              if (shouldEmitQuickTool) {
-                emitToolLifecycle({
-                  correlationId: toolCid,
-                  name: quickResult.toolCall.name,
-                  arguments: quickResult.toolCall.arguments,
-                  error: toolErr.message,
-                });
-              }
-            }
-          }
-          // P1-7: 人格合规拦截 — 落地前对照宪法（轻微润色/严重截断重生成）
-          const guardedQuick = applyConstitutionGuard(quickResult.responseText);
-          if (guardedQuick.severity !== 'pass') {
-            logger.info(`[ChatHandler] 宪法拦截(quick): ${guardedQuick.severity}`);
-            quickResult.responseText = guardedQuick.text;
-          }
-          emitAgent("agent:response", { text: quickResult.responseText, agentName: personality.name });
-          if (conversationId) {
-            addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'user', content: storedUserContent, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
-            if (quickResult.toolCall) {
-              addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'tool', content: `[Tool: ${quickResult.toolCall.name}] Called`, domain: resolvedDomain, orgId: resolvedOrgId });
-            }
-            addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'assistant', content: quickResult.responseText, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
-            socket.emit('chat:conversation_updated', { conversationId, agentId: conversationAgentId, source: 'chat' });
-          }
-          emitAgent("agent:status", { status: "idle" });
-          // Track topics for quick commands too
-          if (conversationId) {
-            try {
-              const topics = extractTopics(text);
-              for (const topic of topics) trackTopic(conversationId, topic);
-            } catch {}
-          }
-          chatSessionMap.delete(sessionKey);
-          return;
-        }
-      } catch (qcErr: any) {
-        logger.warn('[ChatHandler] Quick command check failed, falling through:', qcErr.message);
-      }
+      // ── Quick Command Fast-Path ──
+      // 【重构·模块1】删除 matchQuickCommand（关键词→MCP 静态映射路由表，目标⑦）。
+      // 工具调用统一由心智内核在 runWithTools / Orchestrator 中自主调度。
 
-      if (isMusicProfileAnalysisRequest(text)) {
-        emitAgent("agent:status", { status: "thinking", agentName: personality.name, detail: "Analyzing music profile" });
-        let profileResponse = '';
-        try {
-          const profile = await analyzeLikedMusicProfile(uid, { maxSongs: 3000 });
-          profileResponse = formatMusicProfileReport(profile);
-        } catch (profileErr: any) {
-          profileResponse = `我现在还没能完成网易云喜欢歌单分析。\n\n${profileErr?.message || '请确认网易云已经登录，再试一次。'}`;
-          socket.emit('music:error', { message: profileResponse });
-        }
+      // 【重构·模块1】音乐画像正则门控移除：由心智实体 entities.musicProfile 判定（见 Path A2）。
 
-        emitAgent("agent:response", { text: profileResponse, agentName: personality.name });
-        if (conversationId) {
-          addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'user', content: storedUserContent, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
-          addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'assistant', content: profileResponse, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
-          socket.emit('chat:conversation_updated', { conversationId, agentId: conversationAgentId, source: 'chat' });
-        }
-        emitAgent("agent:status", { status: "idle" });
-        chatSessionMap.delete(sessionKey);
-        return;
-      }
+      // 【重构·模块1】routeMessage 前置路由已移除：意图/分层统一由心智内核分类接管（router.ts 保留 getSelfState 自评估）。
 
-      // ── 统一路由：本能层 → 工具层 → 认知层 → Orchestrator ──
-      let route = await routeMessage(text, operationMode);
-      logger.info(`[ChatHandler] route: ${route.layer} (${route.reason}) trace: ${route.trace.join(' → ')}`);
-      // 注入路由信息到响应，供前端调试
-      const routeContext = { layer: route.layer, reason: route.reason, trace: route.trace };
-
-      // ── 本能层：关于系统自身状态的消息，直接回复不经过认知/工具层 ──
-      // 模式定义统一在 router.ts 中管理（INSTINCT_PATTERNS + IDENTITY_PATTERNS）
-      if (isInstinctQuery(text)) {
-        const isIdentity = isIdentityQuery(text);
-        const vt = getVitality();
-        const em = getEmotionEngine();
-        const rel = getRelationshipEngine();
-        const reply = isIdentity
-          ? await generateIdentityResponse()
-          : vt.generateSelfAwareResponse(em.summarize(), rel.getRelationshipState().stage);
-
-        // 存入数据库
-        if (conversationId) {
-          addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'user', content: storedUserContent, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
-          addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'assistant', content: reply, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
-        }
-        try { const db = readDB(); db.interactions.push({ id: `instinct_${Date.now()}`, userId: uid, agentId: agentId || '', conversationId: conversationId || '', content: storedUserContent, response: reply, role: 'user', personality: personality.id, timestamp: new Date().toISOString(), cognitiveIntent: 'conversation', llmWasCalled: false, domain: resolvedDomain, orgId: resolvedOrgId }); writeDB(db); } catch {}
-
-        console.log("[本能层] 准备发送回复:", reply);
-        socket.emit('agent:response', { text: reply, agentName: personality.name, source: 'instinct', requestId: requestId || undefined });
-        logger.info('[ChatHandler] 本能层拦截:', text.slice(0, 30));
-        chatSessionMap.delete(sessionKey);
-        return;
-      }
-
-      const skipCognition = route.layer === 'instinct' || route.layer === 'tool';
+      // 【重构·模块1】本能层（INSTINCT/IDENTITY 正则池）已从 router.ts 移除：
+      // 自我状态类问题与其他输入一致，由心智内核（LLM 意图分类 + SEVEN_STEP_MIND）统一处理。
+      // skipCognition 快路径同时移除 —— 工具/对话判定由心智分类器全权接管。
       const cognitiveCtx: CognitiveContext = {
         userId: uid,
         agentId: agentId || undefined,
@@ -1087,13 +927,12 @@ export function registerChatHandler(
         return result.text || '{"category":"unknown","confidence":0.5,"entities":{}}';
       };
 
-      const cognition = skipCognition
-        ? { intent: { category: route.layer === 'tool' ? 'command' : 'conversation', confidence: 1, entities: {}, needsLLM: true, subIntent: '', directToolCall: undefined }, directToolExecuted: false, responseText: '' } as any
-        : await processInput(text, cognitiveCtx, llmClassifier);
-      logger.info('[ChatHandler] cognition result:', cognition.intent.category, 'directToolExecuted:', cognition.directToolExecuted, 'responseText:', (cognition.responseText || '').slice(0, 100));
+      const cognition = await processInput(text, cognitiveCtx, llmClassifier);
+      logger.info('[ChatHandler] cognition result:', cognition.intent.category, 'responseText:', (cognition.responseText || '').slice(0, 100));
 
       // ── Sentiment analysis: detect emotional charge in user input ──
-      const sentiment = extractSentiment(text);
+      // ── 情绪透传：心智分类器已给出情绪倾向（valence/urgency/frustration），无正则猜测 ──
+const sentiment = extractSentiment(text, cognition.intent?.sentiment);
       if (sentiment.valence !== 0 || sentiment.urgency > 0 || sentiment.frustration > 0) {
         logger.info('[ChatHandler] sentiment:', sentiment);
       }
@@ -1134,10 +973,8 @@ export function registerChatHandler(
       let llmWasCalled = false;
       const allToolRecords: ToolExecutionRecord[] = [];
       const deferCompletionStream = needsCompletionEvidence(text);
-      const prefersSequentialWorkflow =
-        shouldChainTask(text) &&
-        workSurfaceRoute.artifactFirst &&
-        !workSurfaceRoute.directDesktop;
+      // 【重构·模块1】prefersSequentialWorkflow（shouldChainTask 正则链式判定）已移除：
+      // 链式任务统一由 Orchestrator 承接，不再在 chat 管道内正则分流。
       const availableWorkerAgents = (() => {
         try {
           return (readDB().agents || []).filter((agent: any) => (
@@ -1159,26 +996,31 @@ export function registerChatHandler(
         desktopRelay,
       });
 
-      if (cognition.directToolExecuted && cognition.responseText) {
-        // Path A: Peppa handled this directly — no LLM needed
-        responseText = cognition.responseText;
-        logger.info(`[Cognition] Direct tool '${cognition.intent.directToolCall?.name}' handled without LLM`);
-      }
+      // Path A: 心智直调（directToolCall 静态映射已随正则池删除）不复存在，此分支移除。
 
-      // Path A2: music intent. Handle before the generic tool loop so Peppa
-      // does not wander into unrelated tools or report raw provider errors.
-      const isMusicAdjustment = isMusicAdjustmentRequest(text);
-      if (!responseText && (isMusicPlaybackRequest(text) || isMusicAdjustment)) {
+      // Path A2: music / musicProfile intent — 心智实体驱动（entities.music / entities.musicProfile），
+      // 【重构·模块1】无正则文本猜测；调节/播放动作在实体值上做数据层归一。
+      const musicEntity = cognition.intent?.entities?.music as string | undefined;
+      const musicProfileRequest = cognition.intent?.entities?.musicProfile === 'true';
+      const isMusicAdjustment = isMusicAdjustmentRequest(musicEntity);
+      if (!responseText && (isMusicPlaybackRequest(musicEntity) || musicProfileRequest)) {
         try {
-          const result = isMusicAdjustment
-            ? await adjustMusicPlayback(uid, socket, text)
-            : await searchAndPlay(uid, socket, text);
-          if (result.success && result.text) {
-            responseText = result.text;
+          if (musicProfileRequest) {
+            emitAgent("agent:status", { status: "thinking", agentName: personality.name, detail: "Analyzing music profile" });
+            const profile = await analyzeLikedMusicProfile(uid, { maxSongs: 3000 });
+            responseText = formatMusicProfileReport(profile);
             llmWasCalled = true;
           } else {
-            responseText = getMusicFailureMessage(result.reason);
-            socket.emit('music:error', { message: responseText });
+            const result = isMusicAdjustment
+              ? await adjustMusicPlayback(uid, socket, musicEntity || text)
+              : await searchAndPlay(uid, socket, musicEntity || text);
+            if (result.success && result.text) {
+              responseText = result.text;
+              llmWasCalled = true;
+            } else {
+              responseText = getMusicFailureMessage(result.reason);
+              socket.emit('music:error', { message: responseText });
+            }
           }
         } catch (musicErr: any) {
           logger.warn('[Music Intent] Failed:', musicErr.message);
@@ -1190,16 +1032,12 @@ export function registerChatHandler(
       if (!responseText) {
         const delegationDecision = shouldDelegateWorkInBackground({
           text,
-          source: eventSource,
           category: cognition.intent.category,
           complexity: backgroundComplexity,
           allowToolUse: allowToolUseForTurn,
-          clientActionOnly: clientActionOnlyTurn,
-          selfRepair: selfRepairTurn,
           sanctuary: isSanctuary,
-          directDesktop: workSurfaceRoute.directDesktop,
-          prefersSequentialWorkflow,
           availableAgentCount: availableWorkerAgents.length,
+          explicitBackground: cognition.intent?.entities?.background === 'true',
         });
 
         if (delegationDecision.shouldDelegate) {
@@ -1432,17 +1270,17 @@ export function registerChatHandler(
         }
       }
 
-      if (!responseText && !prefersSequentialWorkflow && allowToolUseForTurn && !clientActionOnlyTurn && !selfRepairTurn && !isSanctuary && (cognition.intent.category === 'command' || cognition.intent.category === 'code' || cognition.intent.category === 'question')) {
+      if (!responseText && allowToolUseForTurn && !isSanctuary && (cognition.intent.category === 'command' || cognition.intent.category === 'code' || cognition.intent.category === 'question')) {
         // Path B: Orchestrator — decompose tasks into sub-tasks for worker agents
         // (Skipped for sanctuary agents — they stay in their territory)
         try {
-          emitAgent("agent:status", { status: "thinking", agentName: exposeAgentWork ? "Peppa Orchestrator" : personality.name, phase: exposeAgentWork ? 'orchestrator' : 'background' });
+          emitAgent("agent:status", { status: "thinking", agentName: personality.name, phase: 'orchestrator' });
           const orchResult = await runOrchestratedTask(
             text,
             { userId: uid, personalityId, domain: resolvedDomain, orgId: resolvedOrgId, desktopRelay },
             { provider: activeProvider, model: activeModel },
             llmGetters,
-            exposeAgentWork ? (msg) => emitAgent("agent:chunk", { text: msg, agentName: "Peppa" }) : undefined,
+            (msg) => emitAgent("agent:chunk", { text: msg, agentName: "Peppa" }),
             (record, meta) => {
               allToolRecords.push({
                 id: record.id,
@@ -1489,50 +1327,8 @@ export function registerChatHandler(
         }
       }
 
-      // Path B2: NL Task Chainer — for office workflows that chain tools (search→read→create etc.)
-      if (!responseText && allowToolUseForTurn && !clientActionOnlyTurn && !selfRepairTurn && shouldChainTask(text)) {
-        // Pre-flight: auto-install any matching uninstalled/outdated skills
-        await autoInstallForTask(text, { emit: (event, data) => socket.emit(event, data) });
-
-        try {
-          emitAgent("agent:status", { status: "thinking", agentName: personality.name, phase: 'background' });
-          const chainerResult = await runNLChainer(
-            text,
-            {
-              userId: uid,
-              provider: activeProvider,
-              model: activeModel,
-              desktopRelay,
-              context: { isCancelled: () => abortController.signal.aborted, toolPolicy: routedToolPolicy || personality.toolPolicy },
-              onTool: (record) => {
-                allToolRecords.push(record);
-                const payload: Record<string, any> = {
-                  correlationId: record.id,
-                  toolCallId: record.id,
-                  name: record.name,
-                  arguments: record.arguments,
-                  args: record.arguments,
-                };
-                if (record.result !== '') payload.result = formatToolResultForUi(record.result);
-                if (record.error !== undefined) payload.error = record.error;
-                emitAgent("agent:tool_call", payload);
-                emitAgent("agent:tool", payload);
-              },
-            },
-            llmGetters,
-            (step, total, desc) => {
-              emitAgent("agent:status", { status: "thinking", agentName: personality.name, phase: 'background', detail: `Step ${step}/${total}: ${desc}` });
-            },
-          );
-          if (chainerResult.finalResponse) {
-            responseText = chainerResult.finalResponse;
-            llmWasCalled = true;
-            logger.info('[NLChainer] Completed with', chainerResult.stepResults.length, 'steps. Goal:', chainerResult.plan.goal);
-          }
-        } catch (chainErr: any) {
-          logger.error('[NLChainer] Failed, falling back to normal chat:', chainErr.message);
-        }
-      }
+      // Path B2: NL Task Chainer — 【重构·模块1】删除
+      // 链式任务由 Orchestrator（Path B）统一承接，路由决策不再依赖正则任务分类（shouldChainTask/runNLChainer 已移除）。
 
       if (!responseText) {
         // Path C: Normal LLM path (simple queries, or orchestrator fallback)
@@ -1554,36 +1350,26 @@ export function registerChatHandler(
         // Tell Peppa which model is currently active without hiding routed vision capacity.
         const selfAwareness = buildModelSelfAwareness(activeProvider, activeModel, uid, { visionAware: visionIntent && operationMode !== 'meeting' });
 
-        // ── 【新增数字生命体模块】cognitive LLM 主链路：7步心智 + 情绪人格 + 场景判定 ──
-        let cognitiveToolDisabled = false;
+        // ── 【新增数字生命体模块】cognitive LLM 主链路：7步心智 + 情绪人格 ──
         try {
           const em = getEmotionEngine();
           const pe = getPersonalityEngine();
           const dirState = getDirectionState();
-          const compState = getComprehensionState();
-          const cogToolIntent = classifyToolIntent(text);
-          cognitiveToolDisabled = cogToolIntent === 'nostalgic';
-
+          // 【重构·模块1】移除 classifyToolIntent 正则预判：场景判定（怀旧→屏蔽工具等）
+          // 由 SEVEN_STEP_MIND 第3步心智自主完成；工具上限由 mcpInterceptor 每轮计数兜底（保留）。
+          // 【重构·模块4】comprehension 理解度模块已整删（死代码）：理解度不再以正则池打分注入。
           const cogMind = buildMindContext(
             em.getEmotions(),
             pe.getPersonality(),
             dirState.getInclination(),
             dirState.getIntensity(),
-            compState.overall,
           );
-          cogMind.toolIntent = cogToolIntent;
-          cogMind.shouldDisableTools = cognitiveToolDisabled;
 
           // 注入7步心智 + 情绪状态到 System Prompt
           const cognitiveOverlay = cogMind.mindSystemPrompt + '\n\n' + cogMind.emotionStatePrompt;
           effectiveSystemPrompt = cognitiveOverlay + '\n\n' + effectiveSystemPrompt;
 
-          if (cognitiveToolDisabled) {
-            effectiveSystemPrompt += '\n\n【重要】本轮对话属于情感陪伴场景，请勿调用任何工具。用纯共情的方式温柔回应。';
-            mcpInterceptor.recordCall(sessionKey, 'blocked_nostalgic_cognitive');
-          }
-
-          logger.info(`【新增数字生命体-LLM认知链路】toolIntent=${cogToolIntent} disableTools=${cognitiveToolDisabled} emotion=${em.summarize()}`);
+          logger.info(`【新增数字生命体-LLM认知链路】toolIntent=${cogMind.toolIntent} disableTools=${cogMind.shouldDisableTools} emotion=${em.summarize()}`);
         } catch (e) {
           logger.warn('【新增数字生命体-LLM认知链路】心智注入异常:', e);
         }
@@ -1719,7 +1505,7 @@ export function registerChatHandler(
                 emitAgent("agent:chunk", { text: `[${step}]\n`, agentName: "Peppa" });
               },
               ...(routedToolPolicy ? { toolPolicy: routedToolPolicy } : {}),
-              ...(operationMode === 'assistant' || operationMode === 'autonomous' || clientActionOnlyTurn || selfRepairTurn ? {
+              ...(operationMode === 'assistant' || operationMode === 'autonomous' ? {
                 requestConfirmation: async (toolName: string, args: Record<string, any>): Promise<boolean> => {
                   return new Promise((resolve) => {
                     const cid = crypto.randomUUID();
@@ -1871,7 +1657,7 @@ export function registerChatHandler(
                     });
                   },
                   ...(routedToolPolicy ? { toolPolicy: routedToolPolicy } : {}),
-                  ...(operationMode === 'assistant' || operationMode === 'autonomous' || clientActionOnlyTurn || selfRepairTurn ? {
+                  ...(operationMode === 'assistant' || operationMode === 'autonomous' ? {
                     requestConfirmation: async (toolName: string, args: Record<string, any>): Promise<boolean> => {
                       return new Promise((resolve) => {
                         const cid = crypto.randomUUID();
@@ -2085,8 +1871,10 @@ export function registerChatHandler(
       chatSessionMap.delete(sessionKey);
 
       // Auto-learn from corrections: when user corrects Peppa, extract high-confidence memories
-      const correctionPatterns = [/不是/, /不对/, /错了/, /wrong/i, /incorrect/i, /actually/i, /no,?\s/i, /你弄错了/, /不是这样的/];
-      const isCorrection = correctionPatterns.some(p => p.test(text));
+      // 【重构·模块1补充】修正意图判定正则池已移除（原 correctionPatterns，目标②）：
+      // 修正意图由认知链心智分类器判定（entities.correction，见 cognition/intent.ts CLASSIFIER_PROMPT）；
+      // LLM 分类器不可用时保持管道不中断（不触发修正学习，避免写入脏记忆）。
+      const isCorrection = cognition.intent?.entities?.correction === 'true';
       if (isCorrection && responseText) {
         try {
           const corrected = await extractMemories(
@@ -2273,7 +2061,15 @@ export function registerChatHandler(
       // P0-4: 根据亲密值动态判断是否主动开场 — 仅高亲密(>0.6)重逢才主动问候，
       // 生疏/普通关系重逢姿态内敛，不强制主动打招呼
       if (!isSanctuary && isReconnect && updatedState.intimacy > 0.6) {
-        const greeting = generateContextualGreeting(updatedState, uid);
+        // 【重构·模块4】固定话术模板移除（原: generateContextualGreeting 按亲密分区×时段×离开时长写死问候句）：
+        // 重逢问候由 composeTriggerContent 心智润色组成（实时状态数据 → 心智内核组织表述），离线回退结构化摘要。
+        // 保留 P0-4 亲密门槛门控与 <1h 快速回归不主动开场行为。
+        const lastAt = updatedState.lastInteractionAt ? new Date(updatedState.lastInteractionAt).getTime() : Date.now() - 24 * 3600 * 1000;
+        const hoursAway = (Date.now() - lastAt) / (3600 * 1000);
+        const greeting = hoursAway < 1 ? null : await composeTriggerContent('reconnect_greeting', {
+          intimacy: updatedState.intimacy.toFixed(2),
+          hoursAway: Math.floor(hoursAway),
+        });
         if (greeting) {
           const greetingTs = new Date().toISOString();
           // Save to chat log

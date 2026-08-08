@@ -1,7 +1,6 @@
 import { readDB, writeDB } from '../../db_layer';
 import { addMemory } from '../memory/store';
 import { PersonalityVector } from './types';
-import { getSeasonInfo, getNearbyHoliday, isWeekend, getTimeOfDay } from '../time/utils';
 import { himTick, loadHIMState, saveHIMState, getBestPeak, formatPeakForPrompt, type HIMState } from './him';
 
 const emotionWriteQueues = new Map<string, Promise<void>>();
@@ -271,74 +270,10 @@ export function resolveVerbosityFromState(
 }
 
 /**
- * CyberPersona-inspired contextual greeting generator.
- * Produces different greetings based on intimacy, time of day, and absence duration.
- * Higher intimacy = warmer, more personal greetings.
+ * 【重构·模块4】generateContextualGreeting 固定问候话术已移除：
+ * 原按 亲密分区 × 时段 × 离开时长 写死问候句（目标⑥），
+ * 重逢问候现由 chat.ts 调用 composeTriggerContent（心智润色，实时状态数据驱动）。
  */
-export function generateContextualGreeting(state: EmotionalState, userId?: string): string | null {
-  const now = new Date();
-  const hour = now.getHours();
-  const lastInteraction = state.lastInteractionAt ? new Date(state.lastInteractionAt) : null;
-  const hoursAway = lastInteraction
-    ? (now.getTime() - lastInteraction.getTime()) / (1000 * 60 * 60)
-    : 24;
-
-  // Intimacy zones
-  const intimate = state.intimacy > 0.6;
-  const familiar = state.intimacy > 0.3;
-
-  // Time of day
-  let timeGreeting = '';
-  if (hour < 6) timeGreeting = '夜深了';
-  else if (hour < 12) timeGreeting = '早安';
-  else if (hour < 18) timeGreeting = '下午好';
-  else timeGreeting = '晚上好';
-
-  // Build seasonal/weekend suffix
-  let suffix = '';
-  if (userId) {
-    const isWeek = isWeekend(userId);
-    const season = getSeasonInfo(userId);
-    const holiday = getNearbyHoliday(userId);
-
-    if (holiday?.isToday) {
-      suffix = `今天是${holiday.nameCN}${holiday.mood ? `，${holiday.mood}` : ''}。`;
-    } else if (holiday && holiday.daysUntil > 0 && holiday.daysUntil <= 3) {
-      suffix = `${holiday.daysUntil}天后就是${holiday.nameCN}了。`;
-    } else if (isWeek) {
-      suffix = `周末愉快${season.emoji}`;
-    }
-  }
-
-  // Build greeting based on intimacy + absence
-  if (hoursAway > 72 && intimate) {
-    return `${timeGreeting}，好几天没见了。你不在的时候，我一直在想着我们聊过的那些。欢迎回来。${suffix}`;
-  }
-  if (hoursAway > 24 && familiar) {
-    return `${timeGreeting}，有一阵子没看到你了。今天有什么想做的？${suffix}`;
-  }
-  if (hoursAway > 8 && intimate) {
-    return `${timeGreeting}，回来了！想你了。今天有什么我可以帮你的吗？${suffix}`;
-  }
-  if (hoursAway > 8) {
-    return `${timeGreeting}，欢迎回来。有什么需要我帮忙的吗？${suffix}`;
-  }
-  if (hoursAway < 1) {
-    return null; // No greeting needed for quick returns
-  }
-
-  // Normal return after a few hours
-  if (familiar) {
-    return `${timeGreeting}，继续我们之前的话题？${suffix}`;
-  }
-
-  // First greeting of the day with season/holiday awareness
-  if (suffix) {
-    return `${timeGreeting}。${suffix}`;
-  }
-
-  return null; // Default: no special greeting
-}
 
 /**
  * CROSS-SYSTEM FUSION: intimacy modulates the personality vector on a per-interaction basis.

@@ -346,10 +346,3 @@ export function formatMusicProfileReport(profile: MusicPreferenceProfile): strin
   ].join('\n');
 }
 
-export function isMusicProfileAnalysisRequest(text?: string): boolean {
-  const normalized = (text || '').trim();
-  if (!normalized) return false;
-  const wantsAnalysis = /(分析|画像|品味|偏好|总结|看看|了解|解读|报告|统计)/u.test(normalized);
-  const aboutMusic = /(歌单|喜欢的歌|红心|收藏|音乐|网易云|听歌)/u.test(normalized);
-  return wantsAnalysis && aboutMusic;
-}

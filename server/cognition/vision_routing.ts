@@ -1,20 +1,21 @@
+// 视觉能力路由 — 【重构】移除意图正则池（VISUAL_INTENT_PATTERNS）
+// 文本中"看屏幕/识别图片"类描述不再由正则前置判定；仅保留**客观数据信号**（图片文件路径/URL 扩展名），
+// 与股票代码归一化同属数据层识别（保留类别）。视觉意图的完整理解交由心智内核（LLM）自主完成，
+// 工具自描述（ocr_screen / ocr_image_file 等）支撑其决策。
 import { getUserPreferredVision } from '../llm/vision_preferences';
 
-const VISUAL_INTENT_PATTERNS: RegExp[] = [
-  /\b(?:look\s+at|see|read|ocr|identify|recognize|describe|analy[sz]e|inspect|scan)\b.*\b(?:screen|screenshot|image|photo|picture|diagram|drawing|ui|interface|error|qr|barcode|table|receipt|chart)\b/i,
-  /\b(?:what(?:'s| is)|who(?:'s| is)|tell me what)\b.*\b(?:on|in)\b.*\b(?:screen|screenshot|image|photo|picture|diagram|drawing)\b/i,
-  /\b(?:screen|screenshot|image|photo|picture|diagram|drawing|ui|interface|qr|barcode|chart)\b.*\b(?:look|read|ocr|identify|recognize|describe|analy[sz]e|inspect)\b/i,
-  /\.(?:png|jpe?g|webp|bmp|gif|tiff?)\b/i,
-  /(?:屏幕上有什么|桌面上有什么|看一下屏幕|看看屏幕|看一下桌面|看看桌面|当前画面|当前窗口|前台窗口|识别屏幕|读屏幕|分析屏幕|看屏幕|看桌面)/u,
-  /(?:看|看看|识别|辨认|读取|读一下|读取|分析|描述|解释|检查|扫|扫描).*(?:屏幕|截图|截屏|图片|照片|图像|图里|这张图|这个图|界面|画面|报错|二维码|条形码|表格|票据|手写|户型图|平面图|图纸|设计图|CAD)/u,
-  /(?:屏幕|截图|截屏|图片|照片|图像|图里|这张图|这个图|界面|画面|报错|二维码|条形码|表格|户型图|平面图|图纸|设计图|CAD).*(?:看|看看|识别|辨认|读取|读一下|分析|描述|解释|检查|扫|扫描)/u,
-  /(?:识别|辨认).*(?:这个|这个人|这是什么|是谁|哪种|什么东西|哪里不对)/u,
-];
-
+/**
+ * 数据层视觉信号判定（非意图正则）：
+ * 文本中携带图片/截图文件路径或 URL 时返回 true —— 这是客观数据形态，而非语言意图猜测。
+ */
 export function hasVisionIntent(text: string): boolean {
   const normalized = String(text || '').trim();
   if (!normalized) return false;
-  return VISUAL_INTENT_PATTERNS.some(pattern => pattern.test(normalized));
+  // 图片文件扩展名（客观数据形态）
+  if (/\.(?:png|jpe?g|webp|bmp|gif|tiff?)(?:[?#\s，,。！？!?]|$)/i.test(normalized)) return true;
+  // 常见本地截图/上传目录（客观路径形态）
+  if (/(?:^|\s)(?:\/tmp\/|\/Users\/[^/\s]+\/(?:Desktop|Downloads|Pictures)\/|C:\\Users\\[^\\\s]+\\Pictures\\)/i.test(normalized)) return true;
+  return false;
 }
 
 export function buildVisionRoutingOverlay(userId: string, text: string): string {

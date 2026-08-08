@@ -23,8 +23,16 @@ export function assessUserState(): UserState {
   const focusScenes = ['meeting', 'work', 'sleep', 'focus', 'coding'];
   const isFocusScene = focusScenes.includes(activeScene.toLowerCase());
 
-  // 深夜检测
-  const isLateNight = hour >= 23 || hour < 7;
+  // 深夜检测 — 【重构·模块2】静默窗口由交互作息统计学习派生（deriveQuietWindow），
+  // 不再写死 23-7（目标④）；无交互数据时回落先验锚点（保留类别⑥ 底层数学模型常量）。
+  // 懒加载避免与 proactive/rhythm 形成静态循环依赖（rhythm 依赖本模块 getLastUserMessageAt）。
+  let isLateNight = false;
+  try {
+    const { deriveRhythmProfile, isQuietNow } = require('../proactive/rhythm');
+    isLateNight = isQuietNow(deriveRhythmProfile(), hour);
+  } catch {
+    isLateNight = hour >= 23 || hour < 7; // 容灾：统计底座不可用回落先验 23-7（与 rhythm PRIOR 同值）
+  }
 
   // 综合判断：适合主动沟通 = 用户非专注 AND 非深夜
   // 活跃时发送是合理的（用户在聊），非专注场景也可以

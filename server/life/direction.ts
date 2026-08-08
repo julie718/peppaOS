@@ -1,7 +1,9 @@
 import sqlite3 from 'sqlite3';
 import { logger } from '../lib/logger';
 
-const LIFE_DB = process.env.LIFE_DB_PATH || '/app/data/life.db';
+import { getDataPath } from '../config/data_path'; // E-3: 统一路径解析
+// 【重构·校验修复】默认路径回落数据根统一解析（Docker 内 LUMI_DATA_DIR=/app → /app/data/life.db 不变）
+const LIFE_DB = process.env.LIFE_DB_PATH || getDataPath('life.db');
 
 export type DirectionInclination = 'give' | 'not_give' | 'neutral' | 'unknown';
 
@@ -13,7 +15,8 @@ export interface DirectionSnapshot {
 }
 
 function getDb(): sqlite3.Database {
-  return new sqlite3.Database(LIFE_DB);
+  // 【重构·校验修复】带回调构造：打开失败时错误进回调而非未捕获 'error' 事件
+  return new sqlite3.Database(LIFE_DB, () => {});
 }
 
 function ensureTable(db: sqlite3.Database): Promise<void> {

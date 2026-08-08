@@ -13,7 +13,6 @@ import { logSystemEvent, migrateLifeTables, autoBackup, verifyIntegrity, addInte
 import { shouldTriggerPrefetch, prefetchContext } from '../memory/prefetch';
 import { getVitality } from './vitality';
 import { dailyNarrativeGeneration } from './narrative';
-import { tickComprehension } from './comprehension';
 // T80
 import { idleBrain } from '../autonomy/idle_brain';
 import { runMemoryGC } from '../memory/gc';
@@ -142,7 +141,8 @@ export class LifeSystem {
         const sqlite3 = (await import('sqlite3')).default;
         const { getPeppaDbPath } = await import('../config/data_path');
         const peppaDbPath = getPeppaDbPath(); // E-3
-        const peppaDb = new sqlite3.Database(peppaDbPath);
+        // 【重构·校验修复】带回调构造：打开失败时错误进回调而非未捕获 'error' 事件（try/catch 捕获不到事件型崩溃）
+        const peppaDb = new sqlite3.Database(peppaDbPath, () => {});
         const peppaRow = await new Promise<any>((resolve, reject) => {
           peppaDb.get('SELECT COUNT(*) as cnt FROM interactions', (err, row) => {
             if (err) reject(err);
@@ -392,11 +392,6 @@ export class LifeSystem {
       await this.safeCall('direction.tick', async () => {
         const directionState = getDirectionState();
         await directionState.tick();
-      }, errors);
-
-      // 步骤 1.6: 理解完整性衰减
-      await this.safeCall('comprehension.tick', async () => {
-        tickComprehension();
       }, errors);
 
       // 步骤 2: 欲望生成与衰减
@@ -734,7 +729,6 @@ export function getLifeSystem(): LifeSystem {
 
 export { DirectionState, getDirectionState } from './direction';
 export type { DirectionSnapshot, DirectionInclination } from './direction';
-export { getComprehensionState, updateComprehension, shouldClarify, generateClarification, resetComprehension } from './comprehension';
 
 // ---- 导入主动行为管理器 ----
 import { proactiveManager } from '../proactive/index';

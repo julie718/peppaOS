@@ -99,8 +99,10 @@ export async function generateIdleBriefing(userId: string): Promise<string | nul
     // 复用多源抓取：取综合/科技头条（不命中关键词也返回最新前 6 条）
     const items = await fetchMultiSource('', 72, 6);
     if (!items.length) return null;
+    // 【重构·模块4】固定表头话术移除（原: "📰 空闲资讯简报（最近 72h N 条）:" 固定句，目标⑥）：
+    // 简报内容为纯数据序列（编号 + 标题 + 来源），无任何固定表述。
     const lines = items.map((i, idx) => `${idx + 1}. ${i.title}（${i.sources?.[0] || '多源'}）`);
-    const briefing = `📰 空闲资讯简报（最近 72h ${items.length} 条）:\n` + lines.join('\n');
+    const briefing = lines.join('\n');
     notify(userId, { type: 'news', title: '📰 资讯简报', message: briefing, scene: 'psi_briefing', priority: 'low' });
     logger.info(`[PSI] 资讯简报已推送: ${items.length} 条 → ${userId}`);
     return briefing;

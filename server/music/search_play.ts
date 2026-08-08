@@ -39,18 +39,9 @@ const moodReasonMap: Record<string, string> = {
   warm: '感觉挺温暖的',
 };
 
-const MUSIC_PLAYBACK_PATTERNS = [
-  /\b(play|put\s+on|listen\s+to|start)\b.*\b(music|song|playlist|album|track)\b/i,
-  /(?:放|播放|听|来一首|来点|点一首|播一首).*(?:音乐|歌|歌曲|歌单|日推|每日推荐|专辑|纯音乐)/u,
-  /(?:音乐|歌|歌曲|歌单|日推|每日推荐).*(?:放|播放|听|来|开)/u,
-];
-
-const MUSIC_ADJUSTMENT_PATTERNS = [
-  /(?:安静一点|更安静|轻一点|小声一点|别太吵|不要太吵|太吵|柔和一点|舒缓一点|放松一点)/u,
-  /(?:更燃|燃一点|嗨一点|带劲一点|提神|上头一点|热血一点)/u,
-  /(?:换一首|下一首|切歌|跳过|不喜欢这首|这首不行)/u,
-  /\b(quieter|calmer|softer|too\s+loud|more\s+energetic|more\s+hype|next\s+song|skip\s+this)\b/i,
-];
+// 【重构·模块1】播放/调节意图判定移除全部文本正则池（MUSIC_PLAYBACK_PATTERNS/MUSIC_ADJUSTMENT_PATTERNS）。
+// 音乐意图由心智内核判定：LLM 分类器在 entities.music 中给出歌曲/动作实体，
+// 本模块只对心智实体值做数据层归一（类似 normalizeStockCode 对 LLM 提取标的代码的归一化）。
 
 type MusicAdjustmentPlan = {
   mood: string;
@@ -151,16 +142,17 @@ async function queueNcmSongs(songs: any[]): Promise<void> {
   });
 }
 
-export function isMusicPlaybackRequest(text?: string): boolean {
-  const normalized = (text || '').trim();
-  if (!normalized) return false;
-  return MUSIC_PLAYBACK_PATTERNS.some(pattern => pattern.test(normalized));
+/** 播放意图判定（心智驱动）：entities.music（LLM 实体）非空即播放请求 */
+export function isMusicPlaybackRequest(entityMusic?: string): boolean {
+  const value = (entityMusic || '').trim();
+  return value.length > 0;
 }
 
-export function isMusicAdjustmentRequest(text?: string): boolean {
-  const normalized = (text || '').trim();
-  if (!normalized) return false;
-  return MUSIC_ADJUSTMENT_PATTERNS.some(pattern => pattern.test(normalized));
+/** 调节意图判定（数据层归一）：对心智实体值做动作归一（换/切/音量/情绪类标记） */
+export function isMusicAdjustmentRequest(entityMusic?: string): boolean {
+  const value = (entityMusic || '').trim();
+  if (!value) return false;
+  return /(?:换|切|跳|下一首|不喜欢|安静|小声|太吵|柔和|舒缓|放松|燃|嗨|带劲|提神|上头|热血)/u.test(value);
 }
 
 export function getMusicFailureMessage(reason?: string): string {

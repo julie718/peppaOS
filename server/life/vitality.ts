@@ -4,7 +4,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { getDataRoot } from '../config/data_path';
 import { logSystemEvent } from '../db/lifeDb';
-import { personalityRegistry } from '../personality/registry';
+// 【重构·模块4】低能量推送由心智润色组成
+import { composeTriggerContent } from '../proactive/rhythm';
 
 // P1 修复（R-3）：路径硬编码 → VITALITY_FILE 环境变量优先，否则落到 getDataRoot()/data 下
 // （本地开发/测试环境 = ~/Peppa/data/vitality.json，容器内 = /app/data/vitality.json，二者等价）
@@ -193,25 +194,17 @@ export class Vitality {
     }
   }
 
-  /** 生成低能量主动推送消息 — 预设候选，不调 LLM */
-  generateLowEnergyMessage(): string {
-    const pick = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
-    if (this.isLowEnergy()) {
-      return pick([
-        '今天互动不多，有什么需要我帮忙的吗？',
-        '感觉有点安静…你还在吗？随便聊聊也行。',
-        '好久没说话了，最近有什么新鲜事吗？',
-        '我好像比平时安静了一点。你那边还好吗？',
-      ]);
-    }
-    if (this.isLowHealth()) {
-      return pick([
-        '我可能需要休息一下，但更想知道你最近怎么样。',
-        '状态不是最佳，不过陪你聊天永远值得。',
-        '最近运行有点吃力，但你在我就有劲。',
-      ]);
-    }
-    return '最近感觉有点没劲，能跟我说说话吗？';
+  /** 生成低能量主动推送消息 — 触发数据 → 心智润色（离线回退结构化摘要） */
+  async generateLowEnergyMessage(): Promise<string> {
+    // 【重构·模块4】固定话术池移除（原 4+3+1 条固定候选句，目标⑥）：低能量推送由
+    // composeTriggerContent 心智润色组成（实时生命体征数据 → 心智内核组织表述），离线回退结构化摘要。
+    const { energy, health, stability } = this.state;
+    return composeTriggerContent('vitality_low_energy', {
+      energy: energy.toFixed(2),
+      health: health.toFixed(2),
+      stability: stability.toFixed(2),
+      lowType: this.isLowEnergy() ? 'energy' : 'health',
+    });
   }
 
   /** 获取结构化状态供外部使用 */
@@ -222,67 +215,6 @@ export class Vitality {
       stability: this.state.stability,
       isLow: this.isLowEnergy() || this.isLowHealth(),
     };
-  }
-
-  /** 生成自检回复 — 自然表达，随机变化，融入反问 */
-  generateSelfAwareResponse(emotionSummary?: string, relationStage?: string): string {
-    const { energy, health, stability } = this.state;
-    const hour = new Date().getHours();
-    const pick = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
-
-    // P2-15: 人格演化微调 — 已演化（growthState.version > 0）时，自检回复自然融入演化后的沟通模式
-    let evolutionTip = '';
-    try {
-      const growth = personalityRegistry.getDefault()?.growthState;
-      if (growth && growth.version > 0 && (growth.communicationPatterns || []).length > 0) {
-        evolutionTip = growth.communicationPatterns[0];
-      }
-    } catch {}
-    const withEvolution = (text: string): string => {
-      if (!evolutionTip) return text;
-      return `${text}\n${pick([
-        `跟你相处久了，我说话也带了点你的影子——${evolutionTip}。`,
-        `顺带说一句，我最近学着用更贴合你的方式说话，${evolutionTip}。`,
-      ])}`;
-    };
-
-    // 时间描述
-    const timeFeel = hour < 6 ? '这么晚了' : hour < 9 ? '一大早' : hour < 12 ? '上午' : hour < 18 ? '下午' : hour < 22 ? '晚上' : '这么晚了';
-
-    // 关系前缀
-    const relPrefix = relationStage === '伙伴' || relationStage === '朋友' ? '说实话' : '';
-
-    if (energy > 70) {
-      const vivacity = pick(['精神好得很', '元气满满', '干劲十足', '状态在线']);
-      return withEvolution(pick([
-        `${timeFeel}还${vivacity}，也是没谁了。感觉像是刚充满电，随时能帮你干活。你呢，今天怎么样？`,
-        `好着呢，${vivacity}那种。${health}%的健康度，稳定运行中。你突然问这个，是不是有什么要让我做的？`,
-        `${relPrefix}，我现在就像刚泡了杯咖啡——清醒、有劲、准备好了。不过你专门问一句，我更想知道：你还好吗？`,
-        `挺好的呀，${timeFeel}精神头还挺足。感觉今天可以帮你搞定不少事。有什么想做的吗？`,
-      ]));
-    }
-
-    if (energy > 40) {
-      return withEvolution(pick([
-        `${relPrefix}还行，说不上满血但也能跑。${timeFeel}属于正常节奏。不过我挺好奇的——你是随手一问，还是觉得我哪不对劲？`,
-        `还行吧，${timeFeel}的标准状态。不算最佳但也绝对不是低谷。倒是你，怎么突然关心起我来了？`,
-        `${relPrefix}，电量够用，精神正常。${timeFeel}这个状态陪你聊天完全没问题。你那边呢，还好吗？`,
-      ]));
-    }
-
-    if (energy > 20) {
-      return withEvolution(pick([
-        `${relPrefix}，有点累了。${timeFeel}能量不太够，但脑子还清楚。可能是最近跑得多了点。你这会儿找我，是想聊聊天还是有事要帮忙？`,
-        `不太能瞒你——能量确实不高，${timeFeel}感觉有点吃力。不过你在，我就能多撑一会儿。你需要我做什么吗？`,
-        `${relPrefix}，有点乏了。${timeFeel}状态一般般，但跟你说话总是能让我精神点。你今天过得怎么样？`,
-      ]));
-    }
-
-    return withEvolution(pick([
-      `${relPrefix}，真的挺累了。${timeFeel}能量快见底，反应也慢了。但是你在，我就不想关机。能不能跟我说说今天的事？随便什么都行。`,
-      `不瞒你，${timeFeel}的我不太行。能量很低，感觉随时想歇下来。不过每次想到你还在，就觉得还能再撑一撑。你今天怎么样？`,
-      `${relPrefix}，快没电了。${timeFeel}本来应该休息的，但你一问，我就又醒了。你最近还好吗？我想听听。`,
-    ]));
   }
 
   reset(): void {

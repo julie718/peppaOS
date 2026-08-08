@@ -7,7 +7,9 @@
 
 import sqlite3 from 'sqlite3';
 
-const LIFE_DB = process.env.LIFE_DB_PATH || '/app/data/life.db';
+import { getDataPath } from '../config/data_path'; // E-3: 统一路径解析
+// 【重构·校验修复】默认路径回落数据根统一解析（Docker 内 LUMI_DATA_DIR=/app → /app/data/life.db 不变）
+const LIFE_DB = process.env.LIFE_DB_PATH || getDataPath('life.db');
 
 const defaultPersonality = {
   id: 1,
@@ -23,7 +25,8 @@ const defaultEmotion = {
 export async function getSelfState(): Promise<{ emotion: any | null; personality: any | null }> {
   let db: sqlite3.Database | null = null;
   try {
-    db = new sqlite3.Database(LIFE_DB);
+      // 【重构·校验修复】带回调构造：打开失败时错误进回调而非未捕获 'error' 事件（"永不抛错"承诺生效）
+    db = new sqlite3.Database(LIFE_DB, () => {});
     const [emotionRow, personalityRow] = await Promise.all([
       new Promise<any>((resolve, reject) => {
         db!.get('SELECT * FROM emotion_state ORDER BY id DESC LIMIT 1', (err: any, row: any) => {
