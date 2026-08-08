@@ -6,6 +6,7 @@ import { mountMcpRoutes } from "../routes/mcp_routes";
 import { mountDeviceRoutes } from "../routes/device_routes";
 import { mountSystemRoutes } from "../routes/system_routes";
 import { mountSelfHealRoutes } from "../self_heal/routes";
+import { mountSkillsRoutes } from "../skills_extension/routes";
 import { mountChatRoutes } from "../routes/chat_routes";
 import { mountPreferencesRoutes } from "../routes/preferences_routes";
 import { mountInteractionsRoutes } from "../routes/interactions_routes";
@@ -46,6 +47,8 @@ export function mountAllRoutes({ apiRouter, jwtSecret, llm, getCookieOptions, io
 
   // [阶段二·自诊疗] 健康自检查询/手动触发（GET/POST /api/system/health-check）
   mountSelfHealRoutes(apiRouter);
+  // 阶段三·技能拓展（独立目录模块，仅新增挂载点）
+  mountSkillsRoutes(apiRouter);
 
   // AI Chat
   mountChatRoutes(apiRouter, jwtSecret, llmGetters);

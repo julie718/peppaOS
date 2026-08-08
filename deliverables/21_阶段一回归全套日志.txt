@@ -1,0 +1,246 @@
+# 阶段一回归·全套编译/打包/E2E 完整日志
+
+- 回归日期：2026-08-08（阶段二终验收）
+- ① tsc --noEmit → exit 0
+- ② node scripts/build-server.mjs → exit 0
+- ③ E2E（TZ=America/New_York）→ 149/149（阶段一 124 + 阶段二 S8 25）
+
+## ③ E2E 完整输出
+```
+
+━━━ T0 基础初始化（全新隔离库） ━━━
+[LifeDB] 初始化...
+[LifeDB] 已连接: /tmp/lumi_e2e_run/life.db
+[LifeDB] 迁移完成: 14 张表, 0 个错误
+[LifeDB] 已备份: /tmp/lumi_e2e_run/life_backup_2026-08-08T10-52-43-676Z.db
+[LifeDB] 初始化完成
+  隔离 DB 就绪
+
+━━━ S3 (L-7/L-8/L-12/L-13) 断联重逢关系生疏回暖 ━━━
+  ✅ S3-0 全新库 totalInteractions=0（熟络期窗口生效前提）
+[Relationship] 0.30,0.20,0.20,0.30 → 0.35,0.25,0.20,0.30
+  ✅ S3-1 (L-12) 新用户信任增量减半 0.1→0.05
+  ✅ S3-2 (L-12) 新用户亲密增量减半 0.1→0.05
+[Relationship] 初始化: 陌生人 [0.45, 0.35, 0.20, 0.30]
+[Relationship] 0.35,0.25,0.20,0.30 → 0.45,0.35,0.20,0.30
+  ✅ S3-3 (L-12) 亲密度早期上限 0.35（0.25+0.5→钳制 0.35）
+  ✅ S3-4 (L-12) 上限只约束亲密维度（信任 0.35+0.1=0.45 正常增长）
+[Relationship] 0.45,0.35,0.20,0.30 → 0.46,0.35,0.20,0.30
+[Relationship] 0.46,0.35,0.20,0.30 → 0.48,0.35,0.20,0.30
+[Relationship] 0.48,0.35,0.20,0.30 → 0.49,0.35,0.20,0.30
+[Relationship] 0.49,0.35,0.20,0.30 → 0.51,0.35,0.20,0.30
+[Relationship] 0.51,0.35,0.20,0.30 → 0.53,0.35,0.20,0.30
+[Relationship] 0.53,0.35,0.20,0.30 → 0.54,0.35,0.20,0.30
+[Relationship] 0.54,0.35,0.20,0.30 → 0.56,0.35,0.20,0.30
+[Relationship] 0.56,0.35,0.20,0.30 → 0.57,0.35,0.20,0.30
+[Relationship] 0.57,0.35,0.20,0.30 → 0.59,0.35,0.20,0.30
+[Relationship] 0.59,0.35,0.20,0.30 → 0.62,0.37,0.20,0.30
+  ✅ S3-5 (L-12) 10 轮后 totalInteractions≥10 窗口结束
+[Relationship] 0.62,0.37,0.20,0.30 → 0.67,0.42,0.20,0.30
+  ✅ S3-6 (L-7) 重逢 24h 内信任增量 ×0.5（0.1→0.05）
+  ✅ S3-7 (L-7) 重逢 24h 内亲密增量 ×0.5（0.1→0.05）
+[Relationship] 0.67,0.42,0.20,0.30 → 0.66,0.41,0.20,0.30
+  ✅ S3-8 (L-8) negative outcome 降低信任
+  ✅ S3-9 (L-8) negative outcome 降低亲密
+  ✅ S3-10 (L-13) state.ts 无 intimacy 独立时间衰减代码
+  ✅ S3-11 (L-13) state.ts 无 curiosity 每轮 -0.005 自然衰减
+
+━━━ S1 (E-2/L-2/L-16/L-6) 三轮对话复盘落库 ━━━
+[Emotions] 初始化基线: 主导: 平静(0.60) 愉悦(0.50)
+[Personality] 初始化基线人格: 最显著: 好奇心(0.60) 开放性(0.55)
+[Emotions] 0.30,0.60,0.20,0.10,0.15,0.30,0.40,0.25 → 0.50,0.60,0.20,0.10,0.15,0.40,0.40,0.25
+[Relationship] 0.66,0.41,0.20,0.30 → 0.67,0.42,0.20,0.30
+[Emotions] 0.50,0.60,0.20,0.10,0.15,0.40,0.40,0.25 → 0.69,0.60,0.20,0.10,0.15,0.50,0.40,0.25
+[Relationship] 0.67,0.42,0.20,0.30 → 0.69,0.43,0.20,0.30
+[Emotions] 0.69,0.60,0.20,0.10,0.15,0.50,0.40,0.25 → 0.89,0.60,0.20,0.10,0.15,0.59,0.40,0.25
+[Relationship] 0.69,0.43,0.20,0.30 → 0.70,0.45,0.20,0.30
+  ✅ S1-0 三轮复盘零异常（无事务错误）
+  ✅ S1-1 (E-2) 复盘记录落库 ≥3 条（断开解耦后仍入库）
+  ✅ S1-2 三轮交互质量评估有效
+  ✅ S1-3 (L-6) 复盘时效场景 TTL 标记（天气/路线场景 ≥1）
+  ✅ S1-4 (L-2) 复盘情绪增量已落库（库内向量==当前引擎向量）
+  ✅ S1-5 人格记忆（core_identity）落库
+  ✅ S1-6 用户特征记忆（growth）落库
+  ✅ S1-7 (L-16) 思考链沉淀落库 ≥1 条
+  ✅ S1-8 复盘联动关系更新
+
+━━━ S2 (L-4/L-18) 打断后思绪跨轮接续 ━━━
+  ✅ S2-1 (L-4) 未消费思绪可检索（resolved=false）
+  ✅ S2-2 (L-4) 打断后思绪保留（下一轮可接续）
+  ✅ S2-3 (L-4) 消费后置 resolved，不再注入
+[LifeDB] 🧹 过期思绪归档: 1 条（超 72h 未接续）
+  ✅ S2-4 (L-18) 超 72h 搁置思绪自动归档
+  ✅ S2-5 (L-18) 归档标记 expired=true
+
+━━━ S4 (L-5/L-6) 大量记忆 GC 全量扫描 + 核心豁免 + TTL 清理 ━━━
+  ✅ S4-1 (L-5) 全量扫描范围：70 条全部可见（无 50 条上限）
+[06:52:43] [32mINFO[39m (76732): [36m[Review] 思考链沉淀: 第1步唤醒觉知…第2步身份锚定…第3步需求解构：用户表达情绪困扰，属怀旧谈心类，…[39m
+[06:52:43] [32mINFO[39m (76732): [36m[Review] 对话复盘完成: quality=0.80, 人格记忆=0, 特征=0, 场景经验=0[39m
+[06:52:43] [32mINFO[39m (76732): [36m[McpInterceptor] TTL 标记: review → 天气, 7天过期[39m
+[06:52:43] [32mINFO[39m (76732): [36m[Review] 思考链沉淀: 第1步唤醒觉知…第2步身份锚定…第3步需求解构：用户表达情绪困扰，属怀旧谈心类，…[39m
+[06:52:43] [32mINFO[39m (76732): [36m[Review] 对话复盘完成: quality=0.80, 人格记忆=1, 特征=0, 场景经验=0[39m
+[06:52:43] [32mINFO[39m (76732): [36m[Review] 思考链沉淀: 第1步唤醒觉知…第2步身份锚定…第3步需求解构：用户表达情绪困扰，属怀旧谈心类，…[39m
+[06:52:43] [32mINFO[39m (76732): [36m[Review] 对话复盘完成: quality=0.60, 人格记忆=0, 特征=2, 场景经验=0[39m
+  ✅ S4-2 (L-5) 低频降权 60 条（远超旧 50 上限）
+  ✅ S4-3 重复记忆合并 ≥1 对
+  ✅ S4-4 (L-6) TTL 过期清理 1 条（8 天前 [TTL:7d]）
+  ✅ S4-5 (L-5) 核心层 3 条全部保留且 importance=0.8 不衰减
+  ✅ S4-6 (L-5) 成长层 3 条全部保留且 importance=0.5 不衰减
+  ✅ S4-7 (L-5) 核心层 40 天未检索也不降权（豁免生效）
+  ✅ S4-8 (L-6) 未过期 TTL 记忆保留
+  ✅ S4-9 (L-5) 低频记忆已降权 0.6→0.3
+
+━━━ S5 (L-9/L-11) 长待机月度自省 + 低情绪关怀 ━━━
+[06:52:43] [32mINFO[39m (76732): [36m[MemoryGC] gc-e2e 低频降权: 64 条[39m
+[06:52:43] [32mINFO[39m (76732): [36m[MemoryGC] gc-e2e 重复合并: 保留 "我今天中午吃了牛肉面，味道很不错哦…" 删除旧副本[39m
+[06:52:43] [32mINFO[39m (76732): [36m[MemoryGC] gc-e2e 重复合并: 1 对[39m
+[06:52:43] [32mINFO[39m (76732): [36m[MemoryGC] gc-e2e TTL 清理: "北京今天天气晴朗适合出游 [TTL:7d]…"[39m
+[06:52:43] [32mINFO[39m (76732): [36m[MemoryGC] gc-e2e TTL 清理: 1 条过期[39m
+[06:52:43] [32mINFO[39m (76732): [36m[MemoryGC] 完成: 降权64 合并1 清理1[39m
+[06:52:43] [32mINFO[39m (76732): [36m[IdleBrain] 月度自省: 全周期关系复盘 + 风格微调[39m
+[06:52:43] [32mINFO[39m (76732): [36m[IdleBrain] 月度自省: 无显著变化，跳过微调[39m
+[Emotions] 0.89,0.60,0.20,0.10,0.15,0.59,0.40,0.25 → 0.89,0.62,0.20,0.09,0.14,0.62,0.40,0.25
+  ✅ S5-1 (L-9) 月度自省记忆归属真实用户 uid-e2e
+  ✅ S5-2 (L-9) 不再写死 system 用户
+  ✅ S5-3 (L-11) low_mood_comfort 触发器已注册
+  ✅ S5-4 (L-11) low_activity_greeting 触发器已注册
+[Relationship] 交互总数已设置: 500 → 校准后阶段: 熟人
+  ✅ S5-5 前置：关系阶段达到熟人以上
+  ✅ S5-6 (L-11) 沉默13h+低情绪 → 触发 low_mood_comfort
+  ✅ S5-7 (L-11) 沉默13h 未达 48h → 不触发问候
+  ✅ S5-8 (L-11) 沉默49h → 触发 low_activity_greeting
+  ✅ S5-9 (D-1) 深夜(23点) 低情绪安抚不触发（不打扰设计）
+  ✅ S5-10 (D-1) 深夜(23点) 低活跃问候不触发（不打扰设计）
+
+━━━ S6 静态接线复核 ━━━
+  ✅ S6-1 (E-3) retriever 缺失表静默降级（sqlite_master 预检）
+  ✅ S6-2 (E-3) timeline 缺失表静默降级（sqlite_master 预检）
+  ✅ S6-3 (E-3) peppa.db 路径统一走 getPeppaDbPath（7 处含目录创建）
+  ✅ S6-4 (O-1) chat.ts 无 v4-pro 硬编码
+  ✅ S6-4 (O-1) voice.ts 无 v4-pro 硬编码
+  ✅ S6-4 (O-1) task.ts 无 v4-pro 硬编码
+  ✅ S6-5 (O-1) chat 用 COMPLEX_MODELS/DEFAULT_MODELS
+  ✅ S6-6 (O-1) voice 用 COMPLEX_MODELS
+  ✅ S6-7 (O-1) task 用 DEFAULT_MODELS/COMPLEX_MODELS
+  ✅ S6-8 (L-10) 预算块含 relevantHistory 裁剪
+  ✅ S6-9 (L-10) 预算块含 timelineHistory 裁剪
+  ✅ S6-10 (L-10) 预算块含 prefTags 裁剪
+  ✅ S6-11 (L-10) 预算块含 knowledge 裁剪
+  ✅ S6-12 (L-15) 自主任务轻量模型（scenario: light + maxTokens 500）
+  ✅ S6-13 (L-15) autonomous_work_cycle 降频 2h
+  ✅ S6-14 (L-17) task source 区分 emotion/memory/context/idle
+  ✅ S6-15 (L-3) 人格演进 7 天冷却接线
+  ✅ S6-16 (O-2) 宪法守卫 action.constitution 已配置
+  ✅ S6-16 (O-2) 宪法守卫 work.product.supervision 已配置
+  ✅ S6-16 (O-2) 宪法守卫 self.extension 已配置
+  ✅ S6-16 (O-2) 宪法守卫 collaboration.lap 已配置
+  ✅ S6-17 (O-2) 严重违规合规结尾含 action.constitution
+  ✅ S6-18 (E-1) addMemory 默认 confidence 0.5
+  ✅ S6-19 (L-1) 单一收敛机制 BASELINE_CONVERGE_RATE=0.03
+  ✅ S6-20 (L-14) 低值恢复阈值与基线联动
+  ✅ S6-21 (L-7) chat 重逢分支调用 beginReunionDiscount
+  ✅ S6-22 (L-8) chat 交互 outcome 分支接线
+  ✅ S6-23 (L-4) chat 注入未解决思绪 + 用后 resolve
+  ✅ S6-24 (L-16) adapter LLMResult 携带 reasoningContent
+  ✅ S6-25 (L-13) relationship 引擎存在四维衰减
+
+━━━ S7 阶段一（模块1-4）功能全量集成验证 ━━━
+  ✅ S7-A1 行程加密: 密文不含明文目的地
+  ✅ S7-A2 行程加密: 解密还原完整（AES-256-GCM）
+  ✅ S7-A3 travel-cal-mcp 导出 registerTravelTools
+[06:52:43] [32mINFO[39m (76732): [36m[IdleBrain] 月度自省已联动情绪基线[39m
+[06:52:43] [32mINFO[39m (76732): [36m[IdleBrain] 月度自省完成[39m
+  ✅ S7-A4 行程落库 travel_itineraries 表
+  ✅ S7-A5 行程加密存储（数据库内为密文，不泄露目的地）
+  ✅ S7-A6 行程更新状态生效
+  ✅ S7-A7 行程删除生效
+  ✅ S7-A8a 24-72h 行程落库（默认 remind_hours=24）
+  ✅ S7-A8 行程临近推送: 72h 窗口内 24-72h 行程正常推送（D-2 修复）
+[06:52:48] [32mINFO[39m (76732): [36m[TravelMCP] 行程临近推送: #2 上海[39m
+  ✅ S7-A9 数字孪生行为预判命中出行标签
+  ✅ S7-B1 时效过滤: 2h 前在 24h 窗口内
+  ✅ S7-B2 时效过滤: 20 天前超出 7d 窗口
+  ✅ S7-B3 多源检索可执行（网络异常时优雅返回空数组不抛错）
+  ✅ S7-B4 强制检索词表覆盖时事类（MUST_SEARCH_TERMS）
+  ✅ S7-B5 websearch_compare 描述含去偏见承诺
+  ✅ S7-C1 腾讯行情解析: 浦发银行现价 7.5
+  ✅ S7-C2 行情解析: 成交量 123456 手
+  ✅ S7-C3 代码归一: 600000→sh600000 / 000001→sz000001
+  ✅ S7-C4 四个股票工具描述全部含免责
+  ✅ S7-C5 免责声明常量存在（不构成投资建议）
+  ✅ S7-D1 PSI 好奇心张力随未满足时长上升
+  ✅ S7-D2 PSI 规划需求: 无行程低张力 0.15
+  ✅ S7-D3 PSI 规划需求: 72h 内行程临近张力高
+  ✅ S7-D4 PSI 新用户(<7天) 3 天频次克制
+  ✅ S7-D5 PSI 老用户(≥7天) 1 天频次
+  ✅ S7-D6 行程临近触发器已注册（travelUpcomingTrigger）
+  ✅ S7-D7 行程触发器调用 pushUpcomingTravelInfo
+  ✅ S7-D8 PSI 简报复用多源抓取（web_search.fetchMultiSource 底层即 NEWS_SOURCES）
+  ✅ S7-D9 IdleBrain 长待机接入资讯简报
+[06:52:58] [32mINFO[39m (76732): [36m[WebSearchMCP] 已注册 2 个工具 + 强制检索词 12 个[39m
+[06:52:58] [32mINFO[39m (76732): [36m[StockMCP] 已注册 4 个工具[39m
+[Emotions] 0.10,0.50,0.50,0.50,0.50,0.50,0.50,0.50 → 0.10,0.50,0.50,0.60,0.50,0.50,0.50,0.50
+  ✅ S7-E1 情绪增量更新生效（担忧维度变化）
+  ✅ S7-E2 情绪向量恒为 8 维
+  ✅ S7-E3 情绪基线收敛机制存在
+  ✅ S7-E4 复盘为异步 fire-and-forget（非 await 阻塞）
+  ✅ S7-E5 记忆默认置信度 0.5（E-1）
+  ✅ S7-E6 TTL 全链路（标记→写入→清理）
+  ✅ S7-F1 多路径一致 → 共识结论（一致度 1.0）
+  ✅ S7-F2 共识置信度抬升（0.7·0.6→综合>0.6）
+  ✅ S7-F3 多路径分歧 → 不武断下结论
+  ✅ S7-F4 分歧输出携带待核实要点
+  ✅ S7-F5 推理报告含交叉校验原则
+  ✅ S7-F6 无 LLM 时多路径降级不抛错
+  ✅ S7-F7 人格引擎支持 news_reading 事件
+  ✅ S7-F8 资讯微调只动好奇心/开放性（慢步长 0.003）
+  ✅ S7-F9 宪法 4 条守卫完整
+  ✅ S7-F10 registerAllTools 接入 5 套 MCP 注册
+  ✅ S7-F11 MCP 汇总注册覆盖 5 套（travel/websearch/stock/notify/util）
+  ✅ S7-F12 高精度计算 0.1+0.2=0.3（无浮点误差）
+  ✅ S7-F13 高精度除法 1/3 精确 18 位
+  ✅ S7-F14 除零错误优雅返回
+
+━━━ S8 自诊疗引擎（阶段二） ━━━
+  ✅ S8-L1a 副本破坏点就位（收敛率 0.03→0.10）
+  ✅ S8-L1b 自检报告结构完整（runId/断言数/评分/判定/隔离标记）
+  ✅ S8-L1c 收敛率破坏被标准断言 S6-23 捕获
+  ✅ S8-L1d 已知高频 bug 分类命中模板 TPL-L1（known/可自动修复）
+  ✅ S8-L1e 自动修复执行（autoRepaired>=1）
+  ✅ S8-L1f 修复落盘：副本收敛率恢复 0.03
+  ✅ S8-L1g 缺陷标记已解决（resolved+repairedBy=TPL-L1）
+  ✅ S8-L2a 副本破坏点就位（TTL 函数移除）
+  ✅ S8-L2b TTL 死链路被断言 S1-3 捕获并归因 interceptor.ts
+  ✅ S8-L2c 分类为已知 bug（templateId=TPL-TTL）
+  ✅ S8-L2d 自动修复恢复 TTL 标记函数
+  ✅ S8-L2e 修复后副本文件语法检查通过
+  ✅ S8-L3a 坏模板修改被语法检查拦截（applied=false）
+  ✅ S8-L3b 语法错误触发自动回滚（rolledBack=true）
+  ✅ S8-L3c 快照回滚生效：文件恢复原内容
+  ✅ S8-L3d 回滚日志留痕（含缺陷编号 D9999）
+  ✅ S8-L4a 手动触发返回完整报告（73 断言/健康分/判定）
+  ✅ S8-L4b 报告携带结构缺陷明细（编号/文件/症状/判定标准）
+  ✅ S8-L4c 自检记录持久化成功（最新记录=本次 runId）
+  ✅ S8-L4d 持久化库位于隔离目录（self_heal.db 在 /tmp 测试目录）
+  ✅ S8-L4e 开放缺陷/待自动修复计数接口返回
+  ✅ S8-L4f 历史修复记录可查询（含本轮 TPL-L1 自动修复）
+  ✅ S8-L5a 五份关键正式源码 S8 前后哈希完全一致（零改动）
+  ✅ S8-L5b 修复全程留下快照备份（>=2 份）
+  ✅ S8-L5c 副本目录已清理（不影响工作区）
+
+━━━ 汇总 ━━━
+  通过: 149  失败: 0
+  ✅ 全部 E2E 场景通过
+```
+
+## ② build 输出尾部
+```
+dist-server/proactive/triggers.ts(4,34): error TS2307: Cannot find module '../life/emotions' or its corresponding type declarations.
+dist-server/proactive/triggers.ts(5,39): error TS2307: Cannot find module '../life/relationship' or its corresponding type declarations.
+dist-server/proactive/triggers.ts(6,31): error TS2307: Cannot find module '../memory/store' or its corresponding type declarations.
+dist-server/proactive/triggers.ts(7,29): error TS2307: Cannot find module '../memory/types' or its corresponding type declarations.
+dist-server/proactive/triggers.ts(9,40): error TS2307: Cannot find module '../tools/mcp_servers/travel_cal' or its corresponding type declarations.
+[build-server] proactive/ not found, skipping
+[build-server] Skipped hide-console.cjs (not Windows)
+[build-server] Generated dist-server/server.mjs + dist-server/entry.cjs + dist-server/hide-console.cjs
+```

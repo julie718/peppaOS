@@ -1,0 +1,47 @@
+========== 阶段一终验·7步自动化核验完整日志 ==========
+【步骤1】npx tsc --noEmit: exit 0, 0 错误
+
+【步骤2】node scripts/build-server.mjs: exit 0
+dist-server/proactive/index.ts(1,24): error TS2307: Cannot find module '../lib/logger' or its corresponding type declarations.
+dist-server/proactive/index.ts(3,35): error TS2307: Cannot find module '../lib/pushService' or its corresponding type declarations.
+dist-server/proactive/triggers.ts(1,24): error TS2307: Cannot find module '../lib/logger' or its corresponding type declarations.
+dist-server/proactive/triggers.ts(3,38): error TS2307: Cannot find module '../life/userState' or its corresponding type declarations.
+dist-server/proactive/triggers.ts(4,34): error TS2307: Cannot find module '../life/emotions' or its corresponding type declarations.
+dist-server/proactive/triggers.ts(5,39): error TS2307: Cannot find module '../life/relationship' or its corresponding type declarations.
+dist-server/proactive/triggers.ts(6,31): error TS2307: Cannot find module '../memory/store' or its corresponding type declarations.
+dist-server/proactive/triggers.ts(7,29): error TS2307: Cannot find module '../memory/types' or its corresponding type declarations.
+dist-server/proactive/triggers.ts(9,40): error TS2307: Cannot find module '../tools/mcp_servers/travel_cal' or its corresponding type declarations.
+[build-server] proactive/ not found, skipping
+[build-server] Skipped hide-console.cjs (not Windows)
+[build-server] Generated dist-server/server.mjs + dist-server/entry.cjs + dist-server/hide-console.cjs
+
+【步骤3】全新隔离库启动 (LUMI_DATA_DIR=/tmp/lumi_verify_stage1 PORT=3922): /api/health=200 /health=200, 0 FATAL, 0 CANTOPEN, peppa.db 24表 + life.db 16表, 历史时序WARN 1条(life/index.ts:155, 首轮核验同现)
+
+【步骤4】TZ=America/New_York E2E: 通过 124  失败 0
+  ✅ S5-6 (L-11) 沉默13h+低情绪 → 触发 low_mood_comfort
+  ✅ S5-8 (L-11) 沉默49h → 触发 low_activity_greeting
+  ✅ S5-9 (D-1) 深夜(23点) 低情绪安抚不触发（不打扰设计）
+  ✅ S5-10 (D-1) 深夜(23点) 低活跃问候不触发（不打扰设计）
+  ✅ S7-A8a 24-72h 行程落库（默认 remind_hours=24）
+  ✅ S7-A8 行程临近推送: 72h 窗口内 24-72h 行程正常推送（D-2 修复）
+  通过: 124  失败: 0
+  ✅ 全部 E2E 场景通过
+
+【步骤5】git diff: 3 文件 25+/7-（e2e_isolated_25fix.test.ts / lifeDb.ts / triggers.ts），无历史修复特征改动
+
+【步骤6】17号: 32 项终版状态列全✅; 18号: 33/33 全达标(汇总表 部分/未达标=0)
+
+【步骤7】三大示例抽样: 12/12
+  ✅ getUpcomingTravels(72h) 命中 3 条（含 25-72h 的 A）
+  ✅ pushUpcomingTravelInfo(72h) 推送数 = 3（修复前为 2，A 被漏推）
+  ✅ 深夜(23点): 安抚+问候均不触发
+  ✅ 日间(12点): 安抚+问候均触发
+  ✅ 删除强制小时后退回系统时间（isLateNight 不抛错）
+  ✅ 示例一 加密: 密文不含明文目的地
+  ✅ 示例一 解密还原: 目的地=杭州
+  ✅ 示例二 强制检索词覆盖时事/国际
+  ✅ 示例二 时效窗口 2h 在 24h 内
+  ✅ 示例三 代码归一化 600000→sh600000
+  ✅ 示例三 行情解析: 浦发银行 7.5 元
+  ✅ 示例三 免责声明存在
+步骤7 复测汇总: 通过 12  失败 0

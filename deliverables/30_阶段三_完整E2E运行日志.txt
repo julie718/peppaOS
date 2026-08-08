@@ -1,0 +1,137 @@
+阶段三 E2E：隔离环境 /var/folders/b_/6c96l3yd7tg7r7spqz2p_rdc0000gn/T/stage3_e2e
+
+━━━ 场景1：检索评分（七维 + 淘汰 + 路径A优先） ━━━
+  ✅ 七维全达标 → 合格
+  ✅ 任一维度 <0.6 → 淘汰
+  ✅ 淘汰原因带维度与分数
+[10:09:56] [32mINFO[39m (84535): [36m[SkillsDB] 迁移完成: 5 张表, 0 个错误 (/var/folders/b_/6c96l3yd7tg7r7spqz2p_rdc0000gn/T/stage3_e2e/skills.db)[39m
+[10:09:56] [32mINFO[39m (84535): [36m[SkillsExt] 初始化完成（表 5 张）[39m
+  ✅ 检索命中候选
+  ✅ 合格候选七维全部 ≥0.6
+  ✅ 路径A优先（decision=reuse）
+  ✅ 淘汰候选带原因
+  ✅ 全维不达标 → 走自研兜底判定
+[LifeDB] 已连接: /Users/ray/Peppa/data/life.db
+  ✅ 缺口识别执行（审计 gap_detected）
+
+━━━ 场景2：外部适配 + 热加载（批准前不进工具池） ━━━
+  ✅ 适配暂存成功
+  ✅ 暂存登记可见
+  ✅ 批准前未进入工具池
+  ✅ 适配快照已落盘审计
+[10:09:58] [32mINFO[39m (84535): [36m[SkillsAdapter] us-stock-quote-mcp 适配完成并暂存（待测试+审批）v1.0.0[39m
+  ✅ 6 类用例全部通过
+  ✅ 测试报告含 6 类以上用例
+[10:09:58] [32mINFO[39m (84535): [36m[SkillsTest] us-stock-quote-mcp 全部通过（9/9 ×1 轮）[39m
+  ✅ 测试通过 → 提交审批
+  ✅ 审批来源标记 adapt:
+[10:09:58] [32mINFO[39m (84535): [36m[SkillsApproval] us-stock-quote-mcp 进入人工审批（#1，来源 adapt:us-stock-quote-mcp）[39m
+[10:09:58] [32mINFO[39m (84535): [36m[Personality] Loaded 1 personalities[39m
+  ✅ 批准 → 上线（进入工具池）
+  ✅ 上线工具可执行
+  ✅ 版本 v1.0.0 记录
+[10:09:58] [32mINFO[39m (84535): [36m[SkillsApproval] ✅ us-stock-quote-mcp 人工审批通过（e2e）[39m
+  ✅ 审计含 adapt/approve/deploy
+
+━━━ 场景3：沙箱生成 + tsc 迭代 ━━━
+  ✅ 服务命名合法标识符
+  ✅ 模板源码零外部依赖（无 import 语句）
+  ✅ 模板内嵌 SSRF 防护
+  ✅ 模板强制免责注入
+  ✅ 沙箱目录在隔离根下
+  ✅ 目录含源码+tsconfig+README
+[10:09:58] [32mINFO[39m (84535): [36m[SkillsSandbox] 沙箱项目创建: skills_peppa_tool (/var/folders/b_/6c96l3yd7tg7r7spqz2p_rdc0000gn/T/stage3_e2e/sandbox_auto_mcp/skills_peppa_tool)[39m
+  ✅ tsc 迭代通过（1 轮 ≤5）
+  ✅ DB 记录 tsc 通过
+  ✅ 沙箱工具可动态加载
+  ✅ 沙箱工具元数据就绪
+  ✅ 坏死代码 5 轮后标记人工优化
+  ✅ DB 记录 pending 原因
+
+━━━ 场景4：密钥录入 + 授权网关代理 + 限流 ━━━
+  ✅ 密文不落明文
+[10:09:59] [32mINFO[39m (84535): [36m[SkillsAuth] 凭证已更新: paid-news-api（长度 20）[39m
+  ✅ 解密往返一致
+  ✅ 审计不含密钥片段
+  ✅ 元信息列表不含密文
+  ✅ 代理返回外部数据
+  ✅ 认证头注入正确
+  ✅ 计费统计 +1
+  ✅ 超限被拒绝（限流生效）
+  ✅ 未授权服务被拒
+  ✅ 删除密钥
+  ✅ 删除后不可代理
+  ✅ 密文篡改解密失败（完整性保护）
+
+━━━ 场景5：人工审批闸门（批准/驳回修改/暂存 7 天清理） ━━━
+[10:09:59] [32mINFO[39m (84535): [36m[SkillsSandbox] 沙箱项目创建: skills_peppa_tool (/var/folders/b_/6c96l3yd7tg7r7spqz2p_rdc0000gn/T/stage3_e2e/sandbox_auto_mcp/skills_peppa_tool)[39m
+[10:09:59] [32mINFO[39m (84535): [36m[SkillsTest] skills_peppa_tool 全部通过（9/9 ×1 轮）[39m
+  ✅ 沙箱项目测试通过 → 提交审批
+[10:09:59] [32mINFO[39m (84535): [36m[SkillsApproval] skills_peppa_tool 进入人工审批（#2，来源 2）[39m
+  ✅ 驳回必须附意见
+  ✅ 驳回修改 → 携带意见
+[10:09:59] [32mINFO[39m (84535): [36m[SkillsApproval] ❌ skills_peppa_tool 审批驳回（e2e）：数据源需增加汇率字段[39m
+  ✅ 项目退回工坊并记录意见
+  ✅ 驳回后不在工具池
+  ✅ 驳回后不可再次审批
+  ✅ 适配器工具审批记录为 approved
+  ✅ 适配器工具已进入工具池
+[10:10:00] [32mINFO[39m (84535): [36m[SkillsAdapter] fx-rate-api 适配完成并暂存（待测试+审批）v1.0.0[39m
+[10:10:00] [32mINFO[39m (84535): [36m[SkillsTest] fx-rate-api 全部通过（9/9 ×1 轮）[39m
+  ✅ 新适配器审批提交
+[10:10:00] [32mINFO[39m (84535): [36m[SkillsApproval] fx-rate-api 进入人工审批（#3，来源 adapt:fx-rate-api）[39m
+  ✅ 适配器审批可暂存
+[10:10:00] [32mINFO[39m (84535): [36m[SkillsApproval] ⏸ fx-rate-api 暂存（e2e）[39m
+[10:10:00] [32mINFO[39m (84535): [36m[SkillsSandbox] 沙箱项目创建: skills_peppa_tool (/var/folders/b_/6c96l3yd7tg7r7spqz2p_rdc0000gn/T/stage3_e2e/sandbox_auto_mcp/skills_peppa_tool)[39m
+[10:10:00] [32mINFO[39m (84535): [36m[SkillsTest] skills_peppa_tool 全部通过（9/9 ×1 轮）[39m
+[10:10:00] [32mINFO[39m (84535): [36m[SkillsApproval] skills_peppa_tool 进入人工审批（#4，来源 3）[39m
+  ✅ 暂存保持待审
+[10:10:00] [32mINFO[39m (84535): [36m[SkillsApproval] ⏸ skills_peppa_tool 暂存（e2e）[39m
+  ✅ 暂存项目仍为 awaiting_approval
+  ✅ 暂存 7 天过期清理（审批记录）
+[10:10:00] [32mINFO[39m (84535): [36m[SkillsApproval] 过期清理 2 条待审批（>0 天）[39m
+  ✅ 过期项目标记 expired
+  ✅ 过期沙箱清理计数
+  ✅ 过期清理后待审清零
+[10:10:00] [32mINFO[39m (84535): [36m[SkillsSandbox] 过期清理 2 个沙箱项目（>0 天未审批）[39m
+
+━━━ 场景6：监控 + 故障自修复 ━━━
+[10:10:00] [32mINFO[39m (84535): [36m[SkillsAdapter] fx-rate-api 适配完成并暂存（待测试+审批）v1.0.0[39m
+[10:10:00] [32mINFO[39m (84535): [36m[SkillsTest] fx-rate-api 全部通过（9/9 ×1 轮）[39m
+[10:10:00] [32mINFO[39m (84535): [36m[SkillsApproval] fx-rate-api 进入人工审批（#5，来源 adapt:fx-rate-api）[39m
+  ✅ 故障工具已上线
+[10:10:00] [32mINFO[39m (84535): [36m[SkillsApproval] ✅ fx-rate-api 人工审批通过（e2e）[39m
+  ✅ 故障判定 degraded
+  ✅ 延迟均值被监控
+  ✅ 自修复执行（无旧版本 → 下线）
+  ✅ 故障工具已从工具池移除
+[10:10:00] [33mWARN[39m (84535): [36m[SkillsMonitor] fx-rate-api 因故障率 1 已自动下线[39m
+  ✅ 监控统计可查询
+
+━━━ 场景7：版本升级 + 冒烟失败自动回滚 ━━━
+[10:10:01] [32mINFO[39m (84535): [36m[SkillsAdapter] global-news-mcp 适配完成并暂存（待测试+审批）v1.0.0[39m
+[10:10:01] [32mINFO[39m (84535): [36m[SkillsTest] global-news-mcp 全部通过（9/9 ×1 轮）[39m
+[10:10:01] [32mINFO[39m (84535): [36m[SkillsApproval] global-news-mcp 进入人工审批（#6，来源 adapt:global-news-mcp）[39m
+  ✅ v1.0.0 上线
+  ✅ 升级注册成功
+[10:10:01] [32mINFO[39m (84535): [36m[SkillsApproval] ✅ global-news-mcp 人工审批通过（e2e）[39m
+[10:10:01] [32mINFO[39m (84535): [36m[SkillsAdapter] 热加载替换: global-news-mcp → v2.0.0[39m
+[10:10:01] [33mWARN[39m (84535): [36m[SkillsAdapter] global-news-mcp v2.0.0 冒烟失败 → 自动回滚 v1.0.0[39m
+[10:10:01] [32mINFO[39m (84535): [36m[SkillsAdapter] 热加载替换: global-news-mcp → v1.0.0[39m
+[10:10:01] [32mINFO[39m (84535): [36m[SkillsAdapter] global-news-mcp 已回滚 v2.0.0 → v1.0.0[39m
+  ✅ 冒烟失败自动回滚（回到 v1.0.0）
+  ✅ 审计含 rollback
+  ✅ 回滚后工具仍在线
+
+━━━ 场景8：网络降级（5xx 重试 / 超时 / SSRF / 截断） ━━━
+[10:10:04] [32mINFO[39m (84535): [36m[SkillsSandbox] 沙箱项目创建: skills_peppa_tool (/var/folders/b_/6c96l3yd7tg7r7spqz2p_rdc0000gn/T/stage3_e2e/sandbox_auto_mcp/skills_peppa_tool)[39m
+  ✅ 5xx 重试后降级文案
+  ✅ 超时降级文案
+[10:10:04] [32mINFO[39m (84535): [36m[SkillsSandbox] 沙箱项目创建: skills_peppa_tool (/var/folders/b_/6c96l3yd7tg7r7spqz2p_rdc0000gn/T/stage3_e2e/sandbox_auto_mcp/skills_peppa_tool)[39m
+  ✅ 内网地址被 SSRF 拦截
+  ✅ 响应超长截断（≤200KB）
+  ✅ 截断标记存在
+  ✅ 全局审计链完整（≥8 类动作）
+
+════════ 阶段三 E2E 结果：78 通过 / 0 失败 ════════
+✅ 阶段三 E2E 全部通过
