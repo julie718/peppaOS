@@ -10,7 +10,7 @@ interface Reminder {
   status: 'pending' | 'fired';
 }
 
-export function ReminderWidget({ onOpenFull }: { onOpenFull: () => void }) {
+export function ReminderWidget({ onOpenFull, showAll }: { onOpenFull: () => void; showAll?: boolean }) {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [quickAdd, setQuickAdd] = useState('');
   const [adding, setAdding] = useState(false);
@@ -65,7 +65,7 @@ export function ReminderWidget({ onOpenFull }: { onOpenFull: () => void }) {
 
       {reminders.length > 0 && (
         <div className="space-y-1.5">
-          {reminders.slice(0, 3).map(r => {
+          {(showAll ? reminders : reminders.slice(0, 3)).map(r => {
             const overdue = r.dueAt && new Date(r.dueAt) < new Date();
             return (
               <div key={r.id} className="flex items-center gap-2 text-xs">

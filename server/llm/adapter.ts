@@ -11,6 +11,25 @@ import { llmCallsTotal, llmTokensTotal, llmCallDuration } from '../lib/metrics';
 import { touchActivity } from '../core/mainLoop';
 import { logger } from '../lib/logger';
 
+// T80: 工具循环总时间上限（120s）— 超时后使用已有部分结果自然输出，不再强制中断
+const MAX_TOTAL_LOOP_TIME = 120000;
+// T80: 每轮 LLM 独立超时（20s）— 单轮超时不中断整个循环，记录后继续下一轮
+const PER_ROUND_TIMEOUT = 20000;
+
+/** T80: 超时辅助 — 超时后 abort controller（真正中断底层 LLM 请求，防止悬挂堆积），并以 timedOut 标记拒绝 */
+function withTimeout<T>(p: Promise<T>, ms: number, controller: AbortController, name: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      controller.abort();
+      reject(Object.assign(new Error(`${name} timeout after ${ms}ms`), { timedOut: true }));
+    }, ms);
+    p.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
+
 export interface LLMConfig {
   provider: 'deepseek' | 'gemini' | 'openai' | 'anthropic' | 'qwen' | 'ark' | 'ollama' | 'lmstudio' | 'xiaomi' | 'kimi' | 'glm' | 'relay' | 'auto';
   model: string;
@@ -395,11 +414,20 @@ export async function runWithTools(
   const effectiveMaxIterations = Math.max(0, Math.min(maxIterations, context?.toolPolicy?.maxIterations ?? maxIterations));
   // L-16: 跟踪本轮最后一次 LLM 思考链，随结果透出供复盘归档
   let lastReasoningContent: string | null = null;
+  // T80: 工具循环总时间上限（120s）— 超时后跳出循环，用已有部分结果自然输出
+  const loopStart = Date.now();
   for (let iteration = 0; iteration < effectiveMaxIterations; iteration++) {
+    if (Date.now() - loopStart > MAX_TOTAL_LOOP_TIME) {
+      logger.warn(`[runWithTools] 工具循环总时间超时 ${MAX_TOTAL_LOOP_TIME / 1000}s（第 ${iteration} 轮），使用已有部分结果输出`);
+      break;
+    }
     // Check for cancellation between iterations
     if (context?.isCancelled?.()) {
+      // 修复(问题4): 原文案 "Task was cancelled by the user." 会误导 — 这里绝大多数触发源是
+      // 120s 全局超时 abortController.abort()（chat.ts llmTimeout），并非用户操作。
+      // 改用明确超时语义，避免 LLM/用户误以为用户取消了任务。
       return {
-        text: 'Task was cancelled by the user.',
+        text: '工具响应超时，请稍后再试。',
         toolCalls: executionLog,
         usageRecords,
         reasoningContent: lastReasoningContent,
@@ -417,42 +445,66 @@ export async function runWithTools(
     const llmStart = Date.now();
     touchActivity();
     const modelMessages = compactMessagesForModel(conversationHistory);
-    const response = onStreamChunk
-      ? await makeLLMCallStreaming(
-          modelMessages,
-          toolDeclarations,
-          config,
-          onStreamChunk,
-          getDeepSeek || (() => null),
-          getGemini || (() => null),
-          getOpenAI || (() => null),
-          getAnthropic || (() => null),
-          getQwen || (() => null),
-          getOllama || (() => null),
-          getLmStudio || (() => null),
-          getArk || (() => null),
-          getXiaomi || (() => null),
-          getKimi || (() => null),
-          getGlm || (() => null),
-          getRelay || (() => null),
-        )
-      : await makeLLMCall(
-          modelMessages,
-          toolDeclarations,
-          config,
-          getDeepSeek || (() => null),
-          getGemini || (() => null),
-          getOpenAI || (() => null),
-          getAnthropic || (() => null),
-          getQwen || (() => null),
-          getOllama || (() => null),
-          getLmStudio || (() => null),
-          getArk || (() => null),
-          getXiaomi || (() => null),
-          getKimi || (() => null),
-          getGlm || (() => null),
-          getRelay || (() => null),
-        );
+    // T80: 每轮独立超时（20s）— roundController 超时后 abort 底层 LLM 请求（真正中断，防悬挂堆积）；
+    // 外层 config.signal（用户取消/全局 120s 兜底）的 abort 同步传播到本轮
+    const roundController = new AbortController();
+    const propagateOuterAbort = () => roundController.abort();
+    config.signal?.addEventListener('abort', propagateOuterAbort);
+    const roundConfig = { ...config, signal: roundController.signal };
+    let response;
+    try {
+      response = await withTimeout(
+        onStreamChunk
+          ? makeLLMCallStreaming(
+              modelMessages,
+              toolDeclarations,
+              roundConfig,
+              onStreamChunk,
+              getDeepSeek || (() => null),
+              getGemini || (() => null),
+              getOpenAI || (() => null),
+              getAnthropic || (() => null),
+              getQwen || (() => null),
+              getOllama || (() => null),
+              getLmStudio || (() => null),
+              getArk || (() => null),
+              getXiaomi || (() => null),
+              getKimi || (() => null),
+              getGlm || (() => null),
+              getRelay || (() => null),
+            )
+          : makeLLMCall(
+              modelMessages,
+              toolDeclarations,
+              roundConfig,
+              getDeepSeek || (() => null),
+              getGemini || (() => null),
+              getOpenAI || (() => null),
+              getAnthropic || (() => null),
+              getQwen || (() => null),
+              getOllama || (() => null),
+              getLmStudio || (() => null),
+              getArk || (() => null),
+              getXiaomi || (() => null),
+              getKimi || (() => null),
+              getGlm || (() => null),
+              getRelay || (() => null),
+            ),
+        PER_ROUND_TIMEOUT,
+        roundController,
+        `[runWithTools] LLM 第 ${iteration} 轮`,
+      );
+    } catch (e: any) {
+      // T80: 本轮超时 → 已 abort 底层请求，记录后继续下一轮（不中断整个工具循环）
+      if (e?.timedOut) {
+        logger.warn(`[runWithTools] LLM 第 ${iteration} 轮单轮超时 ${PER_ROUND_TIMEOUT / 1000}s，继续下一轮`);
+        continue;
+      }
+      // 其他错误（含外层 signal abort）→ 原样上抛
+      throw e;
+    } finally {
+      config.signal?.removeEventListener('abort', propagateOuterAbort);
+    }
     // L-16: 捕获本轮思考链（多轮工具迭代时保留最后一轮）
     if (response.reasoningContent) lastReasoningContent = response.reasoningContent;
 

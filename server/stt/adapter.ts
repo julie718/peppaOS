@@ -83,19 +83,21 @@ export function getActiveSTTProvider(): STTProvider | null {
   if (pref.stt === 'deepgram') return 'deepgram';
   if (pref.stt === 'whisper') return 'whisper';
   // Auto mode — prefer healthy cloud providers over local fallback for realtime browser sessions.
-  const doubaoSpeech = process.env.DOUBAO_SPEECH_KEY || getKey('DOUBAO_SPEECH_KEY');
-  if (doubaoSpeech && doubaoSpeech.includes(':')) return 'ark';
   const deepgramKey = process.env.DEEPGRAM_API_KEY || getKey('DEEPGRAM_API_KEY');
   const qwenKey = process.env.DASHSCOPE_API_KEY || process.env.QWEN_API_KEY
     || getKey('DASHSCOPE_API_KEY') || getKey('QWEN_API_KEY');
+  const doubaoSpeech = process.env.DOUBAO_SPEECH_KEY || getKey('DOUBAO_SPEECH_KEY');
+  // 修复(问题8): 流式实现只覆盖 deepgram/qwen（createStreamingSession），ark 无流式支持会直接报错。
+  // 自动模式必须 deepgram/qwen 优先，ark 仅作最后兜底。
   if (deepgramKey && isCircuitClosed('deepgram')) return 'deepgram';
   if (qwenKey && isCircuitClosed('qwen')) return 'qwen';
   if (deepgramKey) return 'deepgram';
+  if (qwenKey) return 'qwen';
+  if (doubaoSpeech) return 'ark';
   try {
     if (localWhisper.isLocalWhisperAvailable()) return 'local-whisper';
   } catch {}
   // Fallback: try them anyway if nothing healthy (circuit may have recovered)
-  if (qwenKey) return 'qwen';
   if (process.env.OPENAI_API_KEY || getKey('OPENAI_API_KEY')) return 'whisper';
   return 'local-whisper';
 }

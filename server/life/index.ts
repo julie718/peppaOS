@@ -16,8 +16,22 @@ import { dailyNarrativeGeneration } from './narrative';
 // T80
 import { idleBrain } from '../autonomy/idle_brain';
 import { runMemoryGC } from '../memory/gc';
+import { tickComprehension } from './comprehension';
 import { readDB, ensureDatabaseInitialized } from '../../db_layer';
 import { guardMentalStateWrite } from '../../src/utils/paradigmGuard';
+
+// T80: 子任务独立超时辅助（超时后 Promise 以 timeout 标记拒绝，由调用方决定如何处理）
+function withTimeout<T>(p: Promise<T>, ms: number, name: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(Object.assign(new Error(`[LifeSystem] ${name} 执行超时 ${ms}ms`), { timeout: true }));
+    }, ms);
+    p.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
 
 /** 聚合全部真实业务用户 ID（与 scheduler 一致），供记忆 GC 逐用户执行 */
 function collectUserIds(): string[] {
@@ -43,6 +57,10 @@ function collectUserIds(): string[] {
 
 const TICK_INTERVAL_MS = 10 * 60000; // 10 分钟
 const DEGRADED_THRESHOLD = 3; // 连续 3 次失败进入降级模式
+// T80: 记忆 GC 独立调度（移出主 TICK 循环，30 分钟一次）
+const MEMORY_GC_INTERVAL_MS = 30 * 60000;
+// T80: TICK 内每个子任务独立超时（10s），避免单个慢任务（LLM/IO）拖垮整个 TICK
+const TICK_TASK_TIMEOUT_MS = 10000;
 
 interface LifeState {
   personality: number[];
@@ -70,6 +88,7 @@ export class LifeSystem {
   relationship: RelationshipEngine;
 
   private tickTimer: ReturnType<typeof setInterval> | null = null;
+  private memoryGcTimer: ReturnType<typeof setInterval> | null = null;
   private consecutiveFailures = 0;
   private degraded = false;
   private running = false;
@@ -186,6 +205,11 @@ export class LifeSystem {
     // ── T80: IdleBrain 启动 ──
     idleBrain.start();
 
+    // ── T80: 记忆 GC 独立调度（30 分钟一次，移出主 TICK 循环） ──
+    this.memoryGcTimer = setInterval(() => {
+      this.runMemoryGCStep().catch(e => console.error('[LifeSystem] 记忆GC失败:', e.message));
+    }, MEMORY_GC_INTERVAL_MS);
+
     // 立即执行首次 tick
     this.tick().catch(e => console.error('[LifeSystem] 首次tick失败:', e.message));
 
@@ -195,11 +219,36 @@ export class LifeSystem {
     }, TICK_INTERVAL_MS);
   }
 
+  /** T80: 记忆 GC 独立步骤（30 分钟调度 + 首次启动后 30 秒兜底） */
+  private async runMemoryGCStep(): Promise<void> {
+    const gcStart = Date.now();
+    // P0-5: 确保 db_layer 已初始化 — 首次 tick 可能在 initDatabase 完成前触发
+    await ensureDatabaseInitialized();
+    const gcResult = await runMemoryGC(collectUserIds());
+    if (gcResult.downweighted > 0 || gcResult.merged > 0 || gcResult.cleaned > 0) {
+      console.log(`[LifeSystem] 🧹 记忆GC: 降权${gcResult.downweighted} 合并${gcResult.merged} 清理${gcResult.cleaned} (${Date.now() - gcStart}ms)`);
+    }
+    // L-18: 搁置思绪 72h 自动归档 — 未在对话中接续的旧思绪标记 expired
+    try {
+      const { expireStaleThoughts } = await import('../db/lifeDb');
+      const expired = await expireStaleThoughts(72);
+      if (expired > 0) {
+        console.log(`[LifeSystem] 🧹 过期思绪归档: ${expired} 条（超 72h 未接续）`);
+      }
+    } catch (e: any) {
+      console.warn('[LifeSystem] 过期思绪归档异常:', e?.message || e);
+    }
+  }
+
   /** 停止主循环 */
   stop(): void {
     if (this.tickTimer) {
       clearInterval(this.tickTimer);
       this.tickTimer = null;
+    }
+    if (this.memoryGcTimer) {
+      clearInterval(this.memoryGcTimer);
+      this.memoryGcTimer = null;
     }
     this.running = false;
     idleBrain.stop();
@@ -382,142 +431,111 @@ export class LifeSystem {
     const startTime = Date.now();
 
     try {
-      // 步骤 0: 生命体征
-      await this.safeCall('vitality.tick', async () => {
-        getVitality().tick();
-      }, errors);
+      // ── T80: 步骤并行化 — 每个子任务独立超时（10s），单个慢任务（LLM/IO）不再拖垮整个 TICK ──
+      // 耗时大户（proactive/narrative/prefetch 等 LLM 调用）与快任务并行，总体耗时 = max(各任务) 而非 sum
+      const tasks: Array<{ name: string; fn: () => Promise<void> }> = [
+        // 步骤 0: 生命体征
+        { name: 'vitality.tick', fn: async () => { getVitality().tick(); } },
 
-      // 步骤 1: 情绪衰减 (tick)
-      await this.safeCall('emotions.tick', async () => {
-        await this.emotions.tickEmotions();
-      }, errors);
+        // 步骤 1: 情绪衰减 (tick)
+        { name: 'emotions.tick', fn: async () => { await this.emotions.tickEmotions(); } },
 
-      // 步骤 1.5: 方向状态自然演进
-      await this.safeCall('direction.tick', async () => {
-        const directionState = getDirectionState();
-        await directionState.tick();
-      }, errors);
+        // 步骤 1.5: 方向状态自然演进
+        { name: 'direction.tick', fn: async () => { await getDirectionState().tick(); } },
 
-      // 步骤 2: 欲望生成与衰减
-      await this.safeCall('desires.generate', async () => {
-        await this.desires.generateDesires();
-        await this.desires.tick();
-      }, errors);
+        // 步骤 2: 欲望生成与衰减
+        { name: 'desires.generate', fn: async () => { await this.desires.generateDesires(); await this.desires.tick(); } },
 
-      // 步骤 3: 人格适应（基于交互事件）
-      // P1-15: 激活 long_silence 事件 — 原分支条件错误（依赖度<0.25 与沉默无关），
-      // 且关系系统的 long_silence 分支无任何调用方（死代码）。
-      // 绑定到定时调度：距上次交互 ≥24h 时同步投递关系系统 + 人格系统
-      //（shouldFireLongSilence 保证每 24h 至多一次，避免每 10 分钟 TICK 重复惩罚）
-      await this.safeCall('personality.long_silence', async () => {
-        if (this.relationship.shouldFireLongSilence()) {
-          await this.relationship.receiveInteraction('long_silence');
-          await this.personality.adaptToEvent({ type: 'long_silence' });
-        }
-      }, errors);
-
-      // 步骤 4: 关系衰减（24h 信任衰减检查）
-      await this.safeCall('relationship.tick', async () => {
-        await this.relationship.tick();
-      }, errors);
-
-      // 步骤 4.5: 人格演化 — 每 10 次交互聚合微调一次
-      if (this.recentInteractions.length >= 10 && this.interactionCount % 10 === 0) {
-        await this.safeCall('personality.evolution', async () => {
-          const recent = this.recentInteractions.slice(-10);
-          const delta = this.personality.calculateDeltaFromInteractions(recent);
-          const before = this.personality.getPersonality();
-          const result = await this.personality.updatePersonality(delta);
-          if (result.ok) {
-            console.log(`[LifeSystem] 🧬 人格演化: ${recent.length}次交互聚合 → ${recent.map(i=>i.type).join(',')}`);
-            // 保留最近 10 条用于下次聚合
-            this.recentInteractions = this.recentInteractions.slice(-10);
+        // 步骤 3: 人格适应（基于交互事件）
+        // P1-15: 激活 long_silence 事件 — 原分支条件错误（依赖度<0.25 与沉默无关），
+        // 且关系系统的 long_silence 分支无任何调用方（死代码）。
+        // 绑定到定时调度：距上次交互 ≥24h 时同步投递关系系统 + 人格系统
+        //（shouldFireLongSilence 保证每 24h 至多一次，避免每 10 分钟 TICK 重复惩罚）
+        { name: 'personality.long_silence', fn: async () => {
+          if (this.relationship.shouldFireLongSilence()) {
+            await this.relationship.receiveInteraction('long_silence');
+            await this.personality.adaptToEvent({ type: 'long_silence' });
           }
-        }, errors);
-      }
+        } },
 
-      // 步骤 5: 自我反思（夜间触发）
-      await this.safeCall('selfAwareness.reflection', async () => {
-        await this.selfAwareness.triggerReflection();
-      }, errors);
+        // 步骤 4: 关系衰减（24h 信任衰减检查）
+        { name: 'relationship.tick', fn: async () => { await this.relationship.tick(); } },
 
-      // 步骤 5.6: 主动行为检查
-      await this.safeCall('proactive.run', async () => {
-        await proactiveManager.run();
-      }, errors);
+        // 步骤 5: 自我反思（夜间触发）
+        { name: 'selfAwareness.reflection', fn: async () => { await this.selfAwareness.triggerReflection(); } },
 
-      // 步骤 5.5: 自我叙事（每24小时一次）
-      await this.safeCall('narrative.daily', async () => {
-        const snapshot = await dailyNarrativeGeneration();
-        if (snapshot) {
-          console.log(`[LifeSystem] 📖 每日叙事: era=${snapshot.era} tone=${snapshot.tone}`);
-        }
-      }, errors);
+        // 步骤 5.6: 主动行为检查（可能含 LLM 决策 → 独立超时兜底）
+        { name: 'proactive.run', fn: async () => { await proactiveManager.run(); } },
 
-      // 步骤 6: 闸门检查 + 行动
-      if (!this.degraded) {
-        await this.safeCall('heartbeat.gates', async () => {
-          try {
-            await triggerHeartbeatIfReady();
-          } catch {}
-        }, errors);
-      }
-
-      // 步骤 7: 数据库维护
-      await this.safeCall('backup', async () => {
-        await autoBackup();
-      }, errors);
-
-      // 步骤 7.5: 标记忽略的主动推送
-      await this.safeCall('markIgnored', async () => {
-        const count = await markObservationsIgnored(10);
-        if (count > 0) console.log(`[LifeSystem] 标记了 ${count} 条已忽略的主动推送`);
-      }, errors);
-
-      // 步骤 7.5: ACI 预判上下文（空闲或早晨触发）
-      const uid = (global as any).__lastActiveUid || 'default';
-      if (shouldTriggerPrefetch(uid)) {
-        await this.safeCall('prefetch', async () => {
-          await prefetchContext(uid);
-        }, errors);
-      }
-
-      // 步骤 8: 自主探索（第二层）
-      if (!this.preempted) {
-        await this.safeCall('autonomousExploration', async () => {
-          await this.autonomousExploration();
-        }, errors);
-      }
-
-      // 步骤 9: 低优先级任务处理（第三层）
-      if (!this.preempted) {
-        await this.safeCall('lowPriorityTasks', async () => {
-          await this.processLowPriorityTasks();
-        }, errors);
-      }
-
-      // ── T80 步骤 10: 记忆降噪（低频降权 + 重复合并 + TTL 清理） ──
-      if (!this.preempted) {
-        await this.safeCall('memoryGarbageCollection', async () => {
-          // P0-5: 传入真实业务用户 ID，替代失效的 userId:'system'
-          // P0-5: 确保 db_layer 已初始化 — 首次 tick 可能在 initDatabase 完成前触发
-          await ensureDatabaseInitialized();
-          const gcResult = await runMemoryGC(collectUserIds());
-          if (gcResult.downweighted > 0 || gcResult.merged > 0 || gcResult.cleaned > 0) {
-            console.log(`[LifeSystem] 🧹 记忆GC: 降权${gcResult.downweighted} 合并${gcResult.merged} 清理${gcResult.cleaned}`);
+        // 步骤 5.5: 自我叙事（每24小时一次，LLM 生成 → 独立超时兜底）
+        { name: 'narrative.daily', fn: async () => {
+          const snapshot = await dailyNarrativeGeneration();
+          if (snapshot) {
+            console.log(`[LifeSystem] 📖 每日叙事: era=${snapshot.era} tone=${snapshot.tone}`);
           }
-          // L-18: 搁置思绪 72h 自动归档 — 未在对话中接续的旧思绪标记 expired，
-          // 修复前 internal_thought 只增不减，永不清理
-          try {
-            const { expireStaleThoughts } = await import('../db/lifeDb');
-            const expired = await expireStaleThoughts(72);
-            if (expired > 0) {
-              console.log(`[LifeSystem] 🧹 过期思绪归档: ${expired} 条（超 72h 未接续）`);
-            }
-          } catch (e: any) {
-            console.warn('[LifeSystem] 过期思绪归档异常:', e?.message || e);
+        } },
+
+        // 步骤 6: 闸门检查 + 行动
+        { name: 'heartbeat.gates', fn: async () => {
+          if (!this.degraded) {
+            try { await triggerHeartbeatIfReady(); } catch {}
           }
-        }, errors);
+        } },
+
+        // 步骤 7: 数据库维护
+        { name: 'backup', fn: async () => { await autoBackup(); } },
+
+        // 步骤 7.5: 标记忽略的主动推送
+        { name: 'markIgnored', fn: async () => {
+          const count = await markObservationsIgnored(10);
+          if (count > 0) console.log(`[LifeSystem] 标记了 ${count} 条已忽略的主动推送`);
+        } },
+
+        // 步骤 4.5: 人格演化 — 每 10 次交互聚合微调一次
+        ...(this.recentInteractions.length >= 10 && this.interactionCount % 10 === 0
+          ? [{
+              name: 'personality.evolution',
+              fn: async () => {
+                const recent = this.recentInteractions.slice(-10);
+                const delta = this.personality.calculateDeltaFromInteractions(recent);
+                const before = this.personality.getPersonality();
+                const result = await this.personality.updatePersonality(delta);
+                if (result.ok) {
+                  console.log(`[LifeSystem] 🧬 人格演化: ${recent.length}次交互聚合 → ${recent.map(i=>i.type).join(',')}`);
+                  // 保留最近 10 条用于下次聚合
+                  this.recentInteractions = this.recentInteractions.slice(-10);
+                }
+              },
+            }]
+          : []),
+
+        // 步骤 7.5: ACI 预判上下文（空闲或早晨触发，LLM 调用 → 独立超时兜底）
+        ...(shouldTriggerPrefetch((global as any).__lastActiveUid || 'default')
+          ? [{ name: 'prefetch', fn: async () => { await prefetchContext((global as any).__lastActiveUid || 'default'); } }]
+          : []),
+
+        // 步骤 8/9: 自主探索（第二层）+ 低优先级任务（第三层）— 用户消息抢占时跳过
+        ...(!this.preempted
+          ? [
+              { name: 'autonomousExploration', fn: async () => { await this.autonomousExploration(); } },
+              { name: 'lowPriorityTasks', fn: async () => { await this.processLowPriorityTasks(); } },
+            ]
+          : []),
+
+        // 步骤 X: 理解状态自然衰减（T80 任务4）
+        { name: 'comprehension.tick', fn: async () => { tickComprehension(); } },
+      ];
+
+      // 并行执行，每个子任务独立超时（safeCall 已吞掉业务错误进 errors；此处仅超时会 reject）
+      const results = await Promise.allSettled(
+        tasks.map(t => withTimeout(this.safeCall(t.name, t.fn, errors), TICK_TASK_TIMEOUT_MS, t.name)),
+      );
+      const timedOutIdx: number[] = [];
+      results.forEach((r, i) => {
+        if (r.status === 'rejected' && (r.reason as any)?.timeout) timedOutIdx.push(i);
+      });
+      if (timedOutIdx.length > 0) {
+        console.warn(`[LifeSystem] ⚠️ ${timedOutIdx.length} 个子任务执行超时(>${TICK_TASK_TIMEOUT_MS / 1000}s): ${timedOutIdx.map(i => tasks[i].name).join(', ')}`);
       }
 
       // 成功：重置失败计数
@@ -533,7 +551,7 @@ export class LifeSystem {
         console.warn(`[LifeSystem] ⚠️ tick 耗时较长: ${elapsed}ms`);
       }
 
-      await logSystemEvent('life_system_tick', { ok: true, elapsed, errors: errors.length });
+      await logSystemEvent('life_system_tick', { ok: errors.length === 0, elapsed, errors: errors.length });
       return { ok: errors.length === 0, errors };
     } catch (e: any) {
       this.consecutiveFailures++;
