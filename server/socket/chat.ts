@@ -39,6 +39,8 @@ import { touchUserActivity } from "../life/userState";
 import { idleBrain } from '../autonomy/idle_brain';
 // 【新增数字生命体模块】T80 心智 + MCP 拦截器
 import { buildMindContext, MindContext, SEVEN_STEP_MIND } from '../hooks/chat';
+// 第二阶段: 理解状态感知 — updateComprehension（对话入口评估 → 任务1追问 + 任务2复杂度感知共用该状态）
+import { updateComprehension } from '../life/comprehension';
 // 【重构·模块4】固定话术剔除：重逢问候由心智润色组成
 import { composeTriggerContent } from '../proactive/rhythm';
 import { mcpInterceptor, buildToolBlockMessage, applyConstitutionGuard, MCP_MAX_CALLS_PER_TURN, markToolResultTTL } from '../tools/interceptor';
@@ -348,11 +350,13 @@ export function registerChatHandler(
     chatSessionMap.set(sessionKey, abortController);
     // P0-1: 思绪搁置标记 — 超时/中止时保留已生成的流式内容，而非暴力销毁
     let thoughtShelved = false;
+    // T80: 全局超时 45s → 120s（总时间上限兜底）；每轮 LLM 独立 20s 超时在 adapter.runWithTools 内实现，
+    // 单轮超时不中断整个循环，循环结束后用已有部分结果自然输出
     const llmTimeout = setTimeout(() => {
       abortController.abort();
       thoughtShelved = true;
-      logger.warn('[ChatHandler] LLM 处理超时 45s，已中止请求并搁置思绪（保留已生成内容）');
-    }, 45000);
+      logger.warn('[ChatHandler] LLM 处理超时 120s，已中止请求并搁置思绪（保留已生成内容）');
+    }, 120000);
 
     // 【新增数字生命体模块】MCP 拦截器每轮重置
     mcpInterceptor.resetForTurn(sessionKey);
@@ -508,6 +512,8 @@ export function registerChatHandler(
       // Inject conversation summary chain for long-running conversations (anti-entropy)
       const beijingTime = new Date(new Date().getTime() + 8 * 3600000).toISOString().replace('Z', '+08:00');
       let effectiveSystemPrompt = systemInstruction + `\n\n## Current Time\n${beijingTime} (北京时间). Use this for any time-related questions.`;
+      // T80: 工具空结果止损语义 — 搜索类工具返回 stopRetry:true 或"未找到相关结果"时不得换关键词重试
+      effectiveSystemPrompt += '\n\n如果工具返回 stopRetry: true 或提示"未找到相关结果"，请不要再尝试调用同类型搜索工具换关键词重试，直接告知用户未找到结果。';
 
       // L-10: 可裁剪上下文块引用（超预算时按优先级从低到高精简）— 修复前预算裁剪名单
       // 仅含 previousSession/prefetched/crossSession，记忆块/偏好标签/知识库/时间线超长时不裁剪
@@ -927,6 +933,31 @@ export function registerChatHandler(
         return result.text || '{"category":"unknown","confidence":0.5,"entities":{}}';
       };
 
+      // ── 感知理解状态（第二阶段·任务1）：进入主逻辑前评估对用户话的理解程度 ──
+      const compState = updateComprehension(text);
+      logger.info(`[Comprehension] 理解状态: overall=${compState.overall}, missing=${compState.missingAspects.join(',')}`);
+
+      if (compState.overall < 0.4 && compState.missingAspects.length > 0) {
+        // 信息不足 → 自然追问（先理解清楚再回应，而非硬答）
+        const followUp = compState.missingAspects.includes('具体事件')
+          ? '能具体说说是什么事吗？我想先了解一下。'
+          : compState.missingAspects.includes('背景信息')
+            ? '这件事的背景是怎样的？能多说一点吗？'
+            : '我想多了解一点，能说得更具体吗？';
+
+        logger.info(`[Comprehension] 信息不足，自然追问: ${followUp}`);
+        emitAgent("agent:response", { text: followUp, agentName: personality.name, source: 'comprehension' });
+        emitAgent("agent:status", { status: "idle" });
+        // 追问与用户原话均落库，保持对话连续性
+        if (conversationId) {
+          addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'user', content: storedUserContent, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
+          addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'assistant', content: followUp, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
+        }
+        clearTimeout(llmTimeout);
+        chatSessionMap.delete(sessionKey);
+        return;
+      }
+
       const cognition = await processInput(text, cognitiveCtx, llmClassifier);
       logger.info('[ChatHandler] cognition result:', cognition.intent.category, 'responseText:', (cognition.responseText || '').slice(0, 100));
 
@@ -947,8 +978,11 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
       }
 
       // Auto-select model: flash for simple chat, pro for complex tasks
-      const complexCategories = ['command', 'code', 'question', 'analysis'];
-      const isComplex = complexCategories.includes(cognition.intent.category);
+      // ── 基于理解状态感知复杂度（第二阶段·任务2）──
+      // 理解程度低（信息不足）→ 问题尚不清晰，无需强模型；理解程度高 → 问题明确，用强模型深入分析
+      // （compState 即本轮 updateComprehension 的结果，等价于 getComprehensionState() 的当前状态）
+      const isComplex = compState.overall > 0.6 && ['command', 'code', 'question', 'analysis'].includes(cognition.intent.category);
+      logger.info(`[Comprehension] 复杂度感知: overall=${compState.overall}, isComplex=${isComplex}`);
       if (activeProvider === 'deepseek') {
         activeModel = isComplex ? COMPLEX_MODELS.deepseek : (activeModel === 'deepseek-chat' ? DEFAULT_MODELS.deepseek : activeModel); // O-1: 硬编码模型名统一走配置
       } else if (activeProvider === 'qwen') {
@@ -1382,6 +1416,12 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
 
         // P0-1: streamChunks 提升到 try 外层声明，供 catch 中思绪搁置保留已生成内容
         const streamChunks: string[] = [];
+        // 第二阶段·任务3: 感知"想太久"定时器同样提升到 try 外层声明 —
+        // catch (llmErr) 兜底路径需要清理，而 JS 的 catch 子句访问不到 try 块内声明的变量
+        let perceiveTimer: ReturnType<typeof setInterval> | null = null;
+        let toolRoundCount = 0;
+        let hasNotifiedLongThinking = false;
+        const toolLoopStart = Date.now();
         try {
           const toolNamesForLLM = toolRegistry.getToolDeclarations().map((d: any) => d.function?.name || d.name || '').filter(Boolean);
           logger.info('[ChatHandler] Calling Path C with provider:', activeProvider, 'model:', activeModel, 'tools:', allowToolUseForTurn && !isSanctuary ? 'enabled' : 'off', 'available:', toolNamesForLLM.length, 'sample:', toolNamesForLLM.slice(0, 8).join(','));
@@ -1453,12 +1493,27 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
               logger.info(`[ChatHandler] T80 MCP 柔性阻断: 概率未通过 (count=${mcpInterceptor.getCallCount(sessionKey)}/${MCP_MAX_CALLS_PER_TURN})`);
             }
             await runChatOnlyPath();
+            if (perceiveTimer) clearInterval(perceiveTimer); // 纯对话路径无感知定时器（防御性清理）
           } else {
             const maxIterations = routedToolPolicy?.maxIterations || personality.toolPolicy.maxIterations || 25;
 
           // Collect tool calls for persistence
 
           let result: any;
+          // ── 感知"想太久"（第二阶段·任务3）：工具链路超 15s 且已多轮时，自然告知而非强制中断 ──
+          // chat.ts 无显式 while 循环（迭代在 adapter.runWithTools 内部），故用轮询定时器感知：
+          // 每 3s 检查一次，满足条件即一次性告知；轮次计数挂在 onToolStart（每次工具调用 = 一轮）。
+          perceiveTimer = setInterval(() => {
+            if (hasNotifiedLongThinking) return;
+            if (abortController.signal.aborted) { if (perceiveTimer) clearInterval(perceiveTimer); return; }
+            const elapsed = Date.now() - toolLoopStart;
+            if (toolRoundCount > 2 && elapsed > 15000) {
+              hasNotifiedLongThinking = true;
+              if (perceiveTimer) clearInterval(perceiveTimer);
+              logger.info(`[Perception] 感知到"想太久"，自然告知用户 (${elapsed}ms, ${toolRoundCount} 轮)`);
+              emitAgent("agent:progress", { stage: 'thinking', message: '这个问题我还在想，可能需要一点时间……' });
+            }
+          }, 3000);
           try {
           result = await runWithTools(
             messages,
@@ -1493,6 +1548,7 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
               source: 'chat',
               isCancelled: () => abortController.signal.aborted,
               onToolStart: (call) => {
+                toolRoundCount++; // 感知"想太久"：每次工具调用计一轮
                 if (isDirectDesktopTool(call.name)) return;
                 emitAgent("agent:progress", { stage: 'executing', message: `正在执行: ${call.name}…` });
                 emitToolLifecycle({
@@ -1530,24 +1586,34 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
 
           responseText = result.text || '';
           lastReasoningText = (result as any).reasoningContent || null; // L-16: 工具链路透出思考链
+          if (perceiveTimer) clearInterval(perceiveTimer); // 感知"想太久"：链路结束，停止感知
           } catch (toolErr: any) {
             // P0-1: 中止/超时 → 思绪搁置，保留已生成的流式内容（柔性暂停，非暴力销毁）
             if (thoughtShelved || abortController.signal.aborted) {
               const partial = streamChunks.join('');
               if (!partial) {
                 logger.info('[ChatHandler] 工具链路中止且无已生成内容，跳过本轮');
+                if (perceiveTimer) clearInterval(perceiveTimer);
+                // 修复(问题1/5): 宁可明确告知超时，也不静默消失 — 用户必须收到一条回复
+                const fallbackReply = '工具响应超时，请稍后再试。';
+                socket.emit('agent:response', { text: fallbackReply, agentName: personality.name, source: 'timeout' });
+                try {
+                  addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'assistant', content: fallbackReply, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
+                } catch {}
                 return;
               }
               logger.warn(`[ChatHandler] 工具链路思绪搁置: 保留已生成内容 ${partial.length} 字符 (${toolErr?.message || 'aborted'})`);
               result = { text: partial, toolCalls: allToolRecords, usageRecords: [] };
               responseText = partial;
               llmWasCalled = true;
+              if (perceiveTimer) clearInterval(perceiveTimer);
             } else {
               logger.error('[ChatHandler] Tool execution failed:', toolErr.message);
               socket.emit('agent:error', {
                 message: toolErr.message || '工具执行失败',
                 requestId: requestId || '',
               });
+              if (perceiveTimer) clearInterval(perceiveTimer);
               return;
             }
           }
@@ -1588,8 +1654,10 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
               responseText = partial;
               llmWasCalled = true;
               logger.warn(`[ChatHandler] 思绪搁置: 保留已生成内容 ${partial.length} 字符`);
+              if (perceiveTimer) clearInterval(perceiveTimer);
             } else {
               logger.warn('[ChatHandler] 思绪搁置: 无已生成内容，跳过本轮');
+              if (perceiveTimer) clearInterval(perceiveTimer);
               return;
             }
           } else {
@@ -1649,6 +1717,7 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
                   source: 'chat',
                   isCancelled: () => abortController.signal.aborted,
                   onToolStart: (call) => {
+                    toolRoundCount++; // 感知"想太久"（fallback 链路同样计数）
                     if (isDirectDesktopTool(call.name)) return;
                     emitToolLifecycle({
                       correlationId: call.id || `tool-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -1681,11 +1750,13 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
               );
               responseText = fallback.text || '';
               llmWasCalled = true;
+              if (perceiveTimer) clearInterval(perceiveTimer);
               for (const u of fallback.usageRecords) {
                 recordTokenUsage(uid, u.provider, u.model, { promptTokens: u.promptTokens, completionTokens: u.completionTokens, totalTokens: u.totalTokens }, interactionId);
               }
               }
             } catch (fallbackErr: any) {
+              if (perceiveTimer) clearInterval(perceiveTimer);
               // Both primary and fallback LLMs failed — use cognitive fallback
               // 阶段一·模块3: 多路径交叉推理兜底（推理类问题 → 并行多链路校验；失败回退原兜底）
               let cfText = '';

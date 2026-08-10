@@ -229,11 +229,28 @@ function compactRecordForPrompt(m: MessageRecord): MessageRecord {
   };
 }
 
-export function getMessages(conversationId: string, limit = 1000): MessageRecord[] {
+export function getMessages(conversationId: string, limit = 1000, after?: string, afterId?: string): MessageRecord[] {
   const db = readDB();
   if (!db.interactions) return [];
-  return db.interactions
-    .filter((i: any) => i.conversationId === conversationId)
+  const rows = db.interactions.filter((i: any) => i.conversationId === conversationId);
+  if (after) {
+    // 游标增量模式（数字生命体·记忆重放）：返回 (timestamp, id) 字典序大于游标的消息
+    // timestamp 破毫秒级边界，id 破同毫秒多条（双写/同批落库）的排序歧义
+    return rows
+      .filter((i: any) => {
+        const ts = i.timestamp || '';
+        if (ts > after) return true;
+        if (ts === after) return (i.id || '') > (afterId || '');
+        return false;
+      })
+      .sort((a: any, b: any) => {
+        const at = a.timestamp || '', bt = b.timestamp || '';
+        if (at !== bt) return at < bt ? -1 : 1;
+        return (a.id || '') < (b.id || '') ? -1 : 1;
+      })
+      .slice(-limit);
+  }
+  return rows
     .sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
     .slice(-limit);
 }

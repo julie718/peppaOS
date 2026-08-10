@@ -105,7 +105,10 @@ export function mountConversationRoutes(router: Router, _jwtSecret: string) {
     const scope = getConversationScope(req);
     if (!conversationMatchesScope(conv, scope)) return res.status(403).json({ error: "Unauthorized" });
     const limit = parseInt(req.query.limit as string) || 50;
-    const messages = getMessages(req.params.id, limit);
+    // 记忆重放游标：?after=<ISO timestamp>&afterId=<id> — 只返回游标之后的增量消息
+    const after = req.query.after as string | undefined;
+    const afterId = req.query.afterId as string | undefined;
+    const messages = getMessages(req.params.id, limit, after, afterId);
     res.json({ messages });
   });
 

@@ -105,6 +105,11 @@ async function newsSearch(args: Record<string, any>): Promise<string> {
   ).slice(0, limit);
 
   logger.info(`[News] search "${keyword}" → ${matched.length} items`);
+  // T80: 空结果显式标记 stopRetry — 防止 LLM 无限换关键词重试直到 45s 超时；
+  // 系统提示已声明：stopRetry:true 时不得再调用同类型工具，直接告知用户
+  if (matched.length === 0) {
+    return JSON.stringify({ keyword, items: [], message: '未找到相关结果', stopRetry: true });
+  }
   return JSON.stringify({ keyword, items: matched });
 }
 

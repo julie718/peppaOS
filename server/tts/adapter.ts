@@ -106,6 +106,53 @@ export function getActiveProvider(): TTSProvider | null {
   return 'cosyvoice';
 }
 
+function clampVoiceParam(v: number, min = 0.8, max = 1.15): number {
+  return Math.min(max, Math.max(min, v));
+}
+
+/**
+ * 数字生命体·语音模块（第二阶段·阶段四）— 情绪/方向/关系 → 语音参数三重映射
+ * 情绪决定"此刻的心情"（速度/音调基础层），方向决定"表达姿态"（坚定给予 vs 克制收敛），
+ * 关系决定"亲密温度"（亲近阶段 → 更暖更近）。voiceId 永远保持用户所选 —
+ * 状态改变的是 HOW to speak，不是 WHO is speaking。
+ */
+export function mapStateToVoiceParams(defaultVoiceId: string, params: {
+  emotion?: { dominantMood?: string; arousal?: number; valence?: number; energy?: number };
+  direction?: { inclination?: 'give' | 'not_give' | 'neutral' | 'unknown'; intensity?: number };
+  relationship?: { stage?: string };
+}): { voiceId: string; speechRate?: number; pitch?: number; volume?: number } {
+  // 1. 情绪映射（基础层）：复用 resolveEmotionVoice 的 mood/arousal/valence → 参数
+  const emo = resolveEmotionVoice(defaultVoiceId, params.emotion);
+  const out: { voiceId: string; speechRate?: number; pitch?: number; volume?: number } = {
+    voiceId: defaultVoiceId,
+    speechRate: emo.speechRate,
+    pitch: emo.pitch,
+    volume: emo.volume,
+  };
+
+  // 2. 方向映射（表达姿态层）：inclination + intensity 决定坚定/收敛的幅度
+  const inclination = params.direction?.inclination;
+  const intensity = params.direction?.intensity ?? 0.5;
+  if (inclination === 'give') {
+    // 坚定给予：语速微升、音调微升、音量微升 — intensity 越大越明显
+    out.pitch = clampVoiceParam((out.pitch ?? 1.0) + 0.06 * intensity * 2);
+    out.volume = clampVoiceParam((out.volume ?? 1.0) + 0.05 * intensity * 2, 0.75, 1.15);
+  } else if (inclination === 'not_give') {
+    // 克制收敛：放缓、轻降音量
+    out.speechRate = clampVoiceParam((out.speechRate ?? 1.0) - 0.05 * intensity * 2, 0.8, 1.2);
+    out.volume = clampVoiceParam((out.volume ?? 1.0) - 0.04 * intensity * 2, 0.75, 1.15);
+  }
+
+  // 3. 关系映射（温度层）：亲近阶段 → 更暖（音调微升 + 音量微升）
+  const stage = params.relationship?.stage;
+  if (stage === 'intimate' || stage === 'close' || stage === 'family') {
+    out.pitch = clampVoiceParam((out.pitch ?? 1.0) + 0.02);
+    out.volume = clampVoiceParam((out.volume ?? 1.0) + 0.03, 0.75, 1.15);
+  }
+
+  return out;
+}
+
 /**
  * Map emotional state to speech parameters (speed/pitch/volume) while
  * preserving the user's chosen voiceId. Emotion should change HOW the

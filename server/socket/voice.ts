@@ -13,7 +13,9 @@ import { personalityRegistry } from "../personality";
 import { loadEmotionalState, updateEmotionalState, saveEmotionalState, loadHIMState, saveHIMState } from "../personality/state";
 import { himTick } from "../personality/him";
 import { createStreamingSession, getActiveSTTProvider } from "../stt/adapter";
-import { synthesizeSpeech, resolveEmotionVoice, resolveVoiceTtsProvider } from "../tts/adapter";
+import { synthesizeSpeech, mapStateToVoiceParams, resolveEmotionVoice, resolveVoiceTtsProvider } from "../tts/adapter";
+import { getDirectionState } from "../life/index";
+import { getRelationshipEngine } from "../life/relationship";
 import { recordLatency } from "../monitor/latency_store";
 import { getOrCreateActiveConversation, addMessage, getMessagesByTokenBudget, extractTopics, trackTopic, getTopicContext, getConversationSummary } from "../conversation/manager";
 import { processInput, CognitiveContext, extractSentiment } from "../cognition";
@@ -74,11 +76,63 @@ interface AudioSession {
   voiceprintLastAt: number;
   /** Meeting mode: STT only, no LLM/TTS/tool processing. */
   transcriptionOnly: boolean;
+  /** 数字生命体·语音模块（阶段三）: 最近一次有效用户语音（非回声/非噪声）transcript 时间戳 */
+  lastTranscriptAt: number;
 }
 
 // Module-level ambient noise tracking — used by both processVoiceInput and registerVoiceHandlers
 let ambientRms = 0;
 let ambientRmsLastUpdate = 0;
+
+// ── 环境音分类与温馨提示（数字生命体·语音模块·阶段三）──
+// 前端每 5s 心跳上报 rms/isSpeaking/callState；后端无法拿原始音频（前端本地处理），
+// 用启发式分类：Peppa 发声 → speech；rms 持续高且期间无用户语音 → environment；其余 → quiet。
+const AMBIENT_WINDOW_SIZE = 6; // 6 次心跳 × 5s ≈ 30s 持续噪音才算环境音
+const AMBIENT_NOISE_THRESHOLD = 0.35; // rms 阈值
+const AMBIENT_TIP_COOLDOWN_MS = 30 * 60 * 1000; // 温馨提示冷却：30 分钟最多 1 次
+const ambientWindow = new Map<string, number[]>(); // socketId → 最近 rms 采样窗口
+const ambientTipCooldown = new Map<string, number>(); // socketId → 上次提示时间戳
+
+/** 环境音分类：speech（Peppa 发声/回声）/ environment（持续噪音）/ quiet（安静） */
+function classifyAmbient(data: { rms: number; isSpeaking: boolean }): 'speech' | 'environment' | 'quiet' {
+  if (data.isSpeaking) return 'speech';
+  if (data.rms >= AMBIENT_NOISE_THRESHOLD) return 'environment';
+  return 'quiet';
+}
+
+/** 持续环境噪音 → 有节制的温馨提示（感知但不打扰：仅环境音样本累计 + 夜间/忙时抑制 + 30min 冷却 + 用户说话时不提示） */
+function maybeEnvironmentTip(socket: Socket, session: AudioSession, data: { rms: number; isSpeaking: boolean }): void {
+  try {
+    const sid = socket.id;
+    // 只有"环境音"分类的样本进入滑动窗口 — speech（Peppa 发声）与 quiet 会清空窗口（噪音不连续 = 非环境音场景）
+    if (classifyAmbient(data) !== 'environment') {
+      ambientWindow.delete(sid);
+      return;
+    }
+    const win = ambientWindow.get(sid) || [];
+    win.push(data.rms);
+    if (win.length > AMBIENT_WINDOW_SIZE) win.shift();
+    ambientWindow.set(sid, win);
+    if (win.length < AMBIENT_WINDOW_SIZE) return; // 持续噪音未满 ~30s，还不到提示时机
+
+    // 冷却检查（30min）
+    const lastTip = ambientTipCooldown.get(sid) || 0;
+    if (Date.now() - lastTip < AMBIENT_TIP_COOLDOWN_MS) return;
+
+    // 窗口期间有用户语音（STT transcript）→ 不是环境噪音场景，不提示
+    if (session.lastTranscriptAt && Date.now() - session.lastTranscriptAt < 25000) return;
+
+    // 夜间/凌晨不打扰
+    const hour = new Date().getHours();
+    if (hour >= 23 || hour < 7) return;
+
+    // 触发
+    ambientTipCooldown.set(sid, Date.now());
+    ambientWindow.delete(sid);
+    logger.info(`[Voice] 环境音分类=environment 持续噪音≥30s rms=${data.rms.toFixed(2)} → 温馨提示`);
+    socket.emit("agent:response", { text: '周围的声音有点杂，我帮你留意着。需要我做什么的话，随时说。', source: 'environment' });
+  } catch {}
+}
 
 // TTS playback flag — shared with wake detector to suppress echo during speech
 let ttsSpeakingCount = 0;
@@ -246,6 +300,7 @@ function getAudioSession(socket: Socket): AudioSession {
       voiceprintRequired: false,
       voiceprintLastAt: 0,
       transcriptionOnly: false,
+      lastTranscriptAt: 0,
     };
   }
   return socket.data.audioSession as AudioSession;
@@ -464,13 +519,21 @@ async function processVoiceInput(
   };
   const ttsProvider = resolveVoiceTtsProvider({ provider: session.currentVoiceProvider || undefined });
   // Emotion-adaptive voice: map mood to speech parameters, preserve user's chosen voiceId
+  // 数字生命体·语音模块（阶段四）: 情绪 → 方向 → 关系 三重映射（emotion 心情 / direction 姿态 / relationship 温度）
   const emotionVoice = ((): { voiceId: string; speechRate?: number; pitch?: number; volume?: number } => {
     try {
       const es = loadEmotionalState(session.userId);
-      if (es) return resolveEmotionVoice(session.currentVoiceId || 'longxiaochun_v3', es);
+      const dirState = getDirectionState();
+      const relState = getRelationshipEngine().getRelationshipState();
+      return mapStateToVoiceParams(session.currentVoiceId || 'longxiaochun_v3', {
+        emotion: es,
+        direction: { inclination: dirState.getInclination(), intensity: dirState.getIntensity() },
+        relationship: { stage: relState.stage },
+      });
     } catch {}
     return { voiceId: session.currentVoiceId || 'longxiaochun_v3' };
   })();
+  logger.info(`[Audio] 三重语音映射 emotion+方向+关系 → speechRate=${emotionVoice.speechRate ?? 1.0} pitch=${emotionVoice.pitch ?? 1.0} volume=${emotionVoice.volume ?? 1.0}`);
   logger.info(`[Audio] TTS provider=${ttsProvider} voiceId=${session.currentVoiceId}`);
   let responseText = '';
   let toolResults: ToolExecutionRecord[] = [];
@@ -1027,6 +1090,8 @@ export function registerVoiceHandlers(
             }
 
             // Echo confirmation — brief window for user to see what was heard and interrupt if wrong
+            // 记录真实用户语音时间（回声/填充/噪声已被上面过滤）— 环境音分类据此区分"环境噪音"与"对话场景"
+            session.lastTranscriptAt = Date.now();
             socket.emit("audio:confirm", { text });
             logger.info(`[Audio] Heard: "${text}"`);
 
@@ -1127,6 +1192,11 @@ export function registerVoiceHandlers(
   socket.on("ambient:noise_level", (data: { rms: number; isSpeaking: boolean; callState: string }) => {
     ambientRms = data.rms;
     ambientRmsLastUpdate = Date.now();
+    // 环境音分类 + 有节制的温馨提示（阶段三）
+    const ambientSession = getAudioSession(socket);
+    if (ambientSession && ambientSession.isActive) {
+      maybeEnvironmentTip(socket, ambientSession, data);
+    }
   });
 
   /**
