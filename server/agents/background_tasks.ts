@@ -1,4 +1,6 @@
 import type { TaskComplexity } from './orchestrator';
+// PHASE0-DISABLED 配套守卫：代码自动后台委派反模式的兜底捕获（MCP 通路白名单放行，其余调用点告警不阻断）
+import { assertNoAutoSpawnWorker } from '../../src/utils/paradigmGuard';
 
 export type BackgroundDelegationStatus =
   | 'queued'
@@ -70,6 +72,8 @@ function trimTasks(): void {
 }
 
 export function registerBackgroundTask(input: RegisterBackgroundTaskInput): BackgroundDelegationTask {
+  // PHASE0-DISABLED 配套守卫：捕获代码自动 spawn worker 的后台委派路径（chat.ts PathA 触发分支已注释，此处为兜底防线）
+  assertNoAutoSpawnWorker('registerBackgroundTask');
   const timestamp = nowIso();
   const id = input.id || `bg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const workers = (input.workers || []).slice(0, 8).map(worker => ({

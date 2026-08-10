@@ -504,6 +504,60 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     });
   }, [user?.displayName, user?.username, t.chatUserFallback]);
 
+  // ── 记忆重放（数字生命体·方案④）：向"记忆"（服务端 DB）要游标之后的增量，合并去重 ──
+  // 游标取自服务端原始消息的 (timestamp, id) —— timestamp 破毫秒边界、id 破同毫秒多条。
+  // 触发时机：断线重连 / 回前台 / 收到 conversation_updated 信号。重复重放无害（按 type+text 幂等）。
+  const updateCursorFromRawMessages = useCallback((rawMessages: any[]) => {
+    let last: { ts: string; id: string } | null = null;
+    for (const m of rawMessages) {
+      const ts = String(m.timestamp || m.createdAt || '');
+      const id = String(m.id || '');
+      if (!last || ts > last.ts || (ts === last.ts && id > last.id)) last = { ts, id };
+    }
+    if (last) cursorRef.current = last;
+  }, []);
+
+  const replayFromMemory = useCallback(async () => {
+    if (replayingRef.current || !agentId || isFounder) return;
+    if (streamingMsgId.current) return; // 流式输出中不打扰
+    replayingRef.current = true;
+    try {
+      const convRes = await fetch(scopedConversationUrl('/api/conversations/active'));
+      const convData = await convRes.json();
+      const conv = convData.activeConversation;
+      if (!conv) return;
+      const cursor = cursorRef.current;
+      const qs = cursor
+        ? `?after=${encodeURIComponent(cursor.ts)}&afterId=${encodeURIComponent(cursor.id)}&limit=${CHAT_HISTORY_LIMIT}`
+        : `?limit=${CHAT_HISTORY_LIMIT}`;
+      const msgRes = await fetch(scopedConversationUrl(`/api/conversations/${conv.id}/messages${qs}`));
+      const msgData = await msgRes.json();
+      if (!msgData.messages || !Array.isArray(msgData.messages) || msgData.messages.length === 0) return;
+      updateCursorFromRawMessages(msgData.messages);
+      const persisted = normalizePersistedMessages(msgData.messages);
+      setMessages(prev => {
+        if (!prev.length) return persisted;
+        // DB 为真相源：持久化消息为准，本地独有的（乐观/流式）保留
+        const persistedKeys = new Set(persisted.map(m => `${m.type}|${m.text}`));
+        const localOnly = prev.filter(m => !persistedKeys.has(`${m.type}|${m.text}`));
+        const merged = [...persisted, ...localOnly];
+        const seen = new Set<string>();
+        const deduped = merged.filter(m => {
+          const key = `${m.type}|${m.text}|${m.timestamp}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        return deduped.sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')));
+      });
+      console.log('[Replay] 记忆重放完成: +', persisted.length, '条');
+    } catch (e) {
+      console.warn('[Replay] 记忆重放失败:', e);
+    } finally {
+      replayingRef.current = false;
+    }
+  }, [agentId, isFounder, scopedConversationUrl, normalizePersistedMessages, updateCursorFromRawMessages]);
+
   useEffect(() => {
     if (!agentId || isFounder) return;
 
@@ -527,6 +581,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
             const msgRes = await fetch(scopedConversationUrl(`/api/conversations/${conv.id}/messages?limit=${CHAT_HISTORY_LIMIT}`));
             const msgData = await msgRes.json();
             if (msgData.messages && Array.isArray(msgData.messages)) {
+              updateCursorFromRawMessages(msgData.messages); // 记忆重放游标锚定
               setMessages(normalizePersistedMessages(msgData.messages));
             }
           }
@@ -578,6 +633,9 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
   const activeChatRequestIdRef = useRef<string | null>(null);
   const initialLoadDoneRef = useRef(false);
   const lastAgentIdRef = useRef<string>('');
+  // ── 记忆重放游标（数字生命体·方案④）：记录"感知窗口已看到哪"（最后一条服务端消息的 timestamp+id）──
+  const cursorRef = useRef<{ ts: string; id: string } | null>(null);
+  const replayingRef = useRef(false);
 
   useEffect(() => {
     if (isFounder || !socket) return;
@@ -839,9 +897,15 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     // conversation_updated: only reload for non-text-chat channels (voice, etc.)
     // Text chat state is managed live via agent:chunk/agent:response; API reload here
     // would replace messages with different ids, causing React to remount & re-animate them.
+    // ── 数字生命体·方案④：chat 来源不再跳过 — 它是"记忆已更新"的服务端信号，
+    //    收到后触发增量重放（replayFromMemory），补齐断线/中止窗口丢失的回复 ──
     const onConversationUpdated = (data: { conversationId: string; agentId: string; source?: string }) => {
       if (data.agentId !== agentId) return;
-      if (data.source === 'chat' || textChatActiveRef.current) return;
+      if (data.source === 'chat') {
+        void replayFromMemory();
+        return;
+      }
+      if (textChatActiveRef.current) return;
       if (streamingMsgId.current) streamingMsgId.current = null;
       fetch(scopedConversationUrl(`/api/conversations/${data.conversationId}/messages?limit=${CHAT_HISTORY_LIMIT}`))
         .then(r => r.json())
@@ -910,6 +974,26 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
       setIsTyping(true);
     };
 
+    // ── 记忆重放触发：断线重连 / 回前台 ──
+    // socket.io 的 'connect' 在首次连接与每次重连成功都会触发；everDisconnected 过滤首次
+    let everDisconnected = false;
+    const onSocketDisconnect = () => { everDisconnected = true; };
+    const onSocketConnect = () => {
+      if (everDisconnected) {
+        everDisconnected = false;
+        void replayFromMemory();
+      }
+    };
+    socket.on('disconnect', onSocketDisconnect);
+    socket.on('connect', onSocketConnect);
+    const onVisibleReplay = () => {
+      if (document.visibilityState === 'visible' && everDisconnected) {
+        everDisconnected = false;
+        void replayFromMemory();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibleReplay);
+
     socket.on("agent:proactive", onProactive);
     socket.on("agent:delegation", onDelegation);
     socket.on("agent:background_task_update", onBackgroundTaskUpdate);
@@ -924,6 +1008,9 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     socket.on("chat:conversation_updated", onConversationUpdated);
 
     return () => {
+      socket.off('disconnect', onSocketDisconnect);
+      socket.off('connect', onSocketConnect);
+      document.removeEventListener('visibilitychange', onVisibleReplay);
       socket.off("agent:proactive", onProactive);
       socket.off("agent:delegation", onDelegation);
       socket.off("agent:background_task_update", onBackgroundTaskUpdate);
