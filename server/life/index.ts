@@ -17,6 +17,7 @@ import { dailyNarrativeGeneration } from './narrative';
 import { idleBrain } from '../autonomy/idle_brain';
 import { runMemoryGC } from '../memory/gc';
 import { readDB, ensureDatabaseInitialized } from '../../db_layer';
+import { guardMentalStateWrite } from '../../src/utils/paradigmGuard';
 
 /** 聚合全部真实业务用户 ID（与 scheduler 一致），供记忆 GC 逐用户执行 */
 function collectUserIds(): string[] {
@@ -270,6 +271,9 @@ export class LifeSystem {
       // 随机从候选池中选一个（而非总是最高强度）
       const idx = Math.floor(Math.abs(now % candidates.length));
       const picked = candidates[idx] || { thought: '我想静下来反思一下自己的状态', source: 'reflection', intensity: 0.3 };
+
+      // PHASE0-DISABLED 配套守卫：心理状态只允许来自 LLM 结构化输出（此处仅检测告警，不阻断；TICK 原逻辑保留运行）
+      guardMentalStateWrite('life autonomousExploration: 代码模板手动构造内心想法对象写入 interaction_memories');
 
       // 持久化内部想法（指定格式）
       await addInteractionMemory(

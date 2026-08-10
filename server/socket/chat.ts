@@ -23,7 +23,8 @@ import { personalityRegistry } from "../personality";
 import { lightweightEvolve } from "../personality/evolution";
 import { getOrCreateActiveConversation, addMessage, getMessages, getMessagesByTokenBudget, checkAutoSummary, setConversationSummary, getConversationSummary, setConversationMode, getUnclosedConversation, extractTopics, trackTopic, getTopicContext } from "../conversation/manager";
 import { ensureBranch } from "../memory/tree";
-import { detectAndSwitchTopic } from "../memory/focusStack";
+// PHASE0-DISABLED: focusStack外部栈为反模式，阶段0停用 — 阶段0禁用，反模式，保留用于回滚
+// import { detectAndSwitchTopic } from "../memory/focusStack";
 import { getPrefetchedContext, clearPrefetchedContext, touchActivity } from "../memory/prefetch";
 import { getLifeSystem, getDirectionState } from "../life/index";
 // getVitality 仅本能层使用，已随正则池移除
@@ -37,6 +38,8 @@ import { getSelfState } from "../cognition/selfState";
 import { touchUserActivity } from "../life/userState";
 // P0-6: IdleBrain 短待机入口（对话结束标记）
 import { idleBrain } from '../autonomy/idle_brain';
+// Phase2：对话结束异步触发 InnerTick 心智回合（独立库组件，仅写 life.db 快照，不阻塞 chat 返回）
+import { runInnerTick } from "../../src/core/innerTick";
 // 【新增数字生命体模块】T80 心智 + MCP 拦截器
 import { buildMindContext, MindContext, SEVEN_STEP_MIND } from '../hooks/chat';
 // 【重构·模块4】固定话术剔除：重逢问候由心智润色组成
@@ -938,6 +941,9 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
       }
 
       // ── Focus Stack: 话题切换检测 ──
+      // PHASE0-DISABLED: focusStack外部栈为反模式，阶段0停用 — 阶段0禁用，反模式，保留用于回滚
+      /* PHASE0-DISABLED-BLOCK: focusStack 全部调用点注释（源文件保留不动，不再被业务调用） */
+      /*
       const focusResult = await detectAndSwitchTopic(text, {
         getDeepSeek: llmGetters.getDeepSeek,
         getGemini: llmGetters.getGemini,
@@ -945,6 +951,7 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
       if (focusResult.switched) {
         logger.info('[ChatHandler] focusStack switch:', focusResult.previousTopic, '→', focusResult.currentTopic);
       }
+      */
 
       // Auto-select model: flash for simple chat, pro for complex tasks
       const complexCategories = ['command', 'code', 'question', 'analysis'];
@@ -1029,6 +1036,11 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
         }
       }
 
+      // PHASE0-DISABLED: 禁止代码自动接管用户请求，仅允许心智通过MCP主动调用 — 阶段0禁用，反模式，保留用于回滚
+      /* PHASE0-DISABLED-BLOCK: orchestrator PathA 自动后台委派分支整体注释（反模式：代码自动 spawn worker 接管任务）。
+       * 完整保留 orchestrator/worker 的 MCP 调用入口，MCP 通路保持完全可用。
+       * 注释后 responseText 保持空，流程自然落入 Path B / Path C 继续正常回复，用户请求处理不受影响。
+       * 回滚方法：删除本注释块起始标记（下行上方）与末尾对应结束标记。
       if (!responseText) {
         const delegationDecision = shouldDelegateWorkInBackground({
           text,
@@ -1269,6 +1281,7 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
           }, 30);
         }
       }
+      /* PHASE0-DISABLED-END: PathA 自动后台委派注释结束 */
 
       if (!responseText && allowToolUseForTurn && !isSanctuary && (cognition.intent.category === 'command' || cognition.intent.category === 'code' || cognition.intent.category === 'question')) {
         // Path B: Orchestrator — decompose tasks into sub-tasks for worker agents
@@ -2010,6 +2023,18 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
       } catch (e: any) {
         logger.warn('[ChatHandler] 知识库提取异常:', e.message);
       }
+
+      // ── Phase2：对话轮次结束，记忆提取落库后异步触发 InnerTick 心智回合 ──
+      // 边界：仅生成 InnerTickOutput 并写入 life.db 快照；不接管会话运行、不替换旧 life 状态机、
+      // 不把 InnerTick 结果注入当前对话上下文。void 异步非阻塞，绝不影响 socket 响应下发。
+      logger.info('[InnerTick‑Phase2] chat轮次结束，调度异步心智回合');
+      void (async () => {
+        try {
+          await runInnerTick();
+        } catch (err) {
+          console.error("[InnerTick‑Phase2] chat结束触发心智回合异常", err);
+        }
+      })();
 
       // Update emotional state — reconnect if user was away for a while
       const hoursSinceLast = emotionalState.lastInteractionAt

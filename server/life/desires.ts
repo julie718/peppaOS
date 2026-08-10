@@ -8,6 +8,7 @@ import {
 import { getPersonalityEngine } from './personality';
 import { getEmotionEngine } from './emotions';
 import { getVitality } from './vitality';
+import { guardMentalStateWrite } from '../../src/utils/paradigmGuard';
 
 const MAX_ACTIVE = 10;
 const GENERATE_INTERVAL_MS = 30 * 60000; // 30分钟
@@ -45,6 +46,8 @@ export class DesireEngine {
 
   /** 核心：从多方来源生成欲望 */
   async generateDesires(): Promise<Desire[]> {
+    // PHASE0-DISABLED 配套守卫：心理状态只允许来自 LLM 结构化输出（此处仅检测告警，不阻断；原逻辑保留运行）
+    guardMentalStateWrite('life desires generateDesires: 代码模板构造欲望候选');
     const now = Date.now();
     if (now - this.lastGenerate < GENERATE_INTERVAL_MS) {
       return await getActiveDesires();

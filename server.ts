@@ -52,6 +52,7 @@ import { handleHealthData } from './server/api/health.js';
 import { resolveRole } from "./server/runtime/role";
 // import { getDesireEngine } from './server/desire/engine.js'; // 已停用 — 数字生命体接管
 import { getLifeSystem } from './server/life/index.js';
+import { logParadigmPhase0Status } from './src/utils/paradigmGuard';
 import { registerDataSources } from './server/lib/dataSourceRegistry.js';
 import {
   configureNcmCredentials,
@@ -381,6 +382,13 @@ try {
   console.error('[LifeSystem] 启动失败:', err);
 }
 // ===== 数字生命体启动结束 =====
+
+// ===== Paradigm-Phase0 范式防护层启动 =====
+try {
+  logParadigmPhase0Status();
+} catch (err) {
+  console.error('[Paradigm-Phase0] 状态输出失败:', err);
+}
 
 start().catch((err) => {
   console.error('[FATAL] Server startup failed:', err.message);

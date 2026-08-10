@@ -2,6 +2,7 @@ import { readDB, writeDB } from '../../db_layer';
 import { logger } from '../lib/logger';
 import { Memory, MemoryQuery, MemoryType, MemoryTier, MemoryPerspective } from './types';
 import { applyMemoryFirewallMetadata, evaluateMemoryFirewall } from './firewall';
+import { guardIllegalAddMemory } from '../../src/utils/paradigmGuard';
 
 function getMemoryStore(): Memory[] {
   const db = readDB();
@@ -565,6 +566,8 @@ export function addMemory(
     userApproved?: boolean;
   },
 ): Memory {
+  // PHASE0-DISABLED 配套守卫：addMemory 白名单检测（①chat轮次结束回调 ②MCP工具回调 ③InnerTick预留；其余调用点告警不阻断）
+  guardIllegalAddMemory();
   const all = getMemoryStore();
   // E-1: 置信度默认值统一 0.5 — 修复前调用方未传 confidence 时，undefined 参与
   // 排序/相似度评分/矛盾判定，检索质量不可预期；现入口处归一化，全链路可见一致默认值

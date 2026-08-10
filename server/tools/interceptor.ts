@@ -55,8 +55,11 @@ export class McpInterceptor {
       logger.info('[McpInterceptor] 工具调用被强制关闭 (MCP_TOOLS_DISABLED=true)');
       return false;
     }
-    // 每轮调用上限
+    // 每轮调用上限（资源限流保留）
     if (!this.canCallTool(sessionKey)) return false;
+    // PHASE0-DISABLED: MCP interceptor 随机概率拦截（反模式：随机数替心智做工具决策）— 阶段0禁用，反模式，保留用于回滚
+    // 保留：资源限流（每轮上限）、超时保护、权限校验；仅移除随机概率拦截。
+    /* PHASE0-DISABLED-BLOCK: 随机概率放行逻辑注释（Math.random 概率拦截已移除）
     // 场景概率阈值
     const prob = resolveToolAllowance(ctx);
     if (prob >= 1) return true;
@@ -65,6 +68,8 @@ export class McpInterceptor {
       logger.info(`[McpInterceptor] 概率放行拒绝: 场景概率=${prob} (session: ${sessionKey})`);
     }
     return allowed;
+    */
+    return true;
   }
 
   /** 清理已结束的会话计数器（避免 Map 膨胀） */

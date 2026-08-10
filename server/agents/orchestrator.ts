@@ -25,6 +25,7 @@ import { recordTokenUsage } from "../llm/token_tracker";
 import { executeExternalAgent, validateExternalCommand } from "./external_runtime";
 import { ToolExecutionRecord } from "../tools/types";
 import { buildResponseLanguageInstruction } from "../utils/language";
+import { assertNoAutoSpawnWorker } from '../../src/utils/paradigmGuard';
 
 type LLMProvider = 'deepseek' | 'gemini' | 'openai' | 'anthropic' | 'qwen' | 'ark' | 'ollama' | 'lmstudio' | 'xiaomi' | 'kimi' | 'glm' | 'relay' | 'auto';
 type ScopedLLMConfig = {
@@ -518,6 +519,8 @@ export function matchWorkers(
 
 /** Auto-create or reuse a minimal ephemeral agent for a one-shot task */
 function createEphemeralAgent(category: string, skillTag: string): AgentRecord {
+  // PHASE0-DISABLED 配套守卫：worker 仅允许由 MCP 通路发起（仅检测告警，不阻断；MCP 通路调用栈命中即放行）
+  assertNoAutoSpawnWorker('createEphemeralAgent');
   // Reuse existing idle ephemeral with same category+skill if available
   try {
     const db = readDB();
