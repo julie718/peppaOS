@@ -35,6 +35,8 @@ services:
     volumes:
       - ./data:/app/data
       - ./server:/app/server
+      # src/ 源码挂载（tsx 源码模式运行必需）：src/utils/paradigmGuard、src/core/innerTick 等被 server/ 静态引用
+      - ./src:/app/src
       - ./server.ts:/app/server.ts
       - ./db_layer.ts:/app/db_layer.ts
       - ./logger.ts:/app/logger.ts
