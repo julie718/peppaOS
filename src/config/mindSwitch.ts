@@ -19,7 +19,7 @@ export const MIND_SWITCH: MindSwitchConfig = {
   enableOldSchedulerAutonomy: true, // scheduler自主任务（周报月报等）
   enableInnerTickIdleTrigger: false, // 空闲时触发InnerTick（灰度，默认关闭）
 
-  // ── Phase3 灰度默认值：全部关闭 → 所有会话强制走旧life，生产行为不变 ──
-  sessionInnerTickOverride: false,   // 总闸默认关闭；需灰度时置 true
-  overrideSessionWhitelist: [],      // 白名单默认空；需灰度时填入会话 session_id（conversationId）
+  // ── Phase3 灰度：S_A 会话开启 B 模式（InnerTick 心智源）；其余会话强制走旧life，生产行为不变 ──
+  sessionInnerTickOverride: true,   // 总闸开启：允许白名单会话使用 InnerTick 快照驱动会话心智
+  overrideSessionWhitelist: ['conv_45e5748b-6ed2-4c35-b789-bb2156362f2e'], // S_A 灰度会话（真实用户活跃会话）
 };
