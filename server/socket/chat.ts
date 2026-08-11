@@ -40,6 +40,8 @@ import { touchUserActivity } from "../life/userState";
 import { idleBrain } from '../autonomy/idle_brain';
 // Phase2：对话结束异步触发 InnerTick 心智回合（独立库组件，仅写 life.db 快照，不阻塞 chat 返回）
 import { runInnerTick } from "../../src/core/innerTick";
+// Phase3：会话心智灰度注入层 — 白名单会话用 InnerTick 快照驱动会话心智（B模式），其余走旧life（A模式）
+import { resolveSessionMind } from "../../src/core/sessionMindProvider";
 // 【新增数字生命体模块】T80 心智 + MCP 拦截器
 import { buildMindContext, MindContext, SEVEN_STEP_MIND } from '../hooks/chat';
 // 第二阶段: 理解状态感知 — updateComprehension（对话入口评估 → 任务1追问 + 任务2复杂度感知共用该状态）
@@ -1398,25 +1400,33 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
         const selfAwareness = buildModelSelfAwareness(activeProvider, activeModel, uid, { visionAware: visionIntent && operationMode !== 'meeting' });
 
         // ── 【新增数字生命体模块】cognitive LLM 主链路：7步心智 + 情绪人格 ──
+        // Phase3：会话心智素材来源统一收口 sessionMindProvider（灰度分流，不修改任何数据库写入逻辑）：
+        //   - 白名单会话（总闸 sessionInnerTickOverride 开启 + 命中 overrideSessionWhitelist）→ B模式：
+        //     读取本会话最新 inner_tick_snapshot，InnerTick 原生输出（情绪/欲望/目标/自我反思）作为会话心智源，仅本会话内存生效；
+        //   - 其余会话 → A模式：沿用旧life引擎持久状态（原有逻辑，行为不变）；
+        //   - 白名单会话快照缺失/损坏/读取异常 → 自动降级 A 模式，输出 [Phase3-MindProvider] inner_tick_fallback 告警日志，绝不中断对话。
         try {
-          const em = getEmotionEngine();
-          const pe = getPersonalityEngine();
           const dirState = getDirectionState();
-          // 【重构·模块1】移除 classifyToolIntent 正则预判：场景判定（怀旧→屏蔽工具等）
-          // 由 SEVEN_STEP_MIND 第3步心智自主完成；工具上限由 mcpInterceptor 每轮计数兜底（保留）。
-          // 【重构·模块4】comprehension 理解度模块已整删（死代码）：理解度不再以正则池打分注入。
+          const mind = await resolveSessionMind(conversationId || `conv_${uid}`);
           const cogMind = buildMindContext(
-            em.getEmotions(),
-            pe.getPersonality(),
+            mind.emotionVector,
+            mind.personalityVector,
             dirState.getInclination(),
             dirState.getIntensity(),
           );
+          // Phase3 B模式：心智源切换为 InnerTick 原生输出渲染文本，替换旧life情绪状态块
+          if (mind.mode === 'inner_tick_active' && mind.innerMindPromptText) {
+            cogMind.emotionStatePrompt = mind.innerMindPromptText;
+          }
+          // 【重构·模块1】移除 classifyToolIntent 正则预判：场景判定（怀旧→屏蔽工具等）
+          // 由 SEVEN_STEP_MIND 第3步心智自主完成；工具上限由 mcpInterceptor 每轮计数兜底（保留）。
+          // 【重构·模块4】comprehension 理解度模块已整删（死代码）：理解度不再以正则池打分注入。
 
           // 注入7步心智 + 情绪状态到 System Prompt
           const cognitiveOverlay = cogMind.mindSystemPrompt + '\n\n' + cogMind.emotionStatePrompt;
           effectiveSystemPrompt = cognitiveOverlay + '\n\n' + effectiveSystemPrompt;
 
-          logger.info(`【新增数字生命体-LLM认知链路】toolIntent=${cogMind.toolIntent} disableTools=${cogMind.shouldDisableTools} emotion=${em.summarize()}`);
+          logger.info(`【新增数字生命体-LLM认知链路】toolIntent=${cogMind.toolIntent} disableTools=${cogMind.shouldDisableTools} phase3Mode=${mind.mode}`);
         } catch (e) {
           logger.warn('【新增数字生命体-LLM认知链路】心智注入异常:', e);
         }
@@ -2096,17 +2106,36 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
       }
 
       // ── Phase2：对话轮次结束，记忆提取落库后异步触发 InnerTick 心智回合 ──
-      // 边界：仅生成 InnerTickOutput 并写入 life.db 快照；不接管会话运行、不替换旧 life 状态机、
+      // 边界：仅生成 InnerTickOutput 并写入独立观测表 inner_tick_snapshot（新表，与旧life状态表完全隔离，
+      // 绝不覆盖/修改 emotions/desires/personality/memory 等旧表）；不接管会话运行、不替换旧 life 状态机、
       // 不把 InnerTick 结果注入当前对话上下文。void 异步非阻塞，绝不影响 socket 响应下发。
       // Phase3: runInnerTick 传入当前真实 userId（记忆/偏好归属用户，默认回退 'default'）
-      logger.info('[InnerTick] chat轮次结束，调度异步心智回合');
-      void (async () => {
-        try {
-          await runInnerTick({ userId: uid });
-        } catch (err) {
-          console.error("[InnerTick] chat结束触发心智回合异常", err);
-        }
-      })();
+      // 传入：sessionId（会话ID）、本轮对话上下文摘要（长程摘要 + 本轮用户消息 + 助手回复）、triggerSource='chat_turn'
+      const p2SessionId = conversationId || `conv_${uid}`;
+      try {
+        const convSummary = conversationId ? getConversationSummary(conversationId) : null;
+        const p2Summary = [
+          convSummary ? `对话上下文: ${convSummary}` : '',
+          text ? `本轮用户消息: ${text.slice(0, 500)}` : '',
+          responseText ? `本轮助手回复: ${responseText.slice(0, 500)}` : '',
+        ].filter(Boolean).join('\n') || '(无摘要)';
+        logger.info(`[Phase2-InnerTick] session=${p2SessionId} chat轮次结束，调度异步心智回合（后台非阻塞）`);
+        void (async () => {
+          try {
+            await runInnerTick({
+              userId: uid,
+              sessionId: p2SessionId,
+              conversationSummary: p2Summary,
+              triggerSource: 'chat_turn',
+            });
+          } catch (err) {
+            // innerTick 内部已自行兜底（重试/fallback/快照写入容错），此处为最终防线，绝不影响聊天流程
+            console.error("[Phase2-InnerTick] chat结束触发心智回合异常（不影响聊天流程）", err);
+          }
+        })();
+      } catch (e: any) {
+        logger.warn(`[Phase2-InnerTick] session=${p2SessionId} 调度心智回合失败（不影响聊天流程）: ${e.message}`);
+      }
 
       // Update emotional state — reconnect if user was away for a while
       const hoursSinceLast = emotionalState.lastInteractionAt

@@ -114,6 +114,84 @@ export function assertNoAutoSpawnWorker(callerInfo: string): void {
   );
 }
 
+// ─────────────────────────────────────────────
+// Phase2 守卫：InnerTick 快照写入目标表白名单
+// ─────────────────────────────────────────────
+
+/** InnerTick 快照唯一允许写入的表（独立观测表） */
+const PHASE2_ALLOWED_SNAPSHOT_TABLE = 'inner_tick_snapshot';
+
+/** 旧 life 业务状态表（Phase2 红线：InnerTick 输出严禁覆盖/修改这些表的数据） */
+const PHASE2_FORBIDDEN_LIFE_STATE_TABLES = new Set([
+  'personality',
+  'emotions',
+  'emotion_state',
+  'emotion_state_history',
+  'desires',
+  'self_reflections',
+  'interaction_memories',
+  'relationship_state',
+  'relationship_metrics',
+  'personality_evolution',
+  'user_preference_tags',
+]);
+
+/**
+ * 守卫 4：guardInnerTickLifeOverwrite
+ * 用途：Phase2 保护校验 — InnerTick 输出只允许写入独立观测表 inner_tick_snapshot。
+ * 任何把 InnerTick 输出写往旧 life 状态表（emotions/desires/personality 等）的代码路径都会触发告警；
+ * 未知表名同样告警（未来新增表默认不视为快照落点）。
+ * 用法：快照写入前调用，传入目标表名。白名单静默通过，违规仅告警不阻断（与守卫体系一致）。
+ */
+export function guardInnerTickLifeOverwrite(tableName: string, callerInfo?: string): void {
+  if (tableName === PHASE2_ALLOWED_SNAPSHOT_TABLE) return; // 白名单：独立观测表静默通过
+  if (PHASE2_FORBIDDEN_LIFE_STATE_TABLES.has(tableName)) {
+    emitWarning(
+      'guardInnerTickLifeOverwrite',
+      `检测到 InnerTick 输出覆盖旧life业务状态表「${tableName}」——Phase2 红线：InnerTick 输出严禁覆盖/修改原有life业务数据库。${callerInfo || ''}`,
+      extractCaller(),
+    );
+    return;
+  }
+  emitWarning(
+    'guardInnerTickLifeOverwrite',
+    `InnerTick 快照写入目标表不在白名单（仅允许 ${PHASE2_ALLOWED_SNAPSHOT_TABLE}）：${tableName}。${callerInfo || ''}`,
+    extractCaller(),
+  );
+}
+
+// ─────────────────────────────────────────────
+// Phase3 守卫：sessionMindProvider 会话心智只读约束
+// ─────────────────────────────────────────────
+
+/**
+ * 旧 life 业务状态表（Phase3 红线：sessionMindProvider 为只读运行时心智层，
+ * 严禁将 InnerTick 快照输出持久化写回这些表；持久层仅允许落 inner_tick_snapshot 观测表）。
+ * 与 Phase2 红线清单同一来源，单一事实源。
+ */
+export const SESSION_MIND_FORBIDDEN_LIFE_TABLES = PHASE2_FORBIDDEN_LIFE_STATE_TABLES;
+
+/**
+ * 守卫 5：guardSessionMindPersist
+ * 用途：Phase3 保护校验 — sessionMindProvider 会话心智注入层只允许读取 old life 数据表与
+ * inner_tick_snapshot 观测表，严禁将 InnerTick 输出持久化写入旧 life 状态表
+ * （emotions/desires/personality/self_reflections/relationship_* 等）。
+ * 检测到调用栈含 sessionMindProvider 且目标表为旧 life 状态表 → 范式告警（不阻断，与守卫体系一致）。
+ * 用法：sessionMindProvider 内部任何未来新增写入点、以及任何把 inner 快照写往旧表的代码路径，写入前调用。
+ */
+export function guardSessionMindPersist(tableName: string, callerInfo?: string): void {
+  const stack = new Error().stack || '';
+  const isProviderPath = stackMatches(stack, [/sessionMindProvider/i]);
+  if (!isProviderPath) return; // 非 sessionMindProvider 路径不在此守卫范围内（Phase2 守卫已覆盖其他写入路径）
+  if (!SESSION_MIND_FORBIDDEN_LIFE_TABLES.has(tableName)) return; // 白名单（inner_tick_snapshot）/ 未知表不拦截 provider 只读路径
+
+  emitWarning(
+    'guardSessionMindPersist',
+    `检测到 sessionMindProvider 内部将 InnerTick 输出持久化写入旧life状态表「${tableName}」——Phase3 红线：会话心智只读，禁止写回旧life表；InnerTick 输出仅允许内存会话级生效，持久存储仅 inner_tick_snapshot。${callerInfo || ''}`,
+    extractCaller(stack),
+  );
+}
+
 /**
  * 系统启动时输出 Phase0 已禁用反模式清单（旧逻辑代码保留，支持回滚）
  */

@@ -191,6 +191,22 @@ const TABLES: { name: string; sql: string }[] = [
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`,
   },
+  {
+    // Phase2: InnerTick 心智快照独立观测表 — 只读对比观测数据，与旧life状态表
+    //（emotions/desires/personality/self_reflections/interaction_memories/relationship_* 等）完全隔离，互不覆盖。
+    // inner_output 存储完整 InnerTickOutput JSON 文本（SQLite 无原生 JSONB，等同 JSONB 语义，JSON1 可查询）。
+    // trigger_source 限定枚举：chat_turn（对话轮次触发）/ manual（手动/其他触发）。
+    name: 'inner_tick_snapshot',
+    sql: `CREATE TABLE IF NOT EXISTS inner_tick_snapshot (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT NOT NULL DEFAULT '',
+      user_uid TEXT NOT NULL DEFAULT '',
+      turn_index INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      inner_output TEXT NOT NULL DEFAULT '{}',
+      trigger_source TEXT NOT NULL DEFAULT 'manual' CHECK(trigger_source IN ('chat_turn','manual'))
+    )`,
+  },
 ];
 
 // ── 全局迁移完成门（P1 修复：新库首启迁移竞态）──
@@ -650,6 +666,57 @@ export async function logSystemEvent(eventType: string, data: Record<string, any
 
 export async function getRecentEvents(limit = 50): Promise<any[]> {
   return all('SELECT * FROM system_events ORDER BY created_at DESC LIMIT ?', [limit]);
+}
+
+// ── Phase2: InnerTick 心智快照观测表（独立新表，与旧life状态表完全隔离）──
+// 只做写入与只读观测，绝不改写 emotion/desire/personality/memory 等旧表数据。
+
+export interface InnerTickSnapshotRow {
+  id: number;
+  session_id: string;
+  user_uid: string;
+  turn_index: number;
+  created_at: string;
+  inner_output: string; // 完整 InnerTickOutput JSON 文本
+  trigger_source: 'chat_turn' | 'manual';
+}
+
+/** 写入一条 InnerTick 快照（仅允许写入 inner_tick_snapshot 观测表） */
+export async function insertInnerTickSnapshot(params: {
+  sessionId: string;
+  userUid: string;
+  turnIndex: number;
+  innerOutput: Record<string, any>;
+  triggerSource: 'chat_turn' | 'manual';
+}): Promise<number> {
+  const result = await run(
+    `INSERT INTO inner_tick_snapshot (session_id, user_uid, turn_index, inner_output, trigger_source)
+     VALUES (?,?,?,?,?)`,
+    [params.sessionId, params.userUid, params.turnIndex, JSON.stringify(params.innerOutput), params.triggerSource],
+  );
+  return result.lastID!;
+}
+
+/** 统计某会话已有快照条数（用于推断下一轮 turn_index） */
+export async function countInnerTickSnapshots(sessionId: string): Promise<number> {
+  const row = await get<{ cnt: number }>(
+    'SELECT COUNT(*) as cnt FROM inner_tick_snapshot WHERE session_id = ?',
+    [sessionId],
+  );
+  return row?.cnt || 0;
+}
+
+/** 读取最近 InnerTick 快照（观测/测试用，只读） */
+export async function getRecentInnerTickSnapshots(limit = 20): Promise<InnerTickSnapshotRow[]> {
+  return all<InnerTickSnapshotRow>('SELECT * FROM inner_tick_snapshot ORDER BY id DESC LIMIT ?', [limit]);
+}
+
+/** Phase3: 读取某会话最新一条 InnerTick 快照（只读，作为白名单会话的灰度心智源；无快照返回 null） */
+export async function getLatestInnerTickSnapshot(sessionId: string): Promise<InnerTickSnapshotRow | null> {
+  return get<InnerTickSnapshotRow | null>(
+    'SELECT * FROM inner_tick_snapshot WHERE session_id = ? ORDER BY id DESC LIMIT 1',
+    [sessionId],
+  );
 }
 
 // ── P1-17: 用户偏好标签（独立表，权重可升可降）──

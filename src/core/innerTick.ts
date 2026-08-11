@@ -7,13 +7,18 @@
 //   - runInnerTick() 执行完成不修改任何全局运行状态，仅返回结构化对象 + 写入 life.db 快照备份。
 //   - life.db 历史快照只作为 prompt 素材渲染为文本，严禁直接拿快照对象赋值给运行状态。
 //
+// ⚠️ Phase2 边界（对话链路触发）：
+//   - chat 每轮对话结束后由 socket/chat.ts 异步非阻塞触发 runInnerTick（传入 sessionId / 对话上下文摘要 / triggerSource='chat_turn'）。
+//   - 完整输出另写独立观测表 inner_tick_snapshot（session_id/user_uid/turn_index/inner_output/trigger_source），
+//     只做观测对比；严禁 InnerTick 输出覆盖/修改旧 life 状态表（emotions/desires/personality/memory 等）——写入前经 guardInnerTickLifeOverwrite 守卫校验。
+//
 // 心智回合内容（欲望生成/衰减、情绪变化、目标归档）全部由 LLM 推理生成。
 
 import { makeLLMCall, NormalizedMessage } from '../../server/llm/providers';
 import { createLLMRuntime } from '../../server/runtime/llm';
 import { getUserPreferredLLMConfig } from '../../server/llm/user_preferences';
 import { addMemory } from '../../server/memory/store';
-import { guardIllegalAddMemory } from '../utils/paradigmGuard';
+import { guardIllegalAddMemory, guardInnerTickLifeOverwrite } from '../utils/paradigmGuard';
 import {
   getPersonality,
   getRecentEmotions,
@@ -25,6 +30,8 @@ import {
   getRecentEvents,
   getUnresolvedThoughts,
   logSystemEvent,
+  insertInnerTickSnapshot,
+  countInnerTickSnapshots,
 } from '../../server/db/lifeDb';
 import { logger } from '../../server/lib/logger';
 import type {
@@ -49,6 +56,11 @@ export interface InnerTickOptions {
   maxTokens?: number;   // 覆盖 LLM 输出上限
   scene?: string;       // LLM 场景标记，默认 'inner_tick'
   derivedMentalEvents?: MentalEventItem[]; // 旧模块（scheduler/idle_brain/dream/consolidator等）收集的派生心智事件，注入本轮 LLM 推演上下文
+  // ── Phase2：对话链路触发上下文 ──
+  sessionId?: string;              // 会话ID（chat 的 conversationId）；非对话触发缺省 → 快照 session_id 记 ''
+  conversationSummary?: string;    // 本轮对话上下文摘要（对话轮次结束后由 chat 链路组装传入，注入 LLM 推演上下文）
+  triggerSource?: 'chat_turn' | 'manual'; // 快照触发来源；默认 'manual'
+  turnIndex?: number;              // 会话内轮次序号；不传时按该会话快照条数自增推断
 }
 
 // ─────────────────────────────────────────────
@@ -162,7 +174,11 @@ const SCHEMA_SPEC = `输出 JSON 结构（严格符合，禁止输出多余解�
   "memoryHints": ["可写入长期记忆的提示/线索，可为空数组"]
 }`;
 
-function buildInnerTickSystemPrompt(snapshotText: string, derivedEvents?: MentalEventItem[]): string {
+function buildInnerTickSystemPrompt(
+  snapshotText: string,
+  derivedEvents?: MentalEventItem[],
+  conversationSummary?: string,
+): string {
   // Phase4: 旧模块沉淀的派生心智事件（scheduler/idle_brain/dream/consolidator 等）注入推演上下文。
   // 只作为输入素材参与本轮推演，不要求 LLM 逐条复述或直接落库（落库统一收敛在 InnerTick 内部）。
   const eventsText = derivedEvents && derivedEvents.length > 0
@@ -173,6 +189,13 @@ function buildInnerTickSystemPrompt(snapshotText: string, derivedEvents?: Mental
         .join('\n')
     : '';
 
+  // Phase2: 本轮对话上下文摘要（chat 对话轮次结束后由 chat 链路组装传入）注入推演上下文。
+  // 只作为推演输入素材，绝不据此改写任何旧 life 状态表。
+  const chatContextText = conversationSummary
+    ? `\n\n本轮对话上下文摘要（最新一轮用户-助手完整对话，作为本轮推演的直接输入素材）:
+${conversationSummary}`
+    : '';
+
   return `你是数字生命体的内部心智。所有情绪、欲望生成、欲望衰减、情绪演变全部由你推理生成。
 欲望可以随经历减弱、消退、被满足后消失，也可以生成全新欲望；人格允许缓慢演化，禁止剧烈突变。
 参考传入的历史快照信息，但不要直接照搬快照，做独立推演。
@@ -180,7 +203,7 @@ function buildInnerTickSystemPrompt(snapshotText: string, derivedEvents?: Mental
 严格输出符合schema的JSON，禁止输出多余解释文本。
 
 ${SCHEMA_SPEC}
-
+${chatContextText}
 ${eventsText ? `本轮外部模块沉淀的心智事件（作为推演输入素材，不必逐条复述；若与快照冲突以事件为准）:
 ${eventsText}
 
@@ -374,6 +397,64 @@ async function persistSnapshot(output: InnerTickOutput): Promise<number> {
 }
 
 // ─────────────────────────────────────────────
+// 6.5 Phase2: 快照写入独立观测表 inner_tick_snapshot
+// 边界：只写新表，绝不覆盖/修改旧 life 状态表（emotions/desires/personality/memory 等）。
+// 写前经 guardInnerTickLifeOverwrite 范式守卫校验目标表名（白名单 inner_tick_snapshot）。
+// ─────────────────────────────────────────────
+
+const TAG_P2 = '[Phase2-InnerTick]';
+const PHASE2_SNAPSHOT_TABLE = 'inner_tick_snapshot';
+
+/**
+ * 写入 inner_tick_snapshot 独立观测表（含会话归属、轮次序号、触发来源），
+ * 并输出 [Phase2-InnerTick] session=xxx turn=xxx ok/fail 日志埋点 + 简要快照摘要。
+ * 失败不抛出（返回 -1），绝不阻断调用方（chat 返回、scheduler 任务）。
+ */
+async function persistInnerTickSnapshot(params: {
+  output: InnerTickOutput;
+  userId: string;
+  sessionId?: string;
+  turnIndex?: number;
+  triggerSource: 'chat_turn' | 'manual';
+}): Promise<number> {
+  const sessionId = params.sessionId || '-';
+
+  // Phase2 范式防护：目标表白名单校验（白名单静默通过；旧life状态表名 → paradigmGuard 告警）
+  guardInnerTickLifeOverwrite(PHASE2_SNAPSHOT_TABLE, 'persistInnerTickSnapshot');
+
+  // 会话内轮次序号：优先显式传入；缺省按该会话已有快照条数 +1 推断
+  let turnIndex = params.turnIndex ?? 0;
+  if (turnIndex <= 0) {
+    try {
+      turnIndex = params.sessionId ? (await countInnerTickSnapshots(params.sessionId)) + 1 : 1;
+    } catch {
+      turnIndex = 1;
+    }
+  }
+
+  try {
+    const snapshotId = await insertInnerTickSnapshot({
+      sessionId: params.sessionId || '',
+      userUid: params.userId,
+      turnIndex,
+      innerOutput: params.output,
+      triggerSource: params.triggerSource,
+    });
+    // 日志埋点：ok + 简要快照摘要（thought/mood/desires/goals）
+    logger.info(
+      `${TAG_P2} session=${sessionId} turn=${turnIndex} ok snapshot=#${snapshotId} ` +
+      `mood=${params.output.mood.name}(${params.output.mood.intensity.toFixed(2)}) ` +
+      `desires=${params.output.desires.length} goals=${params.output.goals.length} ` +
+      `trigger=${params.output.triggerInnerTick} thought="${(params.output.thought || '').slice(0, 60)}"`,
+    );
+    return snapshotId;
+  } catch (e: any) {
+    logger.error(`${TAG_P2} session=${sessionId} turn=${turnIndex} fail ${e.message}`);
+    return -1;
+  }
+}
+
+// ─────────────────────────────────────────────
 // 7. 对外入口：runInnerTick()
 // ─────────────────────────────────────────────
 
@@ -402,7 +483,8 @@ export async function runInnerTick(options: InnerTickOptions = {}): Promise<Inne
   // 读取 life.db 历史快照 → 仅渲染为 prompt 文本（不参与运行状态）
   const snapshotText = await loadLifeSnapshotAsText();
   // Phase4: 旧模块派生心智事件（derivedMentalEvents）一并注入 LLM 推演上下文
-  const systemPrompt = buildInnerTickSystemPrompt(snapshotText, options.derivedMentalEvents);
+  // Phase2: 本轮对话上下文摘要（conversationSummary）一并注入，作为对话触发的推演输入素材
+  const systemPrompt = buildInnerTickSystemPrompt(snapshotText, options.derivedMentalEvents, options.conversationSummary);
 
   // LLM 配置：沿用用户偏好 provider/model，独立场景标记 inner_tick
   const llm = createLLMRuntime();
@@ -453,8 +535,18 @@ export async function runInnerTick(options: InnerTickOptions = {}): Promise<Inne
   // 处理归档：addMemory（经守卫）+ 从 active 列表移除
   const archivedIds = await processArchives(output, userId);
 
-  // 完整输出序列化写入 life.db 快照备份
+  // 完整输出序列化写入 life.db 快照备份（Phase1 既有行为，保留：scheduler 等派生事件链路依赖其跨轮连续性）
   await persistSnapshot(output);
+
+  // Phase2: 完整输出写入独立观测表 inner_tick_snapshot（新表，仅观测对比；旧life状态表数据不受影响）
+  // 输出 [Phase2-InnerTick] session=xxx turn=xxx ok/fail 日志埋点；失败仅记日志，不影响本流程
+  await persistInnerTickSnapshot({
+    output,
+    userId,
+    sessionId: options.sessionId,
+    turnIndex: options.turnIndex,
+    triggerSource: options.triggerSource || 'manual',
+  });
 
   logger.info(`${TAG} 心智回合结束 (desires=${output.desires.length} goals=${output.goals.length} archived=${archivedIds.size} trigger=${output.triggerInnerTick})`);
   return output;
