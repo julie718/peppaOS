@@ -63,7 +63,7 @@ export function guardMentalStateWrite(callerInfo: string): void {
  * 合法白名单：
  *   ① chat 对话轮次结束回调（socket/chat.ts 提取/复盘区、socket/task.ts、socket/voice.ts、hooks/review.ts）
  *   ② MCP 工具返回回调（server/mcp/、工具 handler tools/definitions/）
- *   ③ InnerTick 心智回合（阶段 1 尚未实现，预留点位）
+ *   ③ InnerTick 心智回合（src/core/innerTick.ts）
  *   ④ 阶段0扩展：orchestrator workflow 工作流沉淀 / 技能沉淀 adapter / memory 路由
  * 不在白名单的调用触发范式告警（不阻断）。
  */
@@ -80,7 +80,7 @@ export function guardIllegalAddMemory(callerInfo?: string): void {
     /peppa_server/,
     /tools[/\\]definitions/,
   ]);
-  // ③ InnerTick 心智回合 — 阶段 1 预留（当前不存在该模块）
+  // ③ InnerTick 心智回合（src/core/innerTick.ts 归档写入）
   const isAllowedInnerTick = stackMatches(stack, [/InnerTick|inner_tick/i]);
   // ④ 阶段0扩展：orchestrator workflow 工作流沉淀 / 技能沉淀 adapter / memory 路由
   // V8 调用栈帧为「函数名在前、路径在后」（at executeWorkflow (...orchestrator.ts)），故双向匹配并忽略大小写
@@ -94,7 +94,7 @@ export function guardIllegalAddMemory(callerInfo?: string): void {
 
   emitWarning(
     'guardIllegalAddMemory',
-    `addMemory 调用点不在白名单（合法：①chat 对话轮次结束回调 ②MCP 工具返回回调 ③InnerTick 预留）。${callerInfo || ''}`,
+    `addMemory 调用点不在白名单（合法：①chat 对话轮次结束回调 ②MCP 工具返回回调 ③InnerTick 心智回合 ④workflow/技能沉淀/记忆路由）。${callerInfo || ''}`,
     extractCaller(stack),
   );
 }

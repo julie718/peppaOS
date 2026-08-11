@@ -28,3 +28,6 @@ lumi_output/
 
 # 备份文件
 *.bak
+
+# 复现调试临时脚本
+repro_tmp/

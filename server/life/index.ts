@@ -19,6 +19,8 @@ import { runMemoryGC } from '../memory/gc';
 import { tickComprehension } from './comprehension';
 import { readDB, ensureDatabaseInitialized } from '../../db_layer';
 import { guardMentalStateWrite } from '../../src/utils/paradigmGuard';
+// Phase3: 全局功能开关 — 控制旧 life 10min TICK 业务是否执行（定时器本身不销毁）
+import { MIND_SWITCH } from '../../src/config/mindSwitch';
 
 // T80: 子任务独立超时辅助（超时后 Promise 以 timeout 标记拒绝，由调用方决定如何处理）
 function withTimeout<T>(p: Promise<T>, ms: number, name: string): Promise<T> {
@@ -429,6 +431,13 @@ export class LifeSystem {
   async tick(): Promise<{ ok: boolean; errors: string[] }> {
     const errors: string[] = [];
     const startTime = Date.now();
+
+    // Phase3: enableOldLifeTick 开关 — false 时仅跳过本轮 tick 业务执行；
+    // setInterval 定时器本身不销毁、代码完整保留，可一键切回完全旧模式。
+    if (!MIND_SWITCH.enableOldLifeTick) {
+      console.log('[LifeSystem] Phase3 开关 enableOldLifeTick=false，跳过本轮 TICK 业务（定时器保留运行）');
+      return { ok: true, errors };
+    }
 
     try {
       // ── T80: 步骤并行化 — 每个子任务独立超时（10s），单个慢任务（LLM/IO）不再拖垮整个 TICK ──

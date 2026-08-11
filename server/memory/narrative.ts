@@ -202,6 +202,7 @@ export async function buildNarrativeChain(params: {
     logger.info(`[Narrative] built narrative for topic: ${topic}`);
 
     // 7. Store narrative as a growth memory
+    // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
     const stored = addMemory(
       {
         userId,

@@ -63,6 +63,7 @@ export async function ingestDocument(
 
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i];
+    // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
     const mem = addMemory(
       {
         userId,

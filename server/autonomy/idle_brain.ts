@@ -9,6 +9,9 @@
 // 接入现有 scheduler 定时任务 + 7层空闲检测体系
 
 import { logger } from '../lib/logger';
+// Phase3: 灰度开关 + InnerTick 心智模块（可选触发，不接管空闲大脑输出）
+import { MIND_SWITCH } from '../../src/config/mindSwitch';
+import { runInnerTick } from '../../src/core/innerTick';
 import { getEmotionEngine } from '../life/emotions';
 import { getPersonalityEngine } from '../life/personality';
 import { getLifeSystem } from '../life/index';
@@ -124,7 +127,7 @@ class IdleBrain {
       logger.info('[IdleBrain] 长待机: 全量记忆归纳 + 经验固化 + 人文检索');
 
       // P1-9: 使用真实业务用户 ID（最后活跃用户），替代写死的 'system'
-      const targetUserId = ((global as any).__lastActiveUid as string) || 'anonymous';
+      const targetUserId = ((global as any).__lastActiveUid as string) || 'default';
 
       // 1. 记忆归纳 — 真实用户 + 补全 LLM Getter（避免空回调导致调用报错被静默吞掉）
       const ctx: ConsolidationContext = {
@@ -187,6 +190,7 @@ class IdleBrain {
         const text = await composeTriggerContent('inner_monologue', { date, dominant: dominantLabel });
         const monologue = `[${date} 内心独白] 主导情绪: ${dominantLabel}。${text}`;
 
+        // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
         addMemory({
           userId: targetUserId,
           type: 'fact' as any,
@@ -273,8 +277,9 @@ class IdleBrain {
       // 3. 记录月度自省记忆
       // L-9: 归属真实用户（与长待机整合一致的 __lastActiveUid 模式）— 修复前写死 'system'，
       // 月度自省记忆永远落不到任何用户记忆库，GC/检索都拿不到它
+      // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
       addMemory({
-        userId: ((global as any).__lastActiveUid as string) || 'anonymous',
+        userId: ((global as any).__lastActiveUid as string) || 'default',
         type: 'fact' as any,
         keywords: ['月度自省', '反思'],
         content: `[月度自省 ${new Date().toISOString().slice(0, 7)}] ${relation?.narrative || '定期自我审视完成。'}`,
@@ -309,6 +314,19 @@ class IdleBrain {
     this.state.totalCycles++;
 
     try {
+      // ── Phase3 灰度：InnerTick 空闲心智触发（enableInnerTickIdleTrigger，默认关闭）──
+      // 仅作为额外心智推演（LLM 驱动，写 life.db 快照备份），不接管空闲大脑输出；
+      // void 异步非阻塞执行，失败不影响旧逻辑。
+      if (MIND_SWITCH.enableInnerTickIdleTrigger) {
+        const userId = ((global as any).__lastActiveUid as string) || 'default';
+        void runInnerTick({ userId }).catch((e: any) =>
+          logger.warn(`[IdleBrain] InnerTick 触发失败: ${e?.message || e}`),
+        );
+      }
+
+      // ── Phase3 开关：enableOldIdleBrain=false 时仅跳过旧空闲大脑逻辑执行（实现完整保留，可一键切回）──
+      if (!MIND_SWITCH.enableOldIdleBrain) return;
+
       if (this.checkMonthlyReflection()) {
         await this.monthlyReflection();
       } else if (this.checkLongIdle()) {

@@ -161,6 +161,7 @@ export async function consolidateEpisodic(
 
     if (!parsed.content || typeof parsed.content !== 'string') return null;
 
+    // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
     const consolidated = addMemory(
       {
         userId: ctx.userId,
@@ -269,6 +270,7 @@ export async function selfReflect(
 
     if (!parsed.content || typeof parsed.content !== 'string') return null;
 
+    // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
     const reflection = addMemory(
       {
         userId: ctx.userId,
@@ -378,6 +380,7 @@ export async function consolidateNarrative(
     const title = parsed.title || `叙事记忆 ${new Date().toISOString().slice(0, 10)}`;
     const content = `[${title}] ${parsed.narrative.trim().slice(0, 500)}`;
 
+    // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
     const narrative = addMemory(
       {
         userId: ctx.userId,

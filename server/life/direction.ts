@@ -250,6 +250,7 @@ export class DirectionState {
     try {
       const { addMemory } = await import('../memory/store');
       const memoryContent = `判断: ${this.inclination} (${Math.round(this.intensity * 100)}%) — ${this.reason}`;
+      // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
       await addMemory({
         userId: 'default',
         content: memoryContent,

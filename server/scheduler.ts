@@ -3,6 +3,8 @@
 
 import { Server as SocketIOServer } from 'socket.io';
 import { logger } from './lib/logger';
+// Phase3: 全局功能开关 — 控制 scheduler 自主任务（周报月报等）是否执行
+import { MIND_SWITCH } from '../src/config/mindSwitch';
 import { queryMemories, getDueReminders, fireReminder, runBehavioralAnalysis, decayMemories, dynamicDecayMemories, promoteMemories, getUnconsolidatedEpisodic, autoMarkCrossAgentShare } from './memory';
 import { consolidateEpisodic, consolidateNarrative, ConsolidationContext } from './memory/consolidator';
 import { runDreamCycle } from './memory/dream';
@@ -794,6 +796,8 @@ Rules:
     quiet: true,
     lastRun: null,
     handler: async () => {
+      // Phase3: enableOldSchedulerAutonomy 开关 — false 时跳过整套旧自主任务（代码本体保留）
+      if (!MIND_SWITCH.enableOldSchedulerAutonomy) return null;
       const userIds = getAllUserIds();
       const messages: string[] = [];
       for (const userId of userIds) {
@@ -837,6 +841,7 @@ Rules:
           if (narrative) {
             // Store as a special growth memory
             const { addMemory } = await import('./memory');
+            // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
             addMemory({
               userId, type: 'knowledge',
               content: `[Weekly Review ${new Date().toISOString().slice(0, 10)}] ${narrative}`,
@@ -862,6 +867,8 @@ Rules:
     quiet: true,
     lastRun: null,
     handler: async () => {
+      // Phase3: enableOldSchedulerAutonomy 开关 — false 时跳过整套旧自主任务（代码本体保留）
+      if (!MIND_SWITCH.enableOldSchedulerAutonomy) return null;
       const userIds = getAllUserIds();
       const messages: string[] = [];
       for (const userId of userIds) {
@@ -904,6 +911,7 @@ Rules:
           const narrative = result.text?.trim();
           if (narrative) {
             const { addMemory } = await import('./memory');
+            // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
             addMemory({
               userId, type: 'knowledge',
               content: `[Monthly Review ${new Date().toISOString().slice(0, 10)}] ${narrative}`,
@@ -929,6 +937,8 @@ Rules:
     quiet: true,
     lastRun: null,
     handler: async () => {
+      // Phase3: enableOldSchedulerAutonomy 开关 — false 时跳过整套旧自主任务（代码本体保留）
+      if (!MIND_SWITCH.enableOldSchedulerAutonomy) return null;
       const userIds = getAllUserIds();
       const messages: string[] = [];
       for (const userId of userIds) {
@@ -971,6 +981,7 @@ Rules:
           const narrative = result.text?.trim();
           if (narrative) {
             const { addMemory } = await import('./memory');
+            // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
             addMemory({
               userId, type: 'knowledge',
               content: `[Yearly Review ${new Date().toISOString().slice(0, 10)}] ${narrative}`,
@@ -1097,6 +1108,8 @@ Rules:
     cron: 'daily_9am',
     lastRun: null,
     handler: async () => {
+      // Phase3: enableOldSchedulerAutonomy 开关 — false 时跳过整套旧自主任务（代码本体保留）
+      if (!MIND_SWITCH.enableOldSchedulerAutonomy) return null;
       const userIds = getAllUserIds();
       const messages: string[] = [];
 
@@ -1186,6 +1199,7 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
 
             // Store as a special memory
             const { addMemory } = await import('./memory');
+            // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
             addMemory({
               userId,
               type: 'knowledge',
@@ -1197,6 +1211,7 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
             } as any, { tier: 'growth', perspective: 'peppa_self', importance: 0.9 });
 
             // Store structured data alongside
+            // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
             addMemory({
               userId,
               type: 'fact',
@@ -1214,6 +1229,7 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
             // Fallback: simple stats summary
             const fallback = `${summaryData.date}: ${summaryData.newMemories} 条新记忆, ${summaryData.newInteractions} 次互动, ${summaryData.activeConversations} 个活跃对话。`;
             const { addMemory } = await import('./memory');
+            // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
             addMemory({
               userId,
               type: 'knowledge',
@@ -1242,6 +1258,8 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
     quiet: true,
     lastRun: null,
     handler: async () => {
+      // Phase3: enableOldSchedulerAutonomy 开关 — false 时跳过整套旧自主任务（代码本体保留）
+      if (!MIND_SWITCH.enableOldSchedulerAutonomy) return null;
       const db = readDB();
       const agents: AgentRecord[] = db.agents || [];
       const autonomousAgents = agents.filter(
@@ -1313,6 +1331,8 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
     quiet: true,
     lastRun: null,
     handler: async () => {
+      // Phase3: enableOldSchedulerAutonomy 开关 — false 时跳过整套旧自主任务（代码本体保留）
+      if (!MIND_SWITCH.enableOldSchedulerAutonomy) return null;
       const userIds = getAllUserIds();
       const messages: string[] = [];
 
@@ -1375,6 +1395,7 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
             logger.info(`[ProactiveScan] 纯模板巡检关怀 (LLM 调用已移除): ${userId}`);
 
             const { addMemory } = await import('./memory');
+            // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
             addMemory({
               userId,
               type: 'fact',
@@ -1458,6 +1479,7 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
               logger.info(`[PredictiveAssistant] 纯模板预测 (LLM 调用已移除): ${userId}`);
 
               const { addMemory } = await import('./memory');
+              // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
               addMemory({
                 userId,
                 type: 'fact',
@@ -1488,6 +1510,8 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
     quiet: true,
     lastRun: null,
     handler: async () => {
+      // Phase3: enableOldSchedulerAutonomy 开关 — false 时跳过整套旧自主任务（代码本体保留）
+      if (!MIND_SWITCH.enableOldSchedulerAutonomy) return null;
       const userIds = getAllUserIds();
       const messages: string[] = [];
 
@@ -1527,6 +1551,7 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
 
             // Store as a special episodic memory for temporal context
             const { addMemory } = await import('./memory');
+            // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
             addMemory({
               userId,
               type: 'fact',
@@ -1555,6 +1580,8 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
     quiet: true,
     lastRun: null,
     handler: async () => {
+      // Phase3: enableOldSchedulerAutonomy 开关 — false 时跳过整套旧自主任务（代码本体保留）
+      if (!MIND_SWITCH.enableOldSchedulerAutonomy) return null;
       const userIds = getAllUserIds();
       const messages: string[] = [];
 
@@ -1566,6 +1593,7 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
             const { addMemory } = await import('./memory');
             const newPatterns = patterns.filter(p => p.confidence >= 0.5);
             for (const p of newPatterns.slice(0, 3)) {
+              // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
               addMemory({
                 userId,
                 type: 'habit',
@@ -1643,6 +1671,8 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
     cron: 'every_2h',
     lastRun: null,
     handler: async () => {
+      // Phase3: enableOldSchedulerAutonomy 开关 — false 时跳过整套旧自主任务（代码本体保留）
+      if (!MIND_SWITCH.enableOldSchedulerAutonomy) return null;
       if (!scheduler.io) return null;
 
       // L-15: 用户活跃期（有在线连接）跳过 — 后台自主任务不打扰对话、不抢占上下文

@@ -133,6 +133,7 @@ export function runBehavioralAnalysis(userId: string = 'anonymous'): number {
       : [pattern.type];
 
     try {
+      // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
       addMemory({
         userId,
         type: 'habit',

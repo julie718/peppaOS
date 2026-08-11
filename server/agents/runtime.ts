@@ -111,6 +111,7 @@ export class AgentRuntime {
   }
 
   /** Add a memory scoped to this agent */
+  // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
   addMemory(memory: Omit<Memory, 'id' | 'createdAt' | 'updatedAt' | 'lastRetrievedAt' | 'retrieveCount' | 'tier' | 'perspective' | 'importance' | 'parentId'> & { tier?: Memory['tier']; perspective?: Memory['perspective'] }): Memory {
     return addMemory(
       {
@@ -201,6 +202,7 @@ Return ONLY the reflection text — no preamble, no labels, no markdown.`;
     // Store internal reflection as growth memory (for both scheduled & autonomous)
     if (reflection) {
       try {
+        // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
         this.addMemory({
           userId,
           type: 'knowledge',

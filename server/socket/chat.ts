@@ -2098,12 +2098,13 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
       // ── Phase2：对话轮次结束，记忆提取落库后异步触发 InnerTick 心智回合 ──
       // 边界：仅生成 InnerTickOutput 并写入 life.db 快照；不接管会话运行、不替换旧 life 状态机、
       // 不把 InnerTick 结果注入当前对话上下文。void 异步非阻塞，绝不影响 socket 响应下发。
-      logger.info('[InnerTick‑Phase2] chat轮次结束，调度异步心智回合');
+      // Phase3: runInnerTick 传入当前真实 userId（记忆/偏好归属用户，默认回退 'default'）
+      logger.info('[InnerTick] chat轮次结束，调度异步心智回合');
       void (async () => {
         try {
-          await runInnerTick();
+          await runInnerTick({ userId: uid });
         } catch (err) {
-          console.error("[InnerTick‑Phase2] chat结束触发心智回合异常", err);
+          console.error("[InnerTick] chat结束触发心智回合异常", err);
         }
       })();
 

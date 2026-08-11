@@ -36,7 +36,7 @@ import type {
   InnerTickArchiveItem,
 } from '../types/innerTickSchema';
 
-const TAG = '[InnerTick-Phase1]';
+const TAG = '[InnerTick]';
 const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /** 快照事件类型：完整 InnerTickOutput 序列化后写入 life.db system_events 表，作为快照备份 */
@@ -301,7 +301,7 @@ async function processArchives(output: InnerTickOutput, userId: string): Promise
   const archivedIds = new Set<string>();
   for (const item of output.archiveItems) {
     // 1) 守卫校验：InnerTick 白名单调用点（paradigmGuard 内部亦做堆栈白名单检测）
-    guardIllegalAddMemory(`InnerTick(Phase1) 归档条目 ${item.type}:${item.id}`);
+    guardIllegalAddMemory(`InnerTick 归档条目 ${item.type}:${item.id}`);
 
     const source =
       item.type === 'desire'

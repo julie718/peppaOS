@@ -254,6 +254,7 @@ function addDreamMemory(ctx: ConsolidationContext, dream: DreamSynthesis): Memor
     questions.length ? `醒来后可轻问：${questions.join('；')}` : '',
   ].filter(Boolean).join('\n').slice(0, 900);
 
+  // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
   return addMemory(
     {
       userId: ctx.userId,

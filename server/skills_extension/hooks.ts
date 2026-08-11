@@ -56,6 +56,7 @@ export async function generateSkillsMonthlyBrief(): Promise<string> {
   ].join('\n');
 
   try {
+    // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
     addMemory({
       userId: 'default',
       content: brief,

@@ -211,6 +211,7 @@ export function updateEmotionalState(state: EmotionalState, event: EmotionEvent)
   if (event.userId && event.type !== 'idle_recovery' && event.type !== 'self_reflection') {
     if (Math.abs(updated.valence - state.valence) > 0.3) {
       const direction = updated.valence > state.valence ? 'positive' : 'negative';
+      // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
       addMemory(
         {
           userId: event.userId,

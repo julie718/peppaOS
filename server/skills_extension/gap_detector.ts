@@ -133,6 +133,7 @@ export async function detectGaps(): Promise<GapDetectResult> {
 /** 推理链写入长期记忆（可复盘） */
 export async function persistGapReasoning(gap: SkillGap, chain: Record<string, unknown>): Promise<void> {
   try {
+    // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
     await addMemory({
       userId: 'default',
       content: `能力缺口复盘：用户高频需求"${gap.keyword}"（${gap.frequency} 次）→ ${chain.decisionPath === 'reuse' ? '路径A·复用外部工具' : '路径B·沙箱自研'}。判断依据：${JSON.stringify(chain)}`,
