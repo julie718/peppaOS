@@ -29,6 +29,6 @@ export const MIND_SWITCH: MindSwitchConfig = {
   sessionInnerTickOverride: true,   // 总闸开启：允许白名单会话使用 InnerTick 快照驱动会话心智
   overrideSessionWhitelist: ['conv_45e5748b-6ed2-4c35-b789-bb2156362f2e'], // S_A 灰度会话（真实用户活跃会话）
 
-  // ── P2迁移：默认 false — 关闭维持原有 TICK 行为，可灰度开启、一键回滚 ──
-  p2MigrateEnable: false,   // [P2-MIGRATE] 开启后旧 TICK 对核心心智表写入被拦截，仅 InnerTick 可变更心智状态
+  // ── P2迁移：灰度开启 — 旧 TICK 对核心心智表写入被拦截，仅 InnerTick 可变更心智状态（可一键回滚）──
+  p2MigrateEnable: true,   // [P2-MIGRATE] 开启后旧 TICK 对核心心智表写入被拦截，仅 InnerTick 可变更心智状态
 };
