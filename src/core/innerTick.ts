@@ -18,7 +18,12 @@ import { makeLLMCall, NormalizedMessage } from '../../server/llm/providers';
 import { createLLMRuntime } from '../../server/runtime/llm';
 import { getUserPreferredLLMConfig } from '../../server/llm/user_preferences';
 import { addMemory } from '../../server/memory/store';
-import { guardIllegalAddMemory, guardInnerTickLifeOverwrite } from '../utils/paradigmGuard';
+import {
+  guardIllegalAddMemory,
+  guardInnerTickLifeOverwrite,
+  guardP2MentalStateWrite,
+  isP2MigrateEnabled,
+} from '../utils/paradigmGuard';
 import {
   getPersonality,
   getRecentEmotions,
@@ -32,6 +37,14 @@ import {
   logSystemEvent,
   insertInnerTickSnapshot,
   countInnerTickSnapshots,
+  addEmotion,
+  addDesire,
+  updateDesirePriority,
+  updateDesireStatus,
+  updatePersonality,
+  recordPersonalityEvolution,
+  saveRelationshipVector,
+  loadRelationshipState,
 } from '../../server/db/lifeDb';
 import { logger } from '../../server/lib/logger';
 import type {
@@ -42,6 +55,10 @@ import type {
   InnerTickFocus,
   InnerTickArchiveItem,
   MentalEventItem,
+  InnerTickEmotionDrift,
+  InnerTickDesireEvolve,
+  InnerTickPersonalityDrift,
+  InnerTickRelationshipAdjustment,
 } from '../types/innerTickSchema';
 
 const TAG = '[InnerTick]';
@@ -171,7 +188,11 @@ const SCHEMA_SPEC = `输出 JSON 结构（严格符合，禁止输出多余解�
   "focus": [ { "id": "uuid-v4", "content": "当前注意力焦点" } ],
   "archiveItems": [ { "type": "desire|goal", "id": "对应列表中要归档的 id", "reason": "归档原因" } ],
   "triggerInnerTick": true,
-  "memoryHints": ["可写入长期记忆的提示/线索，可为空数组"]
+  "memoryHints": ["可写入长期记忆的提示/线索，可为空数组"],
+  "emotionDrift": { "name": "情绪名", "intensity": 0.0-1.0, "change": -1.0-1.0 },
+  "desireEvolve": [ { "id": "已有欲望id(新增时省略)", "content": "欲望内容", "intensity": 0.0-1.0, "status": "active|archived|abandoned|completed", "priorityDelta": -1.0-1.0 } ],
+  "personalityDrift": { "delta": [8维增量，每维-0.02~0.02，禁止剧烈突变] },
+  "relationshipAdjustment": { "vector": [4维目标向量：信任/亲密/理解/依赖，0.0-1.0] }
 }`;
 
 function buildInnerTickSystemPrompt(
@@ -200,6 +221,11 @@ ${conversationSummary}`
 欲望可以随经历减弱、消退、被满足后消失，也可以生成全新欲望；人格允许缓慢演化，禁止剧烈突变。
 参考传入的历史快照信息，但不要直接照搬快照，做独立推演。
 通过archiveItems标记不再活跃的目标、欲望用于归档。
+[P2-MIGRATE] 心智演化事件（可选字段，仅在发生演化时输出）：
+  emotionDrift       — 本轮情绪漂移（替代旧 TICK 的情绪衰减计算）；
+  desireEvolve       — 欲望生成(active)/衰减(archived/abandoned/completed)，携带 priorityDelta 表示既有欲望优先级调整；
+  personalityDrift   — 人格缓慢演化，8 维 delta 每维限制 -0.02~0.02，禁止剧烈突变；
+  relationshipAdjustment — 关系状态调整，4 维目标向量（信任/亲密/理解/依赖）。
 严格输出符合schema的JSON，禁止输出多余解释文本。
 
 ${SCHEMA_SPEC}
@@ -252,6 +278,13 @@ function clamp01(v: unknown): number {
   const n = typeof v === 'number' ? v : Number.parseFloat(String(v));
   if (!Number.isFinite(n)) return 0.5;
   return Math.min(1, Math.max(0, n));
+}
+
+/** P2迁移：-1 ~ 1 区间限定（情绪变化量 / 欲望优先级增量） */
+function clamp11(v: unknown): number {
+  const n = typeof v === 'number' ? v : Number.parseFloat(String(v));
+  if (!Number.isFinite(n)) return 0;
+  return Math.min(1, Math.max(-1, n));
 }
 
 function toStr(v: unknown): string {
@@ -314,6 +347,39 @@ function normalizeOutput(raw: any): InnerTickOutput {
         .filter((a: InnerTickArchiveItem) => a.id)
     : [];
 
+  // ── P2迁移：心智演化事件规范化（可选字段；非法/缺失 → undefined，不触发落库）──
+  const emotionDrift: InnerTickEmotionDrift | undefined = (() => {
+    const e = raw?.emotionDrift;
+    if (!e || typeof e !== 'object') return undefined;
+    const name = toStr(e.name).slice(0, 50);
+    if (!name) return undefined;
+    return { name, intensity: clamp01(e.intensity), change: clamp11(e.change) };
+  })();
+
+  const desireEvolve: InnerTickDesireEvolve[] | undefined = Array.isArray(raw?.desireEvolve)
+    ? raw.desireEvolve
+        .map((d: any) => ({
+          id: d?.id ? toStr(d.id).slice(0, 100) : undefined,
+          content: toStr(d?.content).slice(0, 500),
+          intensity: clamp01(d?.intensity),
+          status: (['active', 'archived', 'abandoned', 'completed'].includes(d?.status) ? d.status : 'active') as InnerTickDesireEvolve['status'],
+          priorityDelta: d?.priorityDelta !== undefined ? clamp11(d.priorityDelta) : undefined,
+        }))
+        .filter((d: InnerTickDesireEvolve) => d.content)
+    : undefined;
+
+  const personalityDrift: InnerTickPersonalityDrift | undefined = (() => {
+    const p = raw?.personalityDrift;
+    if (!p || !Array.isArray(p?.delta) || p.delta.length !== 8) return undefined;
+    return { delta: p.delta.map((v: unknown) => clamp11(v)) };
+  })();
+
+  const relationshipAdjustment: InnerTickRelationshipAdjustment | undefined = (() => {
+    const r = raw?.relationshipAdjustment;
+    if (!r || !Array.isArray(r?.vector) || r.vector.length !== 4) return undefined;
+    return { vector: r.vector.map((v: unknown) => clamp01(v)) };
+  })();
+
   return {
     thought: toStr(raw?.thought).slice(0, 2000),
     mood,
@@ -323,6 +389,10 @@ function normalizeOutput(raw: any): InnerTickOutput {
     archiveItems,
     triggerInnerTick: raw?.triggerInnerTick === true,
     memoryHints: Array.isArray(raw?.memoryHints) ? raw.memoryHints.map((h: any) => toStr(h)).filter(Boolean).slice(0, 10) : [],
+    emotionDrift,
+    desireEvolve,
+    personalityDrift,
+    relationshipAdjustment,
   };
 }
 
@@ -455,6 +525,175 @@ async function persistInnerTickSnapshot(params: {
 }
 
 // ─────────────────────────────────────────────
+// 6.75 P2迁移：LLM 心智演化事件 → MentalEventItem → 守卫校验 → 统一落库业务状态表
+// 边界（与 Phase2「InnerTick 严禁覆盖旧life状态表」的差异）：
+//   Phase2 阶段 InnerTick 输出只写 inner_tick_snapshot 观测表；P2 迁移阶段由 p2MigrateEnable
+//   总闸控制——开启后，LLM 推演的 emotionDrift/desireEvolve/personalityDrift/relationshipAdjustment
+//   经 guardP2MentalStateWrite 守卫校验（本文件调用栈在白名单内）统一写入业务状态表；
+//   总闸关闭时本模块不执行任何写库，上述字段仅作为快照观测内容（维持既有行为）。
+// ─────────────────────────────────────────────
+
+const TAG_P2M = '[P2-MIGRATE]';
+const PERSONALITY_DIM = 8;
+const RELATIONSHIP_DIM = 4;
+const PERSONALITY_BASELINE: number[] = [0.55, 0.55, 0.45, 0.55, 0.50, 0.45, 0.60, 0.50];
+
+/** 将 LLM 推演的 4 类心智演化事件封装为 MentalEventItem（守卫校验 + 落库日志的统一载体） */
+function buildDriftEvents(output: InnerTickOutput): MentalEventItem[] {
+  const events: MentalEventItem[] = [];
+  if (output.emotionDrift) {
+    events.push({
+      source: 'inner_tick',
+      eventType: 'emotion_drift',
+      brief: `情绪漂移: ${output.emotionDrift.name} ${output.emotionDrift.intensity.toFixed(2)} (Δ${output.emotionDrift.change >= 0 ? '+' : ''}${output.emotionDrift.change.toFixed(2)})`,
+      payload: { ...output.emotionDrift },
+    });
+  }
+  for (const d of output.desireEvolve || []) {
+    events.push({
+      source: 'inner_tick',
+      eventType: 'desire_evolve',
+      brief: `欲望演化[${d.status}]: ${d.content} (${d.intensity.toFixed(2)}${d.priorityDelta !== undefined ? ` Δ${d.priorityDelta >= 0 ? '+' : ''}${d.priorityDelta.toFixed(2)}` : ''})`,
+      payload: { ...d },
+    });
+  }
+  if (output.personalityDrift) {
+    events.push({
+      source: 'inner_tick',
+      eventType: 'personality_drift',
+      brief: `人格漂移: delta=[${output.personalityDrift.delta.map(v => v.toFixed(3)).join(',')}]`,
+      payload: { delta: output.personalityDrift.delta },
+    });
+  }
+  if (output.relationshipAdjustment) {
+    events.push({
+      source: 'inner_tick',
+      eventType: 'relationship_adjustment',
+      brief: `关系调整: vector=[${output.relationshipAdjustment.vector.map(v => v.toFixed(2)).join(',')}]`,
+      payload: { vector: output.relationshipAdjustment.vector },
+    });
+  }
+  return events;
+}
+
+/** 欲望演化落库：active=生成/优先级调整，其余=状态变更（表约束不含 archived → 映射为 abandoned） */
+async function applyDesireEvolve(d: InnerTickDesireEvolve): Promise<void> {
+  // 定位既有欲望：id 为纯数字 → 直接作为 desires 表整数 id；否则按内容精确匹配 active 欲望
+  let targetId: number | null = null;
+  if (d.id && /^\d+$/.test(d.id)) {
+    targetId = Number(d.id);
+  } else if (d.id || d.status !== 'active') {
+    try {
+      const active = await getActiveDesires();
+      const match = active.find((x: any) => x.desire_text === d.content);
+      if (match) targetId = Number(match.id);
+    } catch { targetId = null; }
+  }
+
+  if (d.status === 'active') {
+    if (targetId) {
+      if (d.priorityDelta !== undefined) {
+        await updateDesirePriority(targetId, d.priorityDelta);
+        logger.info(`${TAG_P2M} desire_evolve 优先级调整 desires#${targetId}: Δ${d.priorityDelta >= 0 ? '+' : ''}${d.priorityDelta.toFixed(2)}`);
+      }
+    } else {
+      const id = await addDesire(d.content, d.intensity, 'inner_tick');
+      logger.info(`${TAG_P2M} desire_evolve 新增欲望 desires#${id}: ${d.content}(${d.intensity.toFixed(2)})`);
+    }
+    return;
+  }
+  // 衰减/归档：仅对已存在欲望生效（无法定位的跳过并告警）
+  if (targetId) {
+    const status = d.status === 'archived' ? 'abandoned' : d.status; // 表约束不含 archived
+    await updateDesireStatus(targetId, status);
+    logger.info(`${TAG_P2M} desire_evolve 状态变更 desires#${targetId} → ${status}`);
+  } else {
+    logger.warn(`${TAG_P2M} desire_evolve 无法定位既有欲望，跳过状态变更: ${d.content}（status=${d.status}）`);
+  }
+}
+
+/** 人格漂移落库：delta 截断 ±0.02 后叠加库内当前向量（禁止剧烈突变），记录演化审计 */
+async function applyPersonalityDrift(delta: number[]): Promise<void> {
+  if (!Array.isArray(delta) || delta.length !== PERSONALITY_DIM) return;
+  const clamped = delta.map(v => Math.min(0.02, Math.max(-0.02, v)));
+
+  let before: number[] = PERSONALITY_BASELINE;
+  try {
+    const row = await getPersonality();
+    if (row?.vector_json) {
+      const parsed = JSON.parse(row.vector_json);
+      if (Array.isArray(parsed) && parsed.length === PERSONALITY_DIM) before = parsed.map(Number);
+    }
+  } catch { /* 读取失败则按基线叠加 */ }
+
+  const after = before.map((v, i) => Math.min(1, Math.max(0, v + (clamped[i] || 0))));
+  const id = await updatePersonality(after);
+  await recordPersonalityEvolution(before, after, clamped, 'inner_tick');
+  logger.info(`${TAG_P2M} personality_drift 落库 personality#${id}: delta=[${clamped.map(v => v.toFixed(3)).join(',')}]`);
+}
+
+/** 关系调整落库：替换 4 维目标向量，保留既有时间元数据（lastInteractionAt/lastDecayAt/totalInteractions） */
+async function applyRelationshipAdjustment(vector: number[]): Promise<void> {
+  if (!Array.isArray(vector) || vector.length !== RELATIONSHIP_DIM) return;
+  const clamped = vector.map(v => Math.min(1, Math.max(0, v)));
+  let meta: { lastInteractionAt?: number | null; lastDecayAt?: number | null; totalInteractions?: number | null } = {};
+  try { meta = await loadRelationshipState(); } catch { /* 保留默认空元数据 */ }
+  await saveRelationshipVector(clamped, {
+    lastInteractionAt: meta.lastInteractionAt ?? null,
+    lastDecayAt: meta.lastDecayAt ?? null,
+    totalInteractions: meta.totalInteractions ?? 0,
+  });
+  logger.info(`${TAG_P2M} relationship_adjustment 落库 relationship_state: [${clamped.map(v => v.toFixed(2)).join(',')}]`);
+}
+
+/**
+ * P2 统一落库入口：将 LLM 推演输出中的心智演化事件（emotionDrift/desireEvolve/personalityDrift/
+ * relationshipAdjustment）封装为 MentalEventItem，经 guardP2MentalStateWrite 守卫校验后
+ * 统一写入业务状态表。仅由 runInnerTick 在 p2MigrateEnable=true 时调用；导出供自测脚本
+ * 以真实 innerTick 调用栈验证守卫放行路径（调用方栈含 innerTick.ts → 守卫放行）。
+ * 单条失败不阻断其余事件（逐条 try/catch + 日志）。
+ */
+export async function applyMentalDriftToBusinessState(output: InnerTickOutput, userId: string): Promise<void> {
+  const events = buildDriftEvents(output);
+  if (events.length === 0) return;
+
+  // 1) 守卫校验：本文件（src/core/innerTick.ts）为 P2 唯一合法写者 → 白名单放行；
+  //    若未来外部代码误走本入口（栈不含 innerTick），guardP2MentalStateWrite 触发范式告警。
+  for (const ev of events) {
+    const table = ev.eventType === 'emotion_drift' ? 'emotions'
+      : ev.eventType === 'desire_evolve' ? 'desires'
+      : ev.eventType === 'personality_drift' ? 'personality'
+      : 'relationship_state';
+    guardP2MentalStateWrite(table, `applyMentalDriftToBusinessState ${ev.eventType} (source=${ev.source})`);
+  }
+
+  // 2) 统一落库业务状态表（逐条独立失败隔离，输出 [P2-MIGRATE] 埋点）
+  for (const ev of events) {
+    try {
+      switch (ev.eventType) {
+        case 'emotion_drift': {
+          const e = ev.payload as InnerTickEmotionDrift;
+          const id = await addEmotion(e.name, e.intensity, `p2-innerTick emotionDrift Δ${e.change >= 0 ? '+' : ''}${e.change.toFixed(3)}`);
+          logger.info(`${TAG_P2M} emotion_drift 落库 emotions#${id}: ${e.name}(${e.intensity.toFixed(2)})`);
+          break;
+        }
+        case 'desire_evolve':
+          await applyDesireEvolve(ev.payload as InnerTickDesireEvolve);
+          break;
+        case 'personality_drift':
+          await applyPersonalityDrift((ev.payload as InnerTickPersonalityDrift).delta);
+          break;
+        case 'relationship_adjustment':
+          await applyRelationshipAdjustment((ev.payload as InnerTickRelationshipAdjustment).vector);
+          break;
+      }
+    } catch (e: any) {
+      logger.error(`${TAG_P2M} ${ev.eventType} 落库失败（不阻断本轮其余事件）: ${e.message}`);
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
 // 7. 对外入口：runInnerTick()
 // ─────────────────────────────────────────────
 
@@ -547,6 +786,14 @@ export async function runInnerTick(options: InnerTickOptions = {}): Promise<Inne
     turnIndex: options.turnIndex,
     triggerSource: options.triggerSource || 'manual',
   });
+
+  // ── P2迁移：LLM 推演心智演化事件统一落库（受 p2MigrateEnable 总闸控制）──
+  // 总闸关闭（默认）：不执行任何业务状态写入，emotionDrift/desireEvolve/personalityDrift/
+  // relationshipAdjustment 仅作为快照观测内容（维持既有行为）；总闸开启：经
+  // MentalEventItem → guardP2MentalStateWrite 守卫校验后写入 emotions/desires/personality/relationship_state。
+  if (isP2MigrateEnabled()) {
+    await applyMentalDriftToBusinessState(output, userId);
+  }
 
   logger.info(`${TAG} 心智回合结束 (desires=${output.desires.length} goals=${output.goals.length} archived=${archivedIds.size} trigger=${output.triggerInnerTick})`);
   return output;

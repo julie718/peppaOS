@@ -439,6 +439,13 @@ export class LifeSystem {
       return { ok: true, errors };
     }
 
+    // [P2-MIGRATE] P2迁移：p2MigrateEnable=true 时本 TICK 降级为只读快照观测层 —
+    // 16 步循环完整保留（读取/计算/日志），但 emotions/desires/personality/relationship_state
+    // 的写入由 paradigmGuard 拦截不再落库；心智状态变更统一走 runInnerTick → MentalEventItem → 守卫校验。
+    if (MIND_SWITCH.p2MigrateEnable) {
+      console.log('[P2-MIGRATE] P2 迁移开启：本 TICK 降级为只读快照观测模式（读取/计算/日志保留，写库被 paradigmGuard 拦截，仅 InnerTick 可变更心智状态）');
+    }
+
     try {
       // ── T80: 步骤并行化 — 每个子任务独立超时（10s），单个慢任务（LLM/IO）不再拖垮整个 TICK ──
       // 耗时大户（proactive/narrative/prefetch 等 LLM 调用）与快任务并行，总体耗时 = max(各任务) 而非 sum

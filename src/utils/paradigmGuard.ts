@@ -6,6 +6,9 @@
 //   - 同类型告警 60 秒节流，防止 TICK/高频路径刷屏
 // 本工具仅做检测与告警，绝不修改任何业务逻辑执行流向。
 
+// P2迁移：全局心智开关 — 控制旧 life TICK 写库拦截是否生效（无循环依赖，mindSwitch 为纯配置）
+import { MIND_SWITCH } from '../config/mindSwitch';
+
 const isProduction = process.env.NODE_ENV === 'production';
 
 /** 同类告警节流表（tag → 上次告警时间戳） */
@@ -190,6 +193,66 @@ export function guardSessionMindPersist(tableName: string, callerInfo?: string):
     `检测到 sessionMindProvider 内部将 InnerTick 输出持久化写入旧life状态表「${tableName}」——Phase3 红线：会话心智只读，禁止写回旧life表；InnerTick 输出仅允许内存会话级生效，持久存储仅 inner_tick_snapshot。${callerInfo || ''}`,
     extractCaller(stack),
   );
+}
+
+// ─────────────────────────────────────────────
+// P2迁移守卫：旧 life TICK 写核心心智状态拦截 + InnerTick 唯一写者放行
+// ─────────────────────────────────────────────
+
+/**
+ * P2 迁移红线：旧 life TICK 循环直接写入的核心心智状态表（单一事实源）。
+ * 开启 p2MigrateEnable 后，这些表只允许 InnerTick 心智闭环（src/core/innerTick.ts）写入，
+ * 旧模块（server/life 子系统、direction/review/idle_brain 等）的一切直接写入被拦截并告警。
+ * 说明：emotion_state 为情绪系统状态表（8维向量），与 emotions 日志表同属「emotions 情绪系统」，
+ * 一并纳入拦截范围（情绪衰减迁移的落库目标）。
+ */
+export const P2_GUARDED_MENTAL_STATE_TABLES: ReadonlySet<string> = new Set([
+  'emotions',
+  'emotion_state',
+  'desires',
+  'personality',
+  'relationship_state',
+]);
+
+/** P2 迁移总闸状态（读取 mindSwitch 配置，供守卫与日志使用） */
+export function isP2MigrateEnabled(): boolean {
+  return MIND_SWITCH.p2MigrateEnable === true;
+}
+
+/**
+ * 守卫 6：guardP2MentalStateWrite（P2 迁移守卫）
+ * 用途：拦截旧 life TICK 循环对 emotions/desires/personality/relationship_state 的直接写入，
+ * 触发告警日志并返回 false（调用方跳过落库）；仅 InnerTick 心智闭环（src/core/innerTick.ts）
+ * 允许写入（返回 true）。
+ * 行为：
+ *   - p2MigrateEnable=false（默认）：全部放行（返回 true），完全维持原有 TICK 写库行为；
+ *   - p2MigrateEnable=true：调用栈含 InnerTick 的写入放行；其余（life TICK/旧模块/事件路径）
+ *     一律拦截（返回 false）+ [P2-MIGRATE] 告警日志，不再落库。
+ * 用法：lifeDb 写函数在 SQL 执行前调用，返回 false 时跳过写入（仅读取/计算/日志保留）。
+ */
+export function guardP2MentalStateWrite(tableName: string, callerInfo?: string): boolean {
+  if (!isP2MigrateEnabled()) return true; // P2 总闸关闭：维持原有 TICK 行为，全部放行
+
+  const stack = new Error().stack || '';
+  // 唯一合法写者：InnerTick 心智闭环（runInnerTick → MentalEventItem → 守卫校验 → 统一落库）
+  if (stackMatches(stack, [/innerTick/i])) return true;
+
+  emitWarning(
+    'guardP2MentalStateWrite',
+    `[P2-MIGRATE] 拦截旧路径直接写入核心心智状态表「${tableName}」——P2迁移：心智状态变更统一走 runInnerTick → MentalEventItem → paradigmGuard 守卫校验后落库；旧 life TICK 仅保留读取/计算/日志（只读快照观测层）。${callerInfo || ''}`,
+    extractCaller(stack),
+  );
+  return false;
+}
+
+/**
+ * 系统启动/迁移完成时输出 P2 迁移守卫状态（供部署核查：确认总闸开/关）
+ */
+export function logParadigmP2Status(): void {
+  const mode = isP2MigrateEnabled()
+    ? '开启 — 旧life TICK 写核心心智状态被拦截，仅 InnerTick 可落库'
+    : '关闭 — 维持原有 TICK 写库行为（默认，可灰度开启/一键回滚）';
+  console.log(`[P2-MIGRATE] paradigmGuard P2迁移守卫: p2MigrateEnable=${isP2MigrateEnabled()} | ${mode}`);
 }
 
 /**

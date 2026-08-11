@@ -4,6 +4,10 @@ import sqlite3 from 'sqlite3';
 import * as fs from 'fs';
 import * as path from 'path';
 
+// P2迁移：核心心智状态表（emotions/emotion_state/desires/personality/relationship_state）
+// 写入守卫 — 旧 life TICK 路径被拦截（仅读取/计算/日志），仅 InnerTick 心智闭环可落库
+import { guardP2MentalStateWrite, logParadigmP2Status } from '../../src/utils/paradigmGuard';
+
 // 【重构·校验修复】默认路径回落数据根统一解析（Docker 内 LUMI_DATA_DIR=/app → /app/data/life.db 不变）
 import { getDataPath } from '../config/data_path'; // E-3: 统一路径解析
 const DB_PATH = process.env.LIFE_DB_PATH || getDataPath('life.db');
@@ -313,6 +317,10 @@ async function migrateLifeTablesImpl(): Promise<{ success: boolean; tables: stri
   }
 
   console.log(`[LifeDB] 迁移完成: ${created.length} 张表, ${errors.length} 个错误`);
+
+  // [P2-MIGRATE] 启动时输出 P2 迁移守卫状态（部署核查点：确认 p2MigrateEnable 开/关）
+  logParadigmP2Status();
+
   return { success: errors.length === 0, tables: created, errors };
 }
 
@@ -384,6 +392,19 @@ function all<T = any>(sql: string, params: any[] = []): Promise<T[]> {
   })));
 }
 
+// ── P2迁移：核心心智状态写入守卫（[P2-MIGRATE] 埋点，单点拦截全部旧写入路径）──
+// 拦截时：打印不节流的 [P2-MIGRATE] 日志 + 返回 false（调用方跳过 SQL，仅保留读取/计算/日志）；
+// 放行时：照常执行。守卫判定（guardP2MentalStateWrite）：
+//   p2MigrateEnable=false → 全部放行（维持原有 TICK 写库行为）；
+//   p2MigrateEnable=true  → 仅 InnerTick 调用栈放行，其余（life TICK/旧模块/事件路径）拦截。
+function p2GuardAllow(tableName: string, fnName: string): boolean {
+  const allow = guardP2MentalStateWrite(tableName, `${fnName} @ server/db/lifeDb.ts`);
+  if (!allow) {
+    console.warn(`[P2-MIGRATE] lifeDb.${fnName} 写入「${tableName}」被 P2 迁移守卫拦截，跳过落库（旧 TICK 仅保留读取/计算/日志）`);
+  }
+  return allow;
+}
+
 // ═══════════════════════════════════════════════
 // CRUD 操作
 // ═══════════════════════════════════════════════
@@ -394,6 +415,7 @@ export async function getPersonality(): Promise<any | null> {
 }
 
 export async function updatePersonality(vector: number[]): Promise<number> {
+  if (!p2GuardAllow('personality', 'updatePersonality')) return -1; // [P2-MIGRATE] 拦截：旧路径不再落库
   const existing = await get<{ id: number }>('SELECT id FROM personality ORDER BY id DESC LIMIT 1');
   const json = JSON.stringify(vector);
   if (existing) {
@@ -406,6 +428,7 @@ export async function updatePersonality(vector: number[]): Promise<number> {
 
 // ── Emotions ──
 export async function addEmotion(type: string, intensity: number, context = ''): Promise<number> {
+  if (!p2GuardAllow('emotions', 'addEmotion')) return -1; // [P2-MIGRATE] 拦截：旧路径不再落库
   const result = await withTransaction(async () => {
     const r = await run(
       'INSERT INTO emotions (emotion_type, intensity, context) VALUES (?,?,?)',
@@ -425,6 +448,7 @@ export async function getDominantEmotion(): Promise<any | null> {
 }
 
 export async function decayEmotions(): Promise<void> {
+  if (!p2GuardAllow('emotions', 'decayEmotions')) return; // [P2-MIGRATE] 拦截：旧路径不再落库
   await run('UPDATE emotions SET intensity=MAX(0, intensity-0.03), updated_at=datetime("now") WHERE intensity > 0 AND created_at < datetime("now","-1 hour")');
   await run('DELETE FROM emotions WHERE intensity < 0.03');
 }
@@ -461,6 +485,7 @@ export async function archiveEmotionState(): Promise<{ archived: number }> {
 }
 
 export async function saveEmotionVector(vector: number[]): Promise<void> {
+  if (!p2GuardAllow('emotion_state', 'saveEmotionVector')) return; // [P2-MIGRATE] 拦截：旧路径不再落库
   // P2-4: 写入前顺带执行归档（节流 6h，不新增定时器）
   await archiveEmotionState();
   const json = JSON.stringify(vector);
@@ -484,6 +509,7 @@ export async function loadEmotionVector(): Promise<number[] | null> {
 
 // ── Desires ──
 export async function addDesire(text: string, priority: number, source = 'intrinsic'): Promise<number> {
+  if (!p2GuardAllow('desires', 'addDesire')) return -1; // [P2-MIGRATE] 拦截：旧路径不再落库
   const result = await withTransaction(async () => {
     const r = await run(
       'INSERT INTO desires (desire_text, priority, source) VALUES (?,?,?)',
@@ -499,20 +525,24 @@ export async function getActiveDesires(): Promise<any[]> {
 }
 
 export async function updateDesirePriority(id: number, delta: number): Promise<void> {
+  if (!p2GuardAllow('desires', 'updateDesirePriority')) return; // [P2-MIGRATE] 拦截：旧路径不再落库
   await run('UPDATE desires SET priority=MAX(0,MIN(1,priority+?)), updated_at=datetime("now") WHERE id=?', [delta, id]);
 }
 
 export async function updateDesireStatus(id: number, status: string): Promise<void> {
+  if (!p2GuardAllow('desires', 'updateDesireStatus')) return; // [P2-MIGRATE] 拦截：旧路径不再落库
   await run('UPDATE desires SET status=?, updated_at=datetime("now") WHERE id=?', [status, id]);
 }
 
 export async function completeDesire(id: number, result = ''): Promise<void> {
+  if (!p2GuardAllow('desires', 'completeDesire')) return; // [P2-MIGRATE] 拦截：旧路径不再落库
   const extra = result ? ', desire_text=desire_text || ?' : '';
   const params: any[] = result ? ['completed', id, ` [完成: ${result}]`] : ['completed', id];
   await run(`UPDATE desires SET status=?, updated_at=datetime("now")${extra} WHERE id=?`, params);
 }
 
 export async function abandonDesire(id: number, reason = ''): Promise<void> {
+  if (!p2GuardAllow('desires', 'abandonDesire')) return; // [P2-MIGRATE] 拦截：旧路径不再落库
   const extra = reason ? ', desire_text=desire_text || ?' : '';
   const params: any[] = reason ? ['abandoned', id, ` [放弃: ${reason}]`] : ['abandoned', id];
   await run(`UPDATE desires SET status=?, updated_at=datetime("now")${extra} WHERE id=?`, params);
@@ -528,6 +558,7 @@ export async function countActiveDesires(): Promise<number> {
 }
 
 export async function decayDesires(): Promise<void> {
+  if (!p2GuardAllow('desires', 'decayDesires')) return; // [P2-MIGRATE] 拦截：旧路径不再落库
   await run('UPDATE desires SET priority=MAX(0,priority-0.02), updated_at=datetime("now") WHERE status="active" AND created_at < datetime("now","-1 hour")');
 }
 
@@ -889,6 +920,7 @@ export async function saveRelationshipVector(
   vector: number[],
   meta?: RelationshipStateMeta,
 ): Promise<void> {
+  if (!p2GuardAllow('relationship_state', 'saveRelationshipVector')) return; // [P2-MIGRATE] 拦截：旧路径不再落库
   const json = JSON.stringify(vector);
   await run(
     `INSERT OR REPLACE INTO relationship_state

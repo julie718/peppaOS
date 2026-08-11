@@ -50,6 +50,39 @@ export interface MentalEventItem {
   payload: Record<string, any>;
 }
 
+// ─────────────────────────────────────────────
+// P2迁移：LLM 心智推演输出扩展字段（情绪/欲望/人格/关系 演化事件）
+// 开启 p2MigrateEnable 后，这些字段由 LLM 推演生成，经
+// runInnerTick → MentalEventItem → paradigmGuard 守卫校验后统一落库到业务状态表。
+// 开关关闭时字段仅为快照观测内容，不触发任何写库。
+// ─────────────────────────────────────────────
+
+/** 情绪漂移事件：本轮推演出的情绪变化（name 情绪名 / intensity 0-1 / change -1~1 相对上一轮变化量） */
+export interface InnerTickEmotionDrift {
+  name: string;
+  intensity: number; // 0-1 浮点数（推演后的目标情绪强度）
+  change: number;    // -1 ~ 1（相对上一轮的变化量，用于日志/观测）
+}
+
+/** 欲望演化事件：本轮推演出的欲望生成/衰减/归档（id 缺省或无法解析时为「新增」） */
+export interface InnerTickDesireEvolve {
+  id?: string;             // 已存在欲望的 uuid（可空：空=新欲望）
+  content: string;         // 欲望内容
+  intensity: number;       // 0-1 浮点数（新欲望初始强度 / 已有欲望的目标强度）
+  status: 'active' | 'archived' | 'abandoned' | 'completed'; // active=生成，其余=衰减/归档
+  priorityDelta?: number;  // 已有欲望的优先级增量 -1 ~ 1（衰减/提升）
+}
+
+/** 人格漂移事件：本轮推演出的人格缓慢演化（8 维 delta，每维 -0.02 ~ +0.02，禁止剧烈突变） */
+export interface InnerTickPersonalityDrift {
+  delta: number[]; // 8 维增量，每维限制 -0.02 ~ +0.02（与旧 personality.updatePersonality 同一约定）
+}
+
+/** 关系调整事件：本轮推演出的关系状态调整（4 维目标向量：信任/亲密/理解/依赖） */
+export interface InnerTickRelationshipAdjustment {
+  vector: number[]; // 4 维目标向量（0-1），与 relationship_state.vector_json 同构
+}
+
 /**
  * InnerTick 心智回合完整结构化输出。
  * runInnerTick() 返回本对象，并将完整序列化写入 life.db 快照备份；
@@ -64,4 +97,9 @@ export interface InnerTickOutput {
   archiveItems: InnerTickArchiveItem[];
   triggerInnerTick: boolean;
   memoryHints: string[];
+  // ── P2迁移：LLM 心智推演演化事件（可选字段；p2MigrateEnable 开启时经守卫统一落库业务状态表）──
+  emotionDrift?: InnerTickEmotionDrift;            // 情绪漂移 → emotions
+  desireEvolve?: InnerTickDesireEvolve[];          // 欲望生成/衰减 → desires
+  personalityDrift?: InnerTickPersonalityDrift;    // 人格缓慢演化 → personality
+  relationshipAdjustment?: InnerTickRelationshipAdjustment; // 关系调整 → relationship_state
 }
