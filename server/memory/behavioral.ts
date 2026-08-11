@@ -1,6 +1,8 @@
 import { readDB } from '../../db_layer';
 import { logger } from '../lib/logger';
-import { addMemory } from './store';
+// Phase4: 旧模块 addMemory 直接写入迁移 — 事件封装后经 runInnerTick 统一落库（仅 innerTick.ts 内部允许 addMemory）
+import { runInnerTick } from '../../src/core/innerTick';
+import type { MentalEventItem } from '../../src/types/innerTickSchema';
 
 export interface BehavioralPattern {
   type: 'active_hours' | 'frequent_tool' | 'topic_cluster' | 'session_pattern';
@@ -125,6 +127,8 @@ export function analyzeBehavioralPatterns(userId: string): BehavioralPattern[] {
  */
 export function runBehavioralAnalysis(userId: string = 'anonymous'): number {
   const patterns = analyzeBehavioralPatterns(userId);
+  // Phase4: 本任务派生心智事件收集（替代原直接 addMemory 写入，任务末尾随 runInnerTick 注入）
+  const eventList: MentalEventItem[] = [];
   let saved = 0;
 
   for (const pattern of patterns) {
@@ -133,19 +137,23 @@ export function runBehavioralAnalysis(userId: string = 'anonymous'): number {
       : [pattern.type];
 
     try {
-      // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
-      addMemory({
-        userId,
-        type: 'habit',
-        content: pattern.content,
-        keywords,
-        confidence: pattern.confidence,
-        sourceInteractionId: `behavioral_${Date.now()}`,
-      });
+      // Phase4: 原 addMemory 直接写入 → 封装为 MentalEventItem，任务末尾经 runInnerTick 注入推演统一落库
+      const evt: MentalEventItem = {
+        source: 'behavioral',
+        eventType: 'behavioral_pattern',
+        brief: '发现行为模式',
+        payload: { patternType: pattern.type, content: pattern.content, confidence: pattern.confidence, keywords },
+      };
+      eventList.push(evt);
       saved++;
     } catch {
-      // memory may already exist or quota reached
+      // event collection best-effort（原：memory may already exist or quota reached）
     }
+  }
+
+  // Phase4: 任务末尾派发本任务派生心智事件（非阻塞，失败不影响主流程）
+  if (eventList.length > 0) {
+    void runInnerTick({ userId, derivedMentalEvents: eventList }).catch((e) => console.error('mental event dispatch fail', e));
   }
 
   logger.info(`[Behavioral] Analysis complete: ${saved} patterns saved for user ${userId}`);

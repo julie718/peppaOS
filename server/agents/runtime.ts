@@ -1,7 +1,10 @@
 import { PersonalityConfig } from '../personality/types';
 import { EmotionalState, createDefaultEmotionalState, loadEmotionalState, saveEmotionalState, updateEmotionalState } from '../personality/state';
-import { queryMemories, addMemory } from '../memory/store';
+import { queryMemories } from '../memory/store';
 import { Memory } from '../memory/types';
+// Phase4: 旧模块 addMemory 直接写入迁移 — 事件封装后经 runInnerTick 统一落库（仅 innerTick.ts 内部允许 addMemory）
+import { runInnerTick } from '../../src/core/innerTick';
+import type { MentalEventItem } from '../../src/types/innerTickSchema';
 
 export interface AgentRecord {
   id: string;
@@ -111,19 +114,25 @@ export class AgentRuntime {
   }
 
   /** Add a memory scoped to this agent */
-  // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
-  addMemory(memory: Omit<Memory, 'id' | 'createdAt' | 'updatedAt' | 'lastRetrievedAt' | 'retrieveCount' | 'tier' | 'perspective' | 'importance' | 'parentId'> & { tier?: Memory['tier']; perspective?: Memory['perspective'] }): Memory {
-    return addMemory(
-      {
+  // Phase4: 原 addMemory 直接写入 → 封装为 MentalEventItem 经 runInnerTick 派发（仅 innerTick.ts 内部允许 addMemory），
+  // 返回本地派生记录（不直接落库）
+  addMemory(memory: Omit<Memory, 'id' | 'createdAt' | 'updatedAt' | 'lastRetrievedAt' | 'retrieveCount' | 'tier' | 'perspective' | 'importance' | 'parentId'> & { tier?: Memory['tier']; perspective?: Memory['perspective'] }): { id: string; content: string } {
+    const userId = this.agentRecord.ownerUid || this.agentRecord.userId || '';
+    const content = typeof memory.content === 'string' ? memory.content : String(memory.content ?? '');
+    const evt: MentalEventItem = {
+      source: 'agent_runtime',
+      eventType: 'agent_memory',
+      brief: `Agent「${this.agentRecord.name}」沉淀记忆`,
+      payload: {
         ...memory,
-        userId: this.agentRecord.ownerUid || this.agentRecord.userId || '',
-      } as any,
-      {
+        userId,
         tier: memory.tier || 'episodic',
         perspective: memory.perspective || 'peppa_self',
         importance: (memory as any).importance || 0.3,
       },
-    );
+    };
+    void runInnerTick({ userId, derivedMentalEvents: [evt] }).catch((e) => console.error('mental event dispatch fail', e));
+    return { id: `agent_memory_${Date.now()}`, content };
   }
 
   /** Update emotional state after an interaction */
@@ -167,6 +176,8 @@ export class AgentRuntime {
     }
 
     let reflection: string | null = null;
+    // Phase4: 本任务派生心智事件收集（替代原 this.addMemory 直接写入，任务末尾随 runInnerTick 注入）
+    const eventList: MentalEventItem[] = [];
 
     if (analyze) {
       try {
@@ -202,19 +213,27 @@ Return ONLY the reflection text — no preamble, no labels, no markdown.`;
     // Store internal reflection as growth memory (for both scheduled & autonomous)
     if (reflection) {
       try {
-        // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
-        this.addMemory({
-          userId,
-          type: 'knowledge',
-          content: `[Autonomous Reflection] ${reflection}`,
-          keywords: ['autonomous_reflection', 'introspection', 'peppa_growth'],
-          confidence: 0.7,
-          sourceInteractionId: 'autonomous_tick',
-          tier: 'growth',
-          perspective: 'peppa_self',
-          importance: 0.5,
-        } as any);
+        // Phase4: 原 this.addMemory 直接写入 → 封装为 MentalEventItem，任务末尾经 runInnerTick 注入推演统一落库
+        const evt: MentalEventItem = {
+          source: 'agent_runtime',
+          eventType: 'autonomous_reflection',
+          brief: 'Agent 自主反思沉淀',
+          payload: {
+            agentId: this.agentId,
+            content: `[Autonomous Reflection] ${reflection}`,
+            keywords: ['autonomous_reflection', 'introspection', 'peppa_growth'],
+            tier: 'growth',
+            perspective: 'peppa_self',
+            importance: 0.5,
+          },
+        };
+        eventList.push(evt);
       } catch { /* best-effort */ }
+    }
+
+    // Phase4: 任务末尾派发本任务派生心智事件（非阻塞，失败不影响主流程）
+    if (eventList.length > 0) {
+      void runInnerTick({ userId, derivedMentalEvents: eventList }).catch((e) => console.error('mental event dispatch fail', e));
     }
 
     // Autonomous agents can proactively message the user

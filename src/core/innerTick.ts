@@ -3,7 +3,7 @@
 //
 // ⚠️ 本阶段硬性边界（Phase1）：
 //   - 仅作为独立库组件，不接管系统主控、不替换旧 life TICK（server/life/index.ts 状态机继续完整运行）。
-//   - 不接入 chat 对话主链路（阶段2任务）。
+//   - InnerTick：数字生命体原生心智回合底座；可在chat结束、空闲时机触发；只输出结构化心智快照，落库life.db与向量记忆，不直接修改运行时状态，不接管对话输出。
 //   - runInnerTick() 执行完成不修改任何全局运行状态，仅返回结构化对象 + 写入 life.db 快照备份。
 //   - life.db 历史快照只作为 prompt 素材渲染为文本，严禁直接拿快照对象赋值给运行状态。
 //
@@ -34,6 +34,7 @@ import type {
   InnerTickGoal,
   InnerTickFocus,
   InnerTickArchiveItem,
+  MentalEventItem,
 } from '../types/innerTickSchema';
 
 const TAG = '[InnerTick]';
@@ -47,6 +48,7 @@ export interface InnerTickOptions {
   userId?: string;      // 记忆/偏好归属用户；默认 'default'（与既有 skills adapter 一致）
   maxTokens?: number;   // 覆盖 LLM 输出上限
   scene?: string;       // LLM 场景标记，默认 'inner_tick'
+  derivedMentalEvents?: MentalEventItem[]; // 旧模块（scheduler/idle_brain/dream/consolidator等）收集的派生心智事件，注入本轮 LLM 推演上下文
 }
 
 // ─────────────────────────────────────────────
@@ -160,7 +162,17 @@ const SCHEMA_SPEC = `输出 JSON 结构（严格符合，禁止输出多余解�
   "memoryHints": ["可写入长期记忆的提示/线索，可为空数组"]
 }`;
 
-function buildInnerTickSystemPrompt(snapshotText: string): string {
+function buildInnerTickSystemPrompt(snapshotText: string, derivedEvents?: MentalEventItem[]): string {
+  // Phase4: 旧模块沉淀的派生心智事件（scheduler/idle_brain/dream/consolidator 等）注入推演上下文。
+  // 只作为输入素材参与本轮推演，不要求 LLM 逐条复述或直接落库（落库统一收敛在 InnerTick 内部）。
+  const eventsText = derivedEvents && derivedEvents.length > 0
+    ? derivedEvents
+        .map((e, i) => `${i + 1}. [${e.source}/${e.eventType}] ${e.brief}${
+          e.payload && Object.keys(e.payload).length ? ` — ${JSON.stringify(e.payload).slice(0, 300)}` : ''
+        }`)
+        .join('\n')
+    : '';
+
   return `你是数字生命体的内部心智。所有情绪、欲望生成、欲望衰减、情绪演变全部由你推理生成。
 欲望可以随经历减弱、消退、被满足后消失，也可以生成全新欲望；人格允许缓慢演化，禁止剧烈突变。
 参考传入的历史快照信息，但不要直接照搬快照，做独立推演。
@@ -169,7 +181,10 @@ function buildInnerTickSystemPrompt(snapshotText: string): string {
 
 ${SCHEMA_SPEC}
 
-历史快照信息（仅作参考素材，独立推演）:
+${eventsText ? `本轮外部模块沉淀的心智事件（作为推演输入素材，不必逐条复述；若与快照冲突以事件为准）:
+${eventsText}
+
+` : ''}历史快照信息（仅作参考素材，独立推演）:
 ${snapshotText}`;
 }
 
@@ -386,7 +401,8 @@ export async function runInnerTick(options: InnerTickOptions = {}): Promise<Inne
 
   // 读取 life.db 历史快照 → 仅渲染为 prompt 文本（不参与运行状态）
   const snapshotText = await loadLifeSnapshotAsText();
-  const systemPrompt = buildInnerTickSystemPrompt(snapshotText);
+  // Phase4: 旧模块派生心智事件（derivedMentalEvents）一并注入 LLM 推演上下文
+  const systemPrompt = buildInnerTickSystemPrompt(snapshotText, options.derivedMentalEvents);
 
   // LLM 配置：沿用用户偏好 provider/model，独立场景标记 inner_tick
   const llm = createLLMRuntime();

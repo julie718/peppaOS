@@ -9,8 +9,13 @@
 //   4. 故障巡检：scheduler 每 5 分钟对故障工具执行自修复
 //   5. 跨轮记忆复用：查询技能相关长期记忆（复盘依据）
 
-import { addMemory, queryMemories } from '../memory/store';
+import { queryMemories } from '../memory/store';
 import { logger } from '../lib/logger';
+// Phase4: 旧模块 addMemory 直接写入迁移 — 事件封装后经 runInnerTick 统一落库（仅 innerTick.ts 内部允许 addMemory）
+import { runInnerTick } from '../../src/core/innerTick';
+import type { MentalEventItem } from '../../src/types/innerTickSchema';
+// Phase4: 全局功能开关 — 月度简报记忆写入受旧空闲大脑逻辑开关控制
+import { MIND_SWITCH } from '../../src/config/mindSwitch';
 import { appendAudit, listAudit, listSandboxProjects, listMetricSummary } from './database';
 import { getAdaptedLedger } from './adapter';
 import { getBillingStats } from './auth_gateway';
@@ -56,15 +61,26 @@ export async function generateSkillsMonthlyBrief(): Promise<string> {
   ].join('\n');
 
   try {
-    // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
-    addMemory({
-      userId: 'default',
-      content: brief,
-      type: 'fact',
-      keywords: ['技能拓展', '月度自省'],
-      confidence: 0.8,
-      sourceInteractionId: '',
-    }, { tier: 'internalized', perspective: 'owner_trait', importance: 0.4 });
+    // Phase4: 原 addMemory 直接写入迁移 — 事件封装后经 runInnerTick 统一落库（仅 innerTick.ts 内部允许 addMemory），
+    // 受 enableOldIdleBrain 开关控制，开关关闭时整套旧记忆写入逻辑不执行；函数仍返回 brief 供 API 使用
+    if (MIND_SWITCH.enableOldIdleBrain) {
+      const evt: MentalEventItem = {
+        source: 'skills_extension',
+        eventType: 'monthly_brief',
+        brief: '技能拓展月度自省简报',
+        payload: {
+          content: brief,
+          keywords: ['技能拓展', '月度自省'],
+          type: 'fact',
+          tier: 'internalized',
+          perspective: 'owner_trait',
+          importance: 0.4,
+        },
+      };
+      void runInnerTick({ userId: 'default', derivedMentalEvents: [evt] }).catch((e: any) =>
+        logger.warn(`[SkillsHooks] 月度简报心智事件派发失败: ${e?.message || e}`),
+      );
+    }
   } catch (e: any) {
     logger.warn(`[SkillsHooks] 月度简报写入记忆失败: ${e.message}`);
   }

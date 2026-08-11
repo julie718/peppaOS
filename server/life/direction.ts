@@ -1,5 +1,7 @@
 import sqlite3 from 'sqlite3';
 import { logger } from '../lib/logger';
+// Phase4: 旧模块 addMemory 直接写入迁移 — 事件封装后经 runInnerTick 统一落库（仅 innerTick.ts 内部允许 addMemory）
+import type { MentalEventItem } from '../../src/types/innerTickSchema';
 
 import { getDataPath } from '../config/data_path'; // E-3: 统一路径解析
 // 【重构·校验修复】默认路径回落数据根统一解析（Docker 内 LUMI_DATA_DIR=/app → /app/data/life.db 不变）
@@ -246,24 +248,34 @@ export class DirectionState {
     this.updatedAt = new Date().toISOString();
     await this.save();
 
-    // ── 方向状态 → 记忆 ──
+    // ── 方向状态 → 心智事件（Phase4: 原 addMemory 直接写入迁移 — 事件封装后经 runInnerTick 统一落库，
+    //    受 enableOldLifeTick 开关控制，开关关闭时整套旧记忆写入逻辑不执行）──
     try {
-      const { addMemory } = await import('../memory/store');
-      const memoryContent = `判断: ${this.inclination} (${Math.round(this.intensity * 100)}%) — ${this.reason}`;
-      // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
-      await addMemory({
-        userId: 'default',
-        content: memoryContent,
-        type: 'fact',
-        keywords: ['判断', this.inclination],
-        confidence: 0.5,
-        sourceInteractionId: '',
-      }, {
-        tier: 'episodic',
-        perspective: 'owner_trait',
-        importance: 0.5,
-      });
-      logger.info(`[Direction] 判断已写入记忆: ${this.inclination} (${Math.round(this.intensity * 100)}%)`);
+      const { MIND_SWITCH } = await import('../../src/config/mindSwitch');
+      if (MIND_SWITCH.enableOldLifeTick) {
+        const { runInnerTick } = await import('../../src/core/innerTick');
+        const memoryContent = `判断: ${this.inclination} (${Math.round(this.intensity * 100)}%) — ${this.reason}`;
+        const evt: MentalEventItem = {
+          source: 'life',
+          eventType: 'direction_judgment',
+          brief: '方向判断更新',
+          payload: {
+            content: memoryContent,
+            inclination: this.inclination,
+            intensity: this.intensity,
+            reason: this.reason,
+            type: 'fact',
+            keywords: ['判断', this.inclination],
+            tier: 'episodic',
+            perspective: 'owner_trait',
+            importance: 0.5,
+          },
+        };
+        void runInnerTick({ userId: 'default', derivedMentalEvents: [evt] }).catch((e: any) =>
+          logger.warn(`[Direction] 心智事件派发失败: ${e?.message || e}`),
+        );
+        logger.info(`[Direction] 判断已封装为心智事件: ${this.inclination} (${Math.round(this.intensity * 100)}%)`);
+      }
     } catch (e: any) {
       logger.warn(`[Direction] 写入记忆失败: ${e.message}`);
     }

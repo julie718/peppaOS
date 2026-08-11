@@ -1,8 +1,27 @@
 import { makeLLMCall, NormalizedMessage } from '../llm/providers';
 import { logger } from '../lib/logger';
-import { getUnconsolidatedEpisodic, markConsolidated, addMemory, queryMemories } from './store';
-import { Memory, MemoryPerspective } from './types';
+import { getUnconsolidatedEpisodic, markConsolidated, queryMemories } from './store';
+import { MemoryPerspective } from './types';
 import { readDB } from '../../db_layer';
+// Phase4: 旧模块 addMemory 直接写入迁移 — 事件封装后经 runInnerTick 统一落库（仅 innerTick.ts 内部允许 addMemory）
+import { runInnerTick } from '../../src/core/innerTick';
+import type { MentalEventItem } from '../../src/types/innerTickSchema';
+
+/**
+ * Phase4: 原 addMemory 返回值收敛为本地派生记录（不再同步落库）。
+ * 内容计算逻辑完整保留；实际写入统一收敛到 InnerTick 心智回合内部。
+ */
+export interface DerivedMemoryRecord {
+  id: string;    // 本地派生标识（非存储 id，仅供报告/关联引用）
+  content: string;
+}
+
+/** Phase4: 模块内共享的派生心智事件派发辅助（非阻塞，失败不影响主流程） */
+function dispatchDerivedEvents(userId: string, eventList: MentalEventItem[]): void {
+  if (eventList.length > 0) {
+    void runInnerTick({ userId, derivedMentalEvents: eventList }).catch((e) => console.error('mental event dispatch fail', e));
+  }
+}
 
 interface ConsolidateResult {
   content: string;
@@ -112,12 +131,15 @@ export async function consolidateEpisodic(
   getKimi?: () => any,
   getGlm?: () => any,
   getRelay?: () => any,
-): Promise<Memory | null> {
+): Promise<DerivedMemoryRecord | null> {
   const episodic = getUnconsolidatedEpisodic(ctx.userId, ctx.domain, ctx.orgId);
 
   if (episodic.length < minCount) {
     return null;
   }
+
+  // Phase4: 本任务派生心智事件收集（替代原直接 addMemory 写入，任务末尾随 runInnerTick 注入）
+  const eventList: MentalEventItem[] = [];
 
   // Take the most recent unconsolidated batch
   const batch = episodic
@@ -161,26 +183,27 @@ export async function consolidateEpisodic(
 
     if (!parsed.content || typeof parsed.content !== 'string') return null;
 
-    // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
-    const consolidated = addMemory(
-      {
-        userId: ctx.userId,
-        type: 'knowledge',
-        content: parsed.content.trim().slice(0, 500),
+    // Phase4: 原 addMemory 直接写入 → 封装为 MentalEventItem + 本地派生记录（不直接落库），
+    // 任务末尾经 runInnerTick 注入推演统一落库
+    const content = parsed.content.trim().slice(0, 500);
+    const consolidated: DerivedMemoryRecord = {
+      id: `consolidation_${Date.now()}`,
+      content,
+    };
+    const evt: MentalEventItem = {
+      source: 'consolidator',
+      eventType: 'episodic_consolidation',
+      brief: '碎片记忆固化为成长叙事',
+      payload: {
+        content,
         keywords: (parsed.keywords || []).map((k: string) => k.toLowerCase().trim()).slice(0, 5),
-        confidence: 0.7,
-        sourceInteractionId: `consolidation_${Date.now()}`,
-      },
-      {
-        tier: 'growth',
-        perspective: 'peppa_growth',
         importance: Math.min(1, Math.max(0.3, Number(parsed.importance) || 0.5)),
-        parentId: null,
-        source: 'consolidation',
+        sourceBatchCount: batch.length,
       },
-    );
+    };
+    eventList.push(evt);
 
-    // Link original episodic memories to this consolidated one
+    // Link original episodic memories to this consolidated one（parentId 引用本地派生标识）
     markConsolidated(batch.map(m => m.id), consolidated.id);
 
     logger.info(`[Consolidator] Consolidated ${batch.length} episodic memories → growth:${consolidated.id}`);
@@ -193,6 +216,9 @@ export async function consolidateEpisodic(
         getDeepSeek, getGemini, getQwen,
       }).catch(() => {}); // fire-and-forget
     } catch {}
+
+    // Phase4: 任务末尾派发本任务派生心智事件（非阻塞，失败不影响主流程）
+    dispatchDerivedEvents(ctx.userId, eventList);
 
     return consolidated;
   } catch (err) {
@@ -218,7 +244,9 @@ export async function selfReflect(
   getKimi?: () => any,
   getGlm?: () => any,
   getRelay?: () => any,
-): Promise<Memory | null> {
+): Promise<DerivedMemoryRecord | null> {
+  // Phase4: 本任务派生心智事件收集（替代原直接 addMemory 写入，任务末尾随 runInnerTick 注入）
+  const eventList: MentalEventItem[] = [];
   const growthMemories = queryMemories({
     userId: ctx.userId,
     tier: 'growth',
@@ -270,26 +298,29 @@ export async function selfReflect(
 
     if (!parsed.content || typeof parsed.content !== 'string') return null;
 
-    // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
-    const reflection = addMemory(
-      {
-        userId: ctx.userId,
-        type: 'knowledge',
-        content: parsed.content.trim().slice(0, 500),
+    // Phase4: 原 addMemory 直接写入 → 封装为 MentalEventItem + 本地派生记录（不直接落库），
+    // 任务末尾经 runInnerTick 注入推演统一落库
+    const content = parsed.content.trim().slice(0, 500);
+    const reflection: DerivedMemoryRecord = {
+      id: `self_reflection_${Date.now()}`,
+      content,
+    };
+    const evt: MentalEventItem = {
+      source: 'consolidator',
+      eventType: 'self_reflection',
+      brief: '生成自我反思',
+      payload: {
+        content,
         keywords: (parsed.keywords || []).map((k: string) => k.toLowerCase().trim()).slice(0, 5),
-        confidence: 0.85,
-        sourceInteractionId: `self_reflection_${Date.now()}`,
-      },
-      {
-        tier: 'growth',
-        perspective: parsed.perspective === 'peppa_self' ? 'peppa_self' : 'peppa_growth',
         importance: Math.min(1, Math.max(0.5, Number(parsed.importance) || 0.7)),
-        parentId: null,
-        source: 'consolidation',
+        perspective: parsed.perspective === 'peppa_self' ? 'peppa_self' : 'peppa_growth',
       },
-    );
+    };
+    eventList.push(evt);
 
     logger.info(`[SelfReflect] Generated reflection:${reflection.id}`);
+    // Phase4: 任务末尾派发本任务派生心智事件（非阻塞，失败不影响主流程）
+    dispatchDerivedEvents(ctx.userId, eventList);
     return reflection;
   } catch (err) {
     logger.error('[SelfReflect] Reflection failed:', err);
@@ -319,7 +350,9 @@ export async function consolidateNarrative(
   getKimi?: () => any,
   getGlm?: () => any,
   getRelay?: () => any,
-): Promise<Memory | null> {
+): Promise<DerivedMemoryRecord | null> {
+  // Phase4: 本任务派生心智事件收集（替代原直接 addMemory 写入，任务末尾随 runInnerTick 注入）
+  const eventList: MentalEventItem[] = [];
   const cutoff = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000).toISOString();
   const memories = queryMemories({
     userId: ctx.userId,
@@ -380,26 +413,30 @@ export async function consolidateNarrative(
     const title = parsed.title || `叙事记忆 ${new Date().toISOString().slice(0, 10)}`;
     const content = `[${title}] ${parsed.narrative.trim().slice(0, 500)}`;
 
-    // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
-    const narrative = addMemory(
-      {
-        userId: ctx.userId,
-        type: 'knowledge',
+    // Phase4: 原 addMemory 直接写入 → 封装为 MentalEventItem + 本地派生记录（不直接落库），
+    // 任务末尾经 runInnerTick 注入推演统一落库
+    const narrative: DerivedMemoryRecord = {
+      id: `narrative_consolidation_${Date.now()}`,
+      content,
+    };
+    const evt: MentalEventItem = {
+      source: 'consolidator',
+      eventType: 'narrative_consolidation',
+      brief: '生成跨日叙事故事线',
+      payload: {
+        title,
         content,
         keywords: [...(parsed.keywords || []).map((k: string) => k.toLowerCase().trim()).slice(0, 5), 'narrative', 'storyline'],
-        confidence: 0.8,
-        sourceInteractionId: `narrative_consolidation_${Date.now()}`,
-      },
-      {
-        tier: 'growth',
-        perspective: 'shared_memory',
         importance: Math.min(0.9, Math.max(0.4, Number(parsed.importance) || 0.6)),
-        parentId: null,
-        source: 'consolidation',
+        windowDays,
+        sourceMemoryCount: sample.length,
       },
-    );
+    };
+    eventList.push(evt);
 
     logger.info(`[NarrativeConsolidator] Created storyline "${title}" (${sample.length} memories, ${windowDays}d window)`);
+    // Phase4: 任务末尾派发本任务派生心智事件（非阻塞，失败不影响主流程）
+    dispatchDerivedEvents(ctx.userId, eventList);
     return narrative;
   } catch (err) {
     logger.error('[NarrativeConsolidator] Failed:', err);

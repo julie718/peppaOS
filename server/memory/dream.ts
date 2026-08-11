@@ -3,13 +3,15 @@ import { getGateConfig, getRecentIdleState } from '../autonomy/safety_gate';
 import { getUserPreferredLLMConfig } from '../llm/user_preferences';
 import { makeLLMCall, NormalizedMessage } from '../llm/providers';
 import {
-  addMemory,
   decayMemoryAssociations,
   getUnconsolidatedEpisodic,
   promoteMemories,
   queryMemories,
 } from './store';
-import { consolidateEpisodic, consolidateNarrative, selfReflect, ConsolidationContext } from './consolidator';
+import { consolidateEpisodic, consolidateNarrative, selfReflect, ConsolidationContext, DerivedMemoryRecord } from './consolidator';
+// Phase4: 旧模块 addMemory 直接写入迁移 — 事件封装后经 runInnerTick 统一落库（仅 innerTick.ts 内部允许 addMemory）
+import { runInnerTick } from '../../src/core/innerTick';
+import type { MentalEventItem } from '../../src/types/innerTickSchema';
 import { Memory } from './types';
 import { loadEmotionalState } from '../personality/state';
 
@@ -239,7 +241,7 @@ async function synthesizeDream(
   return parsed as DreamSynthesis;
 }
 
-function addDreamMemory(ctx: ConsolidationContext, dream: DreamSynthesis): Memory | null {
+function addDreamMemory(ctx: ConsolidationContext, dream: DreamSynthesis, eventList: MentalEventItem[]): DerivedMemoryRecord | null {
   const title = String(dream.title || '梦境整理').trim().slice(0, 40);
   const body = String(dream.dream || '').trim();
   if (!body) return null;
@@ -254,37 +256,30 @@ function addDreamMemory(ctx: ConsolidationContext, dream: DreamSynthesis): Memor
     questions.length ? `醒来后可轻问：${questions.join('；')}` : '',
   ].filter(Boolean).join('\n').slice(0, 900);
 
-  // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
-  return addMemory(
-    {
-      userId: ctx.userId,
-      type: 'knowledge',
+  // Phase4: 原 addMemory 直接写入 → 封装为 MentalEventItem + 本地派生记录（不直接落库），
+  // runDreamCycle 任务末尾经 runInnerTick 注入推演统一落库
+  const record: DerivedMemoryRecord = { id: `dream_cycle_${Date.now()}`, content };
+  const evt: MentalEventItem = {
+    source: 'dream',
+    eventType: 'dream_consolidation',
+    brief: `睡眠梦境整理：${title}`,
+    payload: {
+      title,
       content,
+      insights,
+      confusion,
+      questions,
       keywords: [
         'sleep',
         'dream',
         'memory_consolidation',
         ...((Array.isArray(dream.keywords) ? dream.keywords : []).map(String)),
       ].map(k => k.toLowerCase().trim()).filter(Boolean).slice(0, 10),
-      confidence: 0.76,
-      sourceInteractionId: `dream_cycle_${Date.now()}`,
-      source: 'consolidation',
-      domain: ctx.domain || 'personal',
-      orgId: ctx.orgId || '',
-      privacyClass: 'private',
-      retention: 'long_term',
-    },
-    {
-      tier: 'growth',
-      perspective: 'peppa_growth',
       importance: Math.max(0.35, Math.min(0.85, Number(dream.importance) || 0.55)),
-      source: 'consolidation',
-      domain: ctx.domain || 'personal',
-      orgId: ctx.orgId || '',
-      privacyClass: 'private',
-      retention: 'long_term',
     },
-  );
+  };
+  eventList.push(evt);
+  return record;
 }
 
 export async function runDreamCycle(
@@ -367,11 +362,13 @@ export async function runDreamCycle(
     return report;
   }
 
-  let consolidated: Memory | null = null;
-  let narrative: Memory | null = null;
-  let reflection: Memory | null = null;
-  let dreamMemory: Memory | null = null;
+  let consolidated: DerivedMemoryRecord | null = null;
+  let narrative: DerivedMemoryRecord | null = null;
+  let reflection: DerivedMemoryRecord | null = null;
+  let dreamMemory: DerivedMemoryRecord | null = null;
   let dream: DreamSynthesis | null = null;
+  // Phase4: 本任务派生心智事件收集（替代原直接 addMemory 写入，任务末尾随 runInnerTick 注入）
+  const eventList: MentalEventItem[] = [];
   const safety = [
     'Original memories were not deleted.',
     'Core identity was not mutated.',
@@ -387,7 +384,7 @@ export async function runDreamCycle(
     }
     reflection = await selfReflect(ctx, getters.getDeepSeek, getters.getGemini, getters.getOpenAI, getters.getAnthropic, getters.getQwen, getters.getOllama, getters.getLmStudio, getters.getArk, getters.getXiaomi, getters.getKimi, getters.getGlm, getters.getRelay);
     dream = await synthesizeDream(ctx, recent, lowConfidence, getters);
-    if (dream) dreamMemory = addDreamMemory(ctx, dream);
+    if (dream) dreamMemory = addDreamMemory(ctx, dream, eventList);
 
     decayMemoryAssociations(userId);
     const emotionalState = loadEmotionalState(userId);
@@ -418,6 +415,10 @@ export async function runDreamCycle(
       safety,
     };
     saveSleepCycleState(userId, { status: report.status === 'failed' ? 'failed' : 'rested', lastCompletedAt: completedAt, lastReason: report.reason, lastReport: report });
+    // Phase4: 任务末尾派发本任务派生心智事件（非阻塞，失败不影响主流程）
+    if (eventList.length > 0) {
+      void runInnerTick({ userId, derivedMentalEvents: eventList }).catch((e) => console.error('mental event dispatch fail', e));
+    }
     return report;
   }
 
@@ -445,6 +446,11 @@ export async function runDreamCycle(
     questions: Array.isArray(dream?.nextQuestions) ? dream!.nextQuestions!.map(String).slice(0, 3) : [],
     safety,
   };
+
+  // Phase4: 任务末尾派发本任务派生心智事件（非阻塞，失败不影响主流程）
+  if (eventList.length > 0) {
+    void runInnerTick({ userId, derivedMentalEvents: eventList }).catch((e) => console.error('mental event dispatch fail', e));
+  }
 
   const prior = getSleepCycleState(userId);
   saveSleepCycleState(userId, {

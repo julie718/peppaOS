@@ -15,7 +15,9 @@ import { runInnerTick } from '../../src/core/innerTick';
 import { getEmotionEngine } from '../life/emotions';
 import { getPersonalityEngine } from '../life/personality';
 import { getLifeSystem } from '../life/index';
-import { addMemory, queryMemories, promoteMemories } from '../memory/store';
+import { queryMemories, promoteMemories } from '../memory/store';
+// Phase4: 旧模块 addMemory 直接写入迁移 — 事件封装后经 runInnerTick 统一落库（仅 innerTick.ts 内部允许 addMemory）
+import type { MentalEventItem } from '../../src/types/innerTickSchema';
 import type { Memory, MemoryTier, MemoryPerspective } from '../memory/types';
 import { consolidateEpisodic, consolidateNarrative, ConsolidationContext } from '../memory/consolidator';
 import { addInteractionMemory, getSignificantMemories } from '../db/lifeDb';
@@ -128,6 +130,8 @@ class IdleBrain {
 
       // P1-9: 使用真实业务用户 ID（最后活跃用户），替代写死的 'system'
       const targetUserId = ((global as any).__lastActiveUid as string) || 'default';
+      // Phase4: 本任务派生心智事件收集（替代原直接 addMemory 写入，任务末尾随 runInnerTick 注入）
+      const eventList: MentalEventItem[] = [];
 
       // 1. 记忆归纳 — 真实用户 + 补全 LLM Getter（避免空回调导致调用报错被静默吞掉）
       const ctx: ConsolidationContext = {
@@ -190,20 +194,14 @@ class IdleBrain {
         const text = await composeTriggerContent('inner_monologue', { date, dominant: dominantLabel });
         const monologue = `[${date} 内心独白] 主导情绪: ${dominantLabel}。${text}`;
 
-        // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
-        addMemory({
-          userId: targetUserId,
-          type: 'fact' as any,
-          keywords: ['内心独白', 'idle_brain'],
-          content: monologue,
-          confidence: 0.8,
-          sourceInteractionId: 'idle_brain_monologue',
-        }, {
-          tier: 'internalized' as any,
-          perspective: 'owner_trait' as any,
-          importance: 0.4,
-          source: 'idle_brain' as any,
-        });
+        // Phase4: 原 addMemory 直接写入 → 封装为 MentalEventItem，任务末尾经 runInnerTick 注入推演统一落库
+        const evt: MentalEventItem = {
+          source: 'idle_brain',
+          eventType: 'inner_monologue',
+          brief: '空闲内心独白',
+          payload: { monologue, dominantEmotion: dominantLabel, date },
+        };
+        eventList.push(evt);
         this.state.innerMonologueCount++;
         logger.info('[IdleBrain] 内心独白已生成');
 
@@ -222,6 +220,13 @@ class IdleBrain {
         logger.warn(`[IdleBrain] 资讯简报跳过: ${e?.message || '网络不可用'}`);
       }
 
+      // Phase4: 任务末尾派发本任务派生心智事件（非阻塞，失败不影响主流程）
+      if (eventList.length > 0) {
+        void runInnerTick({ userId: targetUserId, derivedMentalEvents: eventList }).catch((e: any) =>
+          logger.warn(`[IdleBrain] 心智事件派发失败: ${e?.message || e}`),
+        );
+      }
+
       // 记录执行日期
       this.state.lastLongRun = new Date().toISOString().slice(0, 10);
       logger.info('[IdleBrain] 长待机完成');
@@ -233,6 +238,9 @@ class IdleBrain {
   // ── 月度自省 ──
   async monthlyReflection(): Promise<void> {
     if (!CONFIG.MONTHLY_ENABLED) return;
+
+    // Phase4: 本任务派生心智事件收集（替代原直接 addMemory 写入，任务末尾随 runInnerTick 注入）
+    const eventList: MentalEventItem[] = [];
 
     try {
       logger.info('[IdleBrain] 月度自省: 全周期关系复盘 + 风格微调');
@@ -277,20 +285,18 @@ class IdleBrain {
       // 3. 记录月度自省记忆
       // L-9: 归属真实用户（与长待机整合一致的 __lastActiveUid 模式）— 修复前写死 'system'，
       // 月度自省记忆永远落不到任何用户记忆库，GC/检索都拿不到它
-      // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
-      addMemory({
-        userId: ((global as any).__lastActiveUid as string) || 'default',
-        type: 'fact' as any,
-        keywords: ['月度自省', '反思'],
-        content: `[月度自省 ${new Date().toISOString().slice(0, 7)}] ${relation?.narrative || '定期自我审视完成。'}`,
-        confidence: 0.9,
-        sourceInteractionId: 'monthly_reflection',
-      }, {
-        tier: 'growth' as any,
-        perspective: 'owner_trait' as any,
-        importance: 0.8,
-        source: 'monthly_reflection' as any,
-      });
+      // Phase4: 原 addMemory 直接写入 → 封装为 MentalEventItem，任务末尾经 runInnerTick 注入推演统一落库
+      const monthlyUserId = ((global as any).__lastActiveUid as string) || 'default';
+      const evt: MentalEventItem = {
+        source: 'idle_brain',
+        eventType: 'monthly_reflection',
+        brief: '月度自省复盘',
+        payload: {
+          month: new Date().toISOString().slice(0, 7),
+          narrative: relation?.narrative || '定期自我审视完成。',
+        },
+      };
+      eventList.push(evt);
 
       this.state.lastMonthlyRun = new Date().toISOString().slice(0, 7);
 
@@ -299,6 +305,13 @@ class IdleBrain {
         await getEmotionEngine().updateEmotions([0, 0.02, 0, -0.01, -0.01, 0.03, 0, 0]);
         logger.info('[IdleBrain] 月度自省已联动情绪基线');
       } catch {}
+
+      // Phase4: 任务末尾派发本任务派生心智事件（非阻塞，失败不影响主流程）
+      if (eventList.length > 0) {
+        void runInnerTick({ userId: monthlyUserId, derivedMentalEvents: eventList }).catch((e: any) =>
+          logger.warn(`[IdleBrain] 心智事件派发失败: ${e?.message || e}`),
+        );
+      }
 
       logger.info('[IdleBrain] 月度自省完成');
     } catch (e: any) {

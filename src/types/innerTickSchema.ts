@@ -38,6 +38,19 @@ export interface InnerTickArchiveItem {
 }
 
 /**
+ * 派生心智事件：旧模块（scheduler / idle_brain / dream / consolidator 等）不再直接
+ * 调用 addMemory 写向量记忆，而是把原 addMemory 载荷封装为 MentalEventItem 事件，
+ * 收集后在模块任务末尾随 runInnerTick({ derivedMentalEvents }) 注入 LLM 推演上下文。
+ * 实际落库统一收敛到 InnerTick 内部（全系统仅 innerTick.ts 允许调用 addMemory）。
+ */
+export interface MentalEventItem {
+  source: string; // scheduler / idle_brain / dream / consolidator 等模块来源
+  eventType: string;
+  brief: string; // 简短文本描述事件
+  payload: Record<string, any>;
+}
+
+/**
  * InnerTick 心智回合完整结构化输出。
  * runInnerTick() 返回本对象，并将完整序列化写入 life.db 快照备份；
  * 本阶段不据此修改任何全局运行状态。

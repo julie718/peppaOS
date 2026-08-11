@@ -1,6 +1,11 @@
 import { makeLLMCall, NormalizedMessage } from '../llm/providers';
 import { logger } from '../lib/logger';
-import { queryMemories, addMemory, getAssociatedMemories } from './store';
+import { queryMemories, getAssociatedMemories } from './store';
+// Phase4: 旧模块 addMemory 直接写入迁移 — 事件封装后经 runInnerTick 统一落库（仅 innerTick.ts 内部允许 addMemory）
+import { runInnerTick } from '../../src/core/innerTick';
+import type { MentalEventItem } from '../../src/types/innerTickSchema';
+// Phase4: 全局功能开关 — 叙事沉淀记忆写入受旧自主逻辑开关控制
+import { MIND_SWITCH } from '../../src/config/mindSwitch';
 import { Memory } from './types';
 import { readDB, writeDB } from '../../db_layer';
 
@@ -201,29 +206,28 @@ export async function buildNarrativeChain(params: {
     saveNarrative(topic, parsed.narrative.trim().slice(0, 500), sourceIds);
     logger.info(`[Narrative] built narrative for topic: ${topic}`);
 
-    // 7. Store narrative as a growth memory
-    // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
-    const stored = addMemory(
-      {
-        userId,
-        type: 'knowledge',
-        content: `[Narrative re: ${topic}] ${parsed.narrative.trim().slice(0, 500)}`,
-        keywords: [topic.toLowerCase(), 'narrative', 'growth', 'story'],
-        confidence: 0.85,
-        sourceInteractionId: '',
-      },
-      {
-        tier: 'growth',
-        perspective: 'peppa_self',
-        importance: 0.6,
-      },
-    );
+    // 7. Phase4: 原 addMemory 直接写入 → 封装为 MentalEventItem，经 runInnerTick 注入推演统一落库
+    // （不再同步落库，storedAsMemoryId 保持 undefined；受 enableOldSchedulerAutonomy 开关控制，
+    //   开关关闭时整套旧记忆写入逻辑不执行）
+    if (MIND_SWITCH.enableOldSchedulerAutonomy) {
+      const evt: MentalEventItem = {
+        source: 'narrative',
+        eventType: 'narrative_chain',
+        brief: '叙事链生成并沉淀为成长记忆',
+        payload: {
+          topic,
+          content: `[Narrative re: ${topic}] ${parsed.narrative.trim().slice(0, 500)}`,
+          sourceMemoryIds: sourceIds,
+        },
+      };
+      void runInnerTick({ userId, derivedMentalEvents: [evt] }).catch((e) => console.error('mental event dispatch fail', e));
+    }
 
     return {
       narrative: parsed.narrative.trim(),
       sourceMemoryIds: sourceIds,
       memoryChain: chain,
-      storedAsMemoryId: stored.id,
+      storedAsMemoryId: undefined,
     };
   } catch (err: any) {
     logger.error('[Memory] Narrative chain generation failed:', err.message);

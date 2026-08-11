@@ -5,6 +5,9 @@ import { Server as SocketIOServer } from 'socket.io';
 import { logger } from './lib/logger';
 // Phase3: 全局功能开关 — 控制 scheduler 自主任务（周报月报等）是否执行
 import { MIND_SWITCH } from '../src/config/mindSwitch';
+// Phase4: 旧模块 addMemory 直接写入迁移 — 事件封装后经 runInnerTick 统一落库（仅 innerTick.ts 内部允许 addMemory）
+import { runInnerTick } from '../src/core/innerTick';
+import type { MentalEventItem } from '../src/types/innerTickSchema';
 import { queryMemories, getDueReminders, fireReminder, runBehavioralAnalysis, decayMemories, dynamicDecayMemories, promoteMemories, getUnconsolidatedEpisodic, autoMarkCrossAgentShare } from './memory';
 import { consolidateEpisodic, consolidateNarrative, ConsolidationContext } from './memory/consolidator';
 import { runDreamCycle } from './memory/dream';
@@ -443,6 +446,8 @@ export function registerScheduledTasks(
     quiet: true,
     lastRun: null,
     handler: async () => {
+      // Phase4: enableOldSchedulerAutonomy 开关 — false 时跳过记忆固化整套旧逻辑（代码本体保留）
+      if (!MIND_SWITCH.enableOldSchedulerAutonomy) return null;
       const userIds = getAllUserIds();
       const messages: string[] = [];
       for (const userId of userIds) {
@@ -469,6 +474,8 @@ export function registerScheduledTasks(
     quiet: true,
     lastRun: null,
     handler: async () => {
+      // Phase4: enableOldSchedulerAutonomy 开关 — false 时跳过叙事固化整套旧逻辑（代码本体保留）
+      if (!MIND_SWITCH.enableOldSchedulerAutonomy) return null;
       const userIds = getAllUserIds();
       const messages: string[] = [];
 
@@ -502,6 +509,8 @@ export function registerScheduledTasks(
     quiet: true,
     lastRun: null,
     handler: async () => {
+      // Phase4: enableOldSchedulerAutonomy 开关 — false 时跳过梦境整理整套旧逻辑（代码本体保留）
+      if (!MIND_SWITCH.enableOldSchedulerAutonomy) return null;
       const userIds = getAllUserIds();
       const messages: string[] = [];
       const getters: LLMGetters = {
@@ -614,6 +623,8 @@ export function registerScheduledTasks(
     quiet: true,
     lastRun: null,
     handler: async () => {
+      // Phase4: enableOldSchedulerAutonomy 开关 — false 时跳过行为分析整套旧逻辑（代码本体保留）
+      if (!MIND_SWITCH.enableOldSchedulerAutonomy) return null;
       const userIds = getAllUserIds();
       let totalCount = 0;
       for (const userId of userIds) {
@@ -801,6 +812,8 @@ Rules:
       const userIds = getAllUserIds();
       const messages: string[] = [];
       for (const userId of userIds) {
+        // Phase4: 本用户派生心智事件收集（替代原直接 addMemory 写入，任务末尾随 runInnerTick 注入）
+        const eventList: MentalEventItem[] = [];
         try {
           const config = personalityRegistry.get('peppa');
           if (!config) continue;
@@ -839,21 +852,23 @@ Rules:
             );
           const narrative = result.text?.trim();
           if (narrative) {
-            // Store as a special growth memory
-            const { addMemory } = await import('./memory');
-            // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
-            addMemory({
-              userId, type: 'knowledge',
-              content: `[Weekly Review ${new Date().toISOString().slice(0, 10)}] ${narrative}`,
-              keywords: ['weekly_review', `week_${new Date().toISOString().slice(0, 10)}`],
-              confidence: 1.0,
-              sourceInteractionId: 'weekly_review_scheduler',
-            } as any, { tier: 'growth', perspective: 'peppa_self', importance: 0.95 });
+            // Phase4: 原 addMemory 直接写入 → 封装为 MentalEventItem，任务末尾经 runInnerTick 注入推演统一落库
+            const evt: MentalEventItem = {
+              source: 'scheduler',
+              eventType: 'weekly_review',
+              brief: '生成每周自我回顾',
+              payload: { reviewContent: narrative, week: new Date().toISOString().slice(0, 10) },
+            };
+            eventList.push(evt);
             logger.info(`[WeeklyReview] Generated for ${userId}: ${narrative.slice(0, 100)}`);
             messages.push(`[${userId}] ${narrative.slice(0, 200)}`);
           }
         } catch (err: any) {
           logger.error(`[WeeklyReview] Failed for ${userId}:`, err.message);
+        }
+        // Phase4: 任务末尾派发本用户派生心智事件（非阻塞，失败不影响主流程）
+        if (eventList.length > 0) {
+          void runInnerTick({ userId, derivedMentalEvents: eventList }).catch((e) => console.error('mental event dispatch fail', e));
         }
       }
       return messages.length > 0 ? messages.join('\n') : null;
@@ -872,6 +887,8 @@ Rules:
       const userIds = getAllUserIds();
       const messages: string[] = [];
       for (const userId of userIds) {
+        // Phase4: 本用户派生心智事件收集（替代原直接 addMemory 写入，任务末尾随 runInnerTick 注入）
+        const eventList: MentalEventItem[] = [];
         try {
           const config = personalityRegistry.get('peppa');
           if (!config) continue;
@@ -910,20 +927,23 @@ Rules:
             );
           const narrative = result.text?.trim();
           if (narrative) {
-            const { addMemory } = await import('./memory');
-            // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
-            addMemory({
-              userId, type: 'knowledge',
-              content: `[Monthly Review ${new Date().toISOString().slice(0, 10)}] ${narrative}`,
-              keywords: ['monthly_review', `month_${new Date().toISOString().slice(0, 7)}`],
-              confidence: 1.0,
-              sourceInteractionId: 'monthly_review_scheduler',
-            } as any, { tier: 'growth', perspective: 'peppa_self', importance: 0.97 });
+            // Phase4: 原 addMemory 直接写入 → 封装为 MentalEventItem，任务末尾经 runInnerTick 注入推演统一落库
+            const evt: MentalEventItem = {
+              source: 'scheduler',
+              eventType: 'monthly_review',
+              brief: '生成月度自我回顾',
+              payload: { reviewContent: narrative, month: new Date().toISOString().slice(0, 7) },
+            };
+            eventList.push(evt);
             logger.info(`[MonthlyReview] Generated for ${userId}: ${narrative.slice(0, 100)}`);
             messages.push(`[${userId}] ${narrative.slice(0, 200)}`);
           }
         } catch (err: any) {
           logger.error(`[MonthlyReview] Failed for ${userId}:`, err.message);
+        }
+        // Phase4: 任务末尾派发本用户派生心智事件（非阻塞，失败不影响主流程）
+        if (eventList.length > 0) {
+          void runInnerTick({ userId, derivedMentalEvents: eventList }).catch((e) => console.error('mental event dispatch fail', e));
         }
       }
       return messages.length > 0 ? messages.join('\n') : null;
@@ -942,6 +962,8 @@ Rules:
       const userIds = getAllUserIds();
       const messages: string[] = [];
       for (const userId of userIds) {
+        // Phase4: 本用户派生心智事件收集（替代原直接 addMemory 写入，任务末尾随 runInnerTick 注入）
+        const eventList: MentalEventItem[] = [];
         try {
           const config = personalityRegistry.get('peppa');
           if (!config) continue;
@@ -980,20 +1002,23 @@ Rules:
             );
           const narrative = result.text?.trim();
           if (narrative) {
-            const { addMemory } = await import('./memory');
-            // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
-            addMemory({
-              userId, type: 'knowledge',
-              content: `[Yearly Review ${new Date().toISOString().slice(0, 10)}] ${narrative}`,
-              keywords: ['yearly_review', `year_${new Date().toISOString().slice(0, 4)}`],
-              confidence: 1.0,
-              sourceInteractionId: 'yearly_review_scheduler',
-            } as any, { tier: 'growth', perspective: 'peppa_self', importance: 1.0 });
+            // Phase4: 原 addMemory 直接写入 → 封装为 MentalEventItem，任务末尾经 runInnerTick 注入推演统一落库
+            const evt: MentalEventItem = {
+              source: 'scheduler',
+              eventType: 'yearly_review',
+              brief: '生成年度自我回顾',
+              payload: { reviewContent: narrative, year: new Date().toISOString().slice(0, 4) },
+            };
+            eventList.push(evt);
             logger.info(`[YearlyReview] Generated for ${userId}: ${narrative.slice(0, 100)}`);
             messages.push(`[${userId}] ${narrative.slice(0, 200)}`);
           }
         } catch (err: any) {
           logger.error(`[YearlyReview] Failed for ${userId}:`, err.message);
+        }
+        // Phase4: 任务末尾派发本用户派生心智事件（非阻塞，失败不影响主流程）
+        if (eventList.length > 0) {
+          void runInnerTick({ userId, derivedMentalEvents: eventList }).catch((e) => console.error('mental event dispatch fail', e));
         }
       }
       return messages.length > 0 ? messages.join('\n') : null;
@@ -1114,6 +1139,8 @@ Rules:
       const messages: string[] = [];
 
       for (const userId of userIds) {
+        // Phase4: 本用户派生心智事件收集（替代原直接 addMemory 写入，任务末尾随 runInnerTick 注入）
+        const eventList: MentalEventItem[] = [];
         try {
           const db = readDB();
           const now = new Date();
@@ -1197,30 +1224,23 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
 
             const narrative = narrativeResult.text?.trim() || `${summaryData.newMemories} 条新记忆，${summaryData.newInteractions} 次对话 — Peppa 在成长。`;
 
-            // Store as a special memory
-            const { addMemory } = await import('./memory');
-            // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
-            addMemory({
-              userId,
-              type: 'knowledge',
-              content: `[Growth Journal ${summaryData.date}] ${narrative}`,
-              keywords: ['growth_journal', 'daily_summary', summaryData.date],
-              confidence: 1.0,
-              sourceInteractionId: 'growth_journal_scheduler',
-              agentId: undefined,
-            } as any, { tier: 'growth', perspective: 'peppa_self', importance: 0.9 });
+            // Phase4: 原 addMemory 直接写入 → 封装为 MentalEventItem，任务末尾经 runInnerTick 注入推演统一落库
+            const evt: MentalEventItem = {
+              source: 'scheduler',
+              eventType: 'growth_journal',
+              brief: '生成成长日记叙事',
+              payload: { journalContent: narrative, date: summaryData.date },
+            };
+            eventList.push(evt);
 
-            // Store structured data alongside
-            // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
-            addMemory({
-              userId,
-              type: 'fact',
-              content: JSON.stringify(summaryData),
-              keywords: ['growth_journal_data', summaryData.date],
-              confidence: 1.0,
-              sourceInteractionId: 'growth_journal_scheduler',
-              agentId: undefined,
-            } as any, { tier: 'episodic', perspective: 'peppa_self', importance: 0.5 });
+            // Phase4: 结构化数据同步封装为事件（原 growth_journal_data 直接写入）
+            const evtData: MentalEventItem = {
+              source: 'scheduler',
+              eventType: 'growth_journal_data',
+              brief: '成长日记结构化数据',
+              payload: { summaryData },
+            };
+            eventList.push(evtData);
 
             logger.info(`[GrowthJournal] Generated for ${userId}: ${narrative.slice(0, 100)}`);
             messages.push(`[${userId}] ${narrative.slice(0, 200)}`);
@@ -1228,20 +1248,21 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
             logger.warn(`[GrowthJournal] LLM generation failed for ${userId}:`, llmErr.message);
             // Fallback: simple stats summary
             const fallback = `${summaryData.date}: ${summaryData.newMemories} 条新记忆, ${summaryData.newInteractions} 次互动, ${summaryData.activeConversations} 个活跃对话。`;
-            const { addMemory } = await import('./memory');
-            // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
-            addMemory({
-              userId,
-              type: 'knowledge',
-              content: `[Growth Journal ${summaryData.date}] ${fallback}`,
-              keywords: ['growth_journal', 'daily_summary', summaryData.date],
-              confidence: 1.0,
-              sourceInteractionId: 'growth_journal_scheduler',
-              agentId: undefined,
-            } as any, { tier: 'growth' });
+            // Phase4: LLM 失败兜底 → 封装为 MentalEventItem 一并派发
+            const evtFallback: MentalEventItem = {
+              source: 'scheduler',
+              eventType: 'growth_journal_fallback',
+              brief: '成长日记生成失败，回退统计摘要',
+              payload: { fallback, date: summaryData.date },
+            };
+            eventList.push(evtFallback);
           }
         } catch (err: any) {
           logger.warn(`[GrowthJournal] Failed for ${userId}:`, err.message);
+        }
+        // Phase4: 任务末尾派发本用户派生心智事件（非阻塞，失败不影响主流程）
+        if (eventList.length > 0) {
+          void runInnerTick({ userId, derivedMentalEvents: eventList }).catch((e) => console.error('mental event dispatch fail', e));
         }
       }
 
@@ -1337,6 +1358,8 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
       const messages: string[] = [];
 
       for (const userId of userIds) {
+        // Phase4: 本用户派生心智事件收集（替代原直接 addMemory 写入，任务末尾随 runInnerTick 注入）
+        const eventList: MentalEventItem[] = [];
         try {
           const db = readDB();
           const now = new Date();
@@ -1394,17 +1417,14 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
             messages.push(`[${userId}] ${checkIn}`);
             logger.info(`[ProactiveScan] 纯模板巡检关怀 (LLM 调用已移除): ${userId}`);
 
-            const { addMemory } = await import('./memory');
-            // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
-            addMemory({
-              userId,
-              type: 'fact',
-              content: `[Proactive Scan] Signals: ${signalsStr}. Check-in: ${checkIn}`,
-              keywords: ['proactive_scan', 'anomaly', 'peppa_checkin'],
-              confidence: 0.8,
-              sourceInteractionId: 'proactive_peppa_scan_scheduler',
-              agentId: undefined,
-            } as any, { tier: 'episodic', perspective: 'peppa_self', importance: 0.4 });
+            // Phase4: 原 addMemory 直接写入 → 封装为 MentalEventItem，任务末尾经 runInnerTick 注入推演统一落库
+            const evt: MentalEventItem = {
+              source: 'scheduler',
+              eventType: 'proactive_scan',
+              brief: '异常信号巡检关怀',
+              payload: { signals: signalsStr, checkIn },
+            };
+            eventList.push(evt);
           }
 
           // 4. Predictive assistant — anticipate what the user might do next based on time-of-day + history
@@ -1478,17 +1498,14 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
               messages.push(`[${userId}] 🔮 ${prediction}`);
               logger.info(`[PredictiveAssistant] 纯模板预测 (LLM 调用已移除): ${userId}`);
 
-              const { addMemory } = await import('./memory');
-              // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
-              addMemory({
-                userId,
-                type: 'fact',
-                content: `[Predictive] ${prediction} (context: ${predictionHints.join('; ')})`,
-                keywords: ['predictive_assistant', 'prediction', 'proactive'],
-                confidence: 0.5,
-                sourceInteractionId: 'predictive_peppa_scan_scheduler',
-                agentId: undefined,
-              } as any, { tier: 'episodic', perspective: 'peppa_self', importance: 0.3 });
+              // Phase4: 原 addMemory 直接写入 → 封装为 MentalEventItem，任务末尾经 runInnerTick 注入推演统一落库
+              const evt: MentalEventItem = {
+                source: 'scheduler',
+                eventType: 'predictive_assistant',
+                brief: '主动预测提示',
+                payload: { prediction, contextHints: predictionHints },
+              };
+              eventList.push(evt);
             }
           } catch (predErr: any) {
             // Predictive assistant failure is non-critical
@@ -1496,6 +1513,10 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
           }
         } catch (err: any) {
           logger.warn(`[ProactiveScan] Failed for ${userId}:`, err.message);
+        }
+        // Phase4: 任务末尾派发本用户派生心智事件（非阻塞，失败不影响主流程）
+        if (eventList.length > 0) {
+          void runInnerTick({ userId, derivedMentalEvents: eventList }).catch((e) => console.error('mental event dispatch fail', e));
         }
       }
 
@@ -1516,6 +1537,8 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
       const messages: string[] = [];
 
       for (const userId of userIds) {
+        // Phase4: 本用户派生心智事件收集（替代原直接 addMemory 写入，任务末尾随 runInnerTick 注入）
+        const eventList: MentalEventItem[] = [];
         try {
           // Look back across all past years for today's month-day
           const now = new Date();
@@ -1549,21 +1572,21 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
               `[${userId}] 历史上的今天: ${pastMemories.length} 条过去${now.getFullYear() - yearsAgo}年${month}月${day}日的记忆: ${refs}`,
             );
 
-            // Store as a special episodic memory for temporal context
-            const { addMemory } = await import('./memory');
-            // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
-            addMemory({
-              userId,
-              type: 'fact',
-              content: `[This Day ${month}/${day}] ${pastMemories.length} 条历史上的今天记忆: ${sample.map(m => m.content).join('; ')}`,
-              keywords: ['this_day_in_history', `${month}/${day}`, 'temporal_memory'],
-              confidence: 1.0,
-              sourceInteractionId: 'memory_this_day_scheduler',
-              agentId: undefined,
-            } as any, { tier: 'episodic', perspective: 'peppa_self', importance: 0.4 });
+            // Phase4: 原 addMemory 直接写入 → 封装为 MentalEventItem，任务末尾经 runInnerTick 注入推演统一落库
+            const evt: MentalEventItem = {
+              source: 'scheduler',
+              eventType: 'this_day_in_history',
+              brief: '历史上的今天记忆回顾',
+              payload: { month, day, sampleContents: sample.map(m => m.content) },
+            };
+            eventList.push(evt);
           }
         } catch (err: any) {
           logger.warn(`[MemoryThisDay] Failed for ${userId}:`, err.message);
+        }
+        // Phase4: 任务末尾派发本用户派生心智事件（非阻塞，失败不影响主流程）
+        if (eventList.length > 0) {
+          void runInnerTick({ userId, derivedMentalEvents: eventList }).catch((e) => console.error('mental event dispatch fail', e));
         }
       }
 
@@ -1586,23 +1609,21 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
       const messages: string[] = [];
 
       for (const userId of userIds) {
+        // Phase4: 本用户派生心智事件收集（替代原直接 addMemory 写入，任务末尾随 runInnerTick 注入）
+        const eventList: MentalEventItem[] = [];
         try {
           const patterns = detectSpatiotemporalPatterns(userId);
           if (patterns.length > 0) {
-            // Store new patterns as growth memories
-            const { addMemory } = await import('./memory');
             const newPatterns = patterns.filter(p => p.confidence >= 0.5);
             for (const p of newPatterns.slice(0, 3)) {
-              // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
-              addMemory({
-                userId,
-                type: 'habit',
-                content: `[时空模式] ${p.description}`,
-                keywords: ['spatiotemporal_pattern', p.type, 'peppa_learning'],
-                confidence: p.confidence,
-                sourceInteractionId: 'spatiotemporal_analysis_scheduler',
-                agentId: undefined,
-              } as any, { tier: 'growth', perspective: 'peppa_self', importance: 0.5 });
+              // Phase4: 原 addMemory 直接写入 → 封装为 MentalEventItem，任务末尾经 runInnerTick 注入推演统一落库
+              const evt: MentalEventItem = {
+                source: 'scheduler',
+                eventType: 'spatiotemporal_pattern',
+                brief: '发现时空行为模式',
+                payload: { description: p.description, patternType: p.type, confidence: p.confidence },
+              };
+              eventList.push(evt);
             }
             messages.push(
               `[${userId}] 发现 ${newPatterns.length} 个时空行为模式`,
@@ -1610,6 +1631,10 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
           }
         } catch (err: any) {
           logger.warn(`[SpatiotemporalAnalysis] Failed for ${userId}:`, err.message);
+        }
+        // Phase4: 任务末尾派发本用户派生心智事件（非阻塞，失败不影响主流程）
+        if (eventList.length > 0) {
+          void runInnerTick({ userId, derivedMentalEvents: eventList }).catch((e) => console.error('mental event dispatch fail', e));
         }
       }
 

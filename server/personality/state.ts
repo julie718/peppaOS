@@ -1,6 +1,10 @@
 import { readDB, writeDB } from '../../db_layer';
-import { addMemory } from '../memory/store';
 import { PersonalityVector } from './types';
+// Phase4: 旧模块 addMemory 直接写入迁移 — 事件封装后经 runInnerTick 统一落库（仅 innerTick.ts 内部允许 addMemory）
+import { runInnerTick } from '../../src/core/innerTick';
+import type { MentalEventItem } from '../../src/types/innerTickSchema';
+// Phase4: 全局功能开关 — 旧心智写入受旧生命周期开关控制
+import { MIND_SWITCH } from '../../src/config/mindSwitch';
 import { himTick, loadHIMState, saveHIMState, getBestPeak, formatPeakForPrompt, type HIMState } from './him';
 
 const emotionWriteQueues = new Map<string, Promise<void>>();
@@ -207,22 +211,30 @@ export function updateEmotionalState(state: EmotionalState, event: EmotionEvent)
   updated.intimacy = clamp(updated.intimacy, 0, 1);
   updated.initiative = clamp(updated.initiative, 0, 1);
 
-  // Record major valence changes as memory
+  // Record major valence changes as mental event
+  // Phase4: 原 addMemory 直接写入迁移 — 事件封装后经 runInnerTick 统一落库（仅 innerTick.ts 内部允许 addMemory），
+  // 受 enableOldLifeTick 开关控制；同步函数内 void 非阻塞派发，失败不影响主流程
   if (event.userId && event.type !== 'idle_recovery' && event.type !== 'self_reflection') {
     if (Math.abs(updated.valence - state.valence) > 0.3) {
       const direction = updated.valence > state.valence ? 'positive' : 'negative';
-      // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
-      addMemory(
-        {
-          userId: event.userId,
-          type: 'fact',
-          content: `I felt a ${direction} emotional shift during our interaction${event.timestamp ? ` on ${event.timestamp}` : ''}. Valence moved from ${state.valence.toFixed(2)} to ${updated.valence.toFixed(2)}.`,
-          keywords: ['emotion', 'valence', direction, 'peppa_state'],
-          confidence: 0.9,
-          sourceInteractionId: '',
-        },
-        { tier: 'internalized', perspective: 'peppa_self', importance: 0.3 },
-      );
+      if (MIND_SWITCH.enableOldLifeTick) {
+        const evt: MentalEventItem = {
+          source: 'life',
+          eventType: 'emotion_shift',
+          brief: `情绪显著波动（${direction}）`,
+          payload: {
+            content: `I felt a ${direction} emotional shift during our interaction${event.timestamp ? ` on ${event.timestamp}` : ''}. Valence moved from ${state.valence.toFixed(2)} to ${updated.valence.toFixed(2)}.`,
+            keywords: ['emotion', 'valence', direction, 'peppa_state'],
+            type: 'fact',
+            tier: 'internalized',
+            perspective: 'peppa_self',
+            importance: 0.3,
+            valenceFrom: state.valence,
+            valenceTo: updated.valence,
+          },
+        };
+        void runInnerTick({ userId: event.userId, derivedMentalEvents: [evt] }).catch((e) => console.error('mental event dispatch fail', e));
+      }
     }
   }
 

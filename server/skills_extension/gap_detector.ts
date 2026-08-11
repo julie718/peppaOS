@@ -7,8 +7,12 @@
 
 import { queryMemories } from '../memory/store';
 import { getLifeDb } from '../db/lifeDb';
-import { addMemory } from '../memory/store';
 import { logger } from '../lib/logger';
+// Phase4: 旧模块 addMemory 直接写入迁移 — 事件封装后经 runInnerTick 统一落库（仅 innerTick.ts 内部允许 addMemory）
+import { runInnerTick } from '../../src/core/innerTick';
+import type { MentalEventItem } from '../../src/types/innerTickSchema';
+// Phase4: 全局功能开关 — 缺口推理链记忆写入受旧空闲大脑逻辑开关控制
+import { MIND_SWITCH } from '../../src/config/mindSwitch';
 import { appendAudit } from './database';
 import type { SkillGap } from './types';
 
@@ -132,17 +136,27 @@ export async function detectGaps(): Promise<GapDetectResult> {
 
 /** 推理链写入长期记忆（可复盘） */
 export async function persistGapReasoning(gap: SkillGap, chain: Record<string, unknown>): Promise<void> {
+  // Phase4: 原 addMemory 直接写入迁移 — 事件封装后经 runInnerTick 统一落库（仅 innerTick.ts 内部允许 addMemory），
+  // 受 enableOldIdleBrain 开关控制，开关关闭时整套旧记忆写入逻辑不执行
+  if (!MIND_SWITCH.enableOldIdleBrain) return;
   try {
-    // Phase3‑LEGACY‑MEMORY：遗留旧心智写入，待后续彻底迁移
-    await addMemory({
-      userId: 'default',
-      content: `能力缺口复盘：用户高频需求"${gap.keyword}"（${gap.frequency} 次）→ ${chain.decisionPath === 'reuse' ? '路径A·复用外部工具' : '路径B·沙箱自研'}。判断依据：${JSON.stringify(chain)}`,
-      type: 'fact',
-      keywords: ['能力缺口', gap.keyword, '技能拓展'],
-      confidence: 0.6,
-      sourceInteractionId: '',
-    }, { tier: 'growth', perspective: 'owner_trait', importance: 0.5 });
-    logger.info(`[SkillsGap] 推理链已写入记忆: ${gap.keyword} → ${chain.decisionPath}`);
+    const evt: MentalEventItem = {
+      source: 'skills_extension',
+      eventType: 'gap_reasoning',
+      brief: `能力缺口推理链：${gap.keyword}`,
+      payload: {
+        content: `能力缺口复盘：用户高频需求"${gap.keyword}"（${gap.frequency} 次）→ ${chain.decisionPath === 'reuse' ? '路径A·复用外部工具' : '路径B·沙箱自研'}。判断依据：${JSON.stringify(chain)}`,
+        keywords: ['能力缺口', gap.keyword, '技能拓展'],
+        type: 'fact',
+        tier: 'growth',
+        perspective: 'owner_trait',
+        importance: 0.5,
+      },
+    };
+    void runInnerTick({ userId: 'default', derivedMentalEvents: [evt] }).catch((e: any) =>
+      logger.warn(`[SkillsGap] 推理链心智事件派发失败: ${e?.message || e}`),
+    );
+    logger.info(`[SkillsGap] 推理链已封装为心智事件: ${gap.keyword} → ${chain.decisionPath}`);
   } catch (e: any) {
     logger.warn(`[SkillsGap] 推理链写入记忆失败: ${e.message}`);
   }
