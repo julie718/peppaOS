@@ -37,6 +37,7 @@ import type {
 } from '../types/innerTickSchema';
 
 const TAG = '[InnerTick]';
+const TAG_RETRY = '[InnerTick-RETRY]';
 const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /** 快照事件类型：完整 InnerTickOutput 序列化后写入 life.db system_events 表，作为快照备份 */
@@ -361,6 +362,20 @@ async function persistSnapshot(output: InnerTickOutput): Promise<number> {
 // 7. 对外入口：runInnerTick()
 // ─────────────────────────────────────────────
 
+/** 重试仍失败时的兜底输出：保持对外返回类型不变，不抛异常、不打断主业务流程 */
+function buildFallbackInnerTickOutput(): InnerTickOutput {
+  return {
+    thought: '本轮内部推演未能完成（模型输出异常），维持既有心智状态。',
+    mood: { name: '平静', intensity: 0.5 },
+    desires: [],
+    goals: [],
+    focus: [],
+    archiveItems: [],
+    triggerInnerTick: false,
+    memoryHints: [],
+  };
+}
+
 /**
  * 执行一轮 InnerTick 心智回合。
  * 边界承诺：不修改任何全局运行状态，仅返回 InnerTickOutput + 写入 life.db 快照备份。
@@ -382,20 +397,41 @@ export async function runInnerTick(options: InnerTickOptions = {}): Promise<Inne
     { role: 'user', content: '请基于当前心智状态进行一轮内部推演，输出完整 JSON。' },
   ];
 
-  let output: InnerTickOutput;
-  try {
+  // 单次 LLM 调用 + 结构化输出解析。失败（JSON 解析异常 / content 为空）时抛错，由下方单层重试兜底。
+  const attemptInnerTickCall = async (): Promise<InnerTickOutput> => {
     const response = await makeLLMCall(
       messages,
       [],
-      { provider: pref.provider, model: pref.model, maxTokens: pref.maxTokens, userId, scene: options.scene || 'inner_tick' },
+      // ⚠️ 强制 maxTokens=8000：deepseek 系推理模型（v4-flash 等）的 max_tokens 为「思考链+输出」总配额，
+      // providers 侧自动扩容仅到 4000，思考链耗光配额会导致 JSON 截断（Unexpected end of JSON input）。
+      // 显式传入 8000 覆盖自动扩容逻辑；该值仅作用于 InnerTick 自身调用，其他模块不受影响。
+      { provider: pref.provider, model: pref.model, maxTokens: 8000, userId, scene: options.scene || 'inner_tick' },
       llm.getDeepSeek, llm.getGemini, llm.getOpenAI, llm.getAnthropic, llm.getQwen,
       llm.getOllama, llm.getLmStudio, llm.getArk, llm.getXiaomi, llm.getKimi, llm.getGlm, llm.getRelay,
     );
-    const parsed = parseInnerTickJson(response.text || '');
-    output = normalizeOutput(parsed);
-  } catch (e: any) {
-    logger.error(`${TAG} 心智推演失败: ${e.message}`);
-    throw e; // 本阶段仅独立组件：失败向上抛，由调用方（demo 脚本）决策
+    if (!response.text || !response.text.trim()) {
+      throw new Error('InnerTick 模型返回 content 为空');
+    }
+    const parsed = parseInnerTickJson(response.text);
+    return normalizeOutput(parsed);
+  };
+
+  // 单层自动重试保护（仅 InnerTick 心智回合生效，聊天/工具调用不介入）：
+  // 首次失败（JSON 解析异常 / content 为空）自动重试最多 1 次；重试仍失败打印 ERROR 级日志，
+  // 不再重试、不向外抛异常，返回兜底输出，不打断主业务流程。
+  let output: InnerTickOutput;
+  try {
+    output = await attemptInnerTickCall();
+    logger.info(`${TAG} 心智推演完成（首次调用成功）`);
+  } catch (firstErr: any) {
+    logger.warn(`${TAG_RETRY} 首次心智推演失败（${firstErr?.message || String(firstErr)}），自动重试（最多1次）`);
+    try {
+      output = await attemptInnerTickCall();
+      logger.info(`${TAG_RETRY} 重试成功，心智推演完成`);
+    } catch (retryErr: any) {
+      logger.error(`${TAG_RETRY} 重试仍失败（${retryErr?.message || String(retryErr)}），放弃重试，返回兜底输出，不阻断主流程`);
+      output = buildFallbackInnerTickOutput();
+    }
   }
 
   // 处理归档：addMemory（经守卫）+ 从 active 列表移除
