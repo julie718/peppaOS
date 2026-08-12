@@ -15,8 +15,11 @@
 // 心智回合内容（欲望生成/衰减、情绪变化、目标归档）全部由 LLM 推理生成。
 
 import { makeLLMCall, NormalizedMessage } from '../../server/llm/providers';
+import type { NormalizedLLMResponse } from '../../server/tools/types';
 import { createLLMRuntime } from '../../server/runtime/llm';
+import type { LLMClients } from '../../server/runtime/llm';
 import { getUserPreferredLLMConfig } from '../../server/llm/user_preferences';
+import { MIND_SWITCH } from '../config/mindSwitch';
 import { addMemory } from '../../server/memory/store';
 import {
   guardIllegalAddMemory,
@@ -63,7 +66,28 @@ import type {
 
 const TAG = '[InnerTick]';
 const TAG_RETRY = '[InnerTick-RETRY]';
+const TAG_WARN = '[InnerTick-WARN]';
+const TAG_ERROR = '[InnerTick-ERROR]';
 const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * InnerTick LLM 推演失败分类（超时/格式/空content 的明确区分，供分级日志与兜底决策使用）：
+ *  - llm_timeout     ：LLM 调用超过 mindSwitch.innerTickLLMTimeoutMs 阈值被 AbortController 中止；
+ *  - reasoning_only  ：模型只输出 reasoning、content 为空（审计观测到的 deepseek-v4-flash 已知异常）；
+ *  - empty_content   ：模型返回纯空 content（无 reasoning 也无文本）；
+ *  - parse_error     ：模型返回文本无法解析为 schema JSON；
+ *  - unknown         ：其他未归类失败。
+ */
+type InnerTickLLMFailureKind = 'llm_timeout' | 'reasoning_only' | 'empty_content' | 'parse_error' | 'unknown';
+
+class InnerTickLLMError extends Error {
+  readonly kind: InnerTickLLMFailureKind;
+  constructor(kind: InnerTickLLMFailureKind, message: string) {
+    super(message);
+    this.name = 'InnerTickLLMError';
+    this.kind = kind;
+  }
+}
 
 /** 快照事件类型：完整 InnerTickOutput 序列化后写入 life.db system_events 表，作为快照备份 */
 export const INNER_TICK_SNAPSHOT_EVENT = 'inner_tick_snapshot';
@@ -78,6 +102,8 @@ export interface InnerTickOptions {
   conversationSummary?: string;    // 本轮对话上下文摘要（对话轮次结束后由 chat 链路组装传入，注入 LLM 推演上下文）
   triggerSource?: 'chat_turn' | 'manual'; // 快照触发来源；默认 'manual'
   turnIndex?: number;              // 会话内轮次序号；不传时按该会话快照条数自增推断
+  // ── 测试注入（生产调用不传）：覆盖 LLM provider getters，供自测脚本模拟超时/空content 等异常响应 ──
+  llmGetters?: Partial<LLMClients>;
 }
 
 // ─────────────────────────────────────────────
@@ -734,41 +760,89 @@ export async function runInnerTick(options: InnerTickOptions = {}): Promise<Inne
     { role: 'user', content: '请基于当前心智状态进行一轮内部推演，输出完整 JSON。' },
   ];
 
-  // 单次 LLM 调用 + 结构化输出解析。失败（JSON 解析异常 / content 为空）时抛错，由下方单层重试兜底。
+  // ── 超时控制：本轮 LLM 推演调用（含单次重试）共享同一个超时窗口 ──
+  // 阈值来自 mindSwitch.innerTickLLMTimeoutMs（可配置调参，<= 0 表示不启用超时、保持旧行为）；
+  // 超时后 AbortController 通过 signal 中止 makeLLMCall 在途请求（providers 各 provider 分支均已透传 signal）。
+  const timeoutMs = MIND_SWITCH.innerTickLLMTimeoutMs;
+  const controller = timeoutMs > 0 ? new AbortController() : null;
+  const abortTimer = controller
+    ? setTimeout(() => {
+        controller.abort();
+        logger.warn(`${TAG_WARN} LLM调用超时（阈值 ${timeoutMs}ms）已中止在途请求`);
+      }, timeoutMs)
+    : null;
+
+  // 单次 LLM 调用 + 结构化输出解析。失败统一分类为 InnerTickLLMError（llm_timeout / reasoning_only /
+  // empty_content / parse_error / unknown），由下方「超时直接终止」或「单层重试兜底」处理。
+  const getters: LLMClients = { ...llm, ...(options.llmGetters || {}) };
   const attemptInnerTickCall = async (): Promise<InnerTickOutput> => {
-    const response = await makeLLMCall(
-      messages,
-      [],
-      // ⚠️ 强制 maxTokens=8000：deepseek 系推理模型（v4-flash 等）的 max_tokens 为「思考链+输出」总配额，
-      // providers 侧自动扩容仅到 4000，思考链耗光配额会导致 JSON 截断（Unexpected end of JSON input）。
-      // 显式传入 8000 覆盖自动扩容逻辑；该值仅作用于 InnerTick 自身调用，其他模块不受影响。
-      { provider: pref.provider, model: pref.model, maxTokens: 8000, userId, scene: options.scene || 'inner_tick' },
-      llm.getDeepSeek, llm.getGemini, llm.getOpenAI, llm.getAnthropic, llm.getQwen,
-      llm.getOllama, llm.getLmStudio, llm.getArk, llm.getXiaomi, llm.getKimi, llm.getGlm, llm.getRelay,
-    );
-    if (!response.text || !response.text.trim()) {
-      throw new Error('InnerTick 模型返回 content 为空');
+    let response: NormalizedLLMResponse;
+    try {
+      response = await makeLLMCall(
+        messages,
+        [],
+        // ⚠️ 强制 maxTokens=8000：deepseek 系推理模型（v4-flash 等）的 max_tokens 为「思考链+输出」总配额，
+        // providers 侧自动扩容仅到 4000，思考链耗光配额会导致 JSON 截断（Unexpected end of JSON input）。
+        // 显式传入 8000 覆盖自动扩容逻辑；该值仅作用于 InnerTick 自身调用，其他模块不受影响。
+        // signal：超时控制 signal 透传底层 provider 请求，超时即中止在途调用。
+        { provider: pref.provider, model: pref.model, maxTokens: 8000, userId, scene: options.scene || 'inner_tick', signal: controller?.signal },
+        getters.getDeepSeek, getters.getGemini, getters.getOpenAI, getters.getAnthropic, getters.getQwen,
+        getters.getOllama, getters.getLmStudio, getters.getArk, getters.getXiaomi, getters.getKimi, getters.getGlm, getters.getRelay,
+      );
+    } catch (e: any) {
+      // 超时判定：以本轮控制器状态为准（底层错误经 withRetry 包装后可能丢失 AbortError 名称）
+      if (controller?.signal.aborted || e?.name === 'AbortError' || /abort|cancel/i.test(String(e?.message || ''))) {
+        throw new InnerTickLLMError('llm_timeout', `LLM调用超时（阈值 ${timeoutMs}ms）: ${e?.message || e}`);
+      }
+      throw new InnerTickLLMError('unknown', `LLM调用失败: ${e?.message || e}`);
     }
-    const parsed = parseInnerTickJson(response.text);
+    if (!response?.text || !response.text.trim()) {
+      // 审计观测到的 deepseek-v4-flash 已知异常：只输出 reasoning、content 为空
+      if (response?.reasoningContent) {
+        throw new InnerTickLLMError('reasoning_only', '模型仅输出 reasoning 无有效 content（deepseek-v4-flash 已知异常），content 为空');
+      }
+      throw new InnerTickLLMError('empty_content', '模型返回 content 为空');
+    }
+    let parsed: any;
+    try {
+      parsed = parseInnerTickJson(response.text);
+    } catch (e: any) {
+      throw new InnerTickLLMError('parse_error', `模型返回格式解析失败: ${e?.message || e}`);
+    }
     return normalizeOutput(parsed);
   };
 
-  // 单层自动重试保护（仅 InnerTick 心智回合生效，聊天/工具调用不介入）：
-  // 首次失败（JSON 解析异常 / content 为空）自动重试最多 1 次；重试仍失败打印 ERROR 级日志，
-  // 不再重试、不向外抛异常，返回兜底输出，不打断主业务流程。
+  // 推演结果：成功走下方正常链路；失败（超时 / 重试耗尽）输出分级日志后本轮零写入终止。
+  // 超时不重试（重试会再次阻塞整个超时阈值时长，违背超时兜底目的）；格式类失败沿用原单次重试。
   let output: InnerTickOutput;
+  let failedKind: InnerTickLLMFailureKind | null = null;
   try {
     output = await attemptInnerTickCall();
     logger.info(`${TAG} 心智推演完成（首次调用成功）`);
   } catch (firstErr: any) {
-    logger.warn(`${TAG_RETRY} 首次心智推演失败（${firstErr?.message || String(firstErr)}），自动重试（最多1次）`);
-    try {
-      output = await attemptInnerTickCall();
-      logger.info(`${TAG_RETRY} 重试成功，心智推演完成`);
-    } catch (retryErr: any) {
-      logger.error(`${TAG_RETRY} 重试仍失败（${retryErr?.message || String(retryErr)}），放弃重试，返回兜底输出，不阻断主流程`);
-      output = buildFallbackInnerTickOutput();
+    const firstKind = firstErr instanceof InnerTickLLMError ? firstErr.kind : 'unknown';
+    if (firstKind === 'llm_timeout') {
+      failedKind = firstKind;
+      logger.error(`${TAG_ERROR} LLM调用超时（kind=llm_timeout）: ${firstErr?.message || String(firstErr)}；本轮放弃心智推演落库，心智业务表零写入，等待下一轮对话重新触发`);
+    } else {
+      logger.warn(`${TAG_WARN} 首次心智推演失败（kind=${firstKind}）: ${firstErr?.message || String(firstErr)}；自动重试（最多1次）`);
+      try {
+        output = await attemptInnerTickCall();
+        logger.info(`${TAG_RETRY} 重试成功，心智推演完成`);
+      } catch (retryErr: any) {
+        failedKind = retryErr instanceof InnerTickLLMError ? retryErr.kind : 'unknown';
+        logger.error(`${TAG_ERROR} 重试仍失败（kind=${failedKind}）: ${retryErr?.message || String(retryErr)}；本轮放弃心智推演落库，心智业务表零写入，返回兜底输出，不阻断主流程`);
+      }
     }
+  } finally {
+    // 释放超时计时器（成功/失败路径均需清理，避免悬挂 timer）
+    if (abortTimer) clearTimeout(abortTimer);
+  }
+
+  // ⚠️ 异常终止边界：本轮不执行任何写库（跳过归档 addMemory / life.db 快照 / inner_tick_snapshot 观测表 /
+  // P2 心智演化落库），仅返回兜底输出 —— 保证心智业务表零写入、不产生残缺心智事件；下一轮对话可重新触发。
+  if (failedKind) {
+    return buildFallbackInnerTickOutput();
   }
 
   // 处理归档：addMemory（经守卫）+ 从 active 列表移除

@@ -17,6 +17,11 @@ export interface MindSwitchConfig {
   // runInnerTick → MentalEventItem → paradigmGuard 守卫校验之后落库。
   // 关闭：完全维持原有 TICK 写库行为（现有守卫仅告警不阻断）。
   p2MigrateEnable: boolean;
+  // ── InnerTick LLM 调用超时阈值（毫秒）──
+  // runInnerTick 内 LLM 推演调用的超时上限：超过该时长即通过 AbortController signal
+  // 中止在途请求，本轮放弃心智推演落库（心智业务表零写入），等待下一轮对话重新触发；
+  // <= 0 表示不启用超时控制（保持旧行为）。
+  innerTickLLMTimeoutMs: number;
 }
 
 export const MIND_SWITCH: MindSwitchConfig = {
@@ -31,4 +36,7 @@ export const MIND_SWITCH: MindSwitchConfig = {
 
   // ── P2迁移：灰度开启 — 旧 TICK 对核心心智表写入被拦截，仅 InnerTick 可变更心智状态（可一键回滚）──
   p2MigrateEnable: true,   // [P2-MIGRATE] 开启后旧 TICK 对核心心智表写入被拦截，仅 InnerTick 可变更心智状态
+
+  // ── InnerTick LLM 调用超时阈值：默认 45s（45000ms），可后期调参；<= 0 关闭超时 ──
+  innerTickLLMTimeoutMs: 45000,
 };
