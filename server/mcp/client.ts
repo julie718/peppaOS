@@ -71,6 +71,19 @@ interface MCPConfigFile {
 }
 
 const SKILLS_DIR = getDataPath('skills');
+
+/**
+ * P2-8 供应链防护开关：ALLOW_UNSIGNED_MCP_NPM_PACKAGES（默认 false）。
+ * 社区 MCP 通过 npm 包形式加载（installFromNpm → tsx wrapper import），
+ * 无法做包签名/完整性校验，属供应链风险。开关关闭时禁止加载任何第三方 npm MCP 包，
+ * 抛出风险报错；仅运维显式设 true 才放行（自担供应链信任风险）。
+ */
+function allowUnsignedNpmMcpPackages(): boolean {
+  const v = process.env.ALLOW_UNSIGNED_MCP_NPM_PACKAGES;
+  if (v === undefined || v === '') return false;
+  return v.toLowerCase() !== 'false' && v !== '0';
+}
+
 const DEFAULT_RUNTIME_CONFIG = 'mcp_config.json';
 const LEGACY_REPO_CONFIG = path.join(process.cwd(), 'server', 'mcp', 'config.json');
 const FACTORY_CONFIG = path.join(process.cwd(), 'server', 'mcp', 'config.example.json');
@@ -540,6 +553,13 @@ class MCPClientManager {
 
   /** Install a skill from an npm package (e.g. "peppa-skill-nanobanana") */
   async installFromNpm(packageName: string): Promise<string> {
+    // P2-8 供应链防护：第三方 npm MCP 包无签名/完整性校验，开关（默认 false）关闭时禁止加载
+    if (!allowUnsignedNpmMcpPackages()) {
+      throw new Error(
+        `供应链风险拦截：禁止加载第三方 npm MCP 包 "${packageName}"（无签名/完整性校验）。` +
+        '如已显式信任该包来源，请设置环境变量 ALLOW_UNSIGNED_MCP_NPM_PACKAGES=true 后重试。',
+      );
+    }
     this.ensureSkillsDir();
     const skillName = packageName
       .replace(/^@/, '')

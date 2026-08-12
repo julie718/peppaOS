@@ -3,6 +3,7 @@ import { getClientCapabilities, getClientHealthReport, getClientState } from '..
 import { getGateConfig } from '../../autonomy/safety_gate';
 import { listAutonomousWorkflows } from '../../autonomy/workflows';
 import { mcpManager } from '../../mcp';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 const ACTIONS = [
   'open_app',
@@ -105,7 +106,7 @@ export function registerClientSelfTools(registry: ToolRegistry): void {
       }, null, 2);
     },
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Read Peppa desktop client self-model: available client capabilities and the latest reported UI state.'),
   });
 
   registry.register({
@@ -168,7 +169,7 @@ export function registerClientSelfTools(registry: ToolRegistry): void {
       });
     },
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Client action to perform.'),
   });
 
   registry.register({
@@ -188,7 +189,7 @@ export function registerClientSelfTools(registry: ToolRegistry): void {
       }, null, 2);
     },
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Run Peppa local self-governance health check: client body state, runtime errors, music/runtime/files/voice issues, autonomy boundary, and skill runtime findings.'),
   });
 
   registry.register({
@@ -229,7 +230,7 @@ export function registerClientSelfTools(registry: ToolRegistry): void {
       throw new Error(`Unsupported client_self_repair action: ${args.action}`);
     },
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Safe self-repair action.'),
   });
 
   registry.register({

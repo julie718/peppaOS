@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { ToolRegistry } from '../registry';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 function resolveSafePath(userPath: string, cwd?: string): string {
   const base = cwd || process.cwd();
@@ -290,7 +291,7 @@ export function registerFileOpsTools(registry: ToolRegistry): void {
     },
     handler: readFileHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Read the contents of a file. Returns the file content as text.'),
   });
 
   registry.register({
@@ -322,7 +323,7 @@ export function registerFileOpsTools(registry: ToolRegistry): void {
     },
     handler: listDirectoryHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('List files and subdirectories in a directory. Returns a JSON array.'),
   });
 
   registry.register({
@@ -338,7 +339,7 @@ export function registerFileOpsTools(registry: ToolRegistry): void {
     },
     handler: searchFilesHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Search for files matching a glob pattern. Returns matching file paths.'),
   });
 
   // ── grep_files: full-text regex search ──
@@ -357,7 +358,7 @@ export function registerFileOpsTools(registry: ToolRegistry): void {
     },
     handler: grepFilesHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Search file CONTENTS with a regex pattern. Returns matching lines with file paths and line numbers. Essential for code exploration — find where symbols are defined, where functions are called, or where patterns appear across the codebase.'),
   });
 
   // ── read_files_batch: parallel file reading ──
@@ -374,6 +375,6 @@ export function registerFileOpsTools(registry: ToolRegistry): void {
     },
     handler: readFilesBatchHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Read multiple files at once. Useful for understanding cross-file relationships — read a function definition and all its callers simultaneously. Max 10 files per call.'),
   });
 }

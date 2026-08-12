@@ -1,6 +1,7 @@
 import { exec } from 'child_process';
 import os from 'os';
 import { ToolRegistry } from '../registry';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 const DEFAULT_ALLOWED_COMMANDS = new Set([
   'ls', 'dir', 'cat', 'type', 'echo', 'find', 'grep',
@@ -96,6 +97,6 @@ export function registerSystemOpsTools(registry: ToolRegistry): void {
     },
     handler: getSystemInfoHandler,
     permission: 'public',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Get system information including OS, CPU, memory, uptime, and Node.js version.'),
   });
 }

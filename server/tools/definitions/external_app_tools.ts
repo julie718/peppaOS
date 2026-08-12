@@ -8,6 +8,7 @@ import { getExternalAppAdapters } from '../../external_apps/adapters';
 import { getAdapterRegistry } from '../../adapters/registry';
 import { getClientState } from '../../client/self_model';
 import { isExternalAppAutomationAllowed, isMessagingSendConfirmationRequired } from '../../autonomy/safety_gate';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 function requireDesktopRelay(context?: ToolContext) {
   if (!context?.desktopRelay) {
@@ -724,7 +725,7 @@ export function registerExternalAppTools(registry: ToolRegistry): void {
       }, null, 2);
     },
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('List Peppa external app adapters and their safety policies for browser, messaging, CAD, and other AI apps.'),
   });
 
   registry.register({
@@ -773,7 +774,7 @@ export function registerExternalAppTools(registry: ToolRegistry): void {
       note: 'Peppa prepared a draft only. Sending stays user-confirmed.',
     }, null, 2),
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Prepare a WeChat or messaging reply draft. This tool never sends messages.'),
   });
 
   registry.register({

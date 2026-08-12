@@ -15,6 +15,21 @@ await build({
   },
 });
 
+// 【Phase3 P1阻断项修复·方案A】沙箱隔离子进程入口独立打包。
+// 子进程由 sandbox_host 通过 child_process.fork 按文件路径拉起，不能引用主 bundle 内部模块，
+// 必须产出独立产物 dist-server/sandbox_child.mjs（开发环境则直接 fork TS 入口并经 tsx 加载）。
+await build({
+  entryPoints: ['server/skills_extension/sandbox_isolate/sandbox_child.ts'],
+  bundle: true,
+  platform: 'node',
+  format: 'esm',
+  outfile: 'dist-server/sandbox_child.mjs',
+  external: ['sqlite3', 'sharp', '@img/sharp-win32-x64', '@img/sharp-libvips-win32-x64', 'lightningcss', 'playwright-core'],
+  banner: {
+    js: "import { createRequire as __peppaCreateRequire } from 'module'; const require = __peppaCreateRequire(import.meta.url);",
+  },
+});
+
 // 【重构·模块2】proactive/ 已被 esbuild 从入口 server.ts 静态依赖图打包进 server.mjs
 // （含懒加载 require('../proactive/rhythm')，验证无外部化引用），无需单独复制+编译；
 // 原复制后 tsc 编译步骤因相对路径（../lib/logger 等）在 dist-server 下不存在而恒失败，

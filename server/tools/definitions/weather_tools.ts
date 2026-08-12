@@ -1,6 +1,7 @@
 // 天气查询工具 — Open-Meteo 免费 API（无需 Key）
 import { ToolRegistry } from '../registry';
 import { logger } from '../../../logger';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 // 城市名→坐标映射
 // 阶段一·模块1: 导出供 travel-cal-mcp 复用（统一底层，杜绝重复编码）
@@ -124,7 +125,7 @@ export function registerWeatherTools(registry: ToolRegistry): void {
     },
     handler: weatherCurrent,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('查询城市当前天气，返回温度、天气状况、湿度、风速。支持200+中国城市。使用 Open-Meteo 免费 API，无需 API Key。'),
   });
 
   registry.register({
@@ -141,6 +142,6 @@ export function registerWeatherTools(registry: ToolRegistry): void {
     },
     handler: weatherForecast,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('查询城市未来几天天气预报，返回每日天气状况、最高/最低温度、降水概率。最多支持5天预报。'),
   });
 }

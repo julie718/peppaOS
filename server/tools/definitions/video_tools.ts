@@ -1,5 +1,6 @@
 import { ToolRegistry } from '../registry';
 import { loadKeys } from '../../config/keys';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 async function generateVideo(args: Record<string, any>): Promise<string> {
   const prompt = args.prompt || '';
@@ -89,6 +90,6 @@ export function registerVideoTools(registry: ToolRegistry): void {
     },
     handler: generateVideo,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Generate AI videos from text descriptions using DashScope Wan2.1. Describe the scene, subjects, motion, lighting, and style. Use "wanx2.1-t2v-turbo" for fast results (~1min) or "wanx2.1-t2v-plus" for higher quality (~2min). Videos are 5 seconds, 720p, no audio. Returns a download URL valid for 24 hours.'),
   });
 }

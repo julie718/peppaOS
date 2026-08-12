@@ -4,6 +4,7 @@ import { getUserPreferredVision, type VisionProvider } from '../../llm/vision_pr
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 let sharpLoader: Promise<any> | null = null;
 
@@ -329,7 +330,7 @@ export function registerOCRTools(registry: ToolRegistry): void {
     },
     handler: ocrScreen,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Capture a screenshot of the user\'s screen and analyze it with a vision AI model. Returns a text description of what is visible — including text, UI elements, error messages, and code. Use this when the user asks "what\'s on my screen?", "read this error", "look at this", or when you need to see what the user is working on.'),
   });
 
   registry.register({
@@ -349,7 +350,7 @@ export function registerOCRTools(registry: ToolRegistry): void {
     },
     handler: ocrRegion,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Capture a specific region of the user\'s screen and analyze it with vision AI. Specify x, y, width, height in pixels plus what to look for. For reading dialog boxes, error messages, or specific UI elements.'),
   });
 
   registry.register({
@@ -367,7 +368,7 @@ export function registerOCRTools(registry: ToolRegistry): void {
     },
     handler: ocrImageFile,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Analyze a local image file with the configured vision model. Use this for desktop screenshots, drafts, floor plans, CAD reference images, photos, and Chinese-named image files before generating derived documents or DXF files.'),
   });
 
   registry.register({
@@ -388,6 +389,6 @@ export function registerOCRTools(registry: ToolRegistry): void {
     },
     handler: floorplanExtractGeometry,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Extract structured CAD-ready geometry from a local floor plan, renovation sketch, layout photo, or requirement image. Use before cad_generate_dxf when the user asks Peppa to turn an image/folder of plans into CAD. Returns rooms, walls, doors, windows, dimensions, assumptions, missing precision inputs, and suggested cad_generate_dxf args. It does not guarantee production accuracy without confirmed scale/dimensions.'),
   });
 }

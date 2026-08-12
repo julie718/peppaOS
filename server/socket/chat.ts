@@ -38,8 +38,8 @@ import { getSelfState } from "../cognition/selfState";
 import { touchUserActivity } from "../life/userState";
 // P0-6: IdleBrain 短待机入口（对话结束标记）
 import { idleBrain } from '../autonomy/idle_brain';
-// Phase2：对话结束异步触发 InnerTick 心智回合（独立库组件，仅写 life.db 快照，不阻塞 chat 返回）
-import { runInnerTick } from "../../src/core/innerTick";
+// Phase2：对话结束异步触发 InnerTick 心智回合 — 对接层封装（上下文适配器 + 开关 + 观测日志，见 innerTickAdapter.ts）
+import { triggerInnerTickAfterChatRound } from "./innerTickAdapter";
 // Phase3：会话心智灰度注入层 — 白名单会话用 InnerTick 快照驱动会话心智（B模式），其余走旧life（A模式）
 import { resolveSessionMind } from "../../src/core/sessionMindProvider";
 // 【新增数字生命体模块】T80 心智 + MCP 拦截器
@@ -2105,36 +2105,22 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
         logger.warn('[ChatHandler] 知识库提取异常:', e.message);
       }
 
-      // ── Phase2：对话轮次结束，记忆提取落库后异步触发 InnerTick 心智回合 ──
-      // 边界：仅生成 InnerTickOutput 并写入独立观测表 inner_tick_snapshot（新表，与旧life状态表完全隔离，
-      // 绝不覆盖/修改 emotions/desires/personality/memory 等旧表）；不接管会话运行、不替换旧 life 状态机、
-      // 不把 InnerTick 结果注入当前对话上下文。void 异步非阻塞，绝不影响 socket 响应下发。
-      // Phase3: runInnerTick 传入当前真实 userId（记忆/偏好归属用户，默认回退 'default'）
-      // 传入：sessionId（会话ID）、本轮对话上下文摘要（长程摘要 + 本轮用户消息 + 助手回复）、triggerSource='chat_turn'
-      const p2SessionId = conversationId || `conv_${uid}`;
+      // ── Phase2：对话轮次结束，记忆提取落库后异步触发 InnerTick 心智回合（对接层封装）──
+      // 边界：经 innerTickAdapter 组装会话上下文（工作记忆/归档记忆分离 + token 预算控制），
+      // 触发 runInnerTick 生成 InnerTickOutput 并写入独立观测表 inner_tick_snapshot（新表，与旧life状态表
+      // 完全隔离，绝不覆盖/修改 emotions/desires/personality/memory 等旧表）；不接管会话运行、
+      // 不替换旧 life 状态机、不把 InnerTick 结果注入当前对话上下文。
+      // 开关：PEPPA_INNER_TICK_ENABLE（默认 true；false 完全跳过整套 InnerTick 逻辑，退回改造前行为）。
+      // fire-and-forget 异步非阻塞：调用方不 await，绝不影响 socket 响应下发；内部异常已兜底，不会抛到聊天流程。
       try {
-        const convSummary = conversationId ? getConversationSummary(conversationId) : null;
-        const p2Summary = [
-          convSummary ? `对话上下文: ${convSummary}` : '',
-          text ? `本轮用户消息: ${text.slice(0, 500)}` : '',
-          responseText ? `本轮助手回复: ${responseText.slice(0, 500)}` : '',
-        ].filter(Boolean).join('\n') || '(无摘要)';
-        logger.info(`[Phase2-InnerTick] session=${p2SessionId} chat轮次结束，调度异步心智回合（后台非阻塞）`);
-        void (async () => {
-          try {
-            await runInnerTick({
-              userId: uid,
-              sessionId: p2SessionId,
-              conversationSummary: p2Summary,
-              triggerSource: 'chat_turn',
-            });
-          } catch (err) {
-            // innerTick 内部已自行兜底（重试/fallback/快照写入容错），此处为最终防线，绝不影响聊天流程
-            console.error("[Phase2-InnerTick] chat结束触发心智回合异常（不影响聊天流程）", err);
-          }
-        })();
+        triggerInnerTickAfterChatRound({
+          userId: uid,
+          conversationId: conversationId || undefined,
+          userMessage: text,
+          assistantResponse: responseText,
+        });
       } catch (e: any) {
-        logger.warn(`[Phase2-InnerTick] session=${p2SessionId} 调度心智回合失败（不影响聊天流程）: ${e.message}`);
+        logger.warn(`[Phase2-InnerTick] session=${conversationId || `conv_${uid}`} 调度异步心智回合失败（不影响聊天流程）: ${e.message}`);
       }
 
       // Update emotional state — reconnect if user was away for a while

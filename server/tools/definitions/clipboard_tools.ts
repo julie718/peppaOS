@@ -1,4 +1,5 @@
 import { ToolRegistry } from '../registry';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 async function readClipboard(_args: Record<string, any>, context?: any): Promise<string> {
   if (!context?.desktopRelay) {
@@ -26,7 +27,7 @@ export function registerClipboardTools(registry: ToolRegistry): void {
     },
     handler: readClipboard,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Read the current text content from the user\'s system clipboard. Use this to understand what the user recently copied — it often reveals their current task or intent.'),
   });
 
   registry.register({

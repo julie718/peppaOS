@@ -8,7 +8,9 @@
 import { logger } from '../lib/logger';
 import { appendAudit } from './database';
 import { decidePathFromCandidates } from './gap_detector';
-import type { ToolCandidate } from './types';
+import { isHighRiskCommunityHit, classifyRisk } from './risk_policy';
+import { logSkillEvent } from './switch';
+import type { RiskLevel, ToolCandidate } from './types';
 
 export const ELIGIBLE_FLOOR = 0.6; // 七维达标下限（任一维度低于即淘汰）
 
@@ -22,6 +24,10 @@ interface RegistryEntry {
   estimatedCostPer1k?: number;
   hasDisclaimer: boolean;
   needsCredential: boolean;
+  /** P2-3：注册表条目可声明的版本号（无则 null） */
+  version?: string;
+  /** P2-3：依赖清单（自包含工具为空数组） */
+  dependencies?: string[];
   scores: ToolCandidate['scores'];
   keywords: string[];
 }
@@ -152,6 +158,11 @@ export async function searchTools(keywords: string[]): Promise<ToolCandidate[]> 
     for (const kw of keywords) {
       const hits = await fetchCommunityHits(kw);
       for (const h of hits.slice(0, 3)) {
+        // 基础过滤：命中高风险标记（恶意/后门/凭证窃取类）的社区技能直接剔除，不进候选
+        if (isHighRiskCommunityHit(h)) {
+          await appendAudit('search', h.name, '社区命中含高风险标记 → 已过滤，不进入候选');
+          continue;
+        }
         communityOk = true;
         if (seen.has(h.name)) continue;
         seen.add(h.name);
@@ -202,6 +213,16 @@ export async function searchTools(keywords: string[]): Promise<ToolCandidate[]> 
 
   await appendAudit('search', keywords.join(','),
     `候选=${results.length} 达标=${eligible.length} 淘汰=${results.length - eligible.length} 决策=${decision.path} 依据=${decision.reasons[0]}`);
+  // P2-5 3-1：检索完成结构化事件（来源=检索主通道 community/registry，风险=候选最大风险级，ok=检索成功）
+  const riskRank: Record<RiskLevel, number> = { safe: 0, medium: 1, high: 2 };
+  const maxRisk: RiskLevel = results.reduce<RiskLevel>((acc, c) =>
+    (c.riskLevel && riskRank[c.riskLevel] > riskRank[acc] ? c.riskLevel : acc), 'safe');
+  logSkillEvent({
+    event: 'search', subject: keywords.join(','), ok: true,
+    source: communityOk ? 'community' : 'registry',
+    riskLevel: maxRisk,
+    detail: `候选=${results.length} 达标=${eligible.length} 淘汰=${results.length - eligible.length} 决策=${decision.path} 来源=${communityOk ? 'community' : 'registry'}`,
+  });
 
   return results;
 }
@@ -221,6 +242,10 @@ function toCandidate(e: RegistryEntry, source: ToolCandidate['source'], now: str
     eligible: false,
     disqualifyReasons: [],
     decision: 'self_build',
+    // P2-3：版本/依赖/风险等级尽可能填充（注册表可声明版本；依赖默认自包含空数组；风险经风险分级规则计算）
+    version: e.version ?? null,
+    dependencies: e.dependencies ?? [],
+    riskLevel: classifyRisk({ source, origin: e.origin, needsCredential: e.needsCredential }).level,
     assessedAt: now,
   };
 }

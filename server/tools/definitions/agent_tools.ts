@@ -2,6 +2,7 @@ import { ToolRegistry } from '../registry';
 import type { ToolContext } from '../types';
 import { readDB, writeDB } from '../../../db_layer';
 import { validateExternalCommand } from '../../agents/external_runtime';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 function normalizeStringList(value: unknown, max = 20): string[] {
   const raw = Array.isArray(value)
@@ -221,7 +222,7 @@ export function registerAgentTools(registry: ToolRegistry): void {
     },
     handler: agentList,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('List all active worker agents in Peppa\'s swarm. Use this to show the user what agents currently exist, their skills, and status.'),
   });
 
   registry.register({

@@ -8,9 +8,12 @@
 
 import { logger } from '../lib/logger';
 import { toolRegistry } from '../tools/registry';
+import type { SecurityLevel } from '../tools/types';
 import { appendAudit, insertApproval, listApprovals, updateApproval, updateSandboxProject, listSandboxProjects } from './database';
 import { commitStagedAdaptation, registerDefinition } from './adapter';
-import { loadSandboxTool } from './test_pipeline';
+// 方案A（P1阻断项修复）：自研工具上线注册代理 handler，真实执行在隔离子进程（不再主进程 import 生成源码）
+import { createIsolatedHandler, ensureSandboxBuilt } from './sandbox_isolate/sandbox_host';
+import { assertGlobalCap } from './breakers';
 import type { ApprovalRecord, ToolTestReport } from './types';
 
 export const APPROVAL_EXPIRE_DAYS = 7;
@@ -72,6 +75,11 @@ export async function decideApproval(
 
   switch (decision) {
     case 'approved': {
+      // 全局限额熔断：累计安装量达上限（mcp_skill_store 持久计数）→ 拒绝部署
+      const cap = await assertGlobalCap();
+      if (!cap.ok) {
+        return { ok: false, status: 'pending', message: `部署被全局限额熔断拦截：${cap.reason}` };
+      }
       // 批准 → 正式上线：注册到工具池（版本栈管理）
       // 来源分流：projectId='adapt:<tool>' 为适配器暂存工具；数字为沙箱自研项目
       const deployed = rec.projectId.startsWith('adapt:')
@@ -105,23 +113,32 @@ export async function decideApproval(
   }
 }
 
-// ── 上线部署（沙箱自研工具：动态加载 → 注册版本栈） ──
+// ── 上线部署（沙箱自研工具：编译校验 → 代理 handler 注册版本栈；方案A 隔离执行） ──
 
 async function deploySandboxTool(projectId: number, toolName: string): Promise<{ ok: boolean; message: string }> {
-  const tool = await loadSandboxTool(projectId);
-  if (!tool) return { ok: false, message: '沙箱源码加载失败' };
+  // 主进程只做 tsc 编译校验（产物落盘沙箱目录 dist/index.mjs），绝不 import 生成源码；
+  // 注册进 ToolRegistry 的 handler 是 IPC 代理 —— 运行时代码在隔离子进程内执行。
+  const built = await ensureSandboxBuilt(projectId);
+  if (!built.ok) return { ok: false, message: `沙箱源码编译失败：${built.message || '未知错误'}` };
+  // P2-2：继承创建阶段风险分级（createSandboxProject 持久化的 realRiskLevel），
+  // 存入 mcp_skill_store.securityLevel；不再硬编码 'safe'。旧项目无该字段时回退 'safe'。
+  const project = (await listSandboxProjects()).find(p => p.id === projectId);
+  const realRiskLevel = project?.riskLevel || 'safe';
   const def = {
-    name: tool.name,
-    description: tool.name === toolName ? tool.name : tool.name,
+    name: toolName,
+    description: toolName,
     parameters: {},
-    handler: tool.handler,
+    handler: createIsolatedHandler(projectId, toolName),
     permission: 'public' as const,
-    securityLevel: 'safe' as const,
+    // P2-8：安全级别直接继承创建阶段 realRiskLevel（safe/medium/high），不再写死 'safe'，
+    // 与下方 meta.securityLevel 入库口径一致，避免内存对象与数据库展示失真。
+    // Registry 运行语义不变：仅 'confirm'/'forbidden' 触发确认/禁用，其余按原安全级别放行。
+    securityLevel: realRiskLevel as SecurityLevel,
   };
-  const r = registerDefinition(tool.name, def, '1.0.0', {
-    name: tool.name,
-    serviceName: tool.name,
-    securityLevel: 'safe',
+  const r = registerDefinition(toolName, def, '1.0.0', {
+    name: toolName,
+    serviceName: toolName,
+    securityLevel: realRiskLevel,
     source: 'sandbox',
     origin: `沙箱自研（项目 #${projectId}）`,
   });

@@ -1,6 +1,7 @@
 import { ToolRegistry } from '../registry';
 import { getSleepCycleState, runDreamCycle } from '../../memory/dream';
 import { getUserPreferredLLMConfig } from '../../llm/user_preferences';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 function requireDreamGetters(context: any) {
   const getters = context?.llmGetters || {};
@@ -21,7 +22,7 @@ export function registerSleepTools(registry: ToolRegistry): void {
     },
     handler: async (_args, context) => JSON.stringify(getSleepCycleState(context?.userId || 'anonymous'), null, 2),
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Read Peppa sleep/dream memory-maintenance status: last sleep cycle, dream count, last dream summary, and last report.'),
   });
 
   registry.register({
@@ -71,6 +72,6 @@ export function registerSleepTools(registry: ToolRegistry): void {
       return JSON.stringify(report, null, 2);
     },
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Run even if idle/night/cooldown gates would normally skip. Use only when the user explicitly asks Peppa to sleep/dream now.'),
   });
 }

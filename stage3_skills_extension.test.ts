@@ -110,7 +110,7 @@ async function scene3() {
   console.log('\n━━━ 场景3：沙箱生成 + tsc 迭代 ━━━');
   const { createSandboxProject, iterateTsc, nameService } = await import('./server/skills_extension/sandbox');
   const { renderMcpSource } = await import('./server/skills_extension/mcp_template');
-  const { loadSandboxTool } = await import('./server/skills_extension/test_pipeline');
+  const { getIsolatedTestableTool } = await import('./server/skills_extension/sandbox_isolate/sandbox_host');
   const { listSandboxProjects } = await import('./server/skills_extension/database');
 
   const svc = nameService('美股行情');
@@ -146,9 +146,9 @@ async function scene3() {
   const db = await listSandboxProjects();
   check('DB 记录 tsc 通过', db.find(p => p.id === proj.id)?.tscPassed === true);
 
-  const tool = await loadSandboxTool(proj.id);
-  check('沙箱工具可动态加载', !!tool && typeof tool.handler === 'function');
-  check('沙箱工具元数据就绪', tool!.complianceDomain === 'finance' && tool!.endpointTemplate.includes('fx'), JSON.stringify(tool?.endpointTemplate));
+  const tool = await getIsolatedTestableTool(proj.id);
+  check('沙箱工具经隔离子进程可加载（IPC 代理 handler）', !!tool && typeof tool.handler === 'function' && tool.isolated === true);
+  check('沙箱工具元数据就绪（子进程描述）', tool!.complianceDomain === 'finance' && tool!.endpointTemplate.includes('fx'), JSON.stringify(tool?.endpointTemplate));
 
   // 5 轮失败的修复路径：注入坏死代码 → iterateTsc 应 5 轮标记人工优化
   const badPath = path.join(proj.dir, 'src', 'index.ts');
@@ -207,7 +207,8 @@ async function scene4() {
 async function scene5() {
   console.log('\n━━━ 场景5：人工审批闸门（批准/驳回修改/暂存 7 天清理） ━━━');
   const { createSandboxProject, iterateTsc } = await import('./server/skills_extension/sandbox');
-  const { loadSandboxTool, runTestPipeline, makeSandboxRepair } = await import('./server/skills_extension/test_pipeline');
+  const { runTestPipeline, makeSandboxRepair } = await import('./server/skills_extension/test_pipeline');
+  const { getIsolatedTestableTool } = await import('./server/skills_extension/sandbox_isolate/sandbox_host');
   const { submitForApproval, decideApproval, listPendingApprovals, expireStaleApprovals, isInToolPool } = await import('./server/skills_extension/approval');
   const { expireOldSandboxProjects } = await import('./server/skills_extension/sandbox');
   const { listSandboxProjects } = await import('./server/skills_extension/database');
@@ -222,7 +223,7 @@ async function scene5() {
     complianceDomain: 'none', securityLevel: 'safe',
   });
   await iterateTsc(proj.id);
-  const tool = (await loadSandboxTool(proj.id))!;
+  const tool = (await getIsolatedTestableTool(proj.id))!;
   const report = await runTestPipeline(tool, { projectId: proj.id, repair: makeSandboxRepair(proj.id) });
   const sub = await submitForApproval(proj.id, tool.name, report);
   check('沙箱项目测试通过 → 提交审批', sub.ok, sub.message);
@@ -273,7 +274,7 @@ async function scene5() {
     complianceDomain: 'none', securityLevel: 'safe',
   });
   await iterateTsc(projHold.id);
-  const toolHold = (await loadSandboxTool(projHold.id))!;
+  const toolHold = (await getIsolatedTestableTool(projHold.id))!;
   const reportHold = await runTestPipeline(toolHold, { projectId: projHold.id, repair: makeSandboxRepair(projHold.id) });
   const subHold = await submitForApproval(projHold.id, toolHold.name, reportHold);
   const held = await decideApproval(subHold.approvalId!, 'hold', 'e2e');
@@ -379,7 +380,7 @@ async function scene7() {
 async function scene8() {
   console.log('\n━━━ 场景8：网络降级（5xx 重试 / 超时 / SSRF / 截断） ━━━');
   const { createSandboxProject, iterateTsc } = await import('./server/skills_extension/sandbox');
-  const { loadSandboxTool } = await import('./server/skills_extension/test_pipeline');
+  const { getIsolatedTestableTool } = await import('./server/skills_extension/sandbox_isolate/sandbox_host');
   const { registerMockEndpoint, restoreFetch } = await import('./server/skills_extension/test_pipeline');
 
   // 1) 5xx 重试降级（适配器风格 handler 由测试流水线覆盖；这里验证沙箱模板行为）
@@ -392,7 +393,7 @@ async function scene8() {
     complianceDomain: 'finance', securityLevel: 'safe',
   });
   await iterateTsc(proj.id);
-  const tool = (await loadSandboxTool(proj.id))!;
+  const tool = (await getIsolatedTestableTool(proj.id))!;
 
   registerMockEndpoint({ url: tool.endpointTemplate, status: 503 });
   const r503 = await tool.handler({});
@@ -411,7 +412,7 @@ async function scene8() {
     complianceDomain: 'none', securityLevel: 'safe',
   });
   await iterateTsc(evil.id);
-  const evilTool = (await loadSandboxTool(evil.id))!;
+  const evilTool = (await getIsolatedTestableTool(evil.id))!;
   const rEvil = await evilTool.handler({ path: 'admin' });
   check('内网地址被 SSRF 拦截', rEvil.includes('拦截') || rEvil.includes('仅允许 HTTPS'), rEvil.slice(0, 80));
 

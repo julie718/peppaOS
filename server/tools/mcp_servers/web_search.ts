@@ -4,6 +4,7 @@
 import { ToolRegistry } from '../registry';
 import { buildMcpServerFromRegistry } from './mcp_helpers';
 import { logger } from '../../lib/logger';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 import { NEWS_SOURCES } from '../definitions/news_tools';
 import { bumpPreferenceTag, getUserPreferenceTags } from '../../db/lifeDb';
 // 阶段一·模块2: 数字孪生行为采集（阅读维度）＋ 模块3: 资讯阅读后人格微调
@@ -201,7 +202,7 @@ export function registerWebSearchTools(registry: ToolRegistry): void {
       parameters: t.params,
       handler: async (a: Record<string, any>) => t.handler(a, String(a.userId || process.env.E2E_UID || 'peppa-user')),
       permission: 'user',
-      securityLevel: 'safe',
+      securityLevel: classifyBuiltinToolRisk(t.desc),
     });
   }
   logger.info(`[WebSearchMCP] 已注册 ${tools.length} 个工具 + 强制检索词 ${MUST_SEARCH_TERMS.length} 个`);

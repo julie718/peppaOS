@@ -1,5 +1,6 @@
 import { exec } from 'child_process';
 import { ToolRegistry } from '../registry';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 const REPO_ROOT = process.cwd();
 
@@ -103,7 +104,7 @@ export function registerVerifyTools(registry: ToolRegistry): void {
     },
     handler: typeCheckHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Run TypeScript type checker (npx tsc --noEmit). Returns errors grouped by file with line numbers. Use after modifying code to verify correctness.'),
   });
 
   registry.register({
@@ -119,6 +120,6 @@ export function registerVerifyTools(registry: ToolRegistry): void {
     },
     handler: runTestsHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Run the test suite and report results. Defaults to "npm test". Use "command" to run a specific test (e.g. "npx vitest run path/to/test.test.ts").'),
   });
 }

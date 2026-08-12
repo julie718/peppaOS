@@ -102,6 +102,8 @@ export function createPeppaMcpServer(llmGetters?: {
             maxTokens: 2048,
             userId: 'mcp_remote',
             signal: mcpAbort.signal,
+            // 任务2：MCP 技能可行性评估/工具自研与排错校验 → 外部路由强制走 deepseek-v4-pro
+            scene: 'mcp_eval',
           },
           (record) => {
             const cid = `${record.name}-${Date.now()}`;
@@ -558,7 +560,7 @@ export function createPeppaMcpServer(llmGetters?: {
 
           const result = await runWithTools(
             messages, tr,
-            { provider: 'deepseek', model: DEFAULT_MODELS.deepseek, maxTokens: 2048, userId: 'mcp_remote' },
+            { provider: 'deepseek', model: DEFAULT_MODELS.deepseek, maxTokens: 2048, userId: 'mcp_remote', scene: 'mcp_eval' },
             undefined, 2,
             g.getDeepSeek || (() => null), g.getGemini || (() => null), g.getOpenAI || (() => null),
             g.getAnthropic || (() => null), g.getQwen || (() => null),

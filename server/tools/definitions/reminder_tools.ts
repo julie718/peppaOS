@@ -2,6 +2,7 @@
 import { ToolRegistry } from '../registry';
 import { readDB, writeDB } from '../../../db_layer';
 import { logger } from '../../../logger';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 function genId(): string {
   return `rem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -156,7 +157,7 @@ export function registerReminderTools(registry: ToolRegistry): void {
     },
     handler: reminderCreate,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('创建日历提醒。支持设置截止时间（ISO 8601 格式，如 2026-07-29T09:00:00）。提醒会持久化存储，跨会话保留。创建后用 reminder_list 查看所有提醒。'),
   });
 
   registry.register({
@@ -172,7 +173,7 @@ export function registerReminderTools(registry: ToolRegistry): void {
     },
     handler: reminderList,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('列出提醒。默认列出待处理(pending)的提醒，也可查看已完成(done)的提醒。返回提醒ID、内容和截止时间。'),
   });
 
   registry.register({
@@ -187,7 +188,7 @@ export function registerReminderTools(registry: ToolRegistry): void {
     },
     handler: reminderDismiss,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('将提醒标记为已完成。通过提醒ID（或ID后缀）来定位提醒。用 reminder_list 查看所有提醒及其ID。'),
   });
 
   registry.register({

@@ -3,6 +3,7 @@ import { execSync } from 'child_process';
 import { writeFileSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 /**
  * Windows Calendar & Email tools using Outlook COM automation via PowerShell.
@@ -386,7 +387,7 @@ export function registerCalendarTools(registry: ToolRegistry): void {
     parameters: { type: 'object', properties: {}, required: [] },
     handler: outlookCalendarToday,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Get today\'s calendar events from Microsoft Outlook. Returns a list of scheduled meetings and appointments with times and locations.'),
   });
 
   registry.register({
@@ -402,7 +403,7 @@ export function registerCalendarTools(registry: ToolRegistry): void {
     },
     handler: outlookUpcomingEvents,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Get upcoming calendar events from Microsoft Outlook for the specified number of days. Default is 7 days. Useful for checking what\'s coming up.'),
   });
 
   registry.register({
@@ -436,7 +437,7 @@ export function registerCalendarTools(registry: ToolRegistry): void {
     },
     handler: outlookRecentEmails,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('List recent emails from the Microsoft Outlook inbox. Returns sender, subject, and received time.'),
   });
 
   registry.register({
@@ -504,7 +505,7 @@ export function registerCalendarTools(registry: ToolRegistry): void {
     parameters: { type: 'object', properties: {}, required: [] },
     handler: systemCalendarToday,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('读取 macOS 系统日历（Calendar.app）今日日程。返回时间、标题、地点、描述。无需 Outlook，直接读取原生日历。Windows 用户请用 calendar_today（Outlook）。'),
   });
 
   registry.register({
@@ -520,6 +521,6 @@ export function registerCalendarTools(registry: ToolRegistry): void {
     },
     handler: systemCalendarUpcoming,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('读取 macOS 系统日历未来N天日程。返回日期、时间、标题、地点、描述。默认7天，最多30天。Windows 用户请用 upcoming_events（Outlook）。'),
   });
 }

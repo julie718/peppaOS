@@ -1,6 +1,7 @@
 import { getAdapterRegistry, summarizeAdapters, AdapterCapability, AdapterCategory, AdapterStatus } from '../../adapters/registry';
 import { getClientState } from '../../client/self_model';
 import { ToolRegistry } from '../registry';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 const STATUSES: AdapterStatus[] = [
   'ready',
@@ -68,7 +69,7 @@ export function registerAdapterTools(registry: ToolRegistry): void {
       }, null, 2);
     },
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('List Peppa client capability adapters: windows, modes, tools, skills, music, meeting, organization, runtime logs, knowledge, settings, permissions, desktop control, CAD/BIM, external apps, and collaboration.'),
   });
 
   registry.register({
@@ -129,7 +130,7 @@ export function registerAdapterTools(registry: ToolRegistry): void {
       }, null, 2);
     },
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Check Peppa adapter readiness and return blockers, setup needs, degraded areas, and safe next actions. Use this when Peppa needs to understand whether a capability can really be used.'),
   });
 }
 

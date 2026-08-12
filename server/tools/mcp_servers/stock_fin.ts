@@ -4,6 +4,7 @@
 import { ToolRegistry } from '../registry';
 import { buildMcpServerFromRegistry } from './mcp_helpers';
 import { logger } from '../../lib/logger';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 import { bumpPreferenceTag } from '../../db/lifeDb';
 // 阶段一·模块2: 数字孪生行为采集（理财维度）
 import { collectBehavior } from '../../autonomy/digital_twin';
@@ -132,7 +133,7 @@ export function registerStockTools(registry: ToolRegistry): void {
       parameters: t.params,
       handler: async (a: Record<string, any>) => t.handler(a, String(a.userId || process.env.E2E_UID || 'peppa-user')),
       permission: 'user',
-      securityLevel: 'safe',
+      securityLevel: classifyBuiltinToolRisk(t.desc),
     });
   }
   logger.info(`[StockMCP] 已注册 ${tools.length} 个工具`);

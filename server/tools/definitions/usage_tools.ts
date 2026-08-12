@@ -1,5 +1,6 @@
 import { readDB } from '../../../db_layer';
 import { ToolRegistry } from '../registry';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 type UsageRange = 'today' | 'yesterday' | '7d' | '30d' | '90d' | 'all' | 'custom';
 type UsageGroupBy = 'provider' | 'model' | 'provider_model' | 'mode' | 'day';
@@ -124,7 +125,7 @@ export function registerUsageTools(registry: ToolRegistry): void {
       }, null, 2);
     },
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Summarize Peppa LLM/model token usage by provider, model, provider+model, mode, or day. Use this before answering questions about which model was used today and how many tokens/calls were consumed.'),
   });
 }
 

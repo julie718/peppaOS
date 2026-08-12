@@ -1,6 +1,10 @@
 // 阶段三·自主技能拓展系统 — 类型定义
 // 全部类型集中在独立模块，不触碰阶段一/二任何类型。
 
+// ── 风险等级（P2-3：ToolCandidate / P2-2：realRiskLevel 共用；与 risk_policy 同构） ──
+
+export type RiskLevel = 'safe' | 'medium' | 'high';
+
 // ── 能力缺口 ──
 
 export interface SkillGap {
@@ -60,6 +64,12 @@ export interface ToolCandidate {
   disqualifyReasons: string[];
   /** 决策：reuse（路径A）/ self_build（路径B） */
   decision: 'reuse' | 'self_build';
+  /** 版本号（P2-3：检索可得时填充；注册表/社区命中无版本数据时置 null） */
+  version: string | null;
+  /** 依赖清单（P2-3：自包含工具为空数组；无法获取时为空数组） */
+  dependencies: string[];
+  /** 风险等级（P2-3：经 risk_policy 分级填充；无法评估时置 null） */
+  riskLevel: RiskLevel | null;
   assessedAt: string;
 }
 
@@ -81,6 +91,8 @@ export interface SandboxProject {
   tscPassed: boolean;
   /** 待修复原因（5 轮失败标记） */
   pendingReason?: string;
+  /** 风险等级（P2-2：创建阶段由 risk_policy 分级，审批上线继承，不再硬编码 safe） */
+  riskLevel?: RiskLevel;
   /** 创建时间 ISO（7 天未审批自动清理） */
   createdAt: string;
   status: 'building' | 'testing' | 'awaiting_approval' | 'approved' | 'rejected' | 'expired' | 'failed';
@@ -147,6 +159,8 @@ export interface ToolMetric {
   latencyMs: number;
   /** 用户负面情绪标记（-1 表示未知） */
   userNegative: number;
+  /** 指标来源（P2-4：self_build 自研工具显式标记；默认 community） */
+  source?: string;
   createdAt: string;
 }
 
@@ -160,6 +174,35 @@ export interface SkillsAuditEntry {
   subject: string;
   detail: string;
   createdAt: string;
+}
+
+// ── 技能库（mcp_skill_store：元数据/来源/风险标记/成功率统计） ──
+
+export type SkillStoreSource = 'registry' | 'community' | 'api' | 'self_build';
+
+export interface SkillStoreEntry {
+  id: number;
+  toolName: string;
+  version: string;
+  /** 来源：registry（内置目录）/ community（社区下载）/ api（第三方 API）/ self_build（AI自主生成） */
+  source: SkillStoreSource;
+  /** 仓库地址/接口地址/生成来源 */
+  origin: string;
+  /** 风险标记：safe / medium / high */
+  riskLevel: RiskLevel;
+  securityLevel: string;
+  complianceDomain: string;
+  needsCredential: boolean;
+  /** installed（已登记）/ enabled（已启用）/ disabled（已禁用）/ uninstalled（已卸载，记录保留） */
+  status: 'installed' | 'enabled' | 'disabled' | 'uninstalled';
+  /** 成功率统计 */
+  successCount: number;
+  failCount: number;
+  totalCalls: number;
+  successRate: number; // 0~1
+  metadata: string; // JSON 字符串
+  installedAt: string;
+  updatedAt: string;
 }
 
 // ── 健康面板数据（模块6 扩展 health-check） ──

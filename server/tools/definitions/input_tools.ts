@@ -1,4 +1,5 @@
 import { ToolRegistry } from '../registry';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 async function mouseMove(args: Record<string, any>, context?: any): Promise<string> {
   if (!context?.desktopRelay) throw new Error('Mouse control requires the Tauri desktop app');
@@ -46,7 +47,7 @@ export function registerInputTools(registry: ToolRegistry): void {
     },
     handler: mouseMove,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Move the mouse cursor to absolute screen coordinates (x, y). Use this to position the cursor before clicking or to hover over UI elements. Coordinates are pixels from the top-left corner of the primary monitor.'),
   });
 
   registry.register({
@@ -62,7 +63,7 @@ export function registerInputTools(registry: ToolRegistry): void {
     },
     handler: mouseClick,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Click a mouse button at the current cursor position. Use after mouse_move to interact with buttons, links, or any UI element.'),
   });
 
   registry.register({
@@ -82,7 +83,7 @@ export function registerInputTools(registry: ToolRegistry): void {
     },
     handler: mouseDrag,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Click and drag from one screen position to another. Useful for moving windows, selecting text, or drag-and-drop operations.'),
   });
 
   registry.register({
@@ -98,7 +99,7 @@ export function registerInputTools(registry: ToolRegistry): void {
     },
     handler: keyType,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Type a text string at the current keyboard focus. Use to fill in text fields, compose messages, or input content.'),
   });
 
   registry.register({
@@ -114,6 +115,6 @@ export function registerInputTools(registry: ToolRegistry): void {
     },
     handler: keyPress,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Press a keyboard key or key combination. For single keys use names like "enter", "escape", "tab", "space", "backspace", "delete", "home", "end", "pageup", "pagedown", "up", "down", "left", "right", "f1".."f12", or a single character. For combos use "ctrl+c", "ctrl+shift+t", "alt+tab", "ctrl+v" etc. Supported modifiers: ctrl, shift, alt, meta (Windows key / Cmd).'),
   });
 }

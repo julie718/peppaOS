@@ -1,6 +1,7 @@
 import { createWorkProductPlan, verifyWorkProduct } from '../../work_product/supervisor';
 import { getPeppaPersonalityConstitution } from '../../personality/constitution';
 import { ToolRegistry } from '../registry';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 export function registerWorkProductTools(registry: ToolRegistry): void {
   registry.register({
@@ -13,7 +14,7 @@ export function registerWorkProductTools(registry: ToolRegistry): void {
     },
     handler: async () => JSON.stringify(getPeppaPersonalityConstitution(), null, 2),
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Read Peppa Personality Constitution: stable identity, truth-about-work, owner sovereignty, memory/privacy firewall, action boundaries, work product supervision, self-extension consent, growth stability, and collaboration rules.'),
   });
 
   registry.register({
@@ -54,7 +55,7 @@ export function registerWorkProductTools(registry: ToolRegistry): void {
       return JSON.stringify(plan, null, 2);
     },
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Create a work product supervision plan before real work: define the deliverable, acceptance criteria, checkpoints, verification actions, repair loop, and stop conditions. Use this for tasks that should produce a file, report, drawing, code change, client action, research result, meeting report, or other concrete deliverable.'),
   });
 
   registry.register({
@@ -93,6 +94,6 @@ export function registerWorkProductTools(registry: ToolRegistry): void {
       return JSON.stringify(report, null, 2);
     },
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Verify a work product against a plan or acceptance criteria. Checks artifact paths, file size/readability, required text, and returns pass/partial/fail/blocked plus repair actions. Call this before claiming a real task is complete, and call it again after repairs.'),
   });
 }

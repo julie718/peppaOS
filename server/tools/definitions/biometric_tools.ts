@@ -1,5 +1,6 @@
 import { ToolRegistry } from '../registry';
 import { getVoiceprints, getAllVoiceprints, getFaces, getAllFaces, deleteVoiceprint, deleteFace } from '../../biometrics/store';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 async function biometricStatus(_args: Record<string, any>, context?: any): Promise<string> {
   const uid = context?.userId || 'anonymous';
@@ -89,7 +90,7 @@ export function registerBiometricTools(registry: ToolRegistry): void {
     },
     handler: biometricStatus,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Check the current biometric enrollment status — which voiceprints and faces are registered for the current user. Use this to see if biometric verification is available.'),
   });
 
   registry.register({
@@ -103,7 +104,7 @@ export function registerBiometricTools(registry: ToolRegistry): void {
     },
     handler: biometricEnroll,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Get instructions for enrolling biometric data (voiceprint and/or face). Use this when a user wants to set up voice or face recognition.', ['credential']),
   });
 
   registry.register({
@@ -117,7 +118,7 @@ export function registerBiometricTools(registry: ToolRegistry): void {
     },
     handler: biometricVerify,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Manually trigger a biometric verification — asks the user to look at the camera and speak so the system can verify their identity against enrolled voiceprints and faces.', ['credential']),
   });
 
   registry.register({

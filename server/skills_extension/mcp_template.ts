@@ -4,6 +4,10 @@
 // 参数化点：serviceName / description / 参数 schema / 端点模板 / 入参映射 / 提取器 / 合规域 / 安全级别。
 // 模板是工程脚手架（代码生成骨架），非对话话术模板——满足"非必要固化模板清理"边界。
 
+// 安全级别入参改用真实风险分级（RiskLevel），由调用方（sandbox.ts）传入审批后 realRiskLevel，
+// 保证生成源码内 SECURITY_LEVEL 自描述与 mcp_skill_store.securityLevel 落库值完全一致。
+import type { RiskLevel } from './types';
+
 export interface McpTemplateParams {
   serviceName: string;
   description: string;
@@ -18,7 +22,8 @@ export interface McpTemplateParams {
   extractorFn: string;
   /** 合规域：finance / medical / none */
   complianceDomain: 'finance' | 'medical' | 'none';
-  securityLevel?: 'safe' | 'confirm';
+  /** 真实风险等级（创建阶段风险闸门分级，审批上线继承同一值）；渲染为源码 SECURITY_LEVEL 自描述 */
+  securityLevel?: RiskLevel;
 }
 
 /** 渲染完整工具源码（唯一导出出口：MCP 工具定义 + 自检） */
@@ -42,18 +47,22 @@ const SECURITY_LEVEL = '${p.securityLevel || 'safe'}';
 const FINANCE_DISCLAIMER = '\\n\\n⚠️ 以上仅为客观数据陈列，不构成任何投资建议。投资有风险，决策需自行判断。';
 const MEDICAL_DISCLAIMER = '\\n\\n⚠️ 以上内容仅供科普参考，不能替代专业医疗诊断与治疗建议；如有不适请及时就医。';
 
-// ── SSRF 防护：仅允许 HTTPS 公网出站（沙箱最小权限） ──
+// ── SSRF 防护：仅允许 HTTPS 公网出站（沙箱最小权限；规则与隔离子进程 sandbox_child 完全一致） ──
 function assertPublicHttpsUrl(raw: string): URL {
   const u = new URL(raw);
   if (u.protocol !== 'https:') throw new Error('仅允许 HTTPS 出站');
-  const host = u.hostname;
-  if (host === 'localhost' || host.endsWith('.local') || host === '127.0.0.1' || host === '::1') {
-    throw new Error('禁止访问本地地址（沙箱隔离）');
+  const host = u.hostname.toLowerCase();
+  if (host === 'localhost' || host === '::1' || host === '0.0.0.0' ||
+      host.endsWith('.local') || host.endsWith('.internal') || host.endsWith('.lan') ||
+      host.endsWith('.localhost') || host.endsWith('.localdomain')) {
+    throw new Error('禁止访问本地/内网主机（沙箱隔离）');
   }
   if (/^(\\d{1,3}\\.){3}\\d{1,3}$/.test(host)) {
     const parts = host.split('.').map(Number);
-    if (parts[0] === 10 || (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
-        (parts[0] === 192 && parts[1] === 168) || parts[0] === 127) {
+    if (parts[0] === 10 || parts[0] === 127 ||
+        (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+        (parts[0] === 192 && parts[1] === 168) ||
+        (parts[0] === 169 && parts[1] === 254)) {
       throw new Error('禁止访问内网地址（沙箱隔离）');
     }
   }
@@ -129,7 +138,6 @@ async function handle(args: Record<string, unknown>): Promise<string> {
           : '⚠️ 调用失败：' + lastErr.message + '。已自动降级。';
       }
     }
-    void lastErr;
     void lastErr;
     finish('error');
     return '⚠️ 未知失败。';

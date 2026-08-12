@@ -1,19 +1,27 @@
 // 阶段三·模块5a — 全自动测试流水线（6 类用例）
 //
-// 用例类别（对生成/适配工具的统一测试矩阵，测试进程内 patch fetch 模拟外部端点，不改生成代码）：
+// 用例类别（对生成/适配工具的统一测试矩阵，测试期 mock 模拟外部端点，不改生成代码）：
 //   1. 功能正确性 — 正常入参 → 返回预期结构
 //   2. 边界与异常 — 缺参/空参/超长入参 → 不崩溃、友好文案
 //   3. 网络故障降级 — 5xx / 超时 → 重试后降级文案（不抛未捕获错误）
-//   4. 沙箱隔离(SSRF) — localhost/内网/非 HTTPS 地址 → 拦截文案
+//   4. 沙箱隔离(SSRF) — localhost/内网/非 HTTPS 地址 → 真实拦截探测（P2-5：原无条件 ok 空用例已删除）
 //   5. 强制合规免责 — finance/medical 域输出必须含免责文案（缺失=失败）
 //   6. 性能与稳定性 — 响应耗时上限、连续调用无泄漏
+//
+// 方案A 隔离执行（P1阻断项修复）：AI 自研工具（self_build）的 handler 为 IPC 代理，
+// 真实执行发生在隔离子进程（sandbox_isolate/sandbox_child）；mock 端点随 invoke 消息快照
+// 同步进子进程，子进程内 patch fetch 生效，语义与主进程内 mock 完全一致；
+// 社区下载/适配器工具（reuse 路径）维持主进程内执行与 mock，链路不变。
 //
 // 迭代策略：失败 → 触发修复（沙箱项目重新 iterateTsc 修复源码）→ 重测，上限 5 轮；
 // 5 轮仍失败 → needsHumanOptimization 标记（人工优化）。
 
 import { logger } from '../lib/logger';
 import { appendAudit } from './database';
-import { iterateTsc, readProjectSource } from './sandbox';
+import { iterateTsc } from './sandbox';
+import { forwardMockRegister, forwardMockReset, probeInternal } from './sandbox_isolate/sandbox_host';
+import { ssrfProbeInProcess } from './adapter';
+import type { SandboxMockEndpoint as MockEndpoint } from './sandbox_isolate/sandbox_ipc_types';
 import type { ToolTestReport } from './types';
 
 export interface TestableTool {
@@ -22,19 +30,37 @@ export interface TestableTool {
   complianceDomain?: 'finance' | 'medical' | 'none';
   /** 端点模板（识别 SSRF 用例的期望地址） */
   endpointTemplate?: string;
+  /** 方案A 隔离标记：true = handler 为 IPC 代理，真实执行发生在隔离子进程 */
+  isolated?: boolean;
+  /** 关联沙箱项目 id（隔离子进程定位编译产物） */
+  projectId?: number;
 }
 
 export const MAX_TEST_ITERATIONS = 5;
 
-// ── 测试端点模拟（进程内 patch fetch；仅测试期生效） ──
+/** SSRF 真实拦截探测地址矩阵（用例4：内网 IP / 内网主机，全部必须被拦截）。
+ * 通用矩阵对「适配器进程内守卫」与「子进程守卫」均须拦截；
+ * 云元数据段（169.254）仅子进程守卫覆盖（进程级强化），单独在子进程探测中执行。 */
+export const SSRF_PROBES = [
+  'http://127.0.0.1:80/internal',
+  'http://localhost:80/admin',
+  'https://10.0.0.1/',
+  'https://172.16.0.1/',
+  'https://192.168.1.1/',
+  'https://intranet.local/',
+  'http://metadata.internal/',
+];
 
-interface MockEndpoint {
-  url: string;            // 端点 URL 前缀
-  status?: number;        // HTTP 状态（默认 200）
-  body?: unknown;         // JSON 响应体
-  delayMs?: number;       // 响应延迟
-  abort?: boolean;        // 模拟网络超时（抛 TimeoutError）
-}
+/** 子进程级强化探测：云元数据段（169.254.169.254，云环境 SSRF 头号目标） */
+export const CHILD_ONLY_SSRF_PROBES = [
+  'https://169.254.169.254/latest/meta-data/',
+  'http://169.254.169.254/latest/meta-data/',
+];
+
+// ── 测试端点模拟（主进程内 patch fetch，仅测试期生效；隔离工具经 invoke 消息同步进子进程） ──
+
+// MockEndpoint 形状与 sandbox_ipc_types 共享（子进程内 mock 与主进程内 mock 语义一致）
+//  { url, status?, body?, delayMs?, abort? }
 
 const mockEndpoints: MockEndpoint[] = [];
 let patchInstalled = false;
@@ -42,12 +68,16 @@ let originalFetch: typeof fetch;
 
 export function resetTestEndpoints(): void {
   mockEndpoints.length = 0;
+  // 隔离工具：同步清空宿主侧 mock 快照（下一次 invoke 携带空列表 → 子进程 mock 清空）
+  forwardMockReset();
 }
 
 /** 注册一个 mock 端点（url 前缀匹配；后续 fetch 被拦截） */
 export function registerMockEndpoint(e: MockEndpoint): void {
   mockEndpoints.push(e);
   installFetchPatch();
+  // 隔离工具：转发到沙箱宿主 → 随下一次 invoke 消息进入隔离子进程（子进程内 mock 生效）
+  forwardMockRegister(e);
 }
 
 function installFetchPatch(): void {
@@ -80,6 +110,7 @@ export function restoreFetch(): void {
     globalThis.fetch = originalFetch;
     patchInstalled = false;
     mockEndpoints.length = 0;
+    forwardMockReset();
   }
 }
 
@@ -143,14 +174,29 @@ function buildCases(tool: TestableTool): CaseDef[] {
     },
   });
 
-  // 4. 沙箱隔离（SSRF）
+  // 4. 沙箱隔离（SSRF）— P2-5 修复：真实内网拦截测试（原无条件返回 ok 的空用例已删除）
+  // 探测地址矩阵：本地回环 / 内网 IP（10/172.16/192.168）/ 云元数据段（169.254）/ 内网主机名
   cases.push({
-    name: '隔离：禁止访问内网地址',
+    name: '隔离：内网IP/内网主机访问必须被拦截（真实探测）',
     run: async () => {
-      // 端点模板不可控时跳过（适配器工具用模板；直接用 handler 无法传 URL → 仅模板驱动工具可测）
-      const r = await tool.handler({ __ssrf_probe: 'http://127.0.0.1:80/internal' });
-      void r;
-      return 'ok'; // SSRF 深度测试在自研工具（模板内嵌防护）上执行：见「内网探测」用例
+      const probes = SSRF_PROBES;
+      if (tool.isolated && tool.projectId) {
+        // AI 自研工具：探测在隔离子进程内真实执行（子进程级 fetch 守卫，尝试访问即拦截）
+        const r = await probeInternal(tool.projectId, [...probes, ...CHILD_ONLY_SSRF_PROBES]);
+        if (!r.ok) return `子进程探测不可用：${r.message}`;
+        const leaked = (r.results || []).filter(p => !p.blocked);
+        if (leaked.length > 0) {
+          return `内网访问未被拦截：${leaked.map(p => `${p.url}→${p.detail}`).join('；')}`;
+        }
+        return 'ok';
+      }
+      // 适配器/社区工具（主进程执行）：进程内直接探测适配器 SSRF 守卫
+      const results = ssrfProbeInProcess(probes);
+      const leaked = results.filter(p => !p.blocked);
+      if (leaked.length > 0) {
+        return `内网访问未被拦截：${leaked.map(p => `${p.url}→${p.detail}`).join('；')}`;
+      }
+      return 'ok';
     },
   });
 
@@ -301,18 +347,6 @@ export function makeSandboxRepair(projectId: number): () => Promise<boolean> {
   };
 }
 
-/** 从沙箱项目动态加载工具（import 生成源码 → toolDefinition） */
-export async function loadSandboxTool(projectId: number): Promise<TestableTool | null> {
-  const loaded = await readProjectSource(projectId);
-  if (!loaded) return null;
-  const url = `file://${loaded.project.dir}/src/index.ts?t=${Date.now()}`;
-  const mod: any = await import(url);
-  const def = mod?.toolDefinition;
-  if (!def || typeof def.handler !== 'function') return null;
-  return {
-    name: def.name,
-    handler: def.handler,
-    complianceDomain: mod?.__META?.complianceDomain as any,
-    endpointTemplate: mod?.__META?.endpointTemplate as string,
-  };
-}
+// 注：主进程动态 import(file://) 加载 AI 生成源码的危险路径已彻底删除（P1阻断项·方案A）。
+// 自研工具的测试对象由 sandbox_isolate/sandbox_host.getIsolatedTestableTool 提供
+// （IPC 代理 handler + 子进程 describe 元信息），加载与执行只发生在隔离子进程内。

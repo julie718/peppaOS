@@ -14,6 +14,10 @@ import { getLatencyStats } from "../monitor/latency_store";
 import { mcpManager, getMCPConfig } from "../mcp";
 import { DEFAULT_VISION_MODELS } from "../llm/vision_preferences";
 import { getOrgPreferredLLM, getUserPreferredLLM, upsertOrgPreferredLLM } from "../llm/user_preferences";
+// DeepSeek 外部强制路由（任务2/5/6/7）：配置读写 / 当日用量与预算状态 / 手动重置
+import { getRouterConfig, saveRouterConfig, DEFAULT_ROUTER_CONFIG } from "../llm/routerConfig";
+import { getRouterStatus, resetRouterDailyUsage } from "../llm/mindRouter";
+import { getLastIdleInnerTickAt } from "../llm/frequencyGate";
 import { getVoicePreference, setVoicePreference, type VoicePreference } from "../config/voice_preference";
 import { getActiveSTTProvider } from "../stt/adapter";
 import { getActiveProvider as getActiveTTSProvider } from "../tts/adapter";
@@ -307,7 +311,8 @@ export function mountSystemRoutes(router: Router, jwtSecret: string, io?: any) {
   });
 
   // LLM connection test
-  router.post("/llm/test", async (req, res) => {
+  // P2-8：历史遗留无鉴权端点，统一挂载 requireAuth（与同文件其他 LLM 偏好接口鉴权模式一致）
+  router.post("/llm/test", requireAuth, async (req, res) => {
     const { provider, apiKey } = req.body || {};
     try {
       const stored = loadKeys();
@@ -334,7 +339,8 @@ export function mountSystemRoutes(router: Router, jwtSecret: string, io?: any) {
 
   // API Keys — read/write user-configured keys
   // LLM model preferences — read/write per user
-  router.put("/preferences/llm", (req, res) => {
+  // P2-8：历史遗留无鉴权端点，统一挂载 requireAuth（与同文件其他 LLM 偏好接口鉴权模式一致）
+  router.put("/preferences/llm", requireAuth, (req, res) => {
     try {
       const { provider, models } = req.body || {};
       if (!provider || !models || typeof models !== 'object') {
@@ -366,7 +372,8 @@ export function mountSystemRoutes(router: Router, jwtSecret: string, io?: any) {
     }
   });
 
-  router.get("/preferences/llm", (req, res) => {
+  // P2-8：历史遗留无鉴权端点，统一挂载 requireAuth（与同文件其他 LLM 偏好接口鉴权模式一致）
+  router.get("/preferences/llm", requireAuth, (req, res) => {
     try {
       let uid = 'anonymous';
       const token = req.cookies?.token || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
@@ -382,6 +389,60 @@ export function mountSystemRoutes(router: Router, jwtSecret: string, io?: any) {
       res.json(row ? JSON.parse(row.value) : { provider: '', models: {} });
     } catch {
       res.json({ provider: '', models: {} });
+    }
+  });
+
+  // ── DeepSeek 外部强制路由配置（任务6）：全局配置，iPhone App 复用服务端（无客户端设置）──
+  // P2-7：读写/用量/重置端点统一挂载 requireAuth（与 /preferences/org-llm 等接口鉴权模式一致）
+  // 字段：enabled / proModel / flashModel / dailyProTokenBudget / budgetWarnRatio / idleInnerTickIntervalMs
+  router.get("/preferences/llm-router", requireAuth, (_req, res) => {
+    try {
+      const cfg = getRouterConfig();
+      res.json({
+        ...cfg,
+        defaults: DEFAULT_ROUTER_CONFIG,
+        lastIdleInnerTickAt: getLastIdleInnerTickAt(),
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'Failed to load router config' });
+    }
+  });
+
+  router.put("/preferences/llm-router", requireAuth, (req, res) => {
+    try {
+      const body = req.body || {};
+      const input: any = {};
+      if (typeof body.enabled === 'boolean') input.enabled = body.enabled;
+      if (typeof body.proModel === 'string' && body.proModel.trim()) input.proModel = body.proModel.trim();
+      if (typeof body.flashModel === 'string' && body.flashModel.trim()) input.flashModel = body.flashModel.trim();
+      const budget = Number.parseFloat(body.dailyProTokenBudget);
+      if (Number.isFinite(budget) && budget >= 0) input.dailyProTokenBudget = budget;
+      const ratio = Number.parseFloat(body.budgetWarnRatio);
+      if (Number.isFinite(ratio) && ratio >= 0 && ratio <= 1) input.budgetWarnRatio = ratio;
+      const interval = Number.parseFloat(body.idleInnerTickIntervalMs);
+      if (Number.isFinite(interval) && interval >= 0) input.idleInnerTickIntervalMs = interval;
+      const saved = saveRouterConfig(input);
+      res.json({ success: true, config: saved });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'Failed to save router config' });
+    }
+  });
+
+  // ── 路由状态与当日用量统计（任务7）：模型/来源类型/输入输出token/耗时/缓存命中/降级/预算状态 ──
+  router.get("/llm/router-usage", requireAuth, (req, res) => {
+    try {
+      res.json(getRouterStatus());
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'Failed to load router usage' });
+    }
+  });
+
+  // 手动重置今日 pro 消耗（额度提前恢复 / 运维应急），仅重置预算计数，不触碰任何记忆/心智数据
+  router.post("/llm/router/reset-usage", requireAuth, (req, res) => {
+    try {
+      res.json({ success: true, today: resetRouterDailyUsage() });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'Failed to reset router usage' });
     }
   });
 

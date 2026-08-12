@@ -6,19 +6,39 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { requireAuth } from '../middleware/auth';
 import { ensureSkillsReady } from './index';
-import { migrateSkillsTables, appendAudit, listAudit } from './database';
+import { migrateSkillsTables, appendAudit, listAudit, listSkillStoreEntries } from './database';
 import { detectGaps } from './gap_detector';
 import { searchAndDecide } from './search_engine';
 import { adaptCandidate, getStagedTestableTool, listStagedAdaptations, listAdapterVersions } from './adapter';
 import { createSandboxProject, iterateTsc, expireOldSandboxProjects } from './sandbox';
-import { runTestPipeline, loadSandboxTool, makeSandboxRepair } from './test_pipeline';
+import { runTestPipeline, makeSandboxRepair } from './test_pipeline';
+import { getIsolatedTestableTool } from './sandbox_isolate/sandbox_host';
 import { submitForApproval, decideApproval, listPendingApprovals, expireStaleApprovals, isInToolPool } from './approval';
 import { setCredential, removeCredential, listCredentialMeta } from './auth_gateway';
 import { buildSkillsHealthBoard, generateSkillsMonthlyBrief, runMonthlyGapReview } from './hooks';
 import { autoRemediate } from './monitoring';
+import { decideSkillForTask } from './mind_decision';
+import { setSkillStatus } from './lifecycle';
+import { isPhase3Enabled, phase3Config } from './switch';
+import { getBreakerStatus } from './breakers';
 import type { AdapterConfig } from './adapter';
 
+/** 请求会话标识（熔断按会话维度计数） */
+function sessionOf(req: Request): string {
+  const u = (req as any).user;
+  return String(u?.id || u?.username || 'default');
+}
+
 export function mountSkillsRoutes(router: Router): void {
+  // ── 总开关（PEPPA_PHASE3_SKILL_AUTO_ENABLE）：关闭时仅保留只读状态端点，一键停用整套 Phase3 ──
+  if (!isPhase3Enabled()) {
+    router.get('/skills/status', requireAuth, (_req: Request, res: Response) => {
+      res.json({ ok: true, enabled: false, reason: 'PEPPA_PHASE3_SKILL_AUTO_ENABLE=false，整套阶段三能力已停用' });
+    });
+    console.error('[SkillsExt] PEPPA_PHASE3_SKILL_AUTO_ENABLE=false → 技能拓展路由未挂载（仅状态端点）');
+    return;
+  }
+
   // 惰性初始化（幂等）：迁移阶段三表 + 网关接线 + 例行巡检
   ensureSkillsReady().catch(e => console.error('[SkillsExt] 初始化失败:', e));
 
@@ -83,7 +103,7 @@ export function mountSkillsRoutes(router: Router): void {
         securityLevel: config.securityLevel || 'safe',
       };
       if (typeof cfg.extractor !== 'function') return res.status(400).json({ ok: false, error: '缺少 extractor 函数' });
-      const r = await adaptCandidate(candidate, cfg, version || '1.0.0');
+      const r = await adaptCandidate(candidate, cfg, version || '1.0.0', { sessionId: sessionOf(req) });
       res.json({ ok: r.ok, ...r });
     } catch (e: any) {
       res.status(500).json({ ok: false, error: e.message });
@@ -106,7 +126,7 @@ export function mountSkillsRoutes(router: Router): void {
         extractorFn: b.extractorFn || 'return JSON.stringify(data);',
         complianceDomain: b.complianceDomain || 'none',
         securityLevel: b.securityLevel || 'safe',
-      });
+      }, { sessionId: sessionOf(req) });
       // 创建后立即执行 tsc 迭代（≤5 轮）
       const iter = await iterateTsc(project.id);
       res.json({ ok: true, project, tsc: iter });
@@ -118,8 +138,9 @@ export function mountSkillsRoutes(router: Router): void {
   router.post('/skills/sandbox/:id/test', requireAuth, async (req: Request, res: Response) => {
     try {
       const id = Number(req.params.id);
-      const tool = await loadSandboxTool(id);
-      if (!tool) return res.status(404).json({ ok: false, error: '沙箱源码不可加载' });
+      // 方案A：测试对象经 sandbox_host 构建（编译产物 + IPC 代理 handler + 子进程 describe 元信息）
+      const tool = await getIsolatedTestableTool(id);
+      if (!tool) return res.status(404).json({ ok: false, error: '沙箱工具不可用（编译失败或隔离环境异常）' });
       const report = await runTestPipeline(tool, { projectId: id, repair: makeSandboxRepair(id) });
       if (report.gatePassed) {
         const sub = await submitForApproval(id, tool.name, report);
@@ -272,6 +293,73 @@ export function mountSkillsRoutes(router: Router): void {
       const expired = await expireOldSandboxProjects();
       const stale = await expireStaleApprovals();
       res.json({ ok: true, expiredSandbox: expired, expiredApprovals: stale });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  // ── 阶段三·开关/熔断/配置状态（面板可观测） ──
+
+  router.get('/skills/config', requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const cfg = phase3Config();
+      res.json({
+        ok: true,
+        config: cfg,
+        breakers: getBreakerStatus(),
+        storeCount: (await listSkillStoreEntries()).length,
+      });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  // ── 阶段三·技能库（mcp_skill_store：元数据/来源/风险标记/成功率统计） ──
+
+  router.get('/skills/store', requireAuth, async (_req: Request, res: Response) => {
+    try {
+      res.json({ ok: true, store: await listSkillStoreEntries() });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  router.post('/skills/store/:tool/enable', requireAuth, async (req: Request, res: Response) => {
+    try {
+      const r = await setSkillStatus(String(req.params.tool), 'enabled', (req as any).user?.username || 'console');
+      res.json({ ok: r.ok, ...r });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  router.post('/skills/store/:tool/disable', requireAuth, async (req: Request, res: Response) => {
+    try {
+      const r = await setSkillStatus(String(req.params.tool), 'disabled', (req as any).user?.username || 'console');
+      res.json({ ok: r.ok, ...r });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  router.post('/skills/store/:tool/uninstall', requireAuth, async (req: Request, res: Response) => {
+    try {
+      const r = await setSkillStatus(String(req.params.tool), 'uninstalled', (req as any).user?.username || 'console');
+      res.json({ ok: r.ok, ...r });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  // ── 阶段三·心智技能决策（innerTick 技能决策维度：需要工具 / 成熟MCP / 复用|修改|自研） ──
+
+  router.post('/skills/decision', requireAuth, async (req: Request, res: Response) => {
+    try {
+      const task = String(req.body?.task || '');
+      const keywords: string[] = Array.isArray(req.body?.keywords) ? req.body.keywords.map(String) : [];
+      if (!task || keywords.length === 0) return res.status(400).json({ ok: false, error: '缺少 task/keywords' });
+      const decision = await decideSkillForTask(task, keywords, { userId: sessionOf(req), sessionId: sessionOf(req) });
+      res.json({ ok: true, decision });
     } catch (e: any) {
       res.status(500).json({ ok: false, error: e.message });
     }

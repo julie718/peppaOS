@@ -5,6 +5,10 @@ import { getScopedPreferredLLM } from './user_preferences';
 import { getUserPreferredVision } from './vision_preferences';
 import { llmCallsTotal, llmTokensTotal, llmCallDuration, llmCallsCancelledTotal, llmCallsErrorTotal } from '../lib/metrics';
 import { logger } from '../lib/logger';
+// DeepSeek 外部强制路由中间层（任务2/5/7）：心智层只产出内容，不知道存在两套模型；
+// 全部模型分发（核心心智→pro / 外围→flash）、预算熔断、故障降级、调用记录都在此收敛。
+import { resolveRoute, beforeCall, afterCall, shouldFallbackToFlash } from './mindRouter';
+import { getRouterConfig } from './routerConfig';
 
 // P2-11: 统一 LLM 调用配置 — scene 标记调用场景（chat/review/monologue/…）用于结构化埋点
 export interface LLMCallConfig {
@@ -27,9 +31,10 @@ function recordLLMMetrics(provider: string, model: string, usage: any, startMs: 
     if (opts?.cancelled) llmCallsCancelledTotal.inc({ provider, model });
     if (opts?.error) llmCallsErrorTotal.inc({ provider, model });
     // P2-11: 结构化日志埋点 — 场景/模型/供应商/tokens/耗时/取消/错误
+    // 任务7：缓存命中（DeepSeek prompt_cache_hit_tokens）随调用日志输出，供前缀缓存命中率观测
     const status = opts?.cancelled ? 'cancelled' : opts?.error ? 'error' : 'ok';
     logger.info(
-      `[LLM] ${status} scene=${opts?.scene || 'unknown'} provider=${provider} model=${model} promptTokens=${usage?.promptTokens ?? 0} completionTokens=${usage?.completionTokens ?? 0} durationMs=${Date.now() - startMs}${opts?.error ? ` error="${opts.error}"` : ''}`
+      `[LLM] ${status} scene=${opts?.scene || 'unknown'} provider=${provider} model=${model} promptTokens=${usage?.promptTokens ?? 0} completionTokens=${usage?.completionTokens ?? 0} cacheHitTokens=${usage?.cacheHitTokens ?? 0} durationMs=${Date.now() - startMs}${opts?.error ? ` error="${opts.error}"` : ''}`
     );
   } catch {}
 }
@@ -195,6 +200,19 @@ function buildOpenAICompatibleMessages(messages: NormalizedMessage[]): OpenAICom
     sanitized.push(entry);
   }
 
+  // ── DeepSeek 前缀缓存适配（任务3）：system 消息稳定置顶 ──
+  // KV 缓存按「请求前缀」命中：固定不变的 system prompt / schema / MCP 定义必须位于消息序列
+  // 最前，动态对话、动态状态永远追加在后。此处做最终顺序保障：所有 system 消息稳定前移
+  // （保持彼此相对顺序），其余消息顺序不变。
+  // ⚠️ 注意：频繁修改 system 头部内容会破坏 KV 缓存命中率 —— 新增动态素材必须追加到
+  // system 末尾或作为后续 user 消息，禁止插入到 system 头部。
+  if (sanitized.length > 1 && sanitized[0]?.role !== 'system') {
+    const systemMsgs = sanitized.filter(m => m.role === 'system');
+    if (systemMsgs.length > 0) {
+      const restMsgs = sanitized.filter(m => m.role !== 'system');
+      return [...systemMsgs, ...restMsgs];
+    }
+  }
   return sanitized;
 }
 
@@ -218,6 +236,13 @@ export function formatDeepSeekRequest(params: {
 
   const hasTools = params.toolDeclarations.length > 0;
 
+  // ── DeepSeek 前缀缓存适配（任务3）：请求组装顺序 = [固定 system 头部] → [固定 tools/schema]
+  // → [动态消息]。
+  //   1. messages 内 system 已由 buildOpenAICompatibleMessages 保证置顶（稳定前缀）；
+  //   2. toolDeclarations（MCP/技能定义）为静态清单，紧随其后（字段顺序与缓存无关，但保持
+  //      稳定一致即可最大化前缀复用）；
+  //   3. 动态对话、动态状态（快照/摘要）全部位于消息序列末尾，永不插入头部。
+  // ⚠️ 注意：频繁修改 system 头部内容会破坏 KV 缓存命中率；业务侧新增动态素材必须追加在尾。
   return {
     model: params.model,
     messages: openaiMessages,
@@ -234,6 +259,8 @@ function extractUsage(rawResponse: any) {
     promptTokens: usage.prompt_tokens || usage.promptTokenCount || usage.input_tokens || usage.inputTokens || 0,
     completionTokens: usage.completion_tokens || usage.candidatesTokenCount || usage.output_tokens || usage.outputTokens || 0,
     totalTokens: usage.total_tokens || usage.totalTokenCount || 0,
+    // 任务3/7：DeepSeek 前缀缓存命中 token（prompt_cache_hit_tokens）— 用于观测 KV 缓存命中率
+    cacheHitTokens: usage.prompt_cache_hit_tokens || usage.cached_content_token_count || 0,
   };
 }
 
@@ -704,14 +731,59 @@ async function makeLLMCallCore(
 }
 
 // P2-11: 统一埋点包装 — 成功路径由 core 各分支 recordLLMMetrics 记录，取消/失败在此兜底
+// ── DeepSeek 外部强制路由（任务2/5/7）挂钩点：
+//   1. beforeCall   — 预算熔断：休眠只读态下核心心智调用直接拒绝（不发起任何 LLM 请求）；
+//   2. resolveRoute — 模型强制分发：核心心智→deepseek-v4-pro / 外围→deepseek-v4-flash；
+//   3. 故障降级     — pro 主模型 API 报错/限流/余额不足时应急降级 flash 重试一次
+//                     （scene=inner_tick 例外：降级状态禁止触发完整 InnerTick 深度推演）；
+//   4. afterCall    — 预算记账 + 全量调用记录（模型/来源/输入输出token/耗时/缓存命中/是否降级）。
+// 心智层业务代码（innerTick/life TICK/自我反思）零改动，路由完全在调用汇聚点外置执行。
 export async function makeLLMCall(...args: Parameters<typeof makeLLMCallCore>): Promise<NormalizedLLMResponse> {
   const [messages, toolDeclarations, config] = args;
   const start = Date.now();
+
+  // ① 预算熔断（核心心智休眠只读模式）
+  beforeCall(config.scene);
+
+  // ② 模型强制分发
+  const routed = resolveRoute(config);
+  const effective: LLMCallConfig = routed
+    ? { ...config, provider: routed.provider as LLMCallConfig['provider'], model: routed.model }
+    : config;
+  const coreArgs = [messages, toolDeclarations, effective, ...args.slice(3)] as Parameters<typeof makeLLMCallCore>;
+
   try {
-    return await makeLLMCallCore(...args);
+    const result = await makeLLMCallCore(...coreArgs);
+    // ③ 预算记账 + 调用记录（成功路径）
+    afterCall(routed, effective, result.usage, start);
+    return result;
   } catch (err: any) {
+    // ④ 故障降级：仅核心心智 + API 报错/限流/余额不足 → flash 应急重试一次
+    if (routed?.tier === 'core_mind' && shouldFallbackToFlash(config.scene, err)) {
+      const flashModel = getRouterConfig().flashModel;
+      logger.warn(`[LLMRouter] pro 主模型故障（${String(err?.message || err).slice(0, 160)}）→ 应急降级 ${flashModel} 重试一次（仅本次，接口恢复后自动切回 pro）`);
+      try {
+        const fbConfig: LLMCallConfig = { ...effective, model: flashModel };
+        const fbArgs = [messages, toolDeclarations, fbConfig, ...args.slice(3)] as Parameters<typeof makeLLMCallCore>;
+        const fbResult = await makeLLMCallCore(...fbArgs);
+        afterCall(routed, fbConfig, fbResult.usage, start, { degraded: true });
+        return fbResult;
+      } catch (fbErr: any) {
+        afterCall(routed, effective, undefined, start, { error: `pro失败(${String(err?.message || err).slice(0, 120)}) + flash降级也失败(${String(fbErr?.message || fbErr).slice(0, 120)})` });
+        const msg = String(err?.message || err);
+        const cancelled = err?.name === 'AbortError' || err?.name?.includes('Abort') || /abort/i.test(msg);
+        recordLLMMetrics(config.provider, config.model, undefined, start, {
+          cancelled,
+          error: cancelled ? undefined : msg.slice(0, 300),
+          scene: config.scene,
+        });
+        throw err;
+      }
+    }
+
     const msg = String(err?.message || err);
     const cancelled = err?.name === 'AbortError' || err?.name?.includes('Abort') || /abort/i.test(msg);
+    afterCall(routed, effective, undefined, start, { error: cancelled ? undefined : msg.slice(0, 300) });
     recordLLMMetrics(config.provider, config.model, undefined, start, {
       cancelled,
       error: cancelled ? undefined : msg.slice(0, 300),
@@ -981,14 +1053,32 @@ async function makeLLMCallStreamingCore(
 }
 
 // P2-11: 统一埋点包装（流式）— 取消/失败兜底记录
+// ── DeepSeek 外部强制路由挂钩点（与 makeLLMCall 一致：预算熔断 + 模型强制分发 + 调用记录）。
+// 注：流式路径不做 pro→flash 降级重试 —— 流式调用目前全部为外围场景（chat/voice），
+// 且中途降级会向客户端重复推送已发出的 chunk，得不偿失。
 export async function makeLLMCallStreaming(...args: Parameters<typeof makeLLMCallStreamingCore>): Promise<NormalizedLLMResponse> {
   const [messages, toolDeclarations, config] = args;
   const start = Date.now();
+
+  // ① 预算熔断（核心心智休眠只读模式）
+  beforeCall(config.scene);
+
+  // ② 模型强制分发
+  const routed = resolveRoute(config);
+  const effective: LLMCallConfig = routed
+    ? { ...config, provider: routed.provider as LLMCallConfig['provider'], model: routed.model }
+    : config;
+  const coreArgs = [messages, toolDeclarations, effective, ...args.slice(3)] as Parameters<typeof makeLLMCallStreamingCore>;
+
   try {
-    return await makeLLMCallStreamingCore(...args);
+    const result = await makeLLMCallStreamingCore(...coreArgs);
+    // ③ 预算记账 + 调用记录（成功路径）
+    afterCall(routed, effective, result.usage, start);
+    return result;
   } catch (err: any) {
     const msg = String(err?.message || err);
     const cancelled = err?.name === 'AbortError' || err?.name?.includes('Abort') || /abort/i.test(msg);
+    afterCall(routed, effective, undefined, start, { error: cancelled ? undefined : msg.slice(0, 300) });
     recordLLMMetrics(config.provider, config.model, undefined, start, {
       cancelled,
       error: cancelled ? undefined : msg.slice(0, 300),

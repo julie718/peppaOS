@@ -1,6 +1,7 @@
 import { buildSelfExtensionPlan } from '../../self_extension/pipeline';
 import { getClientState } from '../../client/self_model';
 import { ToolRegistry } from '../registry';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 export function registerSelfExtensionTools(registry: ToolRegistry): void {
   registry.register({
@@ -37,6 +38,6 @@ export function registerSelfExtensionTools(registry: ToolRegistry): void {
       return JSON.stringify(plan, null, 2);
     },
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('The missing or desired capability, e.g. "summarize today model usage", "control Revit", or "reply to Feishu messages".'),
   });
 }

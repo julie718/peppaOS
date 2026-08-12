@@ -11,8 +11,12 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { logger } from '../lib/logger';
 import { appendAudit, getSandboxRoot, insertSandboxProject, listSandboxProjects, updateSandboxProject } from './database';
+// 阶段三·风险闸门 / 单会话熔断（AI 自主生成同样受控，禁止绕过沙箱部署高风险工具）
+import { assertDeployAllowed } from './risk_policy';
+import { consumeSessionSlot } from './breakers';
 import { renderMcpSource, renderSandboxTsconfig, type McpTemplateParams } from './mcp_template';
-import type { SandboxProject, SkillGap } from './types';
+import { logSkillEvent } from './switch';
+import type { RiskLevel, SandboxProject, SkillGap } from './types';
 
 const execAsync = promisify(exec);
 export const MAX_TSC_ITERATIONS = 5;     // tsc 迭代轮数上限
@@ -57,7 +61,20 @@ export interface SandboxCreateInput {
 }
 
 /** 创建沙箱项目：模板生成 → 隔离目录落盘 → DB 登记 */
-export async function createSandboxProject(input: SandboxCreateInput): Promise<SandboxProject> {
+export async function createSandboxProject(input: SandboxCreateInput, opts: { sessionId?: string } = {}): Promise<SandboxProject> {
+  // 风险闸门：AI 自主生成同样先做风险分级（高风险直接拦截，禁止生成）
+  const guard = assertDeployAllowed({
+    securityLevel: input.securityLevel, source: 'self_build',
+    origin: `${input.description} ${input.gap.keyword}`,
+    needsCredential: false, complianceDomain: input.complianceDomain,
+  });
+  if (!guard.ok) throw new Error(`沙箱生成被风险闸门拦截：${guard.reason}`);
+  // P2-2：创建阶段风险分级结果（realRiskLevel）持久化到 sandbox_config.risk_level，
+  // 审批上线（approval.deploySandboxTool）继承该值写入 mcp_skill_store.securityLevel，不再硬编码 safe。
+  const realRiskLevel: RiskLevel = guard.level;
+  // 单会话熔断：窗口内新增工具数量上限（防疯狂生成大量工具）
+  const slot = consumeSessionSlot(opts.sessionId || 'default');
+  if (!slot.ok) throw new Error(`沙箱生成被熔断拦截：${slot.reason}`);
   const serviceName = nameService(input.gap.keyword);
   const dir = path.join(getSandboxRoot(), serviceName);
   fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
@@ -71,7 +88,10 @@ export async function createSandboxProject(input: SandboxCreateInput): Promise<S
     paramMap: input.paramMap,
     extractorFn: input.extractorFn,
     complianceDomain: input.complianceDomain,
-    securityLevel: input.securityLevel || 'safe',
+    // 模板渲染入参改用审批上线后的真实 realRiskLevel（与 sandbox_config.risk_level 持久化、
+    // 审批 deploySandboxTool 继承写入 mcp_skill_store.securityLevel 完全同源），
+    // 保证生成源码 SECURITY_LEVEL 自描述与数据库落库值一致，不再用输入声明值兜底 'safe'。
+    securityLevel: realRiskLevel,
   };
   const mainSource = renderMcpSource(params);
 
@@ -87,10 +107,17 @@ export async function createSandboxProject(input: SandboxCreateInput): Promise<S
     mainSource,
     tscIterations: 0,
     tscPassed: false,
+    riskLevel: realRiskLevel,
     status: 'building',
   });
 
   await appendAudit('sandbox_generate', serviceName, `缺口 ${input.gap.keyword} → ${dir}`);
+  // P2-5 3-2：工具生成完成结构化事件（来源 self_build，携带创建阶段风险分级）
+  logSkillEvent({
+    event: 'generate', subject: serviceName, ok: true,
+    source: 'self_build', riskLevel: realRiskLevel,
+    detail: `缺口 ${input.gap.keyword} → ${dir}（风险分级=${realRiskLevel}）`,
+  });
   logger.info(`[SkillsSandbox] 沙箱项目创建: ${serviceName} (${dir})`);
 
   return {
@@ -101,6 +128,7 @@ export async function createSandboxProject(input: SandboxCreateInput): Promise<S
     mainSource,
     tscIterations: 0,
     tscPassed: false,
+    riskLevel: realRiskLevel,
     status: 'building',
     createdAt: new Date().toISOString(),
   };

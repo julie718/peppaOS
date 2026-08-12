@@ -8,6 +8,7 @@ import {
   type WebLoginScope,
 } from '../../web_login/manager';
 import { getWebLoginSitePreset, listWebLoginSitePresets } from '../../web_login/legal_presets';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 function scopeFromContext(context?: { userId?: string; domain?: string; orgId?: string }): WebLoginScope {
   return {
@@ -33,7 +34,7 @@ export function registerWebLoginTools(registry: ToolRegistry): void {
       note: 'Use web_login_profile_save_from_preset to create a local authorized login profile from one of these presets.',
     }, null, 2),
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('List built-in website login presets, focused on authorized legal research and filing sites such as 法信、中国裁判文书网、人民法院案例库、企查查、法蝉、Alpha.'),
   });
 
   registry.register({
@@ -98,7 +99,7 @@ export function registerWebLoginTools(registry: ToolRegistry): void {
       note: 'Use web_login_run to open a login session, or url_fetch_logged_in for pages that need the saved session.',
     }, null, 2),
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('List saved website login profiles for the current personal/work scope. Passwords are never returned.', ['credential']),
   });
 
   registry.register({

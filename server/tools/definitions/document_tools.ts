@@ -9,6 +9,7 @@ import { ToolRegistry } from '../registry';
 import { ingestDocument } from '../../agents/rag';
 import { extractPptxText } from '../../knowledge/pptx';
 import { extractRtfText } from '../../knowledge/rtf';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 const OUTPUT_DIR = path.join(process.cwd(), 'peppa_output');
 const require = createRequire(import.meta.url);
@@ -538,7 +539,7 @@ export function registerDocumentTools(registry: ToolRegistry): void {
     },
     handler: readDocx,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Read and extract text from a .docx Word document. Returns the full text content.'),
   });
 
   registry.register({
@@ -554,7 +555,7 @@ export function registerDocumentTools(registry: ToolRegistry): void {
     },
     handler: readXlsx,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Read and extract data from an Excel .xlsx spreadsheet. Specify sheetName or get a summary of all sheets.'),
   });
 
   registry.register({
@@ -569,7 +570,7 @@ export function registerDocumentTools(registry: ToolRegistry): void {
     },
     handler: extractDocumentText,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Auto-detect document format and extract text. Supports .docx, .xlsx, .pptx, .pdf, .rtf, .txt, .md, .csv. Use this when you need to read any document without knowing its format in advance.'),
   });
 
   registry.register({
@@ -586,7 +587,7 @@ export function registerDocumentTools(registry: ToolRegistry): void {
     },
     handler: ingestDocumentToRag,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Read a document (.docx, .pdf, .xlsx, .pptx, .rtf, .txt, .md) and ingest it into an agent\'s RAG knowledge base. The document is chunked and stored as searchable memories scoped to the specified agent.'),
   });
 
   registry.register({
@@ -606,7 +607,7 @@ export function registerDocumentTools(registry: ToolRegistry): void {
     },
     handler: createXlsx,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Create a new Excel .xlsx spreadsheet. Supports multiple sheets with headers and data rows, or JSON arrays. Saves to the peppa_output directory.'),
   });
 
   registry.register({
@@ -626,7 +627,7 @@ export function registerDocumentTools(registry: ToolRegistry): void {
     },
     handler: modifyXlsx,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Modify an existing .xlsx file — update cell values or add new sheets.'),
   });
 
   registry.register({
@@ -646,7 +647,7 @@ export function registerDocumentTools(registry: ToolRegistry): void {
     },
     handler: createDocx,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Create a new Word .docx document with headings, paragraphs, and tables. Supports structured layout with title, heading levels (1-4), body paragraphs, and formatted tables with headers. Saves to peppa_output directory.'),
   });
 
   registry.register({
@@ -665,7 +666,7 @@ export function registerDocumentTools(registry: ToolRegistry): void {
     },
     handler: modifyDocx,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Fill placeholders (like {{name}}, {{date}}) in a .docx template document. Uses Microsoft Word COM on Windows.'),
   });
 
   registry.register({
@@ -682,7 +683,7 @@ export function registerDocumentTools(registry: ToolRegistry): void {
     },
     handler: xlsxToCsv,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Convert an Excel .xlsx sheet to a CSV file.'),
   });
 
   registry.register({
@@ -698,7 +699,7 @@ export function registerDocumentTools(registry: ToolRegistry): void {
     },
     handler: docxToMarkdown,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Convert a .docx Word document to a Markdown (.md) text file.'),
   });
 
   registry.register({
@@ -714,7 +715,7 @@ export function registerDocumentTools(registry: ToolRegistry): void {
     },
     handler: docxToPdf,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Convert a .docx Word document to PDF using Microsoft Word. Requires Office installed on Windows.'),
   });
 
   registry.register({
@@ -731,6 +732,6 @@ export function registerDocumentTools(registry: ToolRegistry): void {
     },
     handler: diffDocuments,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Compare two documents (.docx, .pdf, .txt, .md, .csv) and produce a detailed diff. Output formats: "unified" (text diff file), "html" (redline with green/red highlights), or "summary" (change statistics). Essential for contract review and document revision tracking.'),
   });
 }

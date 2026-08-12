@@ -2,6 +2,7 @@ import os from 'os';
 import fs from 'fs';
 import path from 'path';
 import { ToolRegistry } from '../registry';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 let broadcastFn: ((event: string, data: any) => void) | null = null;
 
@@ -458,7 +459,17 @@ IMPORTANT: For visually impressive results, ALWAYS search for relevant images fi
     },
     handler: createPptHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk(`Create a visually stunning PowerPoint presentation.
+
+Layouts per slide: "bullets" (default), "image-left", "image-right", "image-full" (image as background), "quote" (large centered text).
+
+The "images" array (top-level) accepts image URLs — first image becomes cover background, subsequent images decorate slides or match with slides that specify layout: image-left/image-right/image-full and include their own "image" field.
+
+Slide structure: { title, bullets?: string[], layout?: string, image?: string, subtitle?: string }
+
+Themes: dark (default), midnight (deep blue-black), ocean (light), sunset (warm), forest (green).
+
+IMPORTANT: For visually impressive results, ALWAYS search for relevant images first (use url_fetch or web_search to find image URLs), then pass those URLs in the "images" array. Use image-left and image-right layouts for impact.`),
   });
 
   // ── Email Tools ──

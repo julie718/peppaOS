@@ -1,4 +1,5 @@
 import { ToolRegistry } from '../registry';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 async function tryBingSearch(query: string, maxResults: number): Promise<string | null> {
   try {
@@ -180,7 +181,7 @@ export function registerWebOpsTools(registry: ToolRegistry): void {
     },
     handler: webSearchHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Search the web via Bing (cn.bing.com). Returns formatted results with titles, snippets, and URLs. For Chinese news, use specific terms like "AI 人工智能 最新进展 2025". If results are poor, try url_fetch on known news sites like techcrunch.com, theverge.com, or 36kr.com.'),
   });
 
   registry.register({
@@ -196,6 +197,6 @@ export function registerWebOpsTools(registry: ToolRegistry): void {
     },
     handler: urlFetchHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Fetch and extract text content from a URL. Strips HTML tags and returns plain text.'),
   });
 }

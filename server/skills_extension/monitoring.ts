@@ -9,7 +9,8 @@ import { logger } from '../lib/logger';
 import { toolRegistry } from '../tools/registry';
 import { appendAudit, insertMetric, queryMetricStats, listMetricSummary } from './database';
 import { rollbackTool, listAdapterVersions } from './adapter';
-import { runTestPipeline, loadSandboxTool, makeSandboxRepair } from './test_pipeline';
+import { runTestPipeline, makeSandboxRepair } from './test_pipeline';
+import { getIsolatedTestableTool } from './sandbox_isolate/sandbox_host';
 import { listSandboxProjects } from './database';
 
 export interface ToolHealthSnapshot {
@@ -100,7 +101,8 @@ export async function autoRemediate(toolName: string): Promise<RemediationResult
   // 1) 复测：能加载沙箱项目 → 重测；适配器工具 → 冒烟复测
   const project = (await listSandboxProjects()).find(p => p.serviceName === toolName && (p.status === 'approved' || p.status === 'testing'));
   if (project) {
-    const tool = await loadSandboxTool(project.id);
+    // 方案A：复测同样走隔离子进程（IPC 代理 handler）
+    const tool = await getIsolatedTestableTool(project.id);
     if (tool) {
       const report = await runTestPipeline(tool, { projectId: project.id, repair: makeSandboxRepair(project.id) });
       if (report.gatePassed) {

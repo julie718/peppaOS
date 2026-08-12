@@ -1,6 +1,7 @@
 import { exec } from 'child_process';
 import path from 'path';
 import { ToolRegistry } from '../registry';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 const REPO_ROOT = process.cwd();
 
@@ -72,7 +73,7 @@ export function registerGitTools(registry: ToolRegistry): void {
     parameters: { type: 'object', properties: {}, required: [] },
     handler: gitStatusHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Show working tree status. Returns branch info and changed files. Equivalent to "git status --short --branch".'),
   });
 
   registry.register({
@@ -88,7 +89,7 @@ export function registerGitTools(registry: ToolRegistry): void {
     },
     handler: gitDiffHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Show changes in unified diff format. Use "staged: true" to see staged changes. Use "file" to limit to a specific file.'),
   });
 
   registry.register({

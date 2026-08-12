@@ -12,6 +12,8 @@ import { logger } from '../lib/logger';
 // Phase3: 灰度开关 + InnerTick 心智模块（可选触发，不接管空闲大脑输出）
 import { MIND_SWITCH } from '../../src/config/mindSwitch';
 import { runInnerTick } from '../../src/core/innerTick';
+// 任务4：空闲 InnerTick 触发频率管控（外部路由频率闸门，只作用于空闲触发点，不侵入心智内部逻辑）
+import { allowIdleInnerTick } from '../llm/frequencyGate';
 import { getEmotionEngine } from '../life/emotions';
 import { getPersonalityEngine } from '../life/personality';
 import { getLifeSystem } from '../life/index';
@@ -330,8 +332,17 @@ class IdleBrain {
       // ── Phase3 灰度：InnerTick 空闲心智触发（enableInnerTickIdleTrigger，默认关闭）──
       // 仅作为额外心智推演（LLM 驱动，写 life.db 快照备份），不接管空闲大脑输出；
       // void 异步非阻塞执行，失败不影响旧逻辑。
+      // 任务4（频率管控，降本关键）：空闲状态（无用户交互）只做轻量状态快照入库（旧 TICK
+      // 快照路径天然完成），不调用大模型做完整深度心智推演 —— 由外部路由频率闸门
+      // allowIdleInnerTick 按配置的最小间隔拦截；用户消息交互(chat_turn)/重要状态变更
+      // （derivedMentalEvents）/目标变更的推演不受此闸门约束（本闸门只作用于此空闲触发点）。
+      // 间隔配置 <= 0 时恒放行，完全保持旧行为。
       if (MIND_SWITCH.enableInnerTickIdleTrigger) {
         const userId = ((global as any).__lastActiveUid as string) || 'default';
+        if (!allowIdleInnerTick('idle_brain')) {
+          // 间隔未到：本轮跳过 LLM 深度推演（不触发 runInnerTick），心智/记忆数据零改动
+          return;
+        }
         void runInnerTick({ userId }).catch((e: any) =>
           logger.warn(`[IdleBrain] InnerTick 触发失败: ${e?.message || e}`),
         );

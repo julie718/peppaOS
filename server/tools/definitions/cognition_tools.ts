@@ -3,6 +3,7 @@
 import { ToolRegistry } from '../registry';
 import { logger } from '../../lib/logger';
 import { multiPathReason, formatReasonReport } from '../../cognition/multi_path_reasoner';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 async function cognitiveReason(args: Record<string, any>, userId: string): Promise<string> {
   const question = String(args.question || '').trim();
@@ -49,7 +50,7 @@ export function registerCognitionTools(registry: ToolRegistry): void {
     },
     handler: async (args: Record<string, any>) => cognitiveReason(args, String(args.userId || process.env.E2E_UID || 'peppa-user')),
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('并行多路径因果推理：同一问题走 理性实证/反面证伪/多因合流 三条独立链路并行推演，交叉校验后输出：链路一致→共识结论+置信度；链路分歧→并列各方观点+待核实要点，不武断下结论（降幻觉）。适合 为什么/如果…会怎样/原因分析/预测 类问题'),
   });
   logger.info('[CognitionTools] 已注册 cognitive_reason（多路径交叉校验）');
 }

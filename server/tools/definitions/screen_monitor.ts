@@ -1,4 +1,5 @@
 import { ToolRegistry } from '../registry';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 async function getActiveWindowInfo(_args: Record<string, any>, context?: any): Promise<string> {
   if (!context?.desktopRelay) {
@@ -37,7 +38,7 @@ export function registerScreenMonitorTools(registry: ToolRegistry): void {
     },
     handler: getActiveWindowInfo,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Get the currently focused/foreground window title and process name on the user\'s desktop. Use this to understand what the user is currently working on and provide contextual suggestions.'),
   });
 
   registry.register({
@@ -53,7 +54,7 @@ export function registerScreenMonitorTools(registry: ToolRegistry): void {
     },
     handler: getRunningProcesses,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Get the list of running processes on the user\'s desktop, sorted by CPU usage. Includes process name, PID, CPU%, and memory usage. Use this to understand the user\'s overall activity context: what apps are open, what is consuming resources, and what the user is likely working on.'),
   });
 
   registry.register({
@@ -69,6 +70,6 @@ export function registerScreenMonitorTools(registry: ToolRegistry): void {
     },
     handler: captureScreen,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Capture a screenshot of the user\'s primary monitor and save it to disk. Returns the file path and dimensions. Use this sparingly when the user asks Peppa to look at the screen or when a desktop task needs current visual confirmation; do not use it for continuous surveillance.'),
   });
 }

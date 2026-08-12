@@ -1,6 +1,7 @@
 import { ToolRegistry } from '../registry';
 import { saveWorkflow, listWorkflows, getWorkflow, deleteWorkflow, captureRecentAsWorkflow, autoGenerateWorkflows } from '../../agents/workflows';
 import { getRecentWorkflows } from '../../skills/worklog';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 async function handleSaveWorkflow(args: Record<string, any>, context?: any): Promise<string> {
   const userId = context?.userId || 'system';
@@ -117,7 +118,7 @@ export function registerWorkflowTools(registry: ToolRegistry): void {
     },
     handler: handleSaveWorkflow,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Save a named multi-step workflow that can be recalled and run later. Use this when the user says "remember this workflow" or wants to save a useful process pattern.'),
   });
 
   registry.register({
@@ -130,7 +131,7 @@ export function registerWorkflowTools(registry: ToolRegistry): void {
     },
     handler: handleListWorkflows,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('List all saved named workflows for the current user.'),
   });
 
   registry.register({
@@ -145,7 +146,7 @@ export function registerWorkflowTools(registry: ToolRegistry): void {
     },
     handler: handleGetWorkflow,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Get the full details of a saved workflow by name.'),
   });
 
   registry.register({
@@ -175,7 +176,7 @@ export function registerWorkflowTools(registry: ToolRegistry): void {
     },
     handler: handleCaptureRecentWorkflow,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Capture the most recent tool execution as a named workflow. Use this when the user says "remember this", "记下这个流程", "保存这个流程", or wants to save what they just did as a reusable workflow.'),
   });
 
   registry.register({
@@ -190,6 +191,6 @@ export function registerWorkflowTools(registry: ToolRegistry): void {
     },
     handler: handleRunWorkflow,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Execute a saved named workflow by name. Use this when the user says "run my X routine", "执行XX流程", "跑XX流程", or asks to execute a previously saved workflow.'),
   });
 }

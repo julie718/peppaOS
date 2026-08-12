@@ -5,6 +5,7 @@ import fs from 'fs';
 import { logger } from '../../lib/logger';
 import path from 'path';
 import { ToolRegistry } from '../registry';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 const OUTPUT_DIR = path.join(process.cwd(), 'peppa_output');
 
@@ -389,7 +390,7 @@ export function registerPdfTools(registry: ToolRegistry): void {
     },
     handler: readPdf,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Read and extract text from a PDF file. Returns page count, metadata, and the full text content (truncated at 10000 chars). Use this when asked to read or summarize a PDF document.'),
   });
 
   registry.register({
@@ -404,7 +405,7 @@ export function registerPdfTools(registry: ToolRegistry): void {
     },
     handler: pdfToText,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Extract all text from a PDF and save it as a .txt file alongside the original. Returns the output file path.'),
   });
 
   registry.register({
@@ -436,7 +437,7 @@ export function registerPdfTools(registry: ToolRegistry): void {
     },
     handler: createPdf,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Create a new PDF document from text content with optional embedded images. Supports CJK characters. Embed images alongside text with positioning (x, y, width, height, page, fullBleed). Saves to peppa_output.'),
   });
 
   registry.register({
@@ -451,7 +452,7 @@ export function registerPdfTools(registry: ToolRegistry): void {
     },
     handler: mergePdf,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Merge multiple PDF files into a single PDF. Provide an array of file paths in order.'),
   });
 
   registry.register({
@@ -466,7 +467,7 @@ export function registerPdfTools(registry: ToolRegistry): void {
     },
     handler: splitPdf,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Split a PDF into individual pages, each saved as a separate PDF file.'),
   });
 
   registry.register({
@@ -481,7 +482,7 @@ export function registerPdfTools(registry: ToolRegistry): void {
     },
     handler: convertToPdf,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Convert an image (PNG, JPG) or text/markdown file to PDF format.'),
   });
 
   registry.register({
@@ -497,6 +498,6 @@ export function registerPdfTools(registry: ToolRegistry): void {
     },
     handler: extractPdfTables,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Extract structured tables from a PDF document using positional analysis. Detects table grids by clustering text items by Y/X coordinates. Output as JSON or CSV. Useful for extracting data tables from reports, invoices, and forms.'),
   });
 }

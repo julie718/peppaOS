@@ -1,6 +1,7 @@
 // 新闻工具 — 免费 RSS 源，无需 API Key
 import { ToolRegistry } from '../registry';
 import { logger } from '../../../logger';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 interface NewsItem {
   title: string;
@@ -128,7 +129,7 @@ export function registerNewsTools(registry: ToolRegistry): void {
     },
     handler: newsHeadlines,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('获取最新新闻头条。支持按类别筛选：科技（36氪、少数派、Hacker News、TechCrunch等）、商业（虎嗅）、综合（BBC）。免费RSS源，无需API Key。如果需要搜索特定主题的新闻，使用 news_search。'),
   });
 
   registry.register({
@@ -145,6 +146,6 @@ export function registerNewsTools(registry: ToolRegistry): void {
     },
     handler: newsSearch,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('按关键词搜索新闻标题。从多个RSS源中匹配标题包含关键词的新闻。适合查找特定话题的最新报道。对于更全面的搜索，可配合 web_search 使用。'),
   });
 }

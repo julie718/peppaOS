@@ -1269,7 +1269,235 @@ function LLMProvidersPage({ t, providerStatus }: { t: any; providerStatus: Recor
           <RelayProviderRow t={t} />
         </div>
       </SettingsSection>
+
+      {/* ── 任务6：DeepSeek 心智路由配置（外部强制路由，全局生效，iPhone App 复用服务端）── */}
+      <DeepSeekRouterSettings t={t} />
     </div>
+  );
+}
+
+/**
+ * DeepSeek 心智路由设置（任务2/4/5/6）：
+ *  - 主心智模型（核心心智强制）：默认 deepseek-v4-pro —— InnerTick/TICK/自我反思/MCP评估强制走此模型
+ *  - 备用故障降级模型：默认 deepseek-v4-flash —— 仅 pro 返回 API 报错/限流/余额不足时应急降级
+ *  - 每日 Pro token 预算上限：0=不启用；耗尽后核心心智进入休眠只读模式（数据不丢失，新的一天自动恢复）
+ *  - 预算告警阈值：消耗达预算该比例时输出告警日志
+ *  - 空闲 InnerTick 推演间隔：空闲状态两次完整大模型推演的最小间隔；0=不限制（保持旧行为）
+ * 说明：所有分发由服务端路由层硬规则执行（心智层不感知两套模型）；本设置全局生效，iPhone App 无客户端设置。
+ */
+function DeepSeekRouterSettings({ t }: { t: any }) {
+  const isZh = t?.langCode !== 'en';
+  const ui = (zh: string, en: string) => (isZh ? zh : en);
+  const [cfg, setCfg] = useState<{
+    enabled: boolean;
+    proModel: string;
+    flashModel: string;
+    dailyProTokenBudget: number;
+    budgetWarnRatio: number;
+    idleInnerTickIntervalMs: number;
+  } | null>(null);
+  const [status, setStatus] = useState<{ budgetState: string; today: any; todayCounts: any; lastIdleInnerTickAt: string | null } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    apiFetch('/api/preferences/llm-router')
+      .then(async r => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.error || 'load failed');
+        setCfg({
+          enabled: !!data.enabled,
+          proModel: data.proModel || 'deepseek-v4-pro',
+          flashModel: data.flashModel || 'deepseek-v4-flash',
+          dailyProTokenBudget: data.dailyProTokenBudget ?? 0,
+          budgetWarnRatio: data.budgetWarnRatio ?? 0.8,
+          idleInnerTickIntervalMs: data.idleInnerTickIntervalMs ?? 3600000,
+        });
+      })
+      .catch(() => {});
+    apiFetch('/api/llm/router-usage')
+      .then(async r => {
+        const data = await r.json().catch(() => ({}));
+        if (r.ok) setStatus({ budgetState: data.budgetState, today: data.today, todayCounts: data.todayCounts, lastIdleInnerTickAt: data.today ? null : null });
+      })
+      .catch(() => {});
+  }, []);
+
+  const refreshStatus = () => {
+    apiFetch('/api/llm/router-usage')
+      .then(async r => {
+        const data = await r.json().catch(() => ({}));
+        if (r.ok) setStatus({ budgetState: data.budgetState, today: data.today, todayCounts: data.todayCounts, lastIdleInnerTickAt: null });
+      })
+      .catch(() => {});
+  };
+
+  const handleSave = async () => {
+    if (!cfg) return;
+    setSaving(true);
+    setMsg('');
+    try {
+      const resp = await apiFetch('/api/preferences/llm-router', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cfg),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.error || 'save failed');
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+      refreshStatus();
+    } catch (e: any) {
+      setMsg(String(e?.message || e));
+    }
+    setSaving(false);
+  };
+
+  const handleResetUsage = async () => {
+    // 预算耗尽进入休眠只读模式后的「手动唤醒」：仅清零今日 pro 消耗计数，不触碰任何记忆/心智数据
+    setSaving(true);
+    setMsg('');
+    try {
+      const resp = await apiFetch('/api/llm/router/reset-usage', { method: 'POST' });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.error || 'reset failed');
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+      refreshStatus();
+    } catch (e: any) {
+      setMsg(String(e?.message || e));
+    }
+    setSaving(false);
+  };
+
+  const budgetLabel = ui('预算', 'Budget');
+  const stateColor = status?.budgetState === 'sleep' ? 'text-red-400 border-red-500/30 bg-red-500/10'
+    : status?.budgetState === 'warn' ? 'text-amber-400 border-amber-500/30 bg-amber-500/10'
+    : 'text-green-400 border-green-500/30 bg-green-500/10';
+
+  return (
+    <SettingsSection title={ui('DeepSeek 心智路由', 'DeepSeek Mind Router')} icon={<BrainCircuit size={18} className="text-violet-400" />}>
+      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 space-y-5">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <label className="text-xs font-black uppercase text-white/55">{ui('路由总开关', 'Router Enabled')}</label>
+            <p className="text-[12px] text-white/45">{ui('关闭后模型强制/预算熔断/频率管控全部失效（回退旧行为）。', 'Disable to fall back to legacy routing (no forcing/budget/frequency control).')}</p>
+          </div>
+          <button
+            onClick={() => setCfg(c => c ? { ...c, enabled: !c.enabled } : c)}
+            className={`w-14 h-8 rounded-full transition-colors ${cfg?.enabled ? 'bg-violet-500/80' : 'bg-white/10'}`}
+            aria-pressed={!!cfg?.enabled}
+          >
+            <span className={`block w-6 h-6 rounded-full bg-white transition-transform ${cfg?.enabled ? 'translate-x-7' : 'translate-x-1'}`} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label className="space-y-1.5">
+            <span className="text-xs font-black uppercase text-white/55">{ui('主心智模型（核心心智强制）', 'Mind Model (forced for core mind)')}</span>
+            <input
+              type="text"
+              value={cfg?.proModel ?? ''}
+              onChange={e => setCfg(c => c ? { ...c, proModel: e.target.value } : c)}
+              list="router-pro-models"
+              placeholder="deepseek-v4-pro"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-bold focus:border-violet-400/50 outline-none"
+            />
+            <datalist id="router-pro-models">
+              <option value="deepseek-v4-pro" />
+              <option value="deepseek-v4-flash" />
+              <option value="deepseek-chat" />
+            </datalist>
+            <span className="text-[11px] text-white/40 block">{ui('InnerTick 心智闭环 / life TICK / 人格演化 / 自我反思 / 叙事更新 / MCP评估 / 长链规划强制走此模型，绝不允许交给 flash。', 'InnerTick loop / life TICK / personality evolution / self-reflection / narrative / MCP eval / long-chain planning are forced to this model.')}</span>
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs font-black uppercase text-white/55">{ui('备用故障降级模型', 'Fallback Model (emergency)')}</span>
+            <input
+              type="text"
+              value={cfg?.flashModel ?? ''}
+              onChange={e => setCfg(c => c ? { ...c, flashModel: e.target.value } : c)}
+              list="router-flash-models"
+              placeholder="deepseek-v4-flash"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-bold focus:border-violet-400/50 outline-none"
+            />
+            <datalist id="router-flash-models">
+              <option value="deepseek-v4-flash" />
+              <option value="deepseek-chat" />
+            </datalist>
+            <span className="text-[11px] text-white/40 block">{ui('仅当主模型返回 API 报错/限流/余额不足时应急降级一次；降级状态禁止触发完整 InnerTick 深度推演（返回额度/接口异常提示）。接口恢复后自动切回主模型。', 'Emergency fallback only on API errors / rate limits / insufficient balance. Degraded state never runs full InnerTick reasoning. Auto-recovers when the API is back.')}</span>
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs font-black uppercase text-white/55">{ui('每日 Pro token 预算上限', 'Daily Pro Token Budget')}</span>
+            <input
+              type="number"
+              min={0}
+              value={cfg?.dailyProTokenBudget ?? 0}
+              onChange={e => setCfg(c => c ? { ...c, dailyProTokenBudget: Number(e.target.value) || 0 } : c)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-bold focus:border-violet-400/50 outline-none"
+            />
+            <span className="text-[11px] text-white/40 block">{ui('0 = 不启用熔断。耗尽后核心心智进入休眠只读模式（记忆/人格/欲望数据完整保留不丢失），新的一天或手动重置后自动恢复；flash 外围调用不受限制。', '0 = disabled. When exhausted, core mind enters sleep/read-only mode (memories/personality/desires fully preserved); auto-recovers next day or on manual reset. Flash peripheral calls are unaffected.')}</span>
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs font-black uppercase text-white/55">{ui('预算告警阈值 (0-1)', 'Budget Warn Ratio (0-1)')}</span>
+            <input
+              type="number"
+              min={0}
+              max={1}
+              step={0.05}
+              value={cfg?.budgetWarnRatio ?? 0.8}
+              onChange={e => setCfg(c => c ? { ...c, budgetWarnRatio: Math.min(1, Math.max(0, Number(e.target.value) || 0)) } : c)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-bold focus:border-violet-400/50 outline-none"
+            />
+          </label>
+          <label className="space-y-1.5 md:col-span-2">
+            <span className="text-xs font-black uppercase text-white/55">{ui('空闲 InnerTick 推演最小间隔（毫秒）', 'Idle InnerTick Min Interval (ms)')}</span>
+            <input
+              type="number"
+              min={0}
+              step={60000}
+              value={cfg?.idleInnerTickIntervalMs ?? 3600000}
+              onChange={e => setCfg(c => c ? { ...c, idleInnerTickIntervalMs: Number(e.target.value) || 0 } : c)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-bold focus:border-violet-400/50 outline-none"
+            />
+            <span className="text-[11px] text-white/40 block">{ui('空闲状态（无用户交互）下两次完整 InnerTick 大模型推演的最小间隔，0 = 不限制（保持旧行为）。间隔内只做轻量状态快照入库，不调用大模型；用户消息交互/重要状态变更/目标变更的推演不受此限制。', 'Min interval between full InnerTick LLM reasoning runs while idle (no user interaction). 0 = no limit (legacy). Inside the interval, only lightweight snapshots are persisted — no LLM call. User-interaction / important-state-change / goal-change triggers are not gated.')}</span>
+          </label>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSave}
+            disabled={saving || !cfg}
+            className="px-5 py-2.5 rounded-xl bg-violet-500/80 hover:bg-violet-400/80 text-white text-sm font-black disabled:opacity-50"
+          >
+            {saving ? ui('保存中...', 'Saving...') : ui('保存配置', 'Save Config')}
+          </button>
+          <button
+            onClick={handleResetUsage}
+            disabled={saving}
+            title={ui('预算耗尽进入休眠后点击唤醒（仅清零今日消耗计数，不删除任何记忆/心智数据）', 'Wake from budget sleep (resets today\'s counter only; no memory/mind data touched)')}
+            className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-sm font-black disabled:opacity-50"
+          >
+            {ui('手动唤醒（重置今日用量）', 'Wake / Reset Usage')}
+          </button>
+          {saved && <CheckCircle size={16} className="text-green-400" />}
+          {msg && <span className="text-xs text-red-400">{msg}</span>}
+        </div>
+
+        {status && (
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className={`text-[11px] font-black px-2 py-0.5 rounded-full border ${stateColor}`}>
+                {ui('预算状态', 'Budget')}: {status.budgetState === 'sleep' ? ui('休眠只读（预算耗尽）', 'SLEEP (exhausted)') : status.budgetState === 'warn' ? ui('接近上限（告警）', 'WARN (near limit)') : ui('正常', 'NORMAL')}
+              </span>
+              <span className="text-[12px] text-white/50">
+                {ui('今日 Pro 消耗', 'Today pro usage')}: {status.today?.proTokens ?? 0} / {cfg?.dailyProTokenBudget || '∞'} tokens（{status.todayCounts?.proCalls ?? 0} 次调用，缓存命中 {status.today?.cacheHitTokens ?? 0} tokens，降级 {status.todayCounts?.degraded ?? 0} 次）
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+    </SettingsSection>
   );
 }
 

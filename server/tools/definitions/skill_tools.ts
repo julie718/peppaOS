@@ -7,6 +7,7 @@
 import { ToolRegistry } from '../registry';
 import { generateSkill } from '../../skills/generator';
 import { mcpManager } from '../../mcp/client';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 // Module-level LLM getters, set during registration
 let _llmGetters: {
@@ -143,7 +144,9 @@ export function registerSkillTools(registry: ToolRegistry): void {
     },
     handler: listSkillsHandler,
     permission: 'public',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('List all locally installed MCP skills in ~/peppa_skills/. ' +
+      'Shows skill name, description, tool count, and whether it was auto-generated. ' +
+      'Use before generating new skills to check for duplicates.'),
   });
 
   registry.register({

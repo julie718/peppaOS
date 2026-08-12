@@ -20,8 +20,7 @@ import { appendAudit, listAudit, listSandboxProjects, listMetricSummary } from '
 import { getAdaptedLedger } from './adapter';
 import { getBillingStats } from './auth_gateway';
 import { planSkillExtension } from './gap_detector';
-import { searchAndDecide } from './search_engine';
-import { reapSkillFaults } from './monitoring';
+import { decideSkillForTask } from './mind_decision';
 import type { SkillsHealthBoard } from './types';
 
 // ── 技能健康面板（M6：health-check 扩展面板） ──
@@ -100,8 +99,10 @@ export async function runMonthlyGapReview(): Promise<{
   const keywords = active.map(p => p.gap.keyword);
   let decision: 'reuse' | 'self_build' = 'self_build';
   if (keywords.length > 0) {
-    const result = await searchAndDecide(keywords);
-    decision = result.decision;
+    // 心智技能决策（innerTick 决策维度）：需要工具 / 成熟MCP / 复用|修改|自研
+    // 结论经 runInnerTick(skill_decision) 注入心智推演；modify 归并为 reuse（仍是复用已有技能）
+    const d = await decideSkillForTask(`月度缺口复评：${keywords.join('、')}`, keywords);
+    decision = d.conclusion === 'self_build' ? 'self_build' : 'reuse';
   }
   await appendAudit('gap_detected', 'monthly_review', `复评缺口 ${active.length} 个，路径决策 ${decision}`);
   return { gaps: active.length, decision, searchedKeywords: keywords };
@@ -117,12 +118,4 @@ export function recallSkillMemories(limit = 10): Array<{ content: string; tier: 
   } catch {
     return [];
   }
-}
-
-// ── 接线辅助（由 index.ts 调用） ──
-
-export async function startSkillsRoutines(): Promise<void> {
-  // 启动时巡检一次（故障工具在服务重启后立即处置）
-  reapSkillFaults().catch(() => {});
-  logger.info('[SkillsHooks] 技能拓展例行巡检已启动');
 }

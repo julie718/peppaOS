@@ -15,6 +15,7 @@ import {
 import { generateEmbedding } from '../../memory/store';
 import { makeLLMCall, type NormalizedMessage } from '../../llm/providers';
 import { getUserPreferredLLMConfig } from '../../llm/user_preferences';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 async function runLegalLLM(prompt: string, context?: any, maxTokens = 2048): Promise<string | null> {
   const getters = context?.llmGetters;
@@ -2102,7 +2103,7 @@ export function registerLegalTools(registry: ToolRegistry): void {
     },
     handler: searchCaseHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('类案检索 — 根据案由或事实描述在本地裁判文书库中搜索相似案例，返回案号、法院、相似度分数、摘要。数据来源：本地导入的中国裁判文书网公开文书。'),
   });
 
   registry.register({
@@ -2118,7 +2119,7 @@ export function registerLegalTools(registry: ToolRegistry): void {
     },
     handler: searchStatuteHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('法条检索 — 按关键词或法条号搜索现行有效法律法规。数据来源：国家法律法规数据库 (flk.npc.gov.cn) 及本地法条库。自动标注已废止法条。'),
   });
 
   registry.register({
@@ -2134,7 +2135,7 @@ export function registerLegalTools(registry: ToolRegistry): void {
     },
     handler: generateBidHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('标书生成 — 导入招标文件要求，生成对应投标书框架（商务标+技术标）。使用住建部合同模板作为参考。'),
   });
 
   registry.register({
@@ -2150,7 +2151,7 @@ export function registerLegalTools(registry: ToolRegistry): void {
     },
     handler: reviewContractHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('合同审查 — 对照本地案例库审查合同条款风险，标注风险等级、法律依据和修改建议。所有法条引用均会标注来源。'),
   });
 
   registry.register({
@@ -2166,7 +2167,7 @@ export function registerLegalTools(registry: ToolRegistry): void {
     },
     handler: draftContractHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('合同起草 — 基于中国住建部示范文本生成合同。支持施工合同、买卖合同、工程总承包、劳动合同等类型。'),
   });
 
   registry.register({
@@ -2181,7 +2182,7 @@ export function registerLegalTools(registry: ToolRegistry): void {
     },
     handler: traceAssetsHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('财产线索追踪 — 查询被执行人企业信息、公开执行记录、失信记录等财产线索。企查查仅在配置官方 API 凭证后自动查询；未配置时输出授权网页登录协作步骤。后续可查询婚姻状况和股权穿透。'),
   });
 
   registry.register({
@@ -2196,7 +2197,7 @@ export function registerLegalTools(registry: ToolRegistry): void {
     },
     handler: equityPenetrationHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('股权穿透分析 — 追溯目标公司的股东结构，多层穿透识别实际控制人和关联财产线索。企查查仅在配置官方 API 凭证后自动查询；未配置时输出授权网页登录协作和材料入库步骤。'),
   });
 
   registry.register({
@@ -2212,7 +2213,7 @@ export function registerLegalTools(registry: ToolRegistry): void {
     },
     handler: caseStrategyHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('诉讼策略分析 — 给定案件事实，结合相关法条和相似判例，制定应诉方案，包括：案由确定、证据建议、保全策略、风险预估。所有分析基于真实法条和判例，绝不编造。'),
   });
 
   registry.register({
@@ -2234,7 +2235,7 @@ export function registerLegalTools(registry: ToolRegistry): void {
     },
     handler: generateLitigationPacketHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('半自动诉讼文书包 — 根据我方身份和案件材料生成起诉/答辩/质证/委托/立案组卷等律师工作底稿，并明确所有人工确认点。不会自动提交或签发。'),
   });
 
   registry.register({
@@ -2257,7 +2258,7 @@ export function registerLegalTools(registry: ToolRegistry): void {
     },
     handler: prepareFilingHandoffHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('半自动立案网交接单 — 根据案件材料生成法院在线服务/网上立案字段映射、上传材料清单、文件命名建议、人工确认点和授权网页登录动作。不会自动提交、签名、缴费或确认送达。'),
   });
 
   registry.register({
@@ -2281,7 +2282,7 @@ export function registerLegalTools(registry: ToolRegistry): void {
     },
     handler: extractDisputeFocusHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('争议焦点提炼 — 根据起诉状、证据材料、庭审笔录、会议记录等案件材料，整理争议焦点、待证事实、证据对应、质证/抗辩点和外部检索关键词。用于聊天或语音办案结果，需律师复核。'),
   });
 
   registry.register({
@@ -2304,7 +2305,7 @@ export function registerLegalTools(registry: ToolRegistry): void {
     },
     handler: generateArgumentOrOpinionHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('代理词/法律意见书生成 — 根据案件事实、争议焦点、证据材料、对方观点和办理目标，生成代理词、法律意见书、庭审提纲或应对策略草稿。保留法条核验、证据补强和律师人工确认节点。'),
   });
 
   registry.register({
@@ -2337,7 +2338,7 @@ export function registerLegalTools(registry: ToolRegistry): void {
     },
     handler: analyzeFolderAndDraftArgumentHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('一句话案件文件夹代理词 — 读取本地案件材料文件夹，自动分析案情、提炼争议焦点、整理证据目录、生成代理词草稿，并默认保存 Markdown 工作底稿到案件文件夹下。适合用户说“读取桌面某案件文件夹，分析并生成代理词”。图片/扫描件会提示 OCR，不编造法条和类案。'),
   });
 
   registry.register({
@@ -2362,7 +2363,7 @@ export function registerLegalTools(registry: ToolRegistry): void {
     },
     handler: importMaterialsToKbHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('法律材料导入知识库 — Peppa 自主解析本地文件、案件文件夹或粘贴文本，导入组织知识库并建立法律标签。支持起诉状、证据、庭审笔录、合同、裁判文书、网页摘录、检索笔记等材料；外部网站材料需由律师确认来源和权限后再入库。'),
   });
 
   registry.register({
@@ -2383,7 +2384,7 @@ export function registerLegalTools(registry: ToolRegistry): void {
     },
     handler: processNoticeLinkHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('短信/法院通知链接处理 — 从法院短信、开庭通知、送达通知中的链接半自动下载 PDF/DOCX/网页材料，保存本地留痕；需要登录、验证码、人脸或短信验证时生成授权网页登录步骤，不绕过平台限制。律师确认来源和权限后可导入组织知识库。'),
   });
 
   registry.register({
@@ -2395,7 +2396,7 @@ export function registerLegalTools(registry: ToolRegistry): void {
     },
     handler: externalSourceStatusHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('外部法律数据源接入状态 — 明确企查查、Alpha、法蝉、裁判文书网、人民法院案例库、国家企业信用等数据源当前是官方 API 接入、授权网页登录协作还是材料导入，不夸大自动抓取能力。'),
   });
 
   registry.register({
@@ -2412,7 +2413,7 @@ export function registerLegalTools(registry: ToolRegistry): void {
     },
     handler: externalResearchPlanHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('半自动外部检索行动单 — 生成法条、人民法院案例库、裁判文书网、法蝉、Alpha、企查查、国家企业信用、法院在线服务的检索顺序、网页登录预设和来源登记表。'),
   });
 
   registry.register({
@@ -2428,7 +2429,7 @@ export function registerLegalTools(registry: ToolRegistry): void {
     },
     handler: verifyCitationHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('引用校验 — 验证法条引用和案例引用是否真实有效。可检查单个引用或全文中的所有引用，标注：存在/不存在、有效/已废止。禁止使用虚构法条和案例。'),
   });
 
   registry.register({
@@ -2445,6 +2446,6 @@ export function registerLegalTools(registry: ToolRegistry): void {
     },
     handler: importJudgmentHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('导入裁判文书 — 上传或粘贴裁判文书全文（PDF/DOCX/TXT），自动提取案号、法院、当事人、法条引用等元数据，分块并向量化索引到组织知识库。导入后可通过类案检索查询。'),
   });
 }

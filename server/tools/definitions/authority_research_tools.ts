@@ -1,5 +1,6 @@
 import { ToolRegistry } from '../registry';
 import { addMemory } from '../../memory/store';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 type ResearchKind =
   | 'auto'
@@ -644,7 +645,7 @@ export function registerAuthorityResearchTools(registry: ToolRegistry): void {
     },
     handler: authorityResearchHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Find and score authoritative sources for questions about laws, regulations, policies, cases, patents, software copyright, standards, academic papers, technical docs, and current company/news facts. It searches primary domains first, fetches excerpts from top sources, and returns an evidence packet with URLs, authority scores, checks, and cautions. Use before answering high-stakes or citation-heavy questions.'),
   });
 
   registry.register({

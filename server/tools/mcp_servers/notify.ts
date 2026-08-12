@@ -3,6 +3,7 @@
 import { ToolRegistry } from '../registry';
 import { buildMcpServerFromRegistry } from './mcp_helpers';
 import { logger } from '../../lib/logger';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 import { pushNotification } from '../../routes/notifications';
 import { emitProactivePush } from '../../lib/pushService';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -47,7 +48,7 @@ export function registerNotifyTools(registry: ToolRegistry): void {
       parameters: t.params,
       handler: async (a: Record<string, any>) => t.handler(a, String(a.userId || process.env.E2E_UID || 'peppa-user')),
       permission: 'user',
-      securityLevel: 'safe',
+      securityLevel: classifyBuiltinToolRisk(t.desc),
     });
   }
   logger.info(`[NotifyMCP] 已注册 ${tools.length} 个工具`);

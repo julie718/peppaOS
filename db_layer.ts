@@ -191,6 +191,23 @@ function migrateSchema(): Promise<void> {
       interactionId TEXT DEFAULT '',
       timestamp TEXT NOT NULL
     )`, onAlter);
+    // DeepSeek 外部强制路由：每次模型调用记录持久表（任务7 — 模型/来源类型/token/耗时/缓存命中/是否降级）
+    db!.run(`CREATE TABLE IF NOT EXISTS llm_router_calls (
+      id TEXT PRIMARY KEY,
+      ts TEXT NOT NULL,
+      scene TEXT NOT NULL DEFAULT '(none)',
+      tier TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      model TEXT NOT NULL,
+      promptTokens INTEGER NOT NULL DEFAULT 0,
+      completionTokens INTEGER NOT NULL DEFAULT 0,
+      totalTokens INTEGER NOT NULL DEFAULT 0,
+      cacheHitTokens INTEGER NOT NULL DEFAULT 0,
+      cacheHit INTEGER NOT NULL DEFAULT 0,
+      durationMs INTEGER NOT NULL DEFAULT 0,
+      degraded INTEGER NOT NULL DEFAULT 0,
+      error TEXT DEFAULT ''
+    )`, onAlter);
     // Add cognitiveIntent and llmWasCalled columns to interactions
     db!.run("ALTER TABLE interactions ADD COLUMN cognitiveIntent TEXT DEFAULT ''", onAlter);
     db!.run("ALTER TABLE interactions ADD COLUMN llmWasCalled INTEGER DEFAULT 0", onAlter);
@@ -555,6 +572,9 @@ async function loadMemoryDB(): Promise<void> {
   // Load token usage
   const tokenUsageRaw = await query<any>('SELECT * FROM token_usage');
 
+  // Load router call records (DeepSeek 外部强制路由 — 任务7)
+  const llmRouterCallsRaw = await query<any>('SELECT * FROM llm_router_calls');
+
   // Load org tables
   const organizations = await query<any>('SELECT * FROM organizations');
   const departments = await query<any>('SELECT * FROM departments');
@@ -633,6 +653,23 @@ async function loadMemoryDB(): Promise<void> {
     systemSnapshots: Array.isArray(systemSnapshots) ? systemSnapshots : [],
     voiceProfiles: voiceProfiles || {},
     tokenUsage: tokenUsageRaw || [],
+    // DeepSeek 外部强制路由调用记录（列名恢复 camelCase）
+    llmRouterCalls: (llmRouterCallsRaw || []).map((c: any) => ({
+      id: c.id,
+      ts: c.ts,
+      scene: c.scene || '(none)',
+      tier: c.tier,
+      provider: c.provider,
+      model: c.model,
+      promptTokens: c.promptTokens || 0,
+      completionTokens: c.completionTokens || 0,
+      totalTokens: c.totalTokens || 0,
+      cacheHitTokens: c.cacheHitTokens || 0,
+      cacheHit: !!c.cacheHit,
+      durationMs: c.durationMs || 0,
+      degraded: !!c.degraded,
+      error: c.error || undefined,
+    })),
     organizations: organizations || [],
     departments: departments || [],
     orgMemberships: orgMemberships || [],
@@ -854,6 +891,12 @@ async function runPersist(): Promise<void> {
       createSQL: `CREATE TABLE _temp_token_usage (id TEXT PRIMARY KEY, userId TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL, promptTokens INTEGER NOT NULL, completionTokens INTEGER NOT NULL, totalTokens INTEGER NOT NULL, mode TEXT DEFAULT 'chat', interactionId TEXT DEFAULT '', timestamp TEXT NOT NULL)`,
       insertSQL: `INSERT INTO _temp_token_usage (id, userId, provider, model, promptTokens, completionTokens, totalTokens, mode, interactionId, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       rows: () => (memoryDB.tokenUsage || []).map((u: any) => [u.id, u.userId, u.provider, u.model, u.promptTokens, u.completionTokens, u.totalTokens, u.mode || 'chat', u.interactionId || '', u.timestamp]),
+    },
+    {
+      name: 'llm_router_calls',
+      createSQL: `CREATE TABLE _temp_llm_router_calls (id TEXT PRIMARY KEY, ts TEXT NOT NULL, scene TEXT NOT NULL DEFAULT '(none)', tier TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL, promptTokens INTEGER NOT NULL DEFAULT 0, completionTokens INTEGER NOT NULL DEFAULT 0, totalTokens INTEGER NOT NULL DEFAULT 0, cacheHitTokens INTEGER NOT NULL DEFAULT 0, cacheHit INTEGER NOT NULL DEFAULT 0, durationMs INTEGER NOT NULL DEFAULT 0, degraded INTEGER NOT NULL DEFAULT 0, error TEXT DEFAULT '')`,
+      insertSQL: `INSERT INTO _temp_llm_router_calls (id, ts, scene, tier, provider, model, promptTokens, completionTokens, totalTokens, cacheHitTokens, cacheHit, durationMs, degraded, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      rows: () => (memoryDB.llmRouterCalls || []).map((c: any) => [c.id, c.ts, c.scene || '(none)', c.tier, c.provider, c.model, c.promptTokens || 0, c.completionTokens || 0, c.totalTokens || 0, c.cacheHitTokens || 0, c.cacheHit ? 1 : 0, c.durationMs || 0, c.degraded ? 1 : 0, c.error || '']),
     },
     {
       name: 'organizations',

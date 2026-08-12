@@ -13,6 +13,9 @@ import { reapSkillFaults } from './monitoring';
 import { expireOldSandboxProjects } from './sandbox';
 import { expireStaleApprovals } from './approval';
 import { generateSkillsMonthlyBrief, runMonthlyGapReview } from './hooks';
+// Phase3 总开关（PEPPA_PHASE3_SKILL_AUTO_ENABLE）与成功率统计同步
+import { isPhase3Enabled } from './switch';
+import { syncCallStatsFromMonitoring } from './lifecycle';
 
 let initialized = false;
 let routinesStarted = false;
@@ -20,9 +23,14 @@ let routinesStarted = false;
 const FAULT_POLL_MS = 5 * 60 * 1000;      // 故障巡检
 const CLEANUP_POLL_MS = 6 * 60 * 60 * 1000; // 过期清理
 const MONTHLY_POLL_MS = 6 * 60 * 60 * 1000; // 月度检查窗口
+const STATS_POLL_MS = 10 * 60 * 1000;     // 成功率统计同步
 
-/** 初始化（幂等）：迁移表 + 网关接线 */
-export async function initSkillsExtension(): Promise<{ ok: boolean; tables: string[]; errors: string[] }> {
+/** 初始化（幂等）：迁移表 + 网关接线。总开关关闭时整套能力停用（含迁移），不产生任何副作用 */
+export async function initSkillsExtension(): Promise<{ ok: boolean; tables: string[]; errors: string[]; disabled?: boolean }> {
+  if (!isPhase3Enabled()) {
+    logger.info('[SkillsExt] PEPPA_PHASE3_SKILL_AUTO_ENABLE=false → 整套阶段三能力已停用（检索/评估/沙箱/审批/监控/巡检全部关闭）');
+    return { ok: true, tables: [], errors: [], disabled: true };
+  }
   if (initialized) return { ok: true, tables: [], errors: [] };
   const mig = await migrateSkillsTables();
   // 网关代理接线：适配器经 auth_gateway 解密密钥后代理请求（明文不出网关）
@@ -32,8 +40,12 @@ export async function initSkillsExtension(): Promise<{ ok: boolean; tables: stri
   return { ok: mig.success, tables: mig.tables, errors: mig.errors };
 }
 
-/** 启动例行巡检（幂等；测试环境可手动触发替代） */
+/** 启动例行巡检（幂等；测试环境可手动触发替代）。总开关关闭时整体不启动 */
 export function startSkillsRoutines(): void {
+  if (!isPhase3Enabled()) {
+    logger.info('[SkillsExt] PEPPA_PHASE3_SKILL_AUTO_ENABLE=false → 例行巡检未启动');
+    return;
+  }
   if (routinesStarted) return;
   routinesStarted = true;
 
@@ -42,13 +54,18 @@ export function startSkillsRoutines(): void {
     reapSkillFaults().catch(() => {});
   }, FAULT_POLL_MS).unref();
 
-  // 2) 每 6 小时过期清理（7 天未审批）
+  // 2) 每 10 分钟成功率统计同步（tool_monitoring → mcp_skill_store 聚合）
+  setInterval(() => {
+    syncCallStatsFromMonitoring().catch(() => {});
+  }, STATS_POLL_MS).unref();
+
+  // 3) 每 6 小时过期清理（7 天未审批）
   setInterval(() => {
     expireOldSandboxProjects().catch(() => {});
     expireStaleApprovals().catch(() => {});
   }, CLEANUP_POLL_MS).unref();
 
-  // 3) 每月 3 点：技能月度简报 + 缺口复评（Idle 自省联动）
+  // 4) 每月 3 点：技能月度简报 + 缺口复评（Idle 自省联动）
   setInterval(() => {
     const now = new Date();
     if (now.getHours() === 3 && now.getDate() === 1) {
@@ -57,7 +74,7 @@ export function startSkillsRoutines(): void {
     }
   }, MONTHLY_POLL_MS).unref();
 
-  logger.info('[SkillsExt] 例行巡检已启动（故障 5min / 清理 6h / 月度简报）');
+  logger.info('[SkillsExt] 例行巡检已启动（故障 5min / 统计同步 10min / 清理 6h / 月度简报）');
 }
 
 /** 安全退出（供测试关闭进程级资源） */

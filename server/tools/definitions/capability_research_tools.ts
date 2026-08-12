@@ -1,4 +1,5 @@
 import { ToolRegistry } from '../registry';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 interface RepoCandidate {
   fullName: string;
@@ -266,6 +267,6 @@ export function registerCapabilityResearchTools(registry: ToolRegistry): void {
     },
     handler: capabilityResearchHandler,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Research GitHub/MCP/library candidates for extending Peppa with a new capability, then evaluate technical fit, license risk, integration route, and a safe implementation plan. Use this when Peppa needs to learn how to connect new ecosystems such as CAD, Revit, IFC, Dynamo, local AI apps, or industry tools. This tool does not install or execute third-party code.'),
   });
 }

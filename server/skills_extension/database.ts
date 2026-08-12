@@ -59,6 +59,7 @@ const TABLES: Array<{ name: string; sql: string }> = [
       tsc_iterations INTEGER DEFAULT 0,
       tsc_passed INTEGER DEFAULT 0,
       pending_reason TEXT DEFAULT '',
+      risk_level TEXT DEFAULT 'safe',
       status TEXT DEFAULT 'building',
       created_at TEXT DEFAULT (datetime('now'))
     )`,
@@ -97,6 +98,7 @@ const TABLES: Array<{ name: string; sql: string }> = [
       status TEXT NOT NULL,
       latency_ms INTEGER DEFAULT 0,
       user_negative INTEGER DEFAULT -1,
+      source TEXT DEFAULT 'community',
       created_at TEXT DEFAULT (datetime('now'))
     )`,
   },
@@ -108,6 +110,29 @@ const TABLES: Array<{ name: string; sql: string }> = [
       subject TEXT NOT NULL,
       detail TEXT DEFAULT '',
       created_at TEXT DEFAULT (datetime('now'))
+    )`,
+  },
+  {
+    // 任务要求：独立数据表 mcp_skill_store — 存储元数据、来源、风险标记、成功率统计，不和旧业务表混杂
+    name: 'mcp_skill_store',
+    sql: `CREATE TABLE IF NOT EXISTS mcp_skill_store (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tool_name TEXT NOT NULL UNIQUE,
+      version TEXT DEFAULT '1.0.0',
+      source TEXT NOT NULL DEFAULT 'community',
+      origin TEXT DEFAULT '',
+      risk_level TEXT DEFAULT 'safe',
+      security_level TEXT DEFAULT 'safe',
+      compliance_domain TEXT DEFAULT 'none',
+      needs_credential INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'installed',
+      success_count INTEGER DEFAULT 0,
+      fail_count INTEGER DEFAULT 0,
+      total_calls INTEGER DEFAULT 0,
+      success_rate REAL DEFAULT 1.0,
+      metadata TEXT DEFAULT '{}',
+      installed_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
     )`,
   },
 ];
@@ -124,6 +149,21 @@ export async function migrateSkillsTables(): Promise<{ success: boolean; tables:
       errors.push(`${t.name}: ${e.message}`);
     }
   }
+  // P2-4/P2-2：既有数据库增量补列（CREATE TABLE IF NOT EXISTS 不作用于已存在表；
+  // ALTER 列已存在时抛错，静默忽略 = 幂等）
+  const ALTERS: Array<{ table: string; sql: string }> = [
+    { table: 'tool_monitoring', sql: `ALTER TABLE tool_monitoring ADD COLUMN source TEXT DEFAULT 'community'` },
+    { table: 'sandbox_config', sql: `ALTER TABLE sandbox_config ADD COLUMN risk_level TEXT DEFAULT 'safe'` },
+  ];
+  for (const a of ALTERS) {
+    try {
+      await run(a.sql);
+      logger.info(`[SkillsDB] 增量迁移: ${a.table} 补列完成`);
+    } catch {
+      /* 列已存在 → 幂等忽略 */
+    }
+  }
+
   const success = errors.length === 0;
   if (success) {
     logger.info(`[SkillsDB] 迁移完成: ${tables.length} 张表, 0 个错误 (${DB_PATH})`);
@@ -141,9 +181,9 @@ export function getSkillsDbPath(): string {
 
 export async function insertSandboxProject(p: Omit<SandboxProject, 'id' | 'createdAt'>): Promise<number> {
   const r = await run(
-    `INSERT INTO sandbox_config (keyword, service_name, dir, main_source, tsc_iterations, tsc_passed, pending_reason, status)
-     VALUES (?,?,?,?,?,?,?,?)`,
-    [p.keyword, p.serviceName, p.dir, p.mainSource, p.tscIterations, p.tscPassed ? 1 : 0, p.pendingReason || '', p.status],
+    `INSERT INTO sandbox_config (keyword, service_name, dir, main_source, tsc_iterations, tsc_passed, pending_reason, risk_level, status)
+     VALUES (?,?,?,?,?,?,?,?,?)`,
+    [p.keyword, p.serviceName, p.dir, p.mainSource, p.tscIterations, p.tscPassed ? 1 : 0, p.pendingReason || '', p.riskLevel || 'safe', p.status],
   );
   return r.lastID!;
 }
@@ -174,6 +214,7 @@ export async function listSandboxProjects(status?: string): Promise<SandboxProje
     tscIterations: r.tsc_iterations,
     tscPassed: !!r.tsc_passed,
     pendingReason: r.pending_reason,
+    riskLevel: r.risk_level || 'safe',
     status: r.status,
     createdAt: r.created_at,
   }));
@@ -283,8 +324,8 @@ export async function listApprovals(status?: string): Promise<ApprovalRecord[]> 
 
 export async function insertMetric(m: Omit<ToolMetric, 'id' | 'createdAt'>): Promise<void> {
   await run(
-    `INSERT INTO tool_monitoring (tool_name, status, latency_ms, user_negative) VALUES (?,?,?,?)`,
-    [m.toolName, m.status, m.latencyMs, m.userNegative],
+    `INSERT INTO tool_monitoring (tool_name, status, latency_ms, user_negative, source) VALUES (?,?,?,?,?)`,
+    [m.toolName, m.status, m.latencyMs, m.userNegative, m.source || 'community'],
   );
 }
 
@@ -337,6 +378,96 @@ export async function listAudit(limit = 100): Promise<SkillsAuditEntry[]> {
     detail: r.detail,
     createdAt: r.created_at,
   }));
+}
+
+// ── mcp_skill_store（技能库：元数据/来源/风险标记/成功率统计） ──
+
+function mapSkillStoreRow(r: any): import('./types').SkillStoreEntry {
+  return {
+    id: r.id,
+    toolName: r.tool_name,
+    version: r.version,
+    source: r.source,
+    origin: r.origin,
+    riskLevel: r.risk_level,
+    securityLevel: r.security_level,
+    complianceDomain: r.compliance_domain,
+    needsCredential: !!r.needs_credential,
+    status: r.status,
+    successCount: r.success_count,
+    failCount: r.fail_count,
+    totalCalls: r.total_calls,
+    successRate: Number(r.success_rate) || 0,
+    metadata: r.metadata || '{}',
+    installedAt: r.installed_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+export async function upsertSkillStoreEntry(e: {
+  toolName: string; version: string; source: string; origin: string; riskLevel: string;
+  securityLevel: string; complianceDomain: string; needsCredential: boolean; metadata: string;
+}): Promise<void> {
+  await run(
+    `INSERT INTO mcp_skill_store (tool_name, version, source, origin, risk_level, security_level, compliance_domain, needs_credential, metadata)
+     VALUES (?,?,?,?,?,?,?,?,?)
+     ON CONFLICT(tool_name) DO UPDATE SET
+       version=excluded.version, source=excluded.source, origin=excluded.origin,
+       risk_level=excluded.risk_level, security_level=excluded.security_level,
+       compliance_domain=excluded.compliance_domain, needs_credential=excluded.needs_credential,
+       metadata=excluded.metadata, updated_at=datetime('now')`,
+    [e.toolName, e.version, e.source, e.origin, e.riskLevel, e.securityLevel, e.complianceDomain, e.needsCredential ? 1 : 0, e.metadata],
+  );
+}
+
+export async function getSkillStoreEntry(toolName: string): Promise<import('./types').SkillStoreEntry | undefined> {
+  const r = await get<any>('SELECT * FROM mcp_skill_store WHERE tool_name=?', [toolName]);
+  return r ? mapSkillStoreRow(r) : undefined;
+}
+
+export async function listSkillStoreEntries(status?: string): Promise<import('./types').SkillStoreEntry[]> {
+  const rows = await all<any>(
+    status ? `SELECT * FROM mcp_skill_store WHERE status=? ORDER BY id DESC` : `SELECT * FROM mcp_skill_store ORDER BY id DESC`,
+    status ? [status] : [],
+  );
+  return rows.map(mapSkillStoreRow);
+}
+
+/** 未卸载的安装总数（全局限额熔断计数源） */
+export async function countInstalledSkills(): Promise<number> {
+  const r = await get<any>(`SELECT COUNT(*) AS n FROM mcp_skill_store WHERE status != 'uninstalled'`);
+  return Number(r?.n) || 0;
+}
+
+export async function updateSkillStoreStatus(toolName: string, status: string): Promise<void> {
+  await run(`UPDATE mcp_skill_store SET status=?, updated_at=datetime('now') WHERE tool_name=?`, [status, toolName]);
+}
+
+/** 单次调用结果增量回写（成功率统计） */
+export async function updateSkillStoreStats(toolName: string, ok: boolean): Promise<void> {
+  if (ok) {
+    await run(
+      `UPDATE mcp_skill_store SET success_count=success_count+1, total_calls=total_calls+1,
+       success_rate=CAST(success_count+1 AS REAL)/(total_calls+1), updated_at=datetime('now') WHERE tool_name=?`,
+      [toolName],
+    );
+  } else {
+    await run(
+      `UPDATE mcp_skill_store SET fail_count=fail_count+1, total_calls=total_calls+1,
+       success_rate=CAST(success_count AS REAL)/(total_calls+1), updated_at=datetime('now') WHERE tool_name=?`,
+      [toolName],
+    );
+  }
+}
+
+/** 全量覆盖统计（从 tool_monitoring 重算同步用） */
+export async function setSkillStoreStats(toolName: string, total: number, okCount: number): Promise<void> {
+  const fail = Math.max(0, total - okCount);
+  await run(
+    `UPDATE mcp_skill_store SET success_count=?, fail_count=?, total_calls=?,
+     success_rate=?, updated_at=datetime('now') WHERE tool_name=?`,
+    [okCount, fail, total, total > 0 ? okCount / total : 1.0, toolName],
+  );
 }
 
 // ── 沙箱目录（模块3） ──

@@ -4,6 +4,7 @@
 // 无免费数据源的票务类（机票/酒店）走适配器模式——配置了 API Key 走真实接口，未配置时诚实降级并给出建议，不产出虚构数据。
 import { ToolRegistry } from '../registry';
 import { logger } from '../../lib/logger';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 import { buildMcpServerFromRegistry } from './mcp_helpers';
 import { fetchWeatherByCity, cityCoords } from '../definitions/weather_tools';
 import {
@@ -247,7 +248,7 @@ export function registerTravelTools(registry: ToolRegistry): void {
       parameters: t.params,
       handler: async (a: Record<string, any>) => t.handler(a, String(a.userId || process.env.E2E_UID || 'peppa-user')),
       permission: 'user',
-      securityLevel: 'safe',
+      securityLevel: classifyBuiltinToolRisk(t.desc),
     });
   }
   logger.info(`[TravelMCP] 已注册 ${tools.length} 个工具`);

@@ -1,4 +1,5 @@
 import { ToolRegistry } from '../registry';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 async function desktopSystemInfo(_args: Record<string, any>, context?: any): Promise<string> {
   if (!context?.desktopRelay) {
@@ -57,7 +58,7 @@ export function registerDesktopTools(registry: ToolRegistry): void {
     },
     handler: desktopSystemInfo,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Get real host system info (OS, CPU, memory, home directory) from the desktop machine. Use this instead of get_system_info when you need actual hardware details, not just the server process view.'),
   });
 
   registry.register({
@@ -74,7 +75,7 @@ export function registerDesktopTools(registry: ToolRegistry): void {
     },
     handler: desktopListFiles,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('List files and directories on the user\'s real desktop machine at the given path using the native desktop client. Prefer this for Desktop/Documents folders, Chinese filenames, file discovery, and verifying that a generated file really exists. Defaults to the home directory. Returns name, path, type, size, and modified time.'),
   });
 
   registry.register({
@@ -90,7 +91,7 @@ export function registerDesktopTools(registry: ToolRegistry): void {
     },
     handler: desktopOpen,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Open a file, folder, application, or URL using the OS default handler. Use this to launch apps (e.g., "notepad.exe", "calc.exe"), open folders (e.g., "C:\\Users"), open files with their default app, or open URLs in the browser. This is the preferred way to visibly launch something on the user\'s desktop.'),
   });
 
   registry.register({
@@ -107,7 +108,7 @@ export function registerDesktopTools(registry: ToolRegistry): void {
     },
     handler: desktopPathInfo,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Check whether an exact file or folder path exists on the user\'s real desktop machine. Use this after creating files, especially CAD/doc/image outputs, before telling the user the file is ready.'),
   });
 
   registry.register({

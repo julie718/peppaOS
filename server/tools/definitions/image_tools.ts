@@ -3,6 +3,7 @@ import { logger } from '../../lib/logger';
 import path from 'path';
 import { ToolRegistry } from '../registry';
 import { loadKeys } from '../../config/keys';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 const OUTPUT_DIR = path.join(process.cwd(), 'peppa_output');
 
@@ -214,7 +215,7 @@ export function registerImageTools(registry: ToolRegistry): void {
     },
     handler: generateImage,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Generate AI images from text prompts. Auto-selects the best available provider: DALL-E 3 (if OPENAI_API_KEY is configured) or DashScope Wan2.2. Supports styles like "oil painting", "anime", "photorealistic", "architectural rendering", etc.'),
   });
 
   registry.register({
@@ -233,7 +234,7 @@ export function registerImageTools(registry: ToolRegistry): void {
     },
     handler: generateImageDalle,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Generate images using DALL-E 3. Higher quality and better prompt following. Supports 1024x1024, 1792x1024, 1024x1792. Requires OPENAI_API_KEY.'),
   });
 
   registry.register({
@@ -253,6 +254,6 @@ export function registerImageTools(registry: ToolRegistry): void {
     },
     handler: editImage,
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Edit an image: crop, resize, rotate, flip/flop, blur, sharpen, grayscale, negate, composite (overlay watermark/logo), or convert format. Saves result to peppa_output directory.'),
   });
 }

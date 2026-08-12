@@ -5,6 +5,7 @@ import {
   setAutonomousWorkflowEnabled,
   upsertAutonomousWorkflow,
 } from '../../autonomy/workflows';
+import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
 
 const ALLOWED_KEYS = new Set<keyof SafetyGateConfig>([
   'alwaysOnline',
@@ -42,7 +43,7 @@ export function registerAutonomyTools(registry: ToolRegistry): void {
     },
     handler: async () => JSON.stringify(getGateConfig(), null, 2),
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('Read Peppa autonomous work safety policy: always-online, auto processing, external app automation, idle gate, time window, and budget.'),
   });
 
   registry.register({
@@ -99,7 +100,7 @@ export function registerAutonomyTools(registry: ToolRegistry): void {
       return JSON.stringify({ workflows }, null, 2);
     },
     permission: 'user',
-    securityLevel: 'safe',
+    securityLevel: classifyBuiltinToolRisk('List confirmed autonomous workflows for this user. Peppa may only auto-generate background tasks from enabled workflows.'),
   });
 
   registry.register({

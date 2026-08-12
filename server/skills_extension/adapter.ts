@@ -19,7 +19,11 @@ import { personalityRegistry } from '../personality';
 import { logger } from '../lib/logger';
 import { appendAudit, insertMetric, getSandboxRoot } from './database';
 import { addMemory } from '../memory/store';
-import type { ToolCandidate } from './types';
+import type { ToolCandidate, RiskLevel } from './types';
+// 阶段三·风险闸门 / 单会话熔断 / 技能库安装登记（mcp_skill_store）
+import { assertDeployAllowed, classifyBuiltinToolRisk } from './risk_policy';
+import { consumeSessionSlot } from './breakers';
+import { installSkill, logCallOkEvent } from './lifecycle';
 
 // ── 常量 ──
 
@@ -36,22 +40,51 @@ const MEDICAL_DISCLAIMER = '\n\n⚠️ 以上内容仅供科普参考，不能�
 const FINANCE_HINTS = ['stock', 'finance', '行情', '股票', '基金', '外汇', '汇率', '加密', 'coin', '币价'];
 const MEDICAL_HINTS = ['医疗', '药品', '药物', 'health', 'medical', '就诊', '医院'];
 
+// P2-8：真实风险等级复用判定。securityLevel 已是 RiskLevel 枚举（safe/medium/high）时直接复用，
+// 不再二次调用 classifyRisk —— classifyRisk 仅识别 high 显式声明，无法识别 medium 输入，
+// 会把 realRiskLevel=medium 的工具降级成 safe，造成 mcp_skill_store.risk_level 与 security_level 展示口径失真。
+function isRiskLevelValue(v: string | undefined): v is RiskLevel {
+  return v === 'safe' || v === 'medium' || v === 'high';
+}
+
 // ── SSRF 防护（沙箱最小权限：只读公网网络，不触碰本地） ──
+// P2-1：与 sandbox_child.ts 隔离子进程守卫【完全一致】——补齐云元数据段 169.254.0.0/16、
+// 0.0.0.0 及 .internal/.lan/.localhost/.localdomain 内网主机后缀，适配器与子进程 SSRF 规则对齐。
 
 function assertPublicHttpsUrl(raw: string): URL {
   const u = new URL(raw);
   if (u.protocol !== 'https:') throw new Error(`适配器仅允许 HTTPS 出站（收到 ${u.protocol}）`);
-  const host = u.hostname;
-  if (host === 'localhost' || host.endsWith('.local') || host === '127.0.0.1' || host === '::1') {
-    throw new Error(`适配器禁止访问本地地址 ${host}（沙箱隔离）`);
+  const host = u.hostname.toLowerCase();
+  if (host === 'localhost' || host === '::1' || host === '0.0.0.0' ||
+      host.endsWith('.local') || host.endsWith('.internal') || host.endsWith('.lan') ||
+      host.endsWith('.localhost') || host.endsWith('.localdomain')) {
+    throw new Error(`适配器禁止访问本地/内网主机 ${host}（沙箱隔离）`);
   }
   if (/^(\d{1,3}\.){3}\d{1,3}$/.test(host)) {
     const parts = host.split('.').map(Number);
-    if (parts[0] === 10 || (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) || (parts[0] === 192 && parts[1] === 168) || parts[0] === 127) {
+    if (parts[0] === 10 || parts[0] === 127 ||
+        (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+        (parts[0] === 192 && parts[1] === 168) ||
+        (parts[0] === 169 && parts[1] === 254)) {
       throw new Error(`适配器禁止访问内网地址 ${host}（沙箱隔离）`);
     }
   }
   return u;
+}
+
+/**
+ * SSRF 守卫测试钩子（P2-5 修复：测试流水线用例4 的真实拦截断言；不参与业务执行链）。
+ * 对每个地址直接调用进程内 SSRF 守卫，返回是否被拦截及守卫文案。
+ */
+export function ssrfProbeInProcess(urls: string[]): Array<{ url: string; blocked: boolean; detail: string }> {
+  return urls.map(url => {
+    try {
+      assertPublicHttpsUrl(url);
+      return { url, blocked: false, detail: '守卫未拦截（内网泄露风险）' };
+    } catch (e: any) {
+      return { url, blocked: true, detail: e?.message || String(e) };
+    }
+  });
 }
 
 // ── 认证注入点（auth_gateway 接线时提供；未接线 = 无密钥服务） ──
@@ -85,12 +118,15 @@ export interface AdapterConfig {
   needsCredential?: boolean;
   description: string;
   securityLevel?: 'safe' | 'confirm';
+  /** P2-4：工具来源（上线时由 meta.source 注入；指标写入 tool_monitoring.source） */
+  source?: ToolCandidate['source'] | 'sandbox';
 }
 
 interface AdaptedToolMeta {
   name: string;
   serviceName: string;
-  securityLevel: 'safe' | 'confirm';
+  /** P2-2：自研工具可携带创建阶段 realRiskLevel（safe/medium/high），故放宽为 string（落 mcp_skill_store.security_level） */
+  securityLevel: string;
   /** registry（内置目录）/ community（社区检索）/ api（第三方 API）/ sandbox（沙箱自研） */
   source: ToolCandidate['source'] | 'sandbox';
   origin: string;
@@ -110,7 +146,7 @@ function createAdaptedHandler(cfg: AdapterConfig) {
     const startResult = (status: 'ok' | 'error' | 'timeout') => {
       // 测试模式（test_pipeline 执行期）不写入运行监控，避免开发期数据污染健康判定
       if (process.env.SKILLS_TEST_METRICS === '1') return;
-      insertMetric({ toolName: cfg.toolName, status, latencyMs: Date.now() - started, userNegative: -1 }).catch(() => {});
+      insertMetric({ toolName: cfg.toolName, status, latencyMs: Date.now() - started, userNegative: -1, source: cfg.source || 'community' }).catch(() => {});
     };
 
     try {
@@ -170,6 +206,8 @@ function createAdaptedHandler(cfg: AdapterConfig) {
           if (body.length > ADAPTER_MAX_BODY_BYTES) body = body.slice(0, ADAPTER_MAX_BODY_BYTES) + '\n…(响应超长已截断)';
 
           startResult('ok');
+          // P2-5 3-3：调用成功结构化事件（call-ok；来源/风险取自技能库，未登记静默跳过）
+          void logCallOkEvent(cfg.toolName).catch(() => {});
           // 记忆复盘写入（异步友好：同步 API 不阻塞回复）
           try {
             addMemory({
@@ -245,6 +283,12 @@ function hotRegister(entry: VersionEntry): boolean {
 
 /** 升级到新版本：注册新 handler，失败自动回滚旧版本 */
 export function upgradeTool(toolName: string, nextCfg: AdapterConfig, version: string, meta: Omit<AdaptedToolMeta, 'version' | 'deployedAt'>): { ok: boolean; message: string } {
+  // 风险闸门（升级同样受控）：高风险配置拒绝升级，中风险告警放行
+  const guard = assertDeployAllowed({
+    securityLevel: nextCfg.securityLevel, source: meta.source, origin: meta.origin,
+    needsCredential: nextCfg.needsCredential, complianceDomain: nextCfg.complianceDomain,
+  });
+  if (!guard.ok) return { ok: false, message: `升级被风险闸门拦截：${guard.reason}` };
   const stack = versionStack.get(toolName) || [];
   const next: VersionEntry = {
     version,
@@ -253,9 +297,10 @@ export function upgradeTool(toolName: string, nextCfg: AdapterConfig, version: s
       name: nextCfg.toolName,
       description: matchStyle(nextCfg.description),
       parameters: {}, // 入参由 LLM 心智按描述自由给出（统一适配骨架内部做映射）
-      handler: createAdaptedHandler(nextCfg),
+      // P2-4：handler 携带来源（指标写入 tool_monitoring.source），不修改原 cfg 对象
+      handler: createAdaptedHandler({ ...nextCfg, source: meta.source }),
       permission: 'public',
-      securityLevel: nextCfg.securityLevel || 'safe',
+      securityLevel: nextCfg.securityLevel || classifyBuiltinToolRisk('fallback-unknown-tool'),
     },
     meta,
   };
@@ -269,6 +314,21 @@ export function upgradeTool(toolName: string, nextCfg: AdapterConfig, version: s
 
   adaptedLedger.push({ ...meta, version, deployedAt: new Date().toISOString() });
   appendAudit('upgrade', toolName, `升级至 v${version}`);
+
+  // 首次上线（无历史版本）→ 技能库安装登记（社区下载类工具同样入册；fire-and-forget，失败仅告警）
+  if (!prev) {
+    const storeSource: 'registry' | 'community' | 'api' | 'self_build' = meta.source === 'sandbox' ? 'self_build' : meta.source;
+    // P2-8：已传入有效 RiskLevel 直接复用写入 risk_level；仅风险等级为空/非枚举时回退 classifyRisk 重新计算
+    const risk: RiskLevel = isRiskLevelValue(nextCfg.securityLevel)
+      ? nextCfg.securityLevel
+      : assertDeployAllowed({ securityLevel: nextCfg.securityLevel, source: meta.source, origin: meta.origin }).level;
+    void installSkill({
+      toolName, version, source: storeSource, origin: meta.origin,
+      riskLevel: risk, securityLevel: nextCfg.securityLevel || classifyBuiltinToolRisk('fallback-unknown-tool'),
+    }).then(r => {
+      if (!r.ok) logger.warn(`[SkillsAdapter] ${toolName} 技能库登记被拒: ${r.message}`);
+    }).catch((e: any) => logger.warn(`[SkillsAdapter] ${toolName} 技能库登记失败: ${e?.message || e}`));
+  }
 
   if (prev) {
     // 冒烟自检：对新版本 handler 立即探测（2s 竞速，失败/超时即回滚旧版本）
@@ -302,6 +362,22 @@ export function registerDefinition(
   versionStack.set(toolName, stack);
   adaptedLedger.push({ ...meta, version, deployedAt: new Date().toISOString() });
   appendAudit(prev ? 'upgrade' : 'deploy', toolName, `v${version}${prev ? `（替换 v${prev.version}）` : ''}`);
+  // 首次上线 → 技能库安装登记（mcp_skill_store：来源/风险标记/成功率统计；fire-and-forget，失败仅告警不阻断上线）
+  if (!prev) {
+    // 沙箱自研统一记为 self_build（AI自主生成）；其余透传 registry/community/api
+    const storeSource: 'registry' | 'community' | 'api' | 'self_build' = meta.source === 'sandbox' ? 'self_build' : meta.source;
+    // P2-8：meta.securityLevel 已是 realRiskLevel 枚举（safe/medium/high）时直接复用写入 risk_level，
+    // 不再二次 classifyRisk（无法识别 medium 会把风险降级成 safe 造成展示失真）；仅空值回退重新计算
+    const risk: RiskLevel = isRiskLevelValue(meta.securityLevel)
+      ? meta.securityLevel
+      : assertDeployAllowed({ securityLevel: meta.securityLevel, source: meta.source, origin: meta.origin }).level;
+    void installSkill({
+      toolName, version, source: storeSource, origin: meta.origin,
+      riskLevel: risk, securityLevel: meta.securityLevel,
+    }).then(r => {
+      if (!r.ok) logger.warn(`[SkillsAdapter] ${toolName} 技能库登记被拒: ${r.message}`);
+    }).catch((e: any) => logger.warn(`[SkillsAdapter] ${toolName} 技能库登记失败: ${e?.message || e}`));
+  }
   if (prev) {
     void prev.definition.handler({}).then((r) => {
       if (r.startsWith('⚠️')) {
@@ -347,7 +423,7 @@ export const adapterConfig = {
 ${paramMap}
   },
   description: '${cfg.description}',
-  securityLevel: '${cfg.securityLevel || 'safe'}',
+  securityLevel: '${cfg.securityLevel || classifyBuiltinToolRisk('fallback-unknown-tool')}',
 };
 `;
 }
@@ -398,16 +474,26 @@ export async function adaptCandidate(
   candidate: ToolCandidate,
   adapterCfg: AdapterConfig,
   version = '1.0.0',
+  opts: { sessionId?: string } = {},
 ): Promise<AdaptResult> {
   if (!candidate.eligible) {
     return { ok: false, message: `候选 ${candidate.name} 未通过七维评估，拒绝适配（淘汰原因：${candidate.disqualifyReasons.join(';')}）` };
   }
+  // 风险闸门：高风险技能直接拦截（禁止暂存/部署），中风险告警放行
+  const guard = assertDeployAllowed({
+    securityLevel: adapterCfg.securityLevel, source: candidate.source, origin: candidate.origin,
+    needsCredential: adapterCfg.needsCredential, complianceDomain: adapterCfg.complianceDomain,
+  });
+  if (!guard.ok) return { ok: false, message: `适配被风险闸门拦截：${guard.reason}` };
+  // 单会话熔断：窗口内新增工具数量上限（防疯狂生成大量工具）
+  const slot = consumeSessionSlot(opts.sessionId || 'default');
+  if (!slot.ok) return { ok: false, message: `适配被熔断拦截：${slot.reason}` };
   if (adapterCfg.toolName !== candidate.name) adapterCfg.toolName = candidate.name;
 
   const meta: Omit<AdaptedToolMeta, 'version' | 'deployedAt'> = {
     name: candidate.name,
     serviceName: adapterCfg.serviceName,
-    securityLevel: adapterCfg.securityLevel || 'safe',
+    securityLevel: adapterCfg.securityLevel || classifyBuiltinToolRisk('fallback-unknown-tool'),
     source: candidate.source,
     origin: candidate.origin,
   };
