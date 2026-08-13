@@ -35,9 +35,133 @@ migrateDataFromOldLocation();
 const DB_PATH = getDataPath('peppa.db');
 
 let db: sqlite3.Database | null = null;
+let dbOpen = false;
 let memoryDB: any = null;
 const SYSTEM_FLAGS_SETTING = '__lumi_system_flags';
 const SYSTEM_SNAPSHOTS_SETTING = '__lumi_system_snapshots';
+
+// ═══════════════════════════════════════════════════════════════════
+// SQLite 并发安全层（本文件全部数据库操作的唯一入口）
+// 1) 串行任务队列：任意时刻仅一个 SQLite 操作在执行，杜绝多异步流语句/事务交错
+// 2) 打开连接自动生效 PRAGMA：WAL + synchronous=NORMAL + busy_timeout（无需人工执行 sqlite 命令）
+// 3) SQLITE_BUSY：有限次数指数退避重试，抛异常前充分重试
+// 4) 连接健康校验：句柄关闭/异常 → 自动重开连接并重试，避免句柄关闭后继续调用导致 FATAL
+// ═══════════════════════════════════════════════════════════════════
+const BUSY_MAX_ATTEMPTS = 6;   // 含首次在内最多尝试次数（句柄重开与 BUSY 重试共用此上限）
+const BUSY_BASE_DELAY_MS = 50; // 指数退避基数：50 → 100 → 200 → 400 → 800ms
+const PRAGMAS: string[] = [
+  'PRAGMA journal_mode=WAL',   // WAL：读写互不阻塞，从根源降低锁竞争
+  'PRAGMA synchronous=NORMAL', // 与 WAL 搭配的推荐持久性级别
+  'PRAGMA busy_timeout=5000',  // 驱动内部锁等待上限
+  'PRAGMA foreign_keys = ON',
+];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isBusyError(err: unknown): boolean {
+  const msg = String((err as any)?.message ?? err ?? '');
+  return /SQLITE_BUSY|database is locked|database table is locked|database is busy/i.test(msg);
+}
+
+function isClosedHandleError(err: unknown): boolean {
+  const msg = String((err as any)?.message ?? err ?? '');
+  return /SQLITE_MISUSE|handle is closed|database connection is not open|not open/i.test(msg);
+}
+
+let pragmaPromise: Promise<void> | null = null;
+
+/** 自动应用连接 PRAGMA（幂等；句柄重开后自动重新应用） */
+function ensurePragmas(conn: sqlite3.Database): Promise<void> {
+  if (!pragmaPromise) {
+    pragmaPromise = new Promise<void>((resolve, reject) => {
+      const runNext = (i: number) => {
+        if (i >= PRAGMAS.length) { resolve(); return; }
+        conn.run(PRAGMAS[i], (err) => (err ? reject(err) : runNext(i + 1)));
+      };
+      runNext(0);
+    }).catch((err) => {
+      pragmaPromise = null; // 失败允许下次重试
+      throw err;
+    });
+  }
+  return pragmaPromise;
+}
+
+/** 打开（或重开）连接；句柄异常后再次调用自动创建新句柄 */
+function openDb(): sqlite3.Database {
+  if (db && dbOpen) return db;
+  const conn = new sqlite3.Database(DB_PATH, (err) => {
+    if (err) {
+      console.error('[DB] 连接失败:', err.message);
+      if (db === conn) { dbOpen = false; db = null; }
+    } else {
+      if (db === conn) dbOpen = true;
+    }
+  });
+  conn.on('error', (err) => {
+    // 无回调语句的错误会以 'error' 事件抛出 → 不注册监听器会直接 FATAL。
+    // 这里记录并标记句柄失效，后续操作自动重连。
+    if (db !== conn) return; // 旧句柄迟到事件，不影响新句柄
+    console.warn('[DB] sqlite3 error 事件（自动重连）:', (err as any)?.message ?? err);
+    dbOpen = false;
+    db = null;
+    pragmaPromise = null;
+  });
+  db = conn;
+  pragmaPromise = null; // 新句柄需重新应用 PRAGMA
+  return conn;
+}
+
+// 串行任务队列：同一时刻仅允许一个 SQLite 操作执行。
+// 可重入：事务体（BEGIN…COMMIT 整体）作为单个队列任务，其内部语句直接执行（不死锁），
+// 外部并发请求排队等待整个事务结束后再执行，从根源杜绝事务/语句交错。
+let opQueue: Promise<unknown> = Promise.resolve();
+let inQueue = 0;
+
+function enqueueOp<T>(fn: () => Promise<T>): Promise<T> {
+  if (inQueue > 0) return fn(); // 已持有串行槽位（事务体内部）→ 直接执行
+  const runner = () => {
+    inQueue++;
+    return fn().finally(() => { inQueue--; });
+  };
+  const next = opQueue.then(runner, runner);
+  opQueue = next.catch(() => {});
+  return next;
+}
+
+/**
+ * 语句执行统一外壳：BUSY 指数退避重试 + 句柄关闭自动重开。
+ * 抛错前最多 BUSY_MAX_ATTEMPTS 次尝试（含句柄重开），充分重试后才放行异常。
+ */
+async function execWithRetry<T>(fn: (conn: sqlite3.Database) => Promise<T>, opName: string): Promise<T> {
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt < BUSY_MAX_ATTEMPTS; attempt++) {
+    const conn = openDb();
+    await ensurePragmas(conn);
+    try {
+      return await fn(conn);
+    } catch (err) {
+      lastErr = err;
+      if (isClosedHandleError(err)) {
+        console.warn(`[DB] ${opName} 句柄异常（${(err as any)?.message ?? err}），重开连接后重试`);
+        dbOpen = false;
+        db = null;
+        pragmaPromise = null;
+        continue;
+      }
+      if (isBusyError(err) && attempt < BUSY_MAX_ATTEMPTS - 1) {
+        const delay = BUSY_BASE_DELAY_MS * 2 ** attempt;
+        console.warn(`[DB] ${opName} database locked，${delay}ms 后重试（${attempt + 1}/${BUSY_MAX_ATTEMPTS - 1}）`);
+        await sleep(delay);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+}
 
 function parseJsonSetting<T>(settings: any[], key: string, fallback: T): T {
   const row = settings.find((s: any) => s.key === key);
@@ -67,18 +191,11 @@ function settingsRowsWithSystemState(): any[][] {
 }
 
 export async function initDatabase(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    db = new sqlite3.Database(DB_PATH, (err) => {
-      if (err) { reject(err); return; }
-      db!.run('PRAGMA foreign_keys = ON', async (err) => {
-        if (err) { reject(err); return; }
-        await createTables();
-        await migrateSchema();
-        await loadMemoryDB();
-        resolve();
-      });
-    });
-  });
+  const conn = openDb();
+  await ensurePragmas(conn); // 启动即自动生效 WAL / synchronous=NORMAL（无需人工执行 sqlite 命令）
+  await createTables();
+  await migrateSchema();
+  await loadMemoryDB();
 }
 
 function onAlter(err: Error | null) {
@@ -683,21 +800,33 @@ async function loadMemoryDB(): Promise<void> {
 }
 
 function run(sql: string, params: any[] = []): Promise<void> {
-  return new Promise((resolve, reject) => {
-    db!.run(sql, params, function (err) {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
+  return enqueueOp(() =>
+    execWithRetry(
+      (conn) =>
+        new Promise<void>((resolve, reject) => {
+          conn.run(sql, params, function (err) {
+            if (err) reject(err);
+            else resolve();
+          });
+        }),
+      'run',
+    ),
+  );
 }
 
 function query<T = any>(sql: string, params: any[] = []): Promise<T[]> {
-  return new Promise((resolve, reject) => {
-    db!.all(sql, params, (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows as T[]);
-    });
-  });
+  return enqueueOp(() =>
+    execWithRetry(
+      (conn) =>
+        new Promise<T[]>((resolve, reject) => {
+          conn.all(sql, params, (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows as T[]);
+          });
+        }),
+      'query',
+    ),
+  );
 }
 
 export function readDB(): any {
@@ -720,7 +849,7 @@ export function pruneOldData(): void {
       try {
         for (const entry of removed) {
           const id = entry.id || entry.uid || entry.interactionId;
-          if (id) db!.run(`DELETE FROM ${tableMap[key]} WHERE id = ?`, [id]);
+          if (id) run(`DELETE FROM ${tableMap[key]} WHERE id = ?`, [id]).catch(() => {});
         }
       } catch { /* best-effort, memory is already trimmed */ }
       console.log(`[DB] Pruned ${excess} old ${key} (${max} kept)`);
@@ -794,10 +923,12 @@ let persistQueue: Promise<void> = Promise.resolve();
  * Data is written to temp tables first, then the original tables are atomically
  * replaced. If the process crashes mid-write, the original data is preserved.
  * 所有调用方（writeDB debounce / flushDB）均经互斥队列串行执行。
+ * 整个持久化事务（BEGIN…COMMIT）作为单个串行队列任务提交：内部语句经可重入队列
+ * 直接执行（不死锁），外部并发操作必须等整个事务结束后才能执行，杜绝语句交错进入事务。
  */
 function persistMemoryDB(): Promise<void> {
   const prev = persistQueue.catch(() => {});
-  const job = prev.then(() => runPersist());
+  const job = prev.then(() => enqueueOp(() => runPersist()));
   persistQueue = job.catch(() => {});
   return job;
 }

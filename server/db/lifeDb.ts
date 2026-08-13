@@ -14,28 +14,91 @@ const DB_PATH = process.env.LIFE_DB_PATH || getDataPath('life.db');
 const BACKUP_DIR = path.dirname(DB_PATH);
 
 let db: sqlite3.Database | null = null;
+let dbOpen = false;
 
-// ── 数据库连接（带错误重试） ──
-export function getLifeDb(): sqlite3.Database {
-  if (db) return db;
-  db = new sqlite3.Database(DB_PATH, (err) => {
-    if (err) console.error('[LifeDB] 连接失败:', err.message);
-    else console.log('[LifeDB] 已连接:', DB_PATH);
-  });
-  db.run('PRAGMA journal_mode=WAL');
-  db.run('PRAGMA foreign_keys=ON');
-  db.run('PRAGMA busy_timeout=5000');
-  return db;
+// ═══════════════════════════════════════════════════════════════════
+// SQLite 并发安全层
+// 1) 串行任务队列：任意时刻仅一个 SQLite 操作执行，杜绝语句/事务交错
+// 2) 打开连接自动生效 PRAGMA：WAL + synchronous=NORMAL + busy_timeout（无需人工执行 sqlite 命令）
+// 3) SQLITE_BUSY：有限次数指数退避重试
+// 4) 连接健康校验：句柄关闭/异常 → 自动重开连接并重试，避免句柄关闭后继续调用导致 FATAL
+// ═══════════════════════════════════════════════════════════════════
+const BUSY_MAX_ATTEMPTS = 6;   // 含首次在内最多尝试次数
+const BUSY_BASE_DELAY_MS = 50; // 指数退避基数：50 → 100 → 200 → 400 → 800ms
+const PRAGMAS: string[] = [
+  'PRAGMA journal_mode=WAL',   // WAL：读写互不阻塞，从根源降低锁竞争
+  'PRAGMA synchronous=NORMAL', // 与 WAL 搭配的推荐持久性级别
+  'PRAGMA foreign_keys=ON',
+  'PRAGMA busy_timeout=5000',  // 驱动内部锁等待上限
+];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function retry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
-  return fn().catch(err => {
-    if (maxRetries > 0) {
-      console.warn(`[LifeDB] 重试 (剩余${maxRetries}次):`, err.message);
-      return retry(fn, maxRetries - 1);
+function isBusyError(err: unknown): boolean {
+  const msg = String((err as any)?.message ?? err ?? '');
+  return /SQLITE_BUSY|database is locked|database table is locked|database is busy/i.test(msg);
+}
+
+function isClosedHandleError(err: unknown): boolean {
+  const msg = String((err as any)?.message ?? err ?? '');
+  return /SQLITE_MISUSE|handle is closed|database connection is not open|not open/i.test(msg);
+}
+
+// ── 数据库连接（带健康校验 + 自动重连 + PRAGMA 自动生效） ──
+export function getLifeDb(): sqlite3.Database {
+  if (db && dbOpen) return db;
+  if (!db || !dbOpen) {
+    const conn = new sqlite3.Database(DB_PATH, (err) => {
+      if (err) {
+        console.error('[LifeDB] 连接失败:', err.message);
+        if (db === conn) { dbOpen = false; db = null; }
+      } else {
+        if (db === conn) dbOpen = true;
+        console.log('[LifeDB] 已连接:', DB_PATH);
+      }
+    });
+    conn.on('error', (err) => {
+      // 无回调语句的错误会以 'error' 事件抛出 → 不注册监听器会直接 FATAL。
+      if (db !== conn) return; // 旧句柄迟到事件，不影响新句柄
+      console.warn('[LifeDB] sqlite3 error 事件（自动重连）:', (err as any)?.message ?? err);
+      dbOpen = false;
+      db = null;
+    });
+    // 语句按 FIFO 顺序执行：连接创建后立即排队 PRAGMA → 先于后续任何业务语句生效
+    for (const p of PRAGMAS) {
+      conn.run(p, (err) => { if (err) console.warn('[LifeDB] PRAGMA 设置失败:', p, err.message); });
     }
-    throw err;
-  });
+    db = conn;
+  }
+  return db!;
+}
+
+/** 语句执行统一外壳：BUSY 指数退避重试 + 句柄关闭自动重开，抛错前充分重试 */
+async function execWithRetry<T>(fn: (conn: sqlite3.Database) => Promise<T>, opName: string): Promise<T> {
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt < BUSY_MAX_ATTEMPTS; attempt++) {
+    const conn = getLifeDb();
+    try {
+      return await fn(conn);
+    } catch (err) {
+      lastErr = err;
+      if (isClosedHandleError(err)) {
+        console.warn(`[LifeDB] ${opName} 句柄异常（${(err as any)?.message ?? err}），重开连接后重试`);
+        if (db === conn) { dbOpen = false; db = null; }
+        continue;
+      }
+      if (isBusyError(err) && attempt < BUSY_MAX_ATTEMPTS - 1) {
+        const delay = BUSY_BASE_DELAY_MS * 2 ** attempt;
+        console.warn(`[LifeDB] ${opName} database locked，${delay}ms 后重试（${attempt + 1}/${BUSY_MAX_ATTEMPTS - 1}）`);
+        await sleep(delay);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
 }
 
 // ── 表定义 ──
@@ -339,11 +402,19 @@ function rollback(database: sqlite3.Database): Promise<void> {
 // 主循环 TICK（addDesire/addEmotion）与对话复盘（addEmotion）并发调用 withTransaction 时，
 // 在同一 node-sqlite3 连接上 BEGIN/COMMIT 异步交错 → "cannot start a transaction within a transaction"。
 // 所有事务进入 promise 链串行执行，杜绝 BEGIN 交错；事务流程本身（BEGIN/RUN/COMMIT）保持不变。
+// 可重入：事务体（BEGIN…COMMIT 整体）作为单个队列任务，其内部 run/get/all 直接执行（不死锁）；
+// 事务外的独立语句同样入队，外部并发操作必须等整个事务结束后才能执行。
 let txQueue: Promise<unknown> = Promise.resolve();
+let inQueue = 0;
 
 function enqueue<T>(fn: () => Promise<T>): Promise<T> {
-  const next = txQueue.then(fn, fn); // 前一事务失败（reject）不阻断后续事务入队
-  txQueue = next.catch(() => {});    // 队列尾部吞错，避免 promise 链断裂
+  if (inQueue > 0) return fn(); // 已持有串行槽位（事务体内部）→ 直接执行
+  const runner = () => {
+    inQueue++;
+    return fn().finally(() => { inQueue--; });
+  };
+  const next = txQueue.then(runner, runner); // 前一事务失败（reject）不阻断后续事务入队
+  txQueue = next.catch(() => {});            // 队列尾部吞错，避免 promise 链断裂
   return next;
 }
 
@@ -364,32 +435,38 @@ async function withTransaction<T>(fn: () => Promise<T>): Promise<T> {
 
 // ── run/get 封装 ──
 // P1 修复：所有查询/写入前置等待全局迁移完成（migrateLifeTables 门），杜绝新库首启竞态。
-// 门只等待迁移落定，不改变原有 retry 语义（retry 仍只包裹查询执行本身）。
+// 门只等待迁移落定；语句经串行任务队列 + BUSY 退避重试 + 句柄健康校验执行。
 function run(sql: string, params: any[] = []): Promise<sqlite3.RunResult> {
-  return migrateLifeTables().then(() => retry(() => new Promise((resolve, reject) => {
-    getLifeDb().run(sql, params, function (err) {
-      if (err) reject(err);
-      else resolve(this);
-    });
-  })));
+  return migrateLifeTables().then(() => enqueue(() =>
+    execWithRetry((conn) => new Promise<sqlite3.RunResult>((resolve, reject) => {
+      conn.run(sql, params, function (err) {
+        if (err) reject(err);
+        else resolve(this);
+      });
+    }), 'run')
+  ));
 }
 
 function get<T = any>(sql: string, params: any[] = []): Promise<T | null> {
-  return migrateLifeTables().then(() => retry(() => new Promise((resolve, reject) => {
-    getLifeDb().get(sql, params, (err, row) => {
-      if (err) reject(err);
-      else resolve((row as T) || null);
-    });
-  })));
+  return migrateLifeTables().then(() => enqueue(() =>
+    execWithRetry((conn) => new Promise<T | null>((resolve, reject) => {
+      conn.get(sql, params, (err, row) => {
+        if (err) reject(err);
+        else resolve((row as T) || null);
+      });
+    }), 'get')
+  ));
 }
 
 function all<T = any>(sql: string, params: any[] = []): Promise<T[]> {
-  return migrateLifeTables().then(() => retry(() => new Promise((resolve, reject) => {
-    getLifeDb().all(sql, params, (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows as T[]);
-    });
-  })));
+  return migrateLifeTables().then(() => enqueue(() =>
+    execWithRetry((conn) => new Promise<T[]>((resolve, reject) => {
+      conn.all(sql, params, (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows as T[]);
+      });
+    }), 'all')
+  ));
 }
 
 // ── P2迁移：核心心智状态写入守卫（[P2-MIGRATE] 埋点，单点拦截全部旧写入路径）──
@@ -845,14 +922,16 @@ export async function autoBackup(): Promise<void> {
   try {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const backupPath = path.join(BACKUP_DIR, `life_backup_${timestamp}.db`);
-    const database = getLifeDb();
 
-    await new Promise<void>((resolve, reject) => {
-      database.run(`VACUUM INTO '${backupPath}'`, (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
+    // VACUUM INTO 经串行队列执行：不与其它语句/事务交错（VACUUM 不能在事务内执行）
+    await enqueue(() =>
+      execWithRetry((conn) => new Promise<void>((resolve, reject) => {
+        conn.run(`VACUUM INTO '${backupPath}'`, (err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      }), 'VACUUM INTO')
+    );
 
     console.log(`[LifeDB] 已备份: ${backupPath}`);
 
@@ -1056,5 +1135,6 @@ export function closeLifeDb(): void {
       else console.log('[LifeDB] 已关闭');
     });
     db = null;
+    dbOpen = false; // 句柄失效标记：后续 getLifeDb/语句自动重开连接，避免 SQLITE_MISUSE
   }
 }

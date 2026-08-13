@@ -9,7 +9,7 @@ await build({
   platform: 'node',
   format: 'esm',
   outfile: 'dist-server/server.mjs',
-  external: ['sqlite3', 'sharp', '@img/sharp-win32-x64', '@img/sharp-libvips-win32-x64', 'lightningcss', 'playwright-core'],
+  external: ["typescript",'sqlite3', 'sharp', '@img/sharp-win32-x64', '@img/sharp-libvips-win32-x64', 'lightningcss', 'playwright-core'],
   banner: {
     js: "import { createRequire as __peppaCreateRequire } from 'module'; const require = __peppaCreateRequire(import.meta.url);",
   },
@@ -24,7 +24,7 @@ await build({
   platform: 'node',
   format: 'esm',
   outfile: 'dist-server/sandbox_child.mjs',
-  external: ['sqlite3', 'sharp', '@img/sharp-win32-x64', '@img/sharp-libvips-win32-x64', 'lightningcss', 'playwright-core'],
+  external: ["typescript",'sqlite3', 'sharp', '@img/sharp-win32-x64', '@img/sharp-libvips-win32-x64', 'lightningcss', 'playwright-core'],
   banner: {
     js: "import { createRequire as __peppaCreateRequire } from 'module'; const require = __peppaCreateRequire(import.meta.url);",
   },
