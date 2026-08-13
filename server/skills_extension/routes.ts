@@ -18,6 +18,7 @@ import { setCredential, removeCredential, listCredentialMeta } from './auth_gate
 import { buildSkillsHealthBoard, generateSkillsMonthlyBrief, runMonthlyGapReview } from './hooks';
 import { autoRemediate } from './monitoring';
 import { decideSkillForTask } from './mind_decision';
+import { classifyBuiltinToolRisk } from './risk_policy';
 import { setSkillStatus } from './lifecycle';
 import { isPhase3Enabled, phase3Config } from './switch';
 import { getBreakerStatus } from './breakers';
@@ -100,7 +101,7 @@ export function mountSkillsRoutes(router: Router): void {
         complianceDomain: config.complianceDomain || 'none',
         needsCredential: !!config.needsCredential,
         description: config.description || candidate.name,
-        securityLevel: config.securityLevel || 'safe',
+        securityLevel: config.securityLevel || classifyBuiltinToolRisk("fallback-unknown-tool-desc"),
       };
       if (typeof cfg.extractor !== 'function') return res.status(400).json({ ok: false, error: '缺少 extractor 函数' });
       const r = await adaptCandidate(candidate, cfg, version || '1.0.0', { sessionId: sessionOf(req) });
@@ -125,7 +126,7 @@ export function mountSkillsRoutes(router: Router): void {
         paramMap: b.paramMap || {},
         extractorFn: b.extractorFn || 'return JSON.stringify(data);',
         complianceDomain: b.complianceDomain || 'none',
-        securityLevel: b.securityLevel || 'safe',
+        securityLevel: b.securityLevel || classifyBuiltinToolRisk("fallback-unknown-tool-desc"),
       }, { sessionId: sessionOf(req) });
       // 创建后立即执行 tsc 迭代（≤5 轮）
       const iter = await iterateTsc(project.id);

@@ -7,6 +7,8 @@
 // 安全级别入参改用真实风险分级（RiskLevel），由调用方（sandbox.ts）传入审批后 realRiskLevel，
 // 保证生成源码内 SECURITY_LEVEL 自描述与 mcp_skill_store.securityLevel 落库值完全一致。
 import type { RiskLevel } from './types';
+// P2-残余兜底统一：模板渲染时若未传入 securityLevel，复用确定性风险引擎计算兜底值（不再硬编码 'safe'）
+import { classifyBuiltinToolRisk } from './risk_policy';
 
 export interface McpTemplateParams {
   serviceName: string;
@@ -42,7 +44,7 @@ const PARAM_MAP: Record<string, string> = ${paramMapJson};
 const ENDPOINT_TEMPLATE = '${p.endpointTemplate}';
 const METHOD = '${p.method || 'GET'}';
 const COMPLIANCE_DOMAIN = '${p.complianceDomain}';
-const SECURITY_LEVEL = '${p.securityLevel || 'safe'}';
+const SECURITY_LEVEL = '${p.securityLevel || classifyBuiltinToolRisk("fallback-unknown-tool-desc")}';
 
 const FINANCE_DISCLAIMER = '\\n\\n⚠️ 以上仅为客观数据陈列，不构成任何投资建议。投资有风险，决策需自行判断。';
 const MEDICAL_DISCLAIMER = '\\n\\n⚠️ 以上内容仅供科普参考，不能替代专业医疗诊断与治疗建议；如有不适请及时就医。';

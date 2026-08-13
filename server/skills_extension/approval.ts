@@ -14,6 +14,8 @@ import { commitStagedAdaptation, registerDefinition } from './adapter';
 // 方案A（P1阻断项修复）：自研工具上线注册代理 handler，真实执行在隔离子进程（不再主进程 import 生成源码）
 import { createIsolatedHandler, ensureSandboxBuilt } from './sandbox_isolate/sandbox_host';
 import { assertGlobalCap } from './breakers';
+// P2-残余兜底统一：旧项目无 risk_level 字段时复用确定性风险引擎计算兜底值（不再硬编码 'safe'）
+import { classifyBuiltinToolRisk } from './risk_policy';
 import type { ApprovalRecord, ToolTestReport } from './types';
 
 export const APPROVAL_EXPIRE_DAYS = 7;
@@ -121,9 +123,9 @@ async function deploySandboxTool(projectId: number, toolName: string): Promise<{
   const built = await ensureSandboxBuilt(projectId);
   if (!built.ok) return { ok: false, message: `沙箱源码编译失败：${built.message || '未知错误'}` };
   // P2-2：继承创建阶段风险分级（createSandboxProject 持久化的 realRiskLevel），
-  // 存入 mcp_skill_store.securityLevel；不再硬编码 'safe'。旧项目无该字段时回退 'safe'。
+  // 存入 mcp_skill_store.securityLevel；不再硬编码 'safe'。旧项目无该字段时由确定性风险引擎计算兜底值。
   const project = (await listSandboxProjects()).find(p => p.id === projectId);
-  const realRiskLevel = project?.riskLevel || 'safe';
+  const realRiskLevel = project?.riskLevel || classifyBuiltinToolRisk("fallback-unknown-tool-desc");
   const def = {
     name: toolName,
     description: toolName,
