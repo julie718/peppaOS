@@ -1,4 +1,0 @@
-qweasd.top:4043 {
-    tls /caddy_certs/fullchain.pem /caddy_certs/privkey.pem
-    reverse_proxy mayos:3000
-}

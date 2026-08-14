@@ -3,7 +3,6 @@
 # 启动:
 #   docker compose up -d
 #   → http://qweasd.top:3000  (HTTP 直连)
-#   → https://qweasd.top      (HTTPS via Caddy)
 
 services:
   mayos:
@@ -49,21 +48,14 @@ services:
       # Auth
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       PEPPA_PASSWORD: ${PEPPA_PASSWORD:-peppa_2026}
-      CORS_ORIGINS: http://localhost:3000,https://qweasd.top:4043,http://qweasd.top:3000,capacitor://localhost,https://peppa.qweasd.top,https://qweasd.top
+      CORS_ORIGINS: http://localhost:3000,http://qweasd.top:3000,capacitor://localhost,https://peppa.qweasd.top,https://qweasd.top
+      # 屏蔽neteasemusic报错技能
+      PEPPA_DISABLE_SKILLS: neteasemusic
     volumes:
+      # 生产部署（NAS）：不再挂载任何 ts 源码——代码全部来自 Dockerfile 构建产物，
+      # 避免宿主机 zip 更新与容器卷挂载产生版本不一致 → SQLITE_MISUSE 句柄崩溃。
+      # 唯一保留的卷：数据持久化。
       - ./data:/app/data
-      - ./server:/app/server
-      # src/ 源码挂载（tsx 源码模式运行必需）：src/utils/paradigmGuard、src/core/innerTick 等被 server/ 静态引用
-      - ./src:/app/src
-      - ./server.ts:/app/server.ts
-      - ./db_layer.ts:/app/db_layer.ts
-      - ./logger.ts:/app/logger.ts
-      - ./launcher.ts:/app/launcher.ts
-      - ./routes:/app/routes
-      - ./package.json:/app/package.json
-      - ./package-lock.json:/app/package-lock.json
-    entrypoint: ""
-    command: npx tsx /app/server.ts
     deploy:
       resources:
         limits:
@@ -74,17 +66,19 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    networks:
+      - peppaos_default
 
-  caddy:
-    image: caddy:2-alpine
-    container_name: caddy
-    ports:
-      - "4043:4043"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./caddy_certs:/caddy_certs
-      - caddy_data:/data
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
     restart: unless-stopped
+    # 正式命名隧道：token 从 .env 注入，禁止明文写死在 compose 文件
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - peppaos_default
 
-volumes:
-  caddy_data:
+networks:
+  peppaos_default:
