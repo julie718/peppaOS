@@ -247,11 +247,7 @@ ${conversationSummary}`
 欲望可以随经历减弱、消退、被满足后消失，也可以生成全新欲望；人格允许缓慢演化，禁止剧烈突变。
 参考传入的历史快照信息，但不要直接照搬快照，做独立推演。
 通过archiveItems标记不再活跃的目标、欲望用于归档。
-[P2-MIGRATE] 心智演化事件（可选字段，仅在发生演化时输出）：
-  emotionDrift       — 本轮情绪漂移（替代旧 TICK 的情绪衰减计算）；
-  desireEvolve       — 欲望生成(active)/衰减(archived/abandoned/completed)，携带 priorityDelta 表示既有欲望优先级调整；
-  personalityDrift   — 人格缓慢演化，8 维 delta 每维限制 -0.02~0.02，禁止剧烈突变；
-  relationshipAdjustment — 关系状态调整，4 维目标向量（信任/亲密/理解/依赖）。
+[P2-MIGRATE] emotionDrift / desireEvolve / personalityDrift / relationshipAdjustment 为可选字段，仅在发生演化时输出（字段结构见下方 SCHEMA_SPEC）。
 严格输出符合schema的JSON，禁止输出多余解释文本。
 
 ${SCHEMA_SPEC}

@@ -6,7 +6,7 @@ import { queryMemories, queryMemoriesVector } from './store';
 import { Memory } from './types';
 import { logger } from '../lib/logger';
 import sqlite3 from 'sqlite3';
-import { getPeppaDbPath } from '../config/data_path'; // E-3: 统一路径解析（含父目录预创建）
+import { getSharedPeppaDb } from '../db/dbBase'; // 进程级单例连接：业务路径禁止自行 open/close
 
 export interface RankedMemory {
   memory: Memory;
@@ -83,88 +83,72 @@ export async function retrieveRelevantMemories(
   limit: number = 5,
 ): Promise<InteractionMemory[]> {
   const start = Date.now();
-  const peppaDbPath = getPeppaDbPath(); // E-3
-
-  let db: sqlite3.Database | null = null;
+  // 【句柄复用】进程级单例连接：复用 peppa.db 句柄，不再每次调用 open/close
+  // （修复：原实现 per-call open + 超时/回调内 close → 并发任务下句柄关闭竞态
+  //  随机 SQLITE_MISUSE: Database handle is closed FATAL）
+  const db = getSharedPeppaDb();
 
   try {
-    // 带超时的 Promise 包装
-    const result = await new Promise<InteractionMemory[]>((resolve, reject) => {
+    // 带超时的 Promise 包装（超时不关闭句柄：单例连接生命周期归进程，超时仅放弃本次结果）
+    const result = await new Promise<InteractionMemory[]>((resolve) => {
       const timeout = setTimeout(() => {
-        db?.close();
         resolve([]); // 超时不阻塞
       }, 3000);
 
-      try {
-        db = new sqlite3.Database(peppaDbPath, (err) => {
-          if (err) {
+      // E-3: 全新库静默降级 — interactions 表尚未创建时（首次启动未初始化）
+      // 直接返回空数组，不产生 "no such table" WARN 噪音（修复前每轮对话刷 WARN）
+      db.get(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='interactions'",
+        (tableErr, tableRow) => {
+          if (tableErr || !tableRow) {
             clearTimeout(timeout);
-            logger.warn('[Retriever] peppa.db 连接失败:', err.message);
             resolve([]);
             return;
           }
 
-          // E-3: 全新库静默降级 — interactions 表尚未创建时（首次启动未初始化）
-          // 直接返回空数组，不产生 "no such table" WARN 噪音（修复前每轮对话刷 WARN）
-          db!.get(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='interactions'",
-            (tableErr, tableRow) => {
-              if (tableErr || !tableRow) {
-                clearTimeout(timeout);
-                db!.close();
-                resolve([]);
-                return;
-              }
+          // 提取关键词
+          const keywords = extractKeywords(text);
+          if (keywords.length === 0) {
+            clearTimeout(timeout);
+            // 回退：返回最近 N 条记录
+            fallbackRecent(db, limit, resolve);
+            return;
+          }
 
-              // 提取关键词
-              const keywords = extractKeywords(text);
-              if (keywords.length === 0) {
-                clearTimeout(timeout);
-                // 回退：返回最近 N 条记录
-                fallbackRecent(db!, limit, resolve, timeout);
-                return;
-              }
+          // 构建关键词 LIKE 查询
+          const likeClauses = keywords.map(() => "message LIKE ?").join(' OR ');
+          const likeParams = keywords.map(k => `%${k}%`);
+          const sql = `SELECT id, message, response, timestamp FROM interactions WHERE ${likeClauses} AND role = 'user' ORDER BY timestamp DESC LIMIT ?`;
+          const params = [...likeParams, Math.max(limit * 3, 20)];
 
-              // 构建关键词 LIKE 查询
-              const likeClauses = keywords.map(() => "message LIKE ?").join(' OR ');
-              const likeParams = keywords.map(k => `%${k}%`);
-              const sql = `SELECT id, message, response, timestamp FROM interactions WHERE ${likeClauses} AND role = 'user' ORDER BY timestamp DESC LIMIT ?`;
-              const params = [...likeParams, Math.max(limit * 3, 20)];
+          db.all(sql, params, (err2, rows: any[]) => {
+            clearTimeout(timeout);
+            if (err2) {
+              logger.warn('[Retriever] interactions 查询失败:', err2.message);
+              resolve([]);
+              return;
+            }
 
-              db!.all(sql, params, (err2, rows: any[]) => {
-                clearTimeout(timeout);
-                if (err2) {
-                  logger.warn('[Retriever] interactions 查询失败:', err2.message);
-                  resolve([]);
-                  return;
-                }
+            if (!rows || rows.length === 0) {
+              // 回退：返回最近 N 条记录
+              fallbackRecent(db, limit, resolve);
+              return;
+            }
 
-                if (!rows || rows.length === 0) {
-                  // 回退：返回最近 N 条记录
-                  fallbackRecent(db!, limit, resolve, null);
-                  return;
-                }
+            // 计算相似度并排序
+            const scored = rows.map((row: any) => ({
+              id: row.id,
+              message: row.message || '',
+              response: row.response || '',
+              timestamp: row.timestamp || '',
+              similarity: keywordSimilarity(text, row.message || ''),
+            }));
 
-                // 计算相似度并排序
-                const scored = rows.map((row: any) => ({
-                  id: row.id,
-                  message: row.message || '',
-                  response: row.response || '',
-                  timestamp: row.timestamp || '',
-                  similarity: keywordSimilarity(text, row.message || ''),
-                }));
-
-                scored.sort((a, b) => b.similarity - a.similarity);
-                resolve(scored.slice(0, limit));
-              });
-            },
-          );
-        });
-      } catch (e: any) {
-        clearTimeout(timeout);
-        logger.warn('[Retriever] interactions 检索异常:', e.message);
-        resolve([]);
-      }
+            scored.sort((a, b) => b.similarity - a.similarity);
+            resolve(scored.slice(0, limit));
+          });
+        },
+      );
     });
 
     const elapsed = Date.now() - start;
@@ -242,19 +226,16 @@ function keywordSimilarity(query: string, target: string): number {
   return matchCount / qWords.length;
 }
 
-/** 回退：返回最近 N 条用户消息 */
+/** 回退：返回最近 N 条用户消息（共享连接，不关闭句柄） */
 function fallbackRecent(
   db: sqlite3.Database,
   limit: number,
   resolve: (value: InteractionMemory[]) => void,
-  timeout: NodeJS.Timeout | null,
 ): void {
-  if (timeout) clearTimeout(timeout);
   db.all(
     "SELECT id, message, response, timestamp FROM interactions WHERE role = 'user' ORDER BY timestamp DESC LIMIT ?",
     [limit],
     (err, rows: any[]) => {
-      db.close();
       if (err || !rows) {
         logger.warn('[Retriever] 回退查询失败:', err?.message);
         resolve([]);

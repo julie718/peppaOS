@@ -25,6 +25,9 @@ let dbOpen = false;
 // ═══════════════════════════════════════════════════════════════════
 const BUSY_MAX_ATTEMPTS = 6;   // 含首次在内最多尝试次数
 const BUSY_BASE_DELAY_MS = 50; // 指数退避基数：50 → 100 → 200 → 400 → 800ms
+// 打开模式：READWRITE | CREATE | FULLMUTEX（FULLMUTEX = SQLite serialized 串行模式，
+// 任意时刻仅一个线程访问连接，适配多线程/多调度任务并发访问）
+const OPEN_FLAGS = sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE | sqlite3.OPEN_FULLMUTEX;
 const PRAGMAS: string[] = [
   'PRAGMA journal_mode=WAL',   // WAL：读写互不阻塞，从根源降低锁竞争
   'PRAGMA synchronous=NORMAL', // 与 WAL 搭配的推荐持久性级别
@@ -48,9 +51,11 @@ function isClosedHandleError(err: unknown): boolean {
 
 // ── 数据库连接（带健康校验 + 自动重连 + PRAGMA 自动生效） ──
 export function getLifeDb(): sqlite3.Database {
-  if (db && dbOpen) return db;
-  if (!db || !dbOpen) {
-    const conn = new sqlite3.Database(DB_PATH, (err) => {
+  // 单例复用：连接对象一旦创建即返回（无论 open 是否完成——语句在驱动队列中等 open 后执行）。
+  // 若以 open 完成作为复用条件，首波并发下每个调用方都会各自 new 句柄，违背单例目标。
+  if (db) return db;
+    // serialized 串行模式（OPEN_FULLMUTEX）+ 带回调构造（打开失败进回调而非未捕获 'error' 事件）
+    const conn = new sqlite3.Database(DB_PATH, OPEN_FLAGS, (err) => {
       if (err) {
         console.error('[LifeDB] 连接失败:', err.message);
         if (db === conn) { dbOpen = false; db = null; }
@@ -71,7 +76,6 @@ export function getLifeDb(): sqlite3.Database {
       conn.run(p, (err) => { if (err) console.warn('[LifeDB] PRAGMA 设置失败:', p, err.message); });
     }
     db = conn;
-  }
   return db!;
 }
 
@@ -95,9 +99,12 @@ async function execWithRetry<T>(fn: (conn: sqlite3.Database) => Promise<T>, opNa
         await sleep(delay);
         continue;
       }
+      // 重试耗尽：日志降级后抛出，由调用方/全局兜底处理，不静默吞错
+      console.error(`[LifeDB] ${opName} 执行失败（已充分重试）:`, (err as any)?.message ?? err);
       throw err;
     }
   }
+  console.error(`[LifeDB] ${opName} 执行失败（${BUSY_MAX_ATTEMPTS} 次尝试均未成功）:`, (lastErr as any)?.message ?? lastErr);
   throw lastErr;
 }
 
@@ -1127,14 +1134,18 @@ export async function getUpcomingTravels(userId: string, withinHours: number): P
   );
 }
 
-// ── 关闭连接 ──
+// ── 关闭连接（仅供进程退出/测试脚本调用；业务路径禁止调用 — 句柄生命周期归进程）──
+// 防重复关闭 + 经串行队列关闭（关闭操作排在所有在途语句之后执行，杜绝关闭与语句交错）
 export function closeLifeDb(): void {
-  if (db) {
-    db.close((err) => {
+  if (!db) return; // 已关闭/未打开 → 幂等返回，避免对已关闭句柄二次 close（SQLITE_MISUSE）
+  const conn = db;
+  db = null;
+  dbOpen = false; // 句柄失效标记：后续 getLifeDb/语句自动重开连接，避免 SQLITE_MISUSE
+  enqueue(() => new Promise<void>((resolve) => {
+    conn.close((err) => {
       if (err) console.error('[LifeDB] 关闭失败:', err.message);
       else console.log('[LifeDB] 已关闭');
+      resolve();
     });
-    db = null;
-    dbOpen = false; // 句柄失效标记：后续 getLifeDb/语句自动重开连接，避免 SQLITE_MISUSE
-  }
+  })).catch(() => {});
 }

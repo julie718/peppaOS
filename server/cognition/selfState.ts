@@ -7,9 +7,7 @@
 
 import sqlite3 from 'sqlite3';
 
-import { getDataPath } from '../config/data_path'; // E-3: 统一路径解析
-// 【重构·校验修复】默认路径回落数据根统一解析（Docker 内 LUMI_DATA_DIR=/app → /app/data/life.db 不变）
-const LIFE_DB = process.env.LIFE_DB_PATH || getDataPath('life.db');
+import { getSharedLifeDb } from '../db/dbBase'; // 进程级单例连接：业务路径禁止自行 open/close
 
 const defaultPersonality = {
   id: 1,
@@ -23,18 +21,19 @@ const defaultEmotion = {
 
 /** 读取最近的情绪向量与人格向量（最新一行），失败回退默认值 — 永不抛错 */
 export async function getSelfState(): Promise<{ emotion: any | null; personality: any | null }> {
-  let db: sqlite3.Database | null = null;
   try {
-      // 【重构·校验修复】带回调构造：打开失败时错误进回调而非未捕获 'error' 事件（"永不抛错"承诺生效）
-    db = new sqlite3.Database(LIFE_DB, () => {});
+    // 【句柄复用】进程级单例连接（life.db）：不再每次调用 open/close
+    // （修复：原实现 per-call open + finally close → 高并发下句柄关闭竞态
+    //  随机 SQLITE_MISUSE: Database handle is closed FATAL；单例连接生命周期归进程）
+    const db = getSharedLifeDb();
     const [emotionRow, personalityRow] = await Promise.all([
       new Promise<any>((resolve, reject) => {
-        db!.get('SELECT * FROM emotion_state ORDER BY id DESC LIMIT 1', (err: any, row: any) => {
+        db.get('SELECT * FROM emotion_state ORDER BY id DESC LIMIT 1', (err: any, row: any) => {
           if (err) reject(err); else resolve(row);
         });
       }),
       new Promise<any>((resolve, reject) => {
-        db!.get('SELECT * FROM personality ORDER BY id DESC LIMIT 1', (err: any, row: any) => {
+        db.get('SELECT * FROM personality ORDER BY id DESC LIMIT 1', (err: any, row: any) => {
           if (err) reject(err); else resolve(row);
         });
       }),
@@ -45,7 +44,5 @@ export async function getSelfState(): Promise<{ emotion: any | null; personality
     };
   } catch (e) {
     return { emotion: defaultEmotion, personality: defaultPersonality };
-  } finally {
-    if (db) db.close();
   }
 }

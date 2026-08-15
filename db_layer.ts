@@ -89,10 +89,17 @@ function ensurePragmas(conn: sqlite3.Database): Promise<void> {
   return pragmaPromise;
 }
 
+// 打开模式：READWRITE | CREATE | FULLMUTEX（FULLMUTEX = SQLite serialized 串行模式，
+// 任意时刻仅一个线程访问连接，适配多线程/多调度任务并发访问）
+const OPEN_FLAGS = sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE | sqlite3.OPEN_FULLMUTEX;
+
 /** 打开（或重开）连接；句柄异常后再次调用自动创建新句柄 */
 function openDb(): sqlite3.Database {
-  if (db && dbOpen) return db;
-  const conn = new sqlite3.Database(DB_PATH, (err) => {
+  // 单例复用：连接对象一旦创建即返回（无论 open 是否完成——语句在驱动队列中等 open 后执行）。
+  // 若以 open 完成作为复用条件，首波并发下每个调用方都会各自 new 句柄，违背单例目标。
+  if (db) return db;
+  // serialized 串行模式（OPEN_FULLMUTEX）+ 带回调构造：打开失败时错误进回调而非未捕获 'error' 事件
+  const conn = new sqlite3.Database(DB_PATH, OPEN_FLAGS, (err) => {
     if (err) {
       console.error('[DB] 连接失败:', err.message);
       if (db === conn) { dbOpen = false; db = null; }
@@ -157,9 +164,12 @@ async function execWithRetry<T>(fn: (conn: sqlite3.Database) => Promise<T>, opNa
         await sleep(delay);
         continue;
       }
+      // 重试耗尽：日志降级后抛出，由调用方/全局兜底处理，不静默吞错
+      console.error(`[DB] ${opName} 执行失败（已充分重试）:`, (err as any)?.message ?? err);
       throw err;
     }
   }
+  console.error(`[DB] ${opName} 执行失败（${BUSY_MAX_ATTEMPTS} 次尝试均未成功）:`, (lastErr as any)?.message ?? lastErr);
   throw lastErr;
 }
 

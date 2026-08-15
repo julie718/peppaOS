@@ -4,7 +4,7 @@
  */
 import { logger } from '../lib/logger';
 import sqlite3 from 'sqlite3';
-import { getPeppaDbPath } from '../config/data_path'; // E-3: 统一路径解析（含父目录预创建）
+import { getSharedPeppaDb } from '../db/dbBase'; // 进程级单例连接：业务路径禁止自行 open/close
 
 export interface TimelineEntry {
   timestamp: string;
@@ -34,36 +34,27 @@ export async function getTimeline(
 ): Promise<TimelineEntry[]> {
   const { days = 7, eventTypes = [], limit = 10 } = options;
   const start = Date.now();
-  const peppaDbPath = getPeppaDbPath(); // E-3
-
-  let db: sqlite3.Database | null = null;
+  // 【句柄复用】进程级单例连接：复用 peppa.db 句柄，不再每次调用 open/close
+  // （修复：原实现 per-call open + 超时/回调内 close → 并发任务下句柄关闭竞态
+  //  随机 SQLITE_MISUSE: Database handle is closed FATAL）
+  const db = getSharedPeppaDb();
 
   try {
     const result = await new Promise<TimelineEntry[]>((resolve) => {
+      // 超时不关闭句柄：单例连接生命周期归进程，超时仅放弃本次查询
       const timeout = setTimeout(() => {
-        db?.close();
         resolve([]);
       }, 3000);
 
-      try {
-        db = new sqlite3.Database(peppaDbPath, (err) => {
-          if (err) {
+      // E-3: 全新库静默降级 — interactions 表尚未创建时直接返回空数组，不产生 WARN 噪音
+      db.get(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='interactions'",
+        (tableErr, tableRow) => {
+          if (tableErr || !tableRow) {
             clearTimeout(timeout);
-            logger.warn('[Timeline] peppa.db 连接失败:', err.message);
             resolve([]);
             return;
           }
-
-          // E-3: 全新库静默降级 — interactions 表尚未创建时直接返回空数组，不产生 WARN 噪音
-          db!.get(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='interactions'",
-            (tableErr, tableRow) => {
-              if (tableErr || !tableRow) {
-                clearTimeout(timeout);
-                db!.close();
-                resolve([]);
-                return;
-              }
 
           const since = new Date(Date.now() - days * 86400000).toISOString();
 
@@ -91,9 +82,8 @@ export async function getTimeline(
             params = [since, limit];
           }
 
-          db!.all(sql, params, (err2, rows: any[]) => {
+          db.all(sql, params, (err2, rows: any[]) => {
             clearTimeout(timeout);
-            db!.close();
 
             if (err2) {
               logger.warn('[Timeline] 查询失败:', err2.message);
@@ -114,14 +104,8 @@ export async function getTimeline(
 
             resolve(entries);
           });
-              }, // E-3: 预检回调结束
-            );
-        });
-      } catch (e: any) {
-        clearTimeout(timeout);
-        logger.warn('[Timeline] 检索异常:', e.message);
-        resolve([]);
-      }
+        },
+      );
     });
 
     const elapsed = Date.now() - start;

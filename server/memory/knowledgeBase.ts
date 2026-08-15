@@ -4,7 +4,7 @@
  */
 import { logger } from '../lib/logger';
 import sqlite3 from 'sqlite3';
-import { getPeppaDbPath } from '../config/data_path'; // E-3
+import { getSharedPeppaDb } from '../db/dbBase'; // 进程级单例连接：业务路径禁止自行 open/close
 
 // ── 类型 ──
 
@@ -22,8 +22,6 @@ export interface ExtractedKnowledge {
 }
 
 // ── DB 初始化 ──
-
-const peppaDbPath = getPeppaDbPath(); // E-3
 
 function ensureTable(db: sqlite3.Database): Promise<void> {
   return new Promise((resolve) => {
@@ -160,55 +158,46 @@ export async function storeKnowledge(
 ): Promise<void> {
   if (!entries || entries.length === 0) return;
 
-  let db: sqlite3.Database | null = null;
+  // 【句柄复用】进程级单例连接：不再每次调用 open/close
+  // （修复：原实现 per-call open + 回调内 close → 并发任务下句柄关闭竞态
+  //  随机 SQLITE_MISUSE: Database handle is closed FATAL）
+  const db = getSharedPeppaDb();
 
   try {
     await new Promise<void>((resolve) => {
+      // 超时不关闭句柄：单例连接生命周期归进程，超时仅放弃本次写入
       const timeout = setTimeout(() => {
-        db?.close();
         resolve();
       }, 3000);
 
-      try {
-        db = new sqlite3.Database(peppaDbPath, async (err) => {
-          if (err) {
-            clearTimeout(timeout);
-            logger.warn('[KnowledgeBase] DB 连接失败:', err.message);
-            resolve();
-            return;
-          }
+      ensureTable(db).then(() => {
+        let stored = 0;
+        let completed = 0;
+        const total = entries.length;
 
-          await ensureTable(db!);
-
-          let stored = 0;
-          let completed = 0;
-          const total = entries.length;
-
-          for (const entry of entries) {
-            db!.run(
-              `INSERT INTO knowledge_base (user_id, fact, type, confidence)
-               VALUES (?, ?, ?, ?)`,
-              [userId, entry.fact, entry.type, entry.confidence],
-              (err2) => {
-                completed++;
-                if (!err2) stored++;
-                if (completed === total) {
-                  clearTimeout(timeout);
-                  db!.close();
-                  if (stored > 0) {
-                    logger.info(`[KnowledgeBase] 已存储 ${stored}/${total} 条知识`);
-                  }
-                  resolve();
+        for (const entry of entries) {
+          db.run(
+            `INSERT INTO knowledge_base (user_id, fact, type, confidence)
+             VALUES (?, ?, ?, ?)`,
+            [userId, entry.fact, entry.type, entry.confidence],
+            (err2) => {
+              completed++;
+              if (!err2) stored++;
+              if (completed === total) {
+                clearTimeout(timeout);
+                if (stored > 0) {
+                  logger.info(`[KnowledgeBase] 已存储 ${stored}/${total} 条知识`);
                 }
-              },
-            );
-          }
-        });
-      } catch (e: any) {
+                resolve();
+              }
+            },
+          );
+        }
+      }).catch((e: any) => {
         clearTimeout(timeout);
         logger.warn('[KnowledgeBase] 存储异常:', e.message);
         resolve();
-      }
+      });
     });
   } catch {
     // 绝不抛异常
@@ -229,74 +218,63 @@ export async function getKnowledge(
   } = {},
 ): Promise<KnowledgeEntry[]> {
   const { types = [], minConfidence = 0.3, limit = 20 } = options;
-  let db: sqlite3.Database | null = null;
+  // 【句柄复用】进程级单例连接：不再每次调用 open/close
+  const db = getSharedPeppaDb();
 
   try {
     const result = await new Promise<KnowledgeEntry[]>((resolve) => {
+      // 超时不关闭句柄：单例连接生命周期归进程，超时仅放弃本次查询
       const timeout = setTimeout(() => {
-        db?.close();
         resolve([]);
       }, 3000);
 
-      try {
-        db = new sqlite3.Database(peppaDbPath, async (err) => {
-          if (err) {
-            clearTimeout(timeout);
-            logger.warn('[KnowledgeBase] DB 连接失败:', err.message);
+      ensureTable(db).then(() => {
+        let sql: string;
+        let params: any[];
+
+        if (types.length > 0) {
+          const placeholders = types.map(() => '?').join(', ');
+          sql = `SELECT fact, type, confidence, created_at
+                 FROM knowledge_base
+                 WHERE user_id = ?
+                   AND type IN (${placeholders})
+                   AND confidence >= ?
+                 ORDER BY confidence DESC, created_at DESC
+                 LIMIT ?`;
+          params = [userId, ...types, minConfidence, limit];
+        } else {
+          sql = `SELECT fact, type, confidence, created_at
+                 FROM knowledge_base
+                 WHERE user_id = ?
+                   AND confidence >= ?
+                 ORDER BY confidence DESC, created_at DESC
+                 LIMIT ?`;
+          params = [userId, minConfidence, limit];
+        }
+
+        db.all(sql, params, (err2, rows: any[]) => {
+          clearTimeout(timeout);
+          if (err2) {
+            logger.warn('[KnowledgeBase] 查询失败:', err2.message);
             resolve([]);
             return;
           }
-
-          await ensureTable(db!);
-
-          let sql: string;
-          let params: any[];
-
-          if (types.length > 0) {
-            const placeholders = types.map(() => '?').join(', ');
-            sql = `SELECT fact, type, confidence, created_at
-                   FROM knowledge_base
-                   WHERE user_id = ?
-                     AND type IN (${placeholders})
-                     AND confidence >= ?
-                   ORDER BY confidence DESC, created_at DESC
-                   LIMIT ?`;
-            params = [userId, ...types, minConfidence, limit];
-          } else {
-            sql = `SELECT fact, type, confidence, created_at
-                   FROM knowledge_base
-                   WHERE user_id = ?
-                     AND confidence >= ?
-                   ORDER BY confidence DESC, created_at DESC
-                   LIMIT ?`;
-            params = [userId, minConfidence, limit];
+          const entries = (rows || []).map((r: any) => ({
+            fact: r.fact || '',
+            type: r.type || '',
+            confidence: r.confidence || 0,
+            created_at: r.created_at || '',
+          }));
+          if (entries.length > 0) {
+            logger.info(`[KnowledgeBase] 检索到 ${entries.length} 条知识`);
           }
-
-          db!.all(sql, params, (err2, rows: any[]) => {
-            clearTimeout(timeout);
-            db!.close();
-            if (err2) {
-              logger.warn('[KnowledgeBase] 查询失败:', err2.message);
-              resolve([]);
-              return;
-            }
-            const entries = (rows || []).map((r: any) => ({
-              fact: r.fact || '',
-              type: r.type || '',
-              confidence: r.confidence || 0,
-              created_at: r.created_at || '',
-            }));
-            if (entries.length > 0) {
-              logger.info(`[KnowledgeBase] 检索到 ${entries.length} 条知识`);
-            }
-            resolve(entries);
-          });
+          resolve(entries);
         });
-      } catch (e: any) {
+      }).catch((e: any) => {
         clearTimeout(timeout);
         logger.warn('[KnowledgeBase] 检索异常:', e.message);
         resolve([]);
-      }
+      });
     });
     return result;
   } catch {

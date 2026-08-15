@@ -3,9 +3,7 @@ import { logger } from '../lib/logger';
 // Phase4: 旧模块 addMemory 直接写入迁移 — 事件封装后经 runInnerTick 统一落库（仅 innerTick.ts 内部允许 addMemory）
 import type { MentalEventItem } from '../../src/types/innerTickSchema';
 
-import { getDataPath } from '../config/data_path'; // E-3: 统一路径解析
-// 【重构·校验修复】默认路径回落数据根统一解析（Docker 内 LUMI_DATA_DIR=/app → /app/data/life.db 不变）
-const LIFE_DB = process.env.LIFE_DB_PATH || getDataPath('life.db');
+import { getSharedLifeDb } from '../db/dbBase'; // 进程级单例连接（life.db）：业务路径禁止自行 open/close
 
 export type DirectionInclination = 'give' | 'not_give' | 'neutral' | 'unknown';
 
@@ -17,8 +15,10 @@ export interface DirectionSnapshot {
 }
 
 function getDb(): sqlite3.Database {
-  // 【重构·校验修复】带回调构造：打开失败时错误进回调而非未捕获 'error' 事件
-  return new sqlite3.Database(LIFE_DB, () => {});
+  // 【句柄复用】进程级单例连接（serialized 串行模式 + WAL 自动生效）：
+  // 原实现每次调用 new Database + finally close → 高并发下句柄关闭竞态
+  // 随机 SQLITE_MISUSE: Database handle is closed FATAL。单例连接生命周期归进程。
+  return getSharedLifeDb();
 }
 
 function ensureTable(db: sqlite3.Database): Promise<void> {
@@ -57,8 +57,9 @@ export class DirectionState {
         return this.snapshot();
       }
       return null;
-    } finally {
-      db.close();
+    } catch (err: any) {
+      logger.warn('[Direction] load 失败:', err?.message);
+      return null;
     }
   }
 
@@ -73,8 +74,9 @@ export class DirectionState {
           (err) => { if (err) reject(err); else resolve(); }
         );
       });
-    } finally {
-      db.close();
+    } catch (err: any) {
+      // 单例连接禁止 close；异常捕获并降级日志，不向调用方抛出未捕获错误
+      logger.warn('[Direction] save 失败:', err?.message);
     }
   }
 
@@ -153,8 +155,9 @@ export class DirectionState {
           );
         });
       }
-    } finally {
-      db.close();
+    } catch (err: any) {
+      // 单例连接禁止 close；审计日志失败仅降级记录，不阻断主流程
+      logger.warn('[Direction] logStateChange 失败:', err?.message);
     }
   }
 

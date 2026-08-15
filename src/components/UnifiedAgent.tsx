@@ -28,6 +28,8 @@ export function UnifiedAgent({ t, user, onEnterSanctuary }: { t: any; user: any;
   const socket = useSocket();
   const { callState, audioLevel, startCall, endCall, transcript } = useVoiceCall({
     socket,
+    // BUG-B-FIX: agent:response 聊天消息唯一追加入口保留在本组件自身订阅（handleAgentResponse），
+    // useVoiceCall 不再回调 onResponse 追加消息，此处移除重复追加。
     onTranscript: (text, isFinal) => {
       if (isFinal) {
         const userMsg = {
@@ -39,16 +41,6 @@ export function UnifiedAgent({ t, user, onEnterSanctuary }: { t: any; user: any;
         };
         setMessages(prev => [...prev, userMsg]);
       }
-    },
-    onResponse: (text) => {
-      const agentMsg = {
-        id: Date.now().toString(),
-        text,
-        userName: 'Peppa',
-        timestamp: new Date().toISOString(),
-        type: 'agent'
-      };
-      setMessages(prev => [...prev, agentMsg]);
     }
   });
 

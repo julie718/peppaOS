@@ -5,7 +5,7 @@
 import { logger } from '../lib/logger';
 import sqlite3 from 'sqlite3';
 import { bumpPreferenceTag, demotePreferenceTag } from '../db/lifeDb';
-import { getPeppaDbPath } from '../config/data_path'; // E-3
+import { getSharedPeppaDb } from '../db/dbBase'; // 进程级单例连接：业务路径禁止自行 open/close
 
 export interface CrossSessionMemory {
   key: string;
@@ -14,8 +14,6 @@ export interface CrossSessionMemory {
 }
 
 // ── DB path & table init ──
-
-const peppaDbPath = getPeppaDbPath(); // E-3
 
 function ensureTable(db: sqlite3.Database): Promise<void> {
   return new Promise((resolve) => {
@@ -50,50 +48,41 @@ export async function storeMemory(
   value: string,
   userId: string,
 ): Promise<void> {
-  let db: sqlite3.Database | null = null;
+  // 【句柄复用】进程级单例连接：不再每次调用 open/close
+  // （修复：原实现 per-call open + 回调内 close → 并发任务下句柄关闭竞态
+  //  随机 SQLITE_MISUSE: Database handle is closed FATAL）
+  const db = getSharedPeppaDb();
 
   try {
     await new Promise<void>((resolve) => {
+      // 超时不关闭句柄：单例连接生命周期归进程，超时仅放弃本次写入
       const timeout = setTimeout(() => {
-        db?.close();
         resolve();
       }, 3000);
 
-      try {
-        db = new sqlite3.Database(peppaDbPath, async (err) => {
-          if (err) {
+      ensureTable(db).then(() => {
+        db.run(
+          `INSERT INTO cross_session_memories (user_id, key, value, updated_at)
+           VALUES (?, ?, ?, datetime('now'))
+           ON CONFLICT(user_id, key) DO UPDATE SET
+             value = excluded.value,
+             updated_at = datetime('now')`,
+          [userId, key, value],
+          (err2) => {
             clearTimeout(timeout);
-            logger.warn('[CrossSession] DB 连接失败:', err.message);
+            if (err2) {
+              logger.warn('[CrossSession] 存储失败:', err2.message);
+            } else {
+              logger.info(`[CrossSession] 已记住: ${key} = "${value.slice(0, 40)}"`);
+            }
             resolve();
-            return;
-          }
-
-          await ensureTable(db!);
-
-          db!.run(
-            `INSERT INTO cross_session_memories (user_id, key, value, updated_at)
-             VALUES (?, ?, ?, datetime('now'))
-             ON CONFLICT(user_id, key) DO UPDATE SET
-               value = excluded.value,
-               updated_at = datetime('now')`,
-            [userId, key, value],
-            (err2) => {
-              clearTimeout(timeout);
-              db!.close();
-              if (err2) {
-                logger.warn('[CrossSession] 存储失败:', err2.message);
-              } else {
-                logger.info(`[CrossSession] 已记住: ${key} = "${value.slice(0, 40)}"`);
-              }
-              resolve();
-            },
-          );
-        });
-      } catch (e: any) {
+          },
+        );
+      }).catch((e: any) => {
         clearTimeout(timeout);
         logger.warn('[CrossSession] 存储异常:', e.message);
         resolve();
-      }
+      });
     });
   } catch {
     // 绝不抛异常
@@ -109,58 +98,47 @@ export async function storeMemory(
 export async function getMemories(
   userId: string,
 ): Promise<CrossSessionMemory[]> {
-  let db: sqlite3.Database | null = null;
+  // 【句柄复用】进程级单例连接：不再每次调用 open/close
+  const db = getSharedPeppaDb();
 
   try {
     const result = await new Promise<CrossSessionMemory[]>((resolve) => {
+      // 超时不关闭句柄：单例连接生命周期归进程，超时仅放弃本次查询
       const timeout = setTimeout(() => {
-        db?.close();
         resolve([]);
       }, 3000);
 
-      try {
-        db = new sqlite3.Database(peppaDbPath, async (err) => {
-          if (err) {
+      ensureTable(db).then(() => {
+        db.all(
+          `SELECT key, value, updated_at as timestamp
+           FROM cross_session_memories
+           WHERE user_id = ?
+           ORDER BY updated_at DESC
+           LIMIT 50`,
+          [userId],
+          (err2, rows: any[]) => {
             clearTimeout(timeout);
-            logger.warn('[CrossSession] DB 连接失败:', err.message);
-            resolve([]);
-            return;
-          }
-
-          await ensureTable(db!);
-
-          db!.all(
-            `SELECT key, value, updated_at as timestamp
-             FROM cross_session_memories
-             WHERE user_id = ?
-             ORDER BY updated_at DESC
-             LIMIT 50`,
-            [userId],
-            (err2, rows: any[]) => {
-              clearTimeout(timeout);
-              db!.close();
-              if (err2) {
-                logger.warn('[CrossSession] 查询失败:', err2.message);
-                resolve([]);
-                return;
-              }
-              const memories = (rows || []).map((r: any) => ({
-                key: r.key || '',
-                value: r.value || '',
-                timestamp: r.timestamp || '',
-              }));
-              if (memories.length > 0) {
-                logger.info(`[CrossSession] 加载 ${memories.length} 条跨会话记忆`);
-              }
-              resolve(memories);
-            },
-          );
-        });
-      } catch (e: any) {
+            if (err2) {
+              logger.warn('[CrossSession] 查询失败:', err2.message);
+              resolve([]);
+              return;
+            }
+            const memories = (rows || []).map((r: any) => ({
+              key: r.key || '',
+              value: r.value || '',
+              timestamp: r.timestamp || '',
+            }));
+            if (memories.length > 0) {
+              logger.info(`[CrossSession] 加载 ${memories.length} 条跨会话记忆`);
+            }
+            resolve(memories);
+          },
+        );
+      }).catch((e: any) => {
         clearTimeout(timeout);
         logger.warn('[CrossSession] 查询异常:', e.message);
         resolve([]);
-      }
+      });
     });
     return result;
   } catch {

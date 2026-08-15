@@ -37,13 +37,22 @@ RUN npm rebuild
 # Copy compiled code and skills
 COPY --from=build /app/dist /app/dist
 COPY --from=build /app/dist-server /app/dist-server
-COPY --from=build /app/server/skills/bundled/ /app/skills-bundled/
+# bundle 内以 process.cwd()(= /app) 相对解析的运行时资源，按仓库同款布局复制：
+#   - server/skills/bundled/: 技能缺失时的自动补装兜底路径（cwd/server/skills/bundled/<name>）
+#   - server/personality/personalities.json: 出厂人格兜底（data/ 用户演化人格优先）
+#   - server/mcp/config.example.json: MCP 出厂示例兜底（运行时配置在 data/mcp_config.json）
+#   - tsconfig.json: 技能 self_build 编译引用
+COPY --from=build /app/server/skills/bundled/ /app/server/skills/bundled/
+COPY --from=build /app/server/personality/personalities.json /app/server/personality/personalities.json
+COPY --from=build /app/server/mcp/config.example.json /app/server/mcp/config.example.json
+COPY --from=build /app/tsconfig.json /app/tsconfig.json
 
-RUN mkdir -p /app/data /app/skills-bundled && \
-    chown -R node:node /app/data /app/skills-bundled /app/dist /app/dist-server
+RUN mkdir -p /app/data /app/peppa_output && \
+    chown -R node:node /app/data /app/peppa_output /app/dist /app/dist-server /app/server
 
-WORKDIR /app/dist-server
-
+# WORKDIR 保持 /app（仓库根）——bundle 内全部 process.cwd() 相对路径对齐：
+# data/、dist/、peppa_output/、dist-server/sandbox_child.mjs（沙箱子进程生产入口）、
+# server/skills/bundled 兜底等；LUMI_DATA_DIR=/app → 数据统一落在 /app/data
 EXPOSE 3000
 
 ENV NODE_ENV=production
@@ -52,5 +61,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "require('http').get('http://localhost:'+(process.env.PORT||3000)+'/health',r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>process.exit(r.statusCode===200?0:1))}).on('error',()=>process.exit(1))"
 
 USER node
-# ENTRYPOINT copies bundled skills on every start
-ENTRYPOINT ["sh", "-c", "cp -rn /app/skills-bundled/* /app/data/skills/ 2>/dev/null; exec node entry.cjs"]
+# ENTRYPOINT copies bundled skills on every start, then boots the compiled bundle
+# （entry.cjs 内 import('./server.mjs') 按模块相对路径解析，与 cwd 无关）
+ENTRYPOINT ["sh", "-c", "cp -rn /app/server/skills/bundled/* /app/data/skills/ 2>/dev/null; exec node dist-server/entry.cjs"]

@@ -8,7 +8,6 @@ const THINKING_WATCHDOG_MS = 45000;
 interface UseVoiceCallOptions {
   socket: any;
   onTranscript?: (text: string, isFinal: boolean) => void;
-  onResponse?: (text: string) => void;
   canInterruptFromVoice?: () => boolean;
   canSendMicAudio?: () => boolean;
 }
@@ -20,7 +19,7 @@ interface StartCallOptions {
   voiceProvider?: string;
 }
 
-export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFromVoice, canSendMicAudio }: UseVoiceCallOptions) {
+export function useVoiceCall({ socket, onTranscript, canInterruptFromVoice, canSendMicAudio }: UseVoiceCallOptions) {
   const [callState, setCallState] = useState<CallState>('idle');
   const [audioLevel, setAudioLevel] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +55,10 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
   const thinkingWatchdogStartedAt = useRef(0);
   const callStateRef = useRef<CallState>('idle');
   const lastPassiveSilenceKeepAlive = useRef(0);
+  // BUG-B-FIX: 语音转录去重 — audio:confirm 与 audio:transcript(isFinal=true) 事件携带同一转录文本，
+  // 同一文本在去重窗口内只追加一次用户消息（聊天 UI 追加入口统一由 UnifiedAgent.tsx 管理）。
+  const lastFinalTranscriptRef = useRef<{ text: string; at: number } | null>(null);
+  const TRANSCRIPT_DEDUP_WINDOW_MS = 15000;
 
   useEffect(() => { canInterruptFromVoiceRef.current = canInterruptFromVoice; }, [canInterruptFromVoice]);
   useEffect(() => { canSendMicAudioRef.current = canSendMicAudio; }, [canSendMicAudio]);
@@ -263,9 +266,22 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
       });
     };
 
+    // BUG-B-FIX: 相同转录文本去重判定 — 记录最近一次 final 转录，窗口内同文本视为重复
+    const isDuplicateFinalTranscript = (text: string): boolean => {
+      const last = lastFinalTranscriptRef.current;
+      const now = Date.now();
+      if (last && last.text === text && now - last.at < TRANSCRIPT_DEDUP_WINDOW_MS) return true;
+      lastFinalTranscriptRef.current = { text, at: now };
+      return false;
+    };
+
     // Voice confirmation window — show recognized text during the 600ms delay
+    // BUG-B-FIX: audio:confirm 与后续 audio:transcript(isFinal=true) 为同一转录文本，
+    // 去重后相同文本只经 onTranscript 追加一次用户消息
     const onAudioConfirm = (data: { text: string }) => {
-      onTranscript?.(data.text, true);
+      if (!isDuplicateFinalTranscript(data.text)) {
+        onTranscript?.(data.text, true);
+      }
     };
 
     /**
@@ -351,16 +367,22 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
       if (disconnectTimer.current) { clearTimeout(disconnectTimer.current); disconnectTimer.current = null; }
       if (prevCallState.current === 'passive') setCallState('listening');
       setTranscript(data.text);
-      onTranscript?.(data.text, data.isFinal);
       if (data.isFinal) {
+        // BUG-B-FIX: isFinal=true 时与 audio:confirm 去重，相同转录文本只追加一次用户消息
+        if (!isDuplicateFinalTranscript(data.text)) {
+          onTranscript?.(data.text, true);
+        }
         setTimeout(() => setTranscript(''), 2000); // Clear after 2s if final
+      } else {
+        onTranscript?.(data.text, false); // 非 final：实时预览透传，不做去重
       }
     };
 
     const onAgentResponse = (data: { text: string }) => {
+      // BUG-B-FIX: agent:response 监听器只保留语音通话侧状态（清空转录、记录响应文本供 VoiceSubtitle 展示），
+      // 不再回调 onResponse 追加聊天消息列表 — 聊天 UI 消息唯一追加入口为 UnifiedAgent.tsx 自身订阅。
       setTranscript(''); // Clear user transcript when AI starts responding
       setResponseText(data.text);
-      onResponse?.(data.text);
     };
 
     const onAudioError = (data: { message: string }) => {
@@ -441,7 +463,7 @@ export function useVoiceCall({ socket, onTranscript, onResponse, canInterruptFro
       socket.off('audio:proactive_speak', onAudioProactiveSpeak);
       clearThinkingWatchdog();
     };
-  }, [socket, onTranscript, onResponse, stopAllPlayback, clearThinkingWatchdog, scheduleThinkingWatchdog]);
+  }, [socket, onTranscript, stopAllPlayback, clearThinkingWatchdog, scheduleThinkingWatchdog]);
 
   // Push audio emotion perception events when call state changes
   useEffect(() => {

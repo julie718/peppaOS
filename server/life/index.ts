@@ -160,18 +160,17 @@ export class LifeSystem {
       // 尝试从 peppa.db 获取真实聊天交互总数（更准确）
       let peppaCount = 0;
       try {
-        const sqlite3 = (await import('sqlite3')).default;
-        const { getPeppaDbPath } = await import('../config/data_path');
-        const peppaDbPath = getPeppaDbPath(); // E-3
-        // 【重构·校验修复】带回调构造：打开失败时错误进回调而非未捕获 'error' 事件（try/catch 捕获不到事件型崩溃）
-        const peppaDb = new sqlite3.Database(peppaDbPath, () => {});
+        // 【句柄复用】进程级单例连接：不再每次调用 open/close
+        // （修复：原实现 per-call open + 成功路径才 close → 查询异常时句柄泄漏 +
+        //  并发任务下句柄关闭竞态随机 SQLITE_MISUSE FATAL；单例连接生命周期归进程）
+        const { getSharedPeppaDb } = await import('../db/dbBase');
+        const peppaDb = getSharedPeppaDb();
         const peppaRow = await new Promise<any>((resolve, reject) => {
           peppaDb.get('SELECT COUNT(*) as cnt FROM interactions', (err, row) => {
             if (err) reject(err);
             else resolve(row);
           });
         });
-        peppaDb.close();
         peppaCount = peppaRow?.cnt || 0;
       } catch (e: any) {
         console.warn('[LifeSystem] peppa.db 交互计数查询失败:', e.message);

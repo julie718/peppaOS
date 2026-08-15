@@ -939,9 +939,14 @@ export function registerChatHandler(
       };
 
       // ── 感知理解状态（第二阶段·任务1）：进入主逻辑前评估对用户话的理解程度 ──
+      // BUG-A-FIX: updateComprehension 打分仅保留日志观测，禁止再用于拦截对话/截断 LLM 调用。
       const compState = updateComprehension(text);
       logger.info(`[Comprehension] 理解状态: overall=${compState.overall}, missing=${compState.missingAspects.join(',')}`);
-
+      // BUG-A-DISABLED-BLOCK: 理解度追问拦截分支完整禁用（原 945-964 行）——
+      // 硬编码模板回复（"能具体说说是什么事吗？我想先了解一下。"等）短路 LLM，数字生命体心智得不到执行。
+      // 修复后用户所有输入一律放行进入正常 LLM 对话链路，追问措辞全部由大模型生成，代码层不写死。
+      // 源块注释保留便于回滚，运行时不再执行；comprehension.ts 打分逻辑保留，仅用于日志观测。
+      /* BUG-A-DISABLED-BLOCK: 理解度追问拦截分支（不再执行，保留用于回滚）
       if (compState.overall < 0.4 && compState.missingAspects.length > 0) {
         // 信息不足 → 自然追问（先理解清楚再回应，而非硬答）
         const followUp = compState.missingAspects.includes('具体事件')
@@ -962,6 +967,7 @@ export function registerChatHandler(
         chatSessionMap.delete(sessionKey);
         return;
       }
+      */
 
       const cognition = await processInput(text, cognitiveCtx, llmClassifier);
       logger.info('[ChatHandler] cognition result:', cognition.intent.category, 'responseText:', (cognition.responseText || '').slice(0, 100));

@@ -15,7 +15,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { toolRegistry } from '../tools/registry';
 import type { ToolDefinition } from '../tools/types';
-import { personalityRegistry } from '../personality';
 import { logger } from '../lib/logger';
 import { appendAudit, insertMetric, getSandboxRoot } from './database';
 import { addMemory } from '../memory/store';
@@ -244,11 +243,8 @@ function createAdaptedHandler(cfg: AdapterConfig) {
 // ── 风格匹配（人格关系风格：语气/篇幅倾向） ──
 
 function matchStyle(description: string): string {
-  try {
-    const p = personalityRegistry.getDefault();
-    const tone = p?.expressionStyle?.tone;
-    if (tone && typeof tone === 'string') return `${description}（适配当前人格语气：${tone}）`;
-  } catch { /* 人格不可用时保持原描述 */ }
+  // 【话术清理】移除"（适配当前人格语气：xxx）"人工包装外壳：工具描述仅传递事实数据，
+  // 语气适配已由人格 system prompt 统一注入，无需在工具描述中重复包装。
   return description;
 }
 

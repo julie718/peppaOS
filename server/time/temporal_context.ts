@@ -3,8 +3,7 @@
 import { getUserNow, getDateString, getDayOfWeekCN, getTimeOfDay, getSeasonInfo, getNearbyHoliday, getMonthDay, isWeekend, hoursSince, daysSince, minutesSince, formatDuration } from './utils';
 import { queryMemories } from '../memory/store';
 import { readDB } from '../../db_layer';
-import sqlite3 from 'sqlite3';
-import { getPeppaDbPath } from '../config/data_path'; // E-3
+import { getSharedPeppaDb } from '../db/dbBase'; // 进程级单例连接：业务路径禁止自行 open/close
 
 export interface TemporalContext {
   dateString: string;
@@ -69,8 +68,10 @@ export async function buildTemporalContext(userId: string): Promise<TemporalCont
   let firstInteractionDate = '';
   let daysSinceFirstInteraction = 0;
   try {
-    const peppaDbPath = getPeppaDbPath(); // E-3
-    const db = new sqlite3.Database(peppaDbPath);
+    // 【句柄复用】进程级单例连接：不再每次调用 open/close
+    // （修复：原实现 per-call open（无回调无 error 监听）+ 回调内 close →
+    //  并发任务下句柄关闭竞态随机 SQLITE_MISUSE: Database handle is closed FATAL）
+    const db = getSharedPeppaDb();
     await new Promise<void>((resolve) => {
       db.get(
         "SELECT COUNT(*) as cnt, MIN(timestamp) as first FROM interactions WHERE role = 'user'",
@@ -83,7 +84,6 @@ export async function buildTemporalContext(userId: string): Promise<TemporalCont
               daysSinceFirstInteraction = Math.max(1, Math.round((now.getTime() - first) / 86400000));
             }
           }
-          db.close();
           resolve();
         },
       );

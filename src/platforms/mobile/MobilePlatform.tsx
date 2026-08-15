@@ -52,10 +52,7 @@ export function MobilePlatform({ t, user, lang, setLang, onLogin, onExit, render
 
   const socket = useSocket();
   const { callState, startCall, endCall } = useVoiceCall({
-    socket,
-    onResponse: (text) => {
-      // Logic to show response in mobile UI if needed
-    }
+    socket
   });
 
   useEffect(() => {
