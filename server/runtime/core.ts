@@ -24,7 +24,6 @@ export interface AppContext {
 
 export function createApp(): AppContext {
   const app = express();
-  app.set('etag', false);
   const server = http.createServer(app);
 
   const PORT = Number.parseInt(process.env.PORT || '', 10) || 3000;
