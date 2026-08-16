@@ -61,6 +61,15 @@ services:
         limits:
           memory: 4g
     restart: unless-stopped
+    # 502 根因修复：peppa.db 100MB 全量重建 + 磁盘 45MB/s → 启动需 15+ 分钟。
+    # 原 30s start_period 导致容器过早被标记 unhealthy；改为 20 分钟启动宽限期，
+    # 期间检查失败不计入 retries。
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:'+(process.env.PORT||3000)+'/health',r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>process.exit(r.statusCode===200?0:1))}).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 1200s
     logging:
       driver: "json-file"
       options:
@@ -84,7 +93,8 @@ services:
     networks:
       - peppaos_default
     depends_on:
-      - mayos
+      mayos:
+        condition: service_healthy
 
   cloudflared:
     image: cloudflare/cloudflared:latest

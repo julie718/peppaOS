@@ -1,3 +1,3 @@
 :4043 {
-    reverse_proxy mayos:3000
+    reverse_proxy peppaos:3000
 }
