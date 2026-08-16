@@ -48,7 +48,7 @@ services:
       # Auth
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       PEPPA_PASSWORD: ${PEPPA_PASSWORD:-peppa_2026}
-      CORS_ORIGINS: http://localhost:3000,http://qweasd.top:3000,capacitor://localhost,https://peppa.qweasd.top,https://qweasd.top
+      CORS_ORIGINS: http://localhost:3000,http://qweasd.top:3000,capacitor://localhost,https://peppa.qweasd.top,https://qweasd.top,https://peppaos.qweasd.top
       # 屏蔽neteasemusic报错技能
       PEPPA_DISABLE_SKILLS: neteasemusic
     volumes:
