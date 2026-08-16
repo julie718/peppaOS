@@ -69,6 +69,21 @@ services:
     networks:
       - peppaos_default
 
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "4043:4043"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - peppaos_default
+    depends_on:
+      - mayos
+
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: cloudflared
@@ -82,3 +97,7 @@ services:
 
 networks:
   peppaos_default:
+
+volumes:
+  caddy_data:
+  caddy_config:
