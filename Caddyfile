@@ -1,6 +1,3 @@
-peppaos.qweasd.top, peppa.qweasd.top {
-    reverse_proxy mayos:3000
-}
 :4043 {
     reverse_proxy mayos:3000
 }
