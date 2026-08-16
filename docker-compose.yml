@@ -75,6 +75,8 @@ services:
     restart: unless-stopped
     ports:
       - "4043:4043"
+    environment:
+      - CADDY_AUTO_HTTPS=off
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
