@@ -45,8 +45,8 @@ services:
       DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
       # TTS
       DOUBAO_SPEECH_KEY: ${DOUBAO_SPEECH_KEY:-}
-      # Auth
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      # Auth（必需：无兜底值，缺失时 compose 直接报错，避免可猜测密钥上线）
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required — set it in the host .env}
       PEPPA_PASSWORD: ${PEPPA_PASSWORD:-peppa_2026}
       CORS_ORIGINS: http://localhost:3000,http://qweasd.top:3000,capacitor://localhost,https://peppa.qweasd.top,https://qweasd.top,https://peppaos.qweasd.top
       # 屏蔽neteasemusic报错技能
