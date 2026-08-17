@@ -7,12 +7,16 @@ coverage/
 logs/
 .codex-run/
 .DS_Store
+.!*.DS_Store
+nul
 *.log
 .env*
 !.env.example
 *.db
 db.json
 *.tar.gz
+*.zip
+*.bundle
 # Runtime data (auto-created by the application)
 data/
 server/mcp/config.json
