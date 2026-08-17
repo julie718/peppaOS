@@ -1,3 +1,9 @@
 :4043 {
     reverse_proxy peppaos:3000
 }
+
+# 隧道 origin 兼容：Cloudflare 隧道面板配置为 http://caddy:80（容器网络内访问，
+# 不映射宿主端口，与 NAS 其他服务无冲突）。:4043 保留供宿主/公网直连。
+:80 {
+    reverse_proxy peppaos:3000
+}
