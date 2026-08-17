@@ -16,3 +16,12 @@ src-tauri/
 !.env.example
 agent_shutdown_snapshot_*
 desktop-resources/
+# 备份/临时/输出目录——NAS 部署目录曾高达 13G，未排除导致构建上下文打包数十分钟
+old_MayOS_backup/
+data_backup_*/
+test/
+repro_tmp/
+deliverables/
+peppa_output/
+*.zip
+*.bak

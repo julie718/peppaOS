@@ -39,10 +39,13 @@ COPY --from=build /app/dist /app/dist
 COPY --from=build /app/dist-server /app/dist-server
 # bundle 内以 process.cwd()(= /app) 相对解析的运行时资源，按仓库同款布局复制：
 #   - server/skills/bundled/: 技能缺失时的自动补装兜底路径（cwd/server/skills/bundled/<name>）
+#   - server/lib/: 技能编译时 import 的服务端模块（skills_extension 模板 import ../lib/logger）
+#     ——缺失会导致技能 tsx 编译 TransformError、MCP 反复崩溃重启
 #   - server/personality/personalities.json: 出厂人格兜底（data/ 用户演化人格优先）
 #   - server/mcp/config.example.json: MCP 出厂示例兜底（运行时配置在 data/mcp_config.json）
 #   - tsconfig.json: 技能 self_build 编译引用
 COPY --from=build /app/server/skills/bundled/ /app/server/skills/bundled/
+COPY --from=build /app/server/lib/ /app/server/lib/
 COPY --from=build /app/server/personality/personalities.json /app/server/personality/personalities.json
 COPY --from=build /app/server/mcp/config.example.json /app/server/mcp/config.example.json
 COPY --from=build /app/tsconfig.json /app/tsconfig.json
@@ -56,6 +59,11 @@ RUN mkdir -p /app/data /app/peppa_output && \
 EXPOSE 3000
 
 ENV NODE_ENV=production
+
+# 版本标识：构建时注入 git commit，/api/health 与 /api/version 据此返回 buildId，
+# 用于线上核验部署版本（部署: GIT_COMMIT=$(git rev-parse --short HEAD) docker compose up -d --build）
+ARG GIT_COMMIT=unknown
+ENV LUMI_BUILD_ID=$GIT_COMMIT
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "require('http').get('http://localhost:'+(process.env.PORT||3000)+'/health',r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>process.exit(r.statusCode===200?0:1))}).on('error',()=>process.exit(1))"

@@ -6,7 +6,12 @@
 
 services:
   mayos:
-    build: .
+    build:
+      context: .
+      args:
+        # 版本标识注入（镜像内 LUMI_BUILD_ID → /api/health buildId）
+        # 部署: GIT_COMMIT=$(git rev-parse --short HEAD) docker compose up -d --build
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
     container_name: peppaos
     ports:
       - "3000:3000"
