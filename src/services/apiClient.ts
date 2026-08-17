@@ -29,6 +29,20 @@ function shouldRetryLocalBackend(url: string, error: unknown): boolean {
   return /failed to fetch|networkerror|load failed|fetch/i.test(message);
 }
 
+// 网络挂起守卫：iOS 模拟器/真机曾出现 fetch 在 QUIC alt-svc 残留下永久挂起，
+// 导致 App 卡在 loading 页。这里给所有 API fetch 加超时，超时后抛出并走调用方 catch。
+const API_FETCH_TIMEOUT_MS = 15_000;
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: init.signal ?? controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const url = apiUrl(path);
   const request: RequestInit = {
@@ -41,7 +55,7 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      return await fetch(url, request);
+      return await fetchWithTimeout(url, request, API_FETCH_TIMEOUT_MS);
     } catch (error) {
       lastError = error;
       if (attempt >= attempts - 1 || !shouldRetryLocalBackend(url, error)) break;
