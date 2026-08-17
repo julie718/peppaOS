@@ -2,14 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-			<key>NSAllowsArbitraryLoadsInWebContent</key>
-			<true/>
-	<key>CAPACITOR_DEBUG</key>
+  <key>CAPACITOR_DEBUG</key>
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>MayOS</string>
+        <string>MayOS</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -26,28 +24,25 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSAppTransportSecurity</key>
+	<key>UIApplicationSceneManifest</key>
 	<dict>
-			<key>NSAllowsArbitraryLoadsInWebContent</key>
-			<true/>
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
+		<key>UIApplicationSupportsMultipleScenes</key>
+    <false/>
+    <key>UISceneConfigurations</key>
+    <dict>
+      <key>UIWindowSceneSessionRoleApplication</key>
+      <array>
+        <dict>
+            <key>UISceneConfigurationName</key>
+            <string>Default Configuration</string>
+            <key>UISceneDelegateClassName</key>
+            <string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+            <key>UISceneStoryboardFile</key>
+            <string>Main</string>
+        </dict>
+      </array>
+    </dict>
 	</dict>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>MayOS 需要您的位置来提供更智能的回复，例如天气、附近推荐和路线规划。</string>
-	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
-	<dict>
-			<key>NSAllowsArbitraryLoadsInWebContent</key>
-			<true/>
-		<key>LocationAccuracy</key>
-		<string>MayOS 需要精确位置来提供附近推荐和路线规划服务。</string>
-	</dict>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>MayOS 需要麦克风来进行语音对话。</string>
-	<key>NSHealthShareUsageDescription</key>
-	<string>MayOS 需要读取健康数据（步数、心率、睡眠等），为您提供更智能的健康建议和日常关怀。</string>
-	<key>NSHealthUpdateUsageDescription</key>
-	<string>MayOS 需要写入健康数据，帮助您记录和管理健康信息。</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
