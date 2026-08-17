@@ -83,7 +83,10 @@ import { buildModelSelfAwareness, buildVisionRoutingOverlay, hasVisionIntent } f
 import { DEFAULT_MODELS, COMPLEX_MODELS, getScopedPreferredLLM, getScenarioModel } from "../llm/user_preferences";
 import { generateTemporalContext } from '../time/temporal_context';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'peppaOS_default_jwt_secret_2026_local';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required — refusing to start with a guessable fallback secret');
+}
 
 function normalizeChatHistoryRecord(m: any): NormalizedMessage[] {
   const role = m?.role === 'assistant' ? 'assistant' : m?.role === 'system' ? 'system' : m?.role === 'user' ? 'user' : '';

@@ -34,7 +34,10 @@ fs.mkdirSync(PERSONAL_KNOWLEDGE_DIR, { recursive: true });
 
 const router = Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'lumiOS_default_jwt_secret_2026_local';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required — refusing to start with a guessable fallback secret');
+}
 
 function requireAuth(req: Request, res: Response, next: () => void): void {
   let token = req.cookies.token;
@@ -780,7 +783,7 @@ function getSourceBacklinks(db: any, scope: FileScope, filename: string): string
   return buildSourceBacklinkMap(scopedMeta, names).get(filename) || [];
 }
 
-router.get('/files/list', (req: Request, res: Response) => {
+router.get('/files/list', requireAuth, (req: Request, res: Response) => {
   try {
     const scope = getFileScope(req);
     const db = readDB();
@@ -1064,7 +1067,7 @@ router.get('/files/generated', requireAuth, (req: Request, res: Response) => {
 });
 
 // ── GET /files/download/:id — download or preview a file ──
-router.get('/files/download/:id', (req: Request, res: Response) => {
+router.get('/files/download/:id', requireAuth, (req: Request, res: Response) => {
   try {
     const scope = getFileScope(req);
     const safeName = path.basename(req.params.id);
@@ -1169,7 +1172,7 @@ router.post('/files/rename', requireAuth, (req: Request, res: Response) => {
 });
 
 // ── GET /files/info/:id ──
-router.get('/files/info/:id', (req: Request, res: Response) => {
+router.get('/files/info/:id', requireAuth, (req: Request, res: Response) => {
   try {
     const scope = getFileScope(req);
     const safeName = path.basename(req.params.id);

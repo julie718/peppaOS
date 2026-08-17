@@ -17,6 +17,11 @@ import * as Templates from './templates';
 import * as Audit from './audit';
 import { Server as SocketIOServer } from 'socket.io';
 
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required — refusing to start with a guessable fallback secret');
+}
+
 export function mountOrgRoutes(router: Router, io?: SocketIOServer) {
   // ── Health / status ──────────────────────────────────────────────────
 
@@ -45,7 +50,6 @@ export function mountOrgRoutes(router: Router, io?: SocketIOServer) {
     }
     const org = Org.createOrganization(name, slug, req.user!.uid);
     // Re-sign JWT with orgId so the user's current session picks it up immediately
-    const JWT_SECRET = process.env.JWT_SECRET || 'peppaOS_default_jwt_secret_2026_local';
     const newToken = jwt.sign(
       { uid: req.user!.uid, username: req.user!.username, role: req.user!.role, orgId: org.id, orgRole: 'owner' },
       JWT_SECRET,

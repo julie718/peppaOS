@@ -10,6 +10,11 @@ import { PLANS, getPlan } from './types';
 
 const router = Router();
 
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required — refusing to start with a guessable fallback secret');
+}
+
 // Helper: extract user ID from JWT
 function getUserId(req: any): string {
   try {
@@ -18,7 +23,7 @@ function getUserId(req: any): string {
     if (!token && req.headers.authorization?.startsWith('Bearer ')) {
       token = req.headers.authorization.slice(7);
     }
-    if (token) return jwt.verify(token, process.env.JWT_SECRET || 'peppaOS_default_jwt_secret_2026_local').uid;
+    if (token) return jwt.verify(token, JWT_SECRET).uid;
   } catch {}
   return 'anonymous';
 }

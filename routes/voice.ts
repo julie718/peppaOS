@@ -247,7 +247,7 @@ router.delete('/voice/:voiceId', requireAuth, async (req: Request, res: Response
 });
 
 // POST /api/voice/synthesize — Synthesize speech (for TTS without full voice call)
-router.post('/voice/synthesize', async (req: Request, res: Response) => {
+router.post('/voice/synthesize', requireAuth, async (req: Request, res: Response) => {
   try {
     const { text, voiceId, provider } = req.body;
 

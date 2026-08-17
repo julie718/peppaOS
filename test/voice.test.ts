@@ -75,11 +75,21 @@ describe('Voice API', () => {
   it('rejects synthesize without body', async () => {
     const res = await fetch(`${url}/api/voice/synthesize`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...headers() },
       body: JSON.stringify({}),
       signal: AbortSignal.timeout(5000),
     });
     expect(res.status).toBe(400);
+  });
+
+  it('requires auth for synthesize', async () => {
+    const res = await fetch(`${url}/api/voice/synthesize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: 'test' }),
+      signal: AbortSignal.timeout(5000),
+    });
+    expect(res.status).toBe(401);
   });
 
   it('resolves the voice provider from a selected voice when one is provided', async () => {

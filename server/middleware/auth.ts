@@ -27,7 +27,10 @@ declare global {
   }
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'peppaOS_default_jwt_secret_2026_local';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required — refusing to start with a guessable fallback secret');
+}
 
 function extractToken(req: Request): string | null {
   let token = req.cookies?.token;
