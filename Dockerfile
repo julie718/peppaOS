@@ -12,7 +12,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-# 中国网络构建镜像：npm 包走 npmmirror registry（registry.npmjs.org 访问超时挂起）、
+# 中国网络构建镜像：npm 包走华为云 registry（registry.npmjs.org 访问超时挂起；
+# npmmirror 的 tarball 经 302 重定向到 cdn.npmmirror.com，NAS 出口间歇性单包 50-200s 黑洞，
+# 曾让 npm ci 全量 1194 包挂数小时。华为云 mirrors.huaweicloud.com 实测 8MB/0.43s 最快且稳定）。
 # node-gyp 编译原生模块的 Node headers 走 npmmirror（nodejs.org 连接超时）。
 # lock 的 resolved 指向 registry.npmjs.org，npm 8.13+ 默认 replace-registry-host=npmjs
 # 会自动改写为配置的 registry，包拉取全程走镜像。
@@ -23,7 +25,7 @@ WORKDIR /app
 # fetch 超时/重试收紧：npmmirror 偶发单连接 TCP 黑洞（SYN 无响应/半开），npm 默认
 # fetch-timeout 300s×重试 2 次会让 npm ci 静默挂 35+ 分钟；收紧到 60s×3 次 + 降并发，
 # 黑洞连接 1 分钟内失败重试，而不是无限期等待（曾实测 2259MB→1547MB 缓存零增长=下载停滞）。
-ENV npm_config_registry=https://registry.npmmirror.com \
+ENV npm_config_registry=https://mirrors.huaweicloud.com/repository/npm/ \
     npm_config_nodejs_org_dist=https://npmmirror.com/mirrors/node/ \
     npm_config_build_from_source=true \
     npm_config_fetch_timeout=60000 \
@@ -55,7 +57,7 @@ WORKDIR /app
 # Fresh install on runtime glibc — avoids GLIBC mismatch from build stage
 COPY --from=build /app/package.json /app/package-lock.json ./
 # 与构建阶段同款中国网络镜像配置（registry + node-gyp headers + build-from-source + fetch 重试）
-ENV npm_config_registry=https://registry.npmmirror.com \
+ENV npm_config_registry=https://mirrors.huaweicloud.com/repository/npm/ \
     npm_config_nodejs_org_dist=https://npmmirror.com/mirrors/node/ \
     npm_config_build_from_source=true \
     npm_config_fetch_timeout=60000 \
