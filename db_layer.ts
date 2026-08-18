@@ -881,10 +881,11 @@ export function writeDB(data: any): void {
   dbDirty = true;
 
   // Debounce persistence: batch rapid writes into a single SQLite flush
+  // 窗口 100ms → 2000ms：InnerTick/IdleBrain 写风暴时合并为一次全量持久化，
+  // 避免每次写都触发 100MB 级全表重建（内存峰值 + SQLite 写风暴）。
   if (writeDebounceTimer) clearTimeout(writeDebounceTimer);
   writeDebounceTimer = setTimeout(() => {
     writeDebounceTimer = null;
-    const previous = JSON.parse(JSON.stringify(memoryDB));
     const ready = writeLock.catch((err) => {
       console.error('[DB] Previous write failed:', err);
     });
@@ -893,9 +894,11 @@ export function writeDB(data: any): void {
       .then(() => { dbDirty = false; })
       .catch((err) => {
         console.error('[DB] Failed to persist database:', err);
-        memoryDB = previous;
+        // 不做内存回滚：memoryDB 始终是内存真相。原实现 JSON 深拷贝回滚
+        // 每次持久化多消耗 2×db 内存（100MB 级），且在并发写下会覆盖新数据；
+        // persist 失败仅影响 SQLite 落盘，下次 writeDB/flushDB 会重试。
       });
-  }, 100);
+  }, 2000);
 }
 
 /** Flush pending writes immediately — call before shutdown */

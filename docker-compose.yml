@@ -18,7 +18,9 @@ services:
     environment:
       PORT: 3000
       HOST: 0.0.0.0
-      NODE_OPTIONS: --max-old-space-size=2048
+      # 内存治理：宿主仅 8G（swap 4G 常满），容器稳态 RSS ~2.6G 已逼近全局 OOM 阈值；
+      # V8 heap 2G→1.5G 强制更积极 GC，把容器 RSS 基线压到 ~2G，为宿主留余量
+      NODE_OPTIONS: --max-old-space-size=1536
       LUMI_DATA_DIR: /app
       NODE_ENV: production
       OXOG_ENV_KEY: ${OXOG_ENV_KEY:-}
