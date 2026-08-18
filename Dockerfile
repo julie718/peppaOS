@@ -32,6 +32,10 @@ ENV npm_config_registry=https://registry.npmmirror.com \
     npm_config_fetch_retry_maxtimeout=30000 \
     npm_config_maxsockets=8
 COPY package.json package-lock.json ./
+# NAS 构建加速：cdn.npmmirror.com 对 NAS 出口间歇性极慢（实测单包 50-200s），
+# npm ci 全量 1194 包可挂数小时。注入预下载的 npm 缓存（docker cp <npm ci 容器>:/root/.npm → npm-cache/），
+# 命中缓存秒装。缓存由诊断容器（docker run node:22-slim + 同 lock 跑 npm ci）产生，完整性校验一致。
+COPY npm-cache/ /root/.npm/
 RUN npm ci || npm install
 
 COPY . .
@@ -59,6 +63,8 @@ ENV npm_config_registry=https://registry.npmmirror.com \
     npm_config_fetch_retry_mintimeout=5000 \
     npm_config_fetch_retry_maxtimeout=30000 \
     npm_config_maxsockets=8
+# 同款 npm 缓存注入（见 build 阶段注释），runtime 的 npm ci --ignore-scripts 同样避免全量下载
+COPY npm-cache/ /root/.npm/
 RUN npm ci --ignore-scripts || npm install --ignore-scripts
 # node-gyp 编译 sqlite3 等原生模块需下载 Node headers；NAS 在中国网络访问 nodejs.org 超时，
 # 改用 npmmirror 镜像源（sqlite3 6.0.1 无 node22 预编译产物 → 必走源码编译路径；
