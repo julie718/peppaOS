@@ -32,12 +32,20 @@ ENV npm_config_nodejs_org_dist=https://npmmirror.com/mirrors/node/ \
     npm_config_fetch_retries=3 \
     npm_config_fetch_retry_mintimeout=5000 \
     npm_config_fetch_retry_maxtimeout=30000 \
-    npm_config_maxsockets=8
+    npm_config_maxsockets=8 \
+    npm_config_node_gyp_cache=/usr/local/share/.cache/node-gyp
 COPY package.json package-lock.json ./
 # NAS 构建加速：cdn.npmmirror.com 对 NAS 出口间歇性极慢（实测单包 50-200s），
 # npm ci 全量 1194 包可挂数小时。注入预下载的 npm 缓存（docker cp <npm ci 容器>:/root/.npm → npm-cache/），
 # 命中缓存秒装。缓存由诊断容器（docker run node:22-slim + 同 lock 跑 npm ci）产生，完整性校验一致。
 COPY npm-cache/ /root/.npm/
+# Node headers 预置：node-gyp 源码编译 sqlite3 需下载 Node headers（nodejs.org 超时、
+# npmmirror 对 NAS 间歇黑洞——实测 node-gyp 挂起 53 分钟无进展）。由 Mac 预下载与
+# node:22-slim 精确版本（v22.23.2）匹配的 headers 注入，node-gyp 检测到缓存即跳过下载。
+# 注意：升级 node:22-slim 基础镜像需同步更新 headers 版本与路径。
+COPY node-headers/ /tmp/node-headers/
+RUN mkdir -p /usr/local/share/.cache/node-gyp/22.23.2 && \
+    tar -xzf /tmp/node-headers/node-v22.23.2-headers.tar.gz -C /usr/local/share/.cache/node-gyp/22.23.2 --strip-components=1
 RUN npm ci || npm install
 
 COPY . .
@@ -63,9 +71,14 @@ ENV npm_config_nodejs_org_dist=https://npmmirror.com/mirrors/node/ \
     npm_config_fetch_retries=3 \
     npm_config_fetch_retry_mintimeout=5000 \
     npm_config_fetch_retry_maxtimeout=30000 \
-    npm_config_maxsockets=8
+    npm_config_maxsockets=8 \
+    npm_config_node_gyp_cache=/usr/local/share/.cache/node-gyp
 # 同款 npm 缓存注入（见 build 阶段注释），runtime 的 npm ci --ignore-scripts 同样避免全量下载
 COPY npm-cache/ /root/.npm/
+# 同款 Node headers 预置（见 build 阶段注释）——runtime 的 npm rebuild 同样要编译 sqlite3
+COPY node-headers/ /tmp/node-headers/
+RUN mkdir -p /usr/local/share/.cache/node-gyp/22.23.2 && \
+    tar -xzf /tmp/node-headers/node-v22.23.2-headers.tar.gz -C /usr/local/share/.cache/node-gyp/22.23.2 --strip-components=1
 RUN npm ci --ignore-scripts || npm install --ignore-scripts
 # node-gyp 编译 sqlite3 等原生模块需下载 Node headers；NAS 在中国网络访问 nodejs.org 超时，
 # 改用 npmmirror 镜像源（sqlite3 6.0.1 无 node22 预编译产物 → 必走源码编译路径；

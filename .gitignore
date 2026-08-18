@@ -38,3 +38,4 @@ repro_tmp/
 
 # NAS 构建 npm 缓存注入（诊断容器 docker cp 产物，不进 git）
 npm-cache/
+node-headers/
