@@ -16,8 +16,13 @@ WORKDIR /app
 # node-gyp 编译原生模块的 Node headers 走 npmmirror（nodejs.org 连接超时）。
 # lock 的 resolved 指向 registry.npmjs.org，npm 8.13+ 默认 replace-registry-host=npmjs
 # 会自动改写为配置的 registry，包拉取全程走镜像。
+# build_from_source=true：sqlite3 6.0.1 的 install 脚本 prebuild-install 从 github.com
+# 下载 napi 预编译包（中国网络 TCP 黑洞，曾挂起 40+ 分钟），此变量让 prebuild-install
+# 跳过下载直接 node-gyp 源码编译（headers 已走 npmmirror）。sharp 0.35 预编译走
+# @img/sharp-* npm optionalDependencies（registry 镜像即可），无需处理。
 ENV npm_config_registry=https://registry.npmmirror.com \
-    npm_config_nodejs_org_dist=https://npmmirror.com/mirrors/node/
+    npm_config_nodejs_org_dist=https://npmmirror.com/mirrors/node/ \
+    npm_config_build_from_source=true
 COPY package.json package-lock.json ./
 RUN npm ci || npm install
 
@@ -37,12 +42,14 @@ WORKDIR /app
 
 # Fresh install on runtime glibc — avoids GLIBC mismatch from build stage
 COPY --from=build /app/package.json /app/package-lock.json ./
-# 与构建阶段同款中国网络镜像配置（registry + node-gyp headers）
+# 与构建阶段同款中国网络镜像配置（registry + node-gyp headers + build-from-source）
 ENV npm_config_registry=https://registry.npmmirror.com \
-    npm_config_nodejs_org_dist=https://npmmirror.com/mirrors/node/
+    npm_config_nodejs_org_dist=https://npmmirror.com/mirrors/node/ \
+    npm_config_build_from_source=true
 RUN npm ci --ignore-scripts || npm install --ignore-scripts
 # node-gyp 编译 sqlite3 等原生模块需下载 Node headers；NAS 在中国网络访问 nodejs.org 超时，
-# 改用 npmmirror 镜像源（sqlite3 6.0.1 无 node22 预编译产物 → 必走源码编译路径）
+# 改用 npmmirror 镜像源（sqlite3 6.0.1 无 node22 预编译产物 → 必走源码编译路径；
+# build_from_source=true 同时跳过 prebuild-install 的 github.com 预编译下载黑洞）
 RUN npm rebuild
 
 # Copy compiled code and skills
