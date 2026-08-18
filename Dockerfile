@@ -20,9 +20,17 @@ WORKDIR /app
 # 下载 napi 预编译包（中国网络 TCP 黑洞，曾挂起 40+ 分钟），此变量让 prebuild-install
 # 跳过下载直接 node-gyp 源码编译（headers 已走 npmmirror）。sharp 0.35 预编译走
 # @img/sharp-* npm optionalDependencies（registry 镜像即可），无需处理。
+# fetch 超时/重试收紧：npmmirror 偶发单连接 TCP 黑洞（SYN 无响应/半开），npm 默认
+# fetch-timeout 300s×重试 2 次会让 npm ci 静默挂 35+ 分钟；收紧到 60s×3 次 + 降并发，
+# 黑洞连接 1 分钟内失败重试，而不是无限期等待（曾实测 2259MB→1547MB 缓存零增长=下载停滞）。
 ENV npm_config_registry=https://registry.npmmirror.com \
     npm_config_nodejs_org_dist=https://npmmirror.com/mirrors/node/ \
-    npm_config_build_from_source=true
+    npm_config_build_from_source=true \
+    npm_config_fetch_timeout=60000 \
+    npm_config_fetch_retries=3 \
+    npm_config_fetch_retry_mintimeout=5000 \
+    npm_config_fetch_retry_maxtimeout=30000 \
+    npm_config_maxsockets=8
 COPY package.json package-lock.json ./
 RUN npm ci || npm install
 
@@ -42,10 +50,15 @@ WORKDIR /app
 
 # Fresh install on runtime glibc — avoids GLIBC mismatch from build stage
 COPY --from=build /app/package.json /app/package-lock.json ./
-# 与构建阶段同款中国网络镜像配置（registry + node-gyp headers + build-from-source）
+# 与构建阶段同款中国网络镜像配置（registry + node-gyp headers + build-from-source + fetch 重试）
 ENV npm_config_registry=https://registry.npmmirror.com \
     npm_config_nodejs_org_dist=https://npmmirror.com/mirrors/node/ \
-    npm_config_build_from_source=true
+    npm_config_build_from_source=true \
+    npm_config_fetch_timeout=60000 \
+    npm_config_fetch_retries=3 \
+    npm_config_fetch_retry_mintimeout=5000 \
+    npm_config_fetch_retry_maxtimeout=30000 \
+    npm_config_maxsockets=8
 RUN npm ci --ignore-scripts || npm install --ignore-scripts
 # node-gyp 编译 sqlite3 等原生模块需下载 Node headers；NAS 在中国网络访问 nodejs.org 超时，
 # 改用 npmmirror 镜像源（sqlite3 6.0.1 无 node22 预编译产物 → 必走源码编译路径；
