@@ -757,6 +757,21 @@ main().catch((err) => { logger.error('[npm-skill] Fatal:', err); process.exit(1)
     }
   }
 
+  /**
+   * 直连 node 运行 tsx CLI 入口（node_modules/tsx/dist/cli.mjs）。
+   * 替代 `npx tsx <skill>/index.ts`：npx 会拉起 npx → npm exec → sh → node 的 2-4 层进程链，
+   * 每技能多占 2-3 个 ~25MB 常驻进程；46 个技能 ≈ 120+ 子进程吃满容器内存（宿主 8G 全局 OOM 根因之一）。
+   * node 直接执行 cli.mjs（node 忽略 shebang）进程树只剩 MCP 本体 1 个进程。
+   */
+  private resolveTsxCli(): string {
+    try {
+      // require.resolve('tsx') → main（dist/loader.mjs），同目录 cli.mjs 即 CLI 入口
+      return path.join(path.dirname(require.resolve('tsx')), 'cli.mjs');
+    } catch {
+      return path.resolve(process.cwd(), 'node_modules', 'tsx', 'dist', 'cli.mjs');
+    }
+  }
+
   /** Register a skill directory as an MCP server entry in config.json */
   private registerLocalSkill(name: string, skillDir: string, pkg: any): void {
     const config = this.getConfig();
@@ -787,8 +802,9 @@ main().catch((err) => { logger.error('[npm-skill] Fatal:', err); process.exit(1)
         for (const k of peppa.envKeys) { env[k] = `\${${k}}`; }
       }
       config[name] = {
-        command: 'npx',
-        args: ['tsx', indexPath],
+        // 根因修复：npx tsx → node <cli.mjs> 直跑（每技能 1 进程，替代 2-4 层进程链），详见 resolveTsxCli
+        command: 'node',
+        args: [this.resolveTsxCli(), indexPath],
         env,
         enabled: true,
         source: 'local',
@@ -853,6 +869,23 @@ main().catch((err) => { logger.error('[npm-skill] Fatal:', err); process.exit(1)
           pkg = JSON.parse(fs.readFileSync(path.join(skillDir, 'package.json'), 'utf-8'));
         } catch {}
         this.registerLocalSkill(entry.name, skillDir, pkg);
+      } else if (
+        config[entry.name].source === 'local'
+        && config[entry.name].command === 'npx'
+        && config[entry.name].args?.[0] === 'tsx'
+      ) {
+        // 存量配置迁移：旧版 `npx tsx <skill>` 生成 2-4 层进程链（见 resolveTsxCli 注释），
+        // 一次性改写为 node <cli.mjs> 直跑，避免重启后仍按旧命令拉起整条链。
+        // ⚠️ 必须重新读取文件再保存：`config` 是循环开始前捕获的旧对象，
+        // 若前面迭代已注册新技能，用它覆盖会把新技能从配置里抹掉。
+        const fresh = this.getConfig();
+        const cfg = fresh[entry.name];
+        if (cfg && cfg.source === 'local' && cfg.command === 'npx' && cfg.args?.[0] === 'tsx') {
+          cfg.command = 'node';
+          cfg.args = [this.resolveTsxCli(), ...cfg.args!.slice(1)];
+          this.saveConfig(fresh);
+          logger.info(`[MCP] ${entry.name}: 迁移技能启动命令 npx tsx → node ${this.resolveTsxCli()}`);
+        }
       }
     }
 
