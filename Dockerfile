@@ -12,6 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+# node-gyp 编译原生模块下载 Node headers 走 npmmirror（NAS 中国网络访问 nodejs.org 超时）
+ENV npm_config_nodejs_org_dist=https://npmmirror.com/mirrors/node/
 COPY package.json package-lock.json ./
 RUN npm ci || npm install
 
@@ -32,6 +34,9 @@ WORKDIR /app
 # Fresh install on runtime glibc — avoids GLIBC mismatch from build stage
 COPY --from=build /app/package.json /app/package-lock.json ./
 RUN npm ci --ignore-scripts || npm install --ignore-scripts
+# node-gyp 编译 sqlite3 等原生模块需下载 Node headers；NAS 在中国网络访问 nodejs.org 超时，
+# 改用 npmmirror 镜像源（sqlite3 6.0.1 无 node22 预编译产物 → 必走源码编译路径）
+ENV npm_config_nodejs_org_dist=https://npmmirror.com/mirrors/node/
 RUN npm rebuild
 
 # Copy compiled code and skills
