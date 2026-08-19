@@ -54,6 +54,11 @@ const PRAGMAS: string[] = [
   'PRAGMA synchronous=NORMAL', // 与 WAL 搭配的推荐持久性级别
   'PRAGMA busy_timeout=5000',  // 驱动内部锁等待上限
   'PRAGMA foreign_keys = ON',
+  // P1-1 锁竞争优化：页缓存放大到 20MB（负值=KiB），减少热点表页的重复读盘；
+  // wal_autocheckpoint 提到 5000 页（≈20MB）→ checkpoint 触发频率降低，
+  // 写事务持锁窗口更短，配合增量持久化（大部分表跳过）从根源缓解 SQLITE_BUSY
+  'PRAGMA cache_size=-20000',
+  'PRAGMA wal_autocheckpoint=5000',
 ];
 
 function sleep(ms: number): Promise<void> {
@@ -206,6 +211,10 @@ export async function initDatabase(): Promise<void> {
   await createTables();
   await migrateSchema();
   await loadMemoryDB();
+  // P0-1: 加载态即持久态 —— 填充指纹后启动期 flushDB 的比对全部命中，零 SQL
+  seedPersistedFingerprints();
+  // P2-4: 启动自动归档检查 + 例行定时器（阈值 100MB，每天最多一次，VACUUM INTO）
+  scheduleDatabaseArchive();
 }
 
 function onAlter(err: Error | null) {
@@ -903,6 +912,13 @@ export function writeDB(data: any): void {
 
 /** Flush pending writes immediately — call before shutdown */
 export async function flushDB(): Promise<void> {
+  // P0-1 脏写门控：无 writeDB 标记的脏写直接返回，不再无条件触发全量持久化。
+  // 修复前 bootstrap 启动期 flushDB() 无条件重建全部 22 张表 → NAS 上 100MB 库
+  // 45MB/s 磁盘耗时 15+ 分钟（容器每次重启的致命启动窗口）。
+  // 全仓审计结论：所有对 memoryDB 的原地修改（saveRouterConfig / persistDisabledState /
+  // pruneOldData 等）都经 writeDB 置位，dbDirty 是可靠的脏写信号；
+  // 且启动期指纹已 seed（seedPersistedFingerprints）→ 即使有写入，未变化表也零 SQL。
+  if (!dbDirty) return;
   if (writeDebounceTimer) {
     clearTimeout(writeDebounceTimer);
     writeDebounceTimer = null;
@@ -946,15 +962,54 @@ function persistMemoryDB(): Promise<void> {
   return job;
 }
 
-async function runPersist(): Promise<void> {
-  // Table definitions: [tableName, createSQL (must match the schema), insertSQL, rowMapper]
-  interface TableSpec {
-    name: string;
-    createSQL: string;
-    insertSQL: string;
-    rows: () => any[][];
-  }
+// ═══════════════════════════════════════════════════════════════════
+// P0-1 增量表级持久化（消除全量写放大）
+// 原实现每次持久化都对全部 22 张表执行「temp 表创建填充 → DROP 原表 → RENAME」
+// 全量重写：100MB 库在 NAS 45MB/s 磁盘上耗时 15+ 分钟 → 每次容器重启/持久化都是灾难。
+// 现在每次持久化周期先对每张表计算指纹（行数 + 紧凑行 FNV-1a 内容哈希），
+// 与上次成功持久化指纹一致的表零 SQL 跳过，只有变化的表才走临时表重建。
+// 启动期 seedPersistedFingerprints() 用加载态填充指纹 → 重启后首次 flushDB 全部命中
+// → 容器重启秒级启动；写风暴下大部分表不再持有写事务，SQLite 锁竞争同步缓解。
+// ═══════════════════════════════════════════════════════════════════
 
+interface TableSpec {
+  name: string;
+  createSQL: string;
+  insertSQL: string;
+  rows: () => any[][];
+}
+
+/** 每张表上次成功持久化的指纹（行数 + FNV-1a 内容哈希） */
+const lastPersistedFingerprints = new Map<string, string>();
+
+/** FNV-1a 32bit 整表指纹：行数与每行内容同时参与哈希，任何增删改都能检出 */
+function computeTableFingerprint(rows: any[][]): string {
+  let h = 2166136261;
+  for (const row of rows) {
+    for (const v of row) {
+      if (v != null) {
+        const s = typeof v === 'string' ? v : String(v);
+        for (let i = 0; i < s.length; i++) {
+          h ^= s.charCodeAt(i);
+          h = Math.imul(h, 16777619);
+        }
+      }
+      h ^= 0x1f; // 字段分隔
+      h = Math.imul(h, 16777619);
+    }
+    h ^= 0x1e; // 行分隔
+    h = Math.imul(h, 16777619);
+  }
+  return rows.length + ':' + (h >>> 0).toString(36);
+}
+
+// founder_vision 单行表：updatedAt 若每次生成新时间戳 → 指纹恒变 → 无条件重建。
+// content 未变化时复用上次写入的 updatedAt，使指纹稳定、该表可被跳过。
+let founderCachedContent: string | null = null;
+let founderCachedAt: string | null = null;
+
+function buildAllSpecs(): TableSpec[] {
+  // Table definitions: [tableName, createSQL (must match the schema), insertSQL, rowMapper]
   const specs: TableSpec[] = [
     {
       name: 'users',
@@ -1103,29 +1158,66 @@ async function runPersist(): Promise<void> {
     name: 'founder_vision',
     createSQL: `CREATE TABLE _temp_founder_vision (id INTEGER PRIMARY KEY CHECK (id = 1), content TEXT NOT NULL, updatedAt TEXT NOT NULL)`,
     insertSQL: `INSERT INTO _temp_founder_vision (id, content, updatedAt) VALUES (?, ?, ?)`,
-    rows: () => memoryDB.founderVision ? [[1, memoryDB.founderVision, new Date().toISOString()]] : [],
+    rows: () => {
+      if (!memoryDB.founderVision) return [];
+      if (founderCachedContent !== memoryDB.founderVision) {
+        founderCachedContent = memoryDB.founderVision;
+        founderCachedAt = new Date().toISOString();
+      }
+      return [[1, memoryDB.founderVision, founderCachedAt!]];
+    },
   };
 
-  const allSpecs = [...specs, founderSpec];
+  return [...specs, founderSpec];
+}
+
+/** 启动期调用：加载态即持久态，填充指纹后启动 flushDB 的比对全部命中（零 SQL） */
+function seedPersistedFingerprints(): void {
+  lastPersistedFingerprints.clear();
+  for (const spec of buildAllSpecs()) {
+    lastPersistedFingerprints.set(spec.name, computeTableFingerprint(spec.rows()));
+  }
+}
+
+async function runPersist(): Promise<void> {
+  const allSpecs = buildAllSpecs();
+  // 快照取数：指纹与写入共用同一批行，避免取数期间数据漂移造成表内新旧混杂
+  const plan: { spec: TableSpec; rows: any[][] }[] = [];
+  for (const spec of allSpecs) {
+    const rows = spec.rows();
+    const fp = computeTableFingerprint(rows);
+    if (fp === lastPersistedFingerprints.get(spec.name)) {
+      continue; // 表内容未变化 → 零 SQL 跳过
+    }
+    lastPersistedFingerprints.set(spec.name, fp);
+    plan.push({ spec, rows });
+  }
+  if (plan.length === 0) {
+    // 全表无变化（重启首刷/静默期）→ 无事务、无写锁，秒级返回
+    return;
+  }
+  if (plan.length < allSpecs.length) {
+    console.log(`[DB] 增量持久化 ${plan.length}/${allSpecs.length} 张变化表: ${plan.map(p => p.spec.name).join(', ')}`);
+  }
 
   await run('BEGIN TRANSACTION');
   try {
     // Phase 1: Create temp tables and populate them
-    for (const spec of allSpecs) {
+    for (const { spec, rows } of plan) {
       await run(`DROP TABLE IF EXISTS _temp_${spec.name}`);
       await run(spec.createSQL);
-      for (const row of spec.rows()) {
+      for (const row of rows) {
         await run(spec.insertSQL, row);
       }
     }
 
     // Phase 2: Drop original tables
-    for (const spec of allSpecs) {
+    for (const { spec } of plan) {
       await run(`DROP TABLE IF EXISTS ${spec.name}`);
     }
 
     // Phase 3: Rename temp tables to original names (atomic in SQLite within a transaction)
-    for (const spec of allSpecs) {
+    for (const { spec } of plan) {
       await run(`ALTER TABLE _temp_${spec.name} RENAME TO ${spec.name}`);
     }
 
@@ -1133,13 +1225,60 @@ async function runPersist(): Promise<void> {
   } catch (err) {
     // On failure, clean up temp tables and rollback
     try {
-      for (const spec of allSpecs) {
+      for (const { spec } of plan) {
         await run(`DROP TABLE IF EXISTS _temp_${spec.name}`);
       }
     } catch {}
     await run('ROLLBACK');
     throw err;
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// P2-4 SQLite 自动归档（防无限膨胀）
+// 阈值 100MB + 每天最多一次 + 启动即检查。VACUUM INTO 生成完整一致的副本，
+// 不触碰原库（归档 ≠ 清理），归档后原库继续增长，可手动把旧副本移走回收空间。
+// ═══════════════════════════════════════════════════════════════════
+const ARCHIVE_MIN_SIZE_BYTES = 100 * 1024 * 1024;     // 归档阈值 100MB
+const ARCHIVE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 例行检查周期 6h
+let archiveTimer: NodeJS.Timeout | null = null;
+
+function archiveTodayKey(): string {
+  const d = new Date();
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+}
+
+async function archiveDatabase(): Promise<void> {
+  try {
+    let sizeBytes = 0;
+    try { sizeBytes = fs.statSync(DB_PATH).size; } catch { return; } // 库文件不存在/不可读
+    if (sizeBytes < ARCHIVE_MIN_SIZE_BYTES) return; // 未达阈值不归档
+    const archiveDir = path.join(getDataRoot(), 'data', 'db_archive');
+    fs.mkdirSync(archiveDir, { recursive: true });
+    const archivePath = path.join(archiveDir, `peppa-${archiveTodayKey()}.db`);
+    if (fs.existsSync(archivePath)) return; // 当天已归档过，避免重复膨胀
+    // VACUUM INTO 必须在事务外执行；经串行队列独占连接（含 BUSY 指数退避外壳）
+    await enqueueOp(() =>
+      execWithRetry(
+        (conn) =>
+          new Promise<void>((resolve, reject) => {
+            conn.run(`VACUUM INTO '${archivePath.replace(/'/g, "''")}'`, (err) => (err ? reject(err) : resolve()));
+          }),
+        'archive VACUUM INTO',
+      ),
+    );
+    console.log(`[DB] 自动归档完成: ${archivePath} (${(sizeBytes / 1024 / 1024).toFixed(1)}MB)`);
+  } catch (err) {
+    console.error('[DB] 自动归档失败（非致命，下次例行检查重试）:', (err as any)?.message ?? err);
+  }
+}
+
+/** 启动即检查一次 + 每 6h 例行检查；unref 定时器不阻止进程退出 */
+export function scheduleDatabaseArchive(): void {
+  if (archiveTimer) return;
+  void archiveDatabase();
+  archiveTimer = setInterval(() => { void archiveDatabase(); }, ARCHIVE_CHECK_INTERVAL_MS);
+  if (typeof archiveTimer.unref === 'function') archiveTimer.unref();
 }
 
 let initPromise: Promise<void> | null = null;

@@ -21,6 +21,11 @@ const PRAGMAS: string[] = [
   'PRAGMA synchronous=NORMAL', // 与 WAL 搭配的推荐持久性级别（适配 NAS 磁盘 IO）
   'PRAGMA busy_timeout=5000',  // 驱动内部锁等待上限
   'PRAGMA foreign_keys=ON',
+  // P1-1 锁竞争优化：页缓存放大到 20MB（负值=KiB），热点表页常驻内存减少读盘；
+  // wal_autocheckpoint 提到 5000 页（≈20MB）→ checkpoint 触发频率降低，
+  // 检索/读路径与持久化写路径的交错持锁窗口更短，缓解 SQLITE_BUSY
+  'PRAGMA cache_size=-20000',
+  'PRAGMA wal_autocheckpoint=5000',
 ];
 
 interface DbEntry {

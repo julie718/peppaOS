@@ -91,9 +91,28 @@ export async function retrieveRelevantMemories(
   try {
     // 带超时的 Promise 包装（超时不关闭句柄：单例连接生命周期归进程，超时仅放弃本次结果）
     const result = await new Promise<InteractionMemory[]>((resolve) => {
-      const timeout = setTimeout(() => {
-        resolve([]); // 超时不阻塞
+      // P1-3 修复静默短路：原实现 3s 定时器直接 resolve([])，SQLite 繁忙时查询稍慢
+      // → 3s 时已 resolve 空数组 → 稍后到达的真实结果被 Promise 丢弃 → 记忆上下文
+      // 永久缺失且无任何日志（每次对话静默空上下文）。
+      // 现在：3s 仅记录软警告并继续等待真实结果（由查询回调 resolve）；
+      // 10s 硬上限兜底（驱动真正卡死才放弃，且保留警告日志）。
+      let settled = false;
+      const finish = (value: InteractionMemory[]) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(softTimeout);
+        clearTimeout(hardTimeout);
+        resolve(value);
+      };
+      const softTimeout = setTimeout(() => {
+        if (settled) return;
+        logger.warn('[Retriever] interactions 查询超过 3s（SQLite 繁忙？），继续等待真实结果（硬上限 10s）');
       }, 3000);
+      const hardTimeout = setTimeout(() => {
+        if (settled) return;
+        logger.warn('[Retriever] interactions 查询超过 10s 硬上限，放弃本轮检索（驱动异常，不影响对话）');
+        finish([]);
+      }, 10000);
 
       // E-3: 全新库静默降级 — interactions 表尚未创建时（首次启动未初始化）
       // 直接返回空数组，不产生 "no such table" WARN 噪音（修复前每轮对话刷 WARN）
@@ -101,17 +120,15 @@ export async function retrieveRelevantMemories(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='interactions'",
         (tableErr, tableRow) => {
           if (tableErr || !tableRow) {
-            clearTimeout(timeout);
-            resolve([]);
+            finish([]);
             return;
           }
 
           // 提取关键词
           const keywords = extractKeywords(text);
           if (keywords.length === 0) {
-            clearTimeout(timeout);
             // 回退：返回最近 N 条记录
-            fallbackRecent(db, limit, resolve);
+            fallbackRecent(db, limit, finish);
             return;
           }
 
@@ -122,16 +139,15 @@ export async function retrieveRelevantMemories(
           const params = [...likeParams, Math.max(limit * 3, 20)];
 
           db.all(sql, params, (err2, rows: any[]) => {
-            clearTimeout(timeout);
             if (err2) {
               logger.warn('[Retriever] interactions 查询失败:', err2.message);
-              resolve([]);
+              finish([]);
               return;
             }
 
             if (!rows || rows.length === 0) {
               // 回退：返回最近 N 条记录
-              fallbackRecent(db, limit, resolve);
+              fallbackRecent(db, limit, finish);
               return;
             }
 
@@ -145,7 +161,7 @@ export async function retrieveRelevantMemories(
             }));
 
             scored.sort((a, b) => b.similarity - a.similarity);
-            resolve(scored.slice(0, limit));
+            finish(scored.slice(0, limit));
           });
         },
       );

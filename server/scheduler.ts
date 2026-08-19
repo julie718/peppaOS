@@ -44,6 +44,8 @@ interface ScheduledTask {
   quiet?: boolean;
   /** If false, task is paused and will not fire */
   enabled?: boolean;
+  /** P1-2 防重入：handler 执行中置位；下一周期触发时若仍为 true 则跳过本轮 */
+  running?: boolean;
 }
 
 type LLMGetters = {
@@ -209,21 +211,18 @@ class Scheduler {
     if (parsed.type === 'interval') {
       // Simple fixed interval — use setInterval (backward compat)
       const timer = setInterval(async () => {
-        try {
-          const message = await task.handler();
-          task.lastRun = new Date().toISOString();
-          if (message && this.io) {
-            this.saveProactiveMessage(task.id, message, task.lastRun);
-            if (!task.quiet) {
-              this.io.emit('agent:proactive', {
-                taskId: task.id,
-                message,
-                timestamp: task.lastRun,
-              });
-            }
+        const { ran, message } = await this.runTask(task);
+        if (!ran) return; // P1-2 防重入：上轮未结束，本轮跳过
+        task.lastRun = new Date().toISOString();
+        if (message && this.io) {
+          this.saveProactiveMessage(task.id, message, task.lastRun);
+          if (!task.quiet) {
+            this.io.emit('agent:proactive', {
+              taskId: task.id,
+              message,
+              timestamp: task.lastRun,
+            });
           }
-        } catch (err: any) {
-          logger.warn(`[Scheduler] Task "${task.id}" failed:`, err.message);
         }
       }, parsed.intervalMs);
       this.timers.set(task.id, timer);
@@ -231,8 +230,8 @@ class Scheduler {
     } else {
       // Real cron expression — use recursive setTimeout to hit exact times
       const runAndReschedule = async () => {
-        try {
-          const message = await task.handler();
+        const { ran, message } = await this.runTask(task);
+        if (ran) {
           task.lastRun = new Date().toISOString();
           if (message && this.io) {
             this.saveProactiveMessage(task.id, message, task.lastRun);
@@ -244,10 +243,8 @@ class Scheduler {
               });
             }
           }
-        } catch (err: any) {
-          logger.warn(`[Scheduler] Task "${task.id}" failed:`, err.message);
         }
-        // Schedule next run
+        // Schedule next run（防重入跳过时仍按原周期排程，不因慢执行积累偏移）
         const nextMs = this.nextCronTime(parsed.fields!);
         this.setTaskTimeout(task.id, runAndReschedule, nextMs);
       };
@@ -275,13 +272,43 @@ class Scheduler {
     return timer;
   }
 
+  /**
+   * P1-2 任务防重入：interval 与 cron 两条路径共用的执行外壳。
+   * handler 执行期间再次触发（慢 LLM 调用跨过多个调度周期）→ 跳过本轮，
+   * 防止并发执行导致 LLM token 爆炸 / SQLite 写风暴（同任务多实例）。
+   * ran=false 表示被防重入跳过（本轮不算执行，lastRun 不更新）；handler 异常
+   * 已在此捕获并记录（保持原 try/catch 行为）。
+   */
+  private async runTask(task: ScheduledTask): Promise<{ ran: boolean; message: string | null }> {
+    if (task.running) {
+      logger.warn(`[Scheduler] Task "${task.id}" 仍在上轮执行中，跳过本轮触发（防重入）`);
+      return { ran: false, message: null };
+    }
+    task.running = true;
+    try {
+      return { ran: true, message: await task.handler() };
+    } catch (err: any) {
+      logger.warn(`[Scheduler] Task "${task.id}" failed:`, err?.message ?? err);
+      return { ran: true, message: null };
+    } finally {
+      task.running = false;
+    }
+  }
+
   /** Parse a cron string — returns either a fixed interval or cron field array */
   private parseCron(cron: string): { type: 'interval'; intervalMs: number } | { type: 'cron'; fields: number[] } {
     // Aliases (backward compatible)
+    // P1-2 修复：原实现缺失 every_10s/every_1m/every_hour/every_24h → 静默 fallback 到 1h，
+    // 导致 ambient_activity_poll(10s)、idle_check(1m)、auto_workflow_gen(every_hour)、
+    // daily_system_scan(24h) 全部退化为 1 小时周期（idle 检测 1m→1h，扫描 24h→1h 空转）。
     switch (cron) {
+      case 'every_10s': return { type: 'interval', intervalMs: 10 * 1000 };
+      case 'every_1m': return { type: 'interval', intervalMs: 60 * 1000 };
       case 'every_5m': return { type: 'interval', intervalMs: 5 * 60 * 1000 };
       case 'every_1h': return { type: 'interval', intervalMs: 60 * 60 * 1000 };
+      case 'every_hour': return { type: 'interval', intervalMs: 60 * 60 * 1000 };
       case 'every_6h': return { type: 'interval', intervalMs: 6 * 60 * 60 * 1000 };
+      case 'every_24h': return { type: 'interval', intervalMs: 24 * 60 * 60 * 1000 };
       case 'daily_9am': return { type: 'interval', intervalMs: 24 * 60 * 60 * 1000 };
       case 'evening_8pm': return { type: 'interval', intervalMs: 24 * 60 * 60 * 1000 };
       case 'every_30m': return { type: 'interval', intervalMs: 30 * 60 * 1000 };

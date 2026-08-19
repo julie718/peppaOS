@@ -28,6 +28,8 @@ export function registerPerceptionHandlers(socket: Socket, getUserId: (s: Socket
     });
     if (events.length > MAX_PERCEPTION_EVENTS) events.shift();
     perceptionEvents.set(uid, events);
+    // P2-3 感知通道：独立落盘 logs/perception.log
+    logger.perception(`[Perception] visual_scene user=${uid}: ${String(data.description || '').slice(0, 80)}`);
   }));
 
   socket.on("perception:audio_emotion", socketGuard((data: { emotion: string; intensity?: number }) => {
@@ -41,6 +43,8 @@ export function registerPerceptionHandlers(socket: Socket, getUserId: (s: Socket
     });
     if (events.length > MAX_PERCEPTION_EVENTS) events.shift();
     perceptionEvents.set(uid, events);
+    // P2-3 感知通道：独立落盘 logs/perception.log
+    logger.perception(`[Perception] audio_emotion user=${uid}: ${String(data.emotion || '')} (${data.intensity ?? ''})`);
 
     if (uid !== 'anonymous') {
       const emotionImpact: Record<string, number> = {
@@ -74,5 +78,7 @@ export function registerPerceptionHandlers(socket: Socket, getUserId: (s: Socket
     });
     if (events.length > MAX_PERCEPTION_EVENTS) events.shift();
     perceptionEvents.set(uid, events);
+    // P2-3 感知通道：独立落盘 logs/perception.log
+    logger.perception(`[Perception] spatial_update user=${uid}: ${String(data.roomType || '')}`);
   }));
 }

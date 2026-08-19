@@ -13,22 +13,38 @@ declare global {
 import { setIO } from './server/lib/pushService';
 
 // ── Required environment variables ──
+// P1-4 说明：JWT_SECRET 缺失属启动前配置错误，此处 throw（此时全局异常处理器
+// 尚未注册，进程以未捕获异常自然退出 = 显式 fail-fast，非全局猝死逻辑）。
 if (!process.env.JWT_SECRET) {
   console.error('[FATAL] JWT_SECRET is required. Set it in .env or docker-compose.yml.');
-  process.exit(1);
+  throw new Error('JWT_SECRET is required. Set it in .env or docker-compose.yml.');
 }
 
 // ── Global exception handlers (must be first — before any async setup) ──
 import { logger } from './server/lib/logger';
 
+// P1-4 废除全局暴力 process.exit：单次未捕获异常/拒绝不再猝死整个服务
+//（修复前 setTimeout(process.exit, 1000) 使任何后台任务的偶发异常都导致
+//  容器重启/对话中断/内存脏数据丢失）。
+// 现在：记录完整堆栈 + 尽力落盘（5s 节流），服务保持存活；反复崩溃由
+// launcher 的 crash-retry 层（launcher.ts handleFatalCrashes）兜底判定重启。
+let lastCrashFlushAt = 0;
+async function flushDBBestEffort(): Promise<void> {
+  try {
+    if (Date.now() - lastCrashFlushAt < 5000) return; // 崩溃风暴节流
+    lastCrashFlushAt = Date.now();
+    const { flushDB } = await import('./db_layer');
+    await flushDB();
+  } catch {}
+}
 process.on('uncaughtException', (err) => {
-  logger.error('[FATAL] Uncaught exception:', err.message, err.stack);
-  setTimeout(() => process.exit(1), 1000);
+  logger.error('[FATAL] Uncaught exception（服务保持存活）:', err.message, err.stack);
+  void flushDBBestEffort();
 });
 process.on('unhandledRejection', (reason) => {
   const stack = reason instanceof Error ? reason.stack : '';
-  logger.error('[FATAL] Unhandled rejection:', String(reason), stack);
-  setTimeout(() => process.exit(1), 1000);
+  logger.error('[FATAL] Unhandled rejection（服务保持存活）:', String(reason), stack);
+  void flushDBBestEffort();
 });
 
 import { fileURLToPath } from "url";
@@ -390,6 +406,9 @@ try {
   console.error('[Paradigm-Phase0] 状态输出失败:', err);
 }
 
+// P1-4 说明：此处的 process.exit(1) 是启动失败 fail-fast（服务从未进入可用状态，
+// 无任何会话/脏数据可救），由 docker restart 策略拉起重试 —— 与「全局猝死处理器」
+// 无关，属有意保留的显式退出。bootstrap 内部 DB 初始化失败经 throw 汇入此处。
 start().catch((err) => {
   console.error('[FATAL] Server startup failed:', err.message);
   console.error(err.stack);

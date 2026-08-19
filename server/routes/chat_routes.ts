@@ -43,6 +43,39 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
       }
     }
 
+    // ── P0-2 首字节先行：校验完成后立即发送响应头并 flush，
+    // 修复 Caddy/nginx/Cloudflare 因 upstream 长时间无响应字节判定 502/524 bad-gateway。
+    // 非流式响应体为 JSON（前导空白不破坏 JSON.parse，前端调用方 await res.json() 兼容）；
+    // 流式路径附加 X-Accel-Buffering: no 关闭 nginx 响应缓冲。
+    const stream = req.query.stream === 'true';
+    if (stream) {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      });
+    } else {
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'X-Accel-Buffering': 'no',
+      });
+    }
+    res.flushHeaders();
+
+    // 心跳保活：LLM 长思考/长工具链期间每 15s 写一个空白帧（SSE 为注释行），
+    // 维持代理连接活跃（nginx proxy_read_timeout 默认 60s / Cloudflare 524 阈值 100s）
+    let keepAliveTimer: ReturnType<typeof setInterval> | null = null;
+    const stopKeepAlive = () => {
+      if (keepAliveTimer) { clearInterval(keepAliveTimer); keepAliveTimer = null; }
+    };
+    keepAliveTimer = setInterval(() => {
+      if (res.writableEnded || res.destroyed) { stopKeepAlive(); return; }
+      try {
+        res.write(stream ? ': keepalive\n\n' : ' ');
+      } catch { stopKeepAlive(); }
+    }, 15000);
+
     try {
       let responseText = '';
 
@@ -153,15 +186,9 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
           }))
         ];
 
-        const stream = req.query.stream === 'true';
-
         if (stream) {
-          res.writeHead(200, {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-          });
-
+          // P0-2：响应头已在进入 handler 时先行发出（writeHead+flushHeaders），
+          // 此处不再重复写头（重复写头会抛 "Cannot write headers after they are sent"）
           const result = await runWithTools(
             normalizedMessages,
             toolRegistry,
@@ -187,6 +214,7 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
           recordUsage(userId, tokens);
           persistInteraction(responseText);
           res.write(`data: ${JSON.stringify({ done: true, text: responseText, toolCalls: result.toolCalls.length })}\n\n`);
+          stopKeepAlive();
           return res.end();
         }
 
@@ -211,12 +239,26 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
         }
         const usage = recordUsage(userId, tokens);
         persistInteraction(responseText);
-        return res.json({ text: responseText, usage, toolCalls: result.toolCalls.length });
+        // 头已先行发出（P0-2）：直接以 JSON 体收尾（形状与修复前 res.json 完全一致）
+        stopKeepAlive();
+        return res.end(JSON.stringify({ text: responseText, usage, toolCalls: result.toolCalls.length }));
       }
 
-      res.json({ text: responseText });
+      // 头已先行发出（P0-2）：直接以 JSON 体收尾（形状与修复前 res.json 完全一致）
+      stopKeepAlive();
+      return res.end(JSON.stringify({ text: responseText }));
     } catch (error: any) {
       logger.error("AI Proxy Error:", error);
+      stopKeepAlive();
+      if (res.headersSent) {
+        // P0-2 首字节先行后不能再改状态码：以 JSON 错误体收尾（前端 await res.json() 兼容）
+        if (stream) {
+          res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+        } else {
+          res.write(JSON.stringify({ error: error.message }));
+        }
+        return res.end();
+      }
       res.status(500).json({ error: error.message });
     }
   });

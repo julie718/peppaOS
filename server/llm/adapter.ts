@@ -612,6 +612,11 @@ export async function runWithTools(
       };
       executionLog.push(record);
       onToolCall?.(record);
+      // P2-3 动作通道：机器人/工具动作独立落盘 logs/action.log
+      logger.action(
+        `[Action] tool=${tc.name} ok=${error ? 'false' : 'true'}${error ? ` error="${String(error).slice(0, 120)}"` : ''} ` +
+        `result="${String(result).slice(0, 100)}"`,
+      );
 
       conversationHistory.push({
         role: 'tool',

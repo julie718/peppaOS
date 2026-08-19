@@ -54,9 +54,11 @@ function schedulePostStartupFlush(delayMs: number) {
 export async function bootstrap(ctx: BootstrapContext) {
   const { server, io, PORT, HOST, jwtSecret, llm, __dirname } = ctx;
 
+  // P1-4：启动期配置/DB 初始化失败改为 throw → 汇入 server.ts start().catch
+  // 的 fail-fast 退出（服务从未启动，无会话可救），不再在 bootstrap 内直接
+  // process.exit(1)（全局猝死逻辑已废除，此处显式 throw 不会被错误吞掉）。
   if (!jwtSecret) {
-    logger.error('FATAL: JWT_SECRET environment variable is not set.');
-    process.exit(1);
+    throw new Error('JWT_SECRET environment variable is not set.');
   }
 
   try {
@@ -66,7 +68,7 @@ export async function bootstrap(ctx: BootstrapContext) {
     await flushDB();
   } catch (error) {
     logger.error('Failed to initialize database:', error);
-    process.exit(1);
+    throw error;
   }
 
   // Peppa account is created via /api/auth/register or db migration.
@@ -121,13 +123,19 @@ export async function bootstrap(ctx: BootstrapContext) {
     logger.info('[GPT-SoVITS] Not found — TTS will use cloud providers only.');
   }
 
+  // P1-4 说明：EADDRINUSE 属致命启动失败（服务从未成功绑定端口，无会话可救），
+  // 保留显式 fail-fast 退出，由 docker restart 策略拉起重试；非「全局猝死逻辑」。
+  // 其余 listen 期错误仅记录并尽力落盘，不再直接杀进程。
   server.on('error', (err: NodeJS.ErrnoException) => {
     if (err.code === 'EADDRINUSE') {
       logger.error(`[FATAL] Port ${PORT} is already in use. Please close the other process and try again.`);
+      process.exit(1);
     } else {
-      logger.error('[FATAL] Server error:', err.message);
+      logger.error('[FATAL] Server error（保持存活）:', err.message);
+      try {
+        flushDB().catch(() => {});
+      } catch {}
     }
-    process.exit(1);
   });
 
   server.listen(PORT, HOST, () => {

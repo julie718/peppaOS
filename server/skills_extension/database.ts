@@ -154,6 +154,12 @@ function get<T>(sql: string, params: any[] = []): Promise<T | undefined> {
   );
 }
 
+/** 表内列存在性检查（PRAGMA table_info），供 ALTER ADD COLUMN 幂等判断 */
+async function columnExists(table: string, column: string): Promise<boolean> {
+  const rows = await all<{ name: string }>(`PRAGMA table_info(${table})`);
+  return rows.some(r => r.name === column);
+}
+
 /** 阶段三 5 张数据表定义（完整迁移） */
 const TABLES: Array<{ name: string; sql: string }> = [
   {
@@ -257,18 +263,24 @@ export async function migrateSkillsTables(): Promise<{ success: boolean; tables:
       errors.push(`${t.name}: ${e.message}`);
     }
   }
-  // P2-4/P2-2：既有数据库增量补列（CREATE TABLE IF NOT EXISTS 不作用于已存在表；
-  // ALTER 列已存在时抛错，静默忽略 = 幂等）
-  const ALTERS: Array<{ table: string; sql: string }> = [
-    { table: 'tool_monitoring', sql: `ALTER TABLE tool_monitoring ADD COLUMN source TEXT DEFAULT 'community'` },
-    { table: 'sandbox_config', sql: `ALTER TABLE sandbox_config ADD COLUMN risk_level TEXT DEFAULT 'safe'` },
+  // P2-4/P2-2：既有数据库增量补列（CREATE TABLE IF NOT EXISTS 不作用于已存在表）。
+  // 幂等修复：ADD COLUMN 前先 PRAGMA table_info 查列存在性，列已存在直接跳过 ALTER 语句，
+  // 消除旧实现"先执行后 catch 吞错"在重启/重部署时产生的 duplicate column name 报错输出。
+  const ALTERS: Array<{ table: string; column: string; sql: string }> = [
+    { table: 'tool_monitoring', column: 'source', sql: `ALTER TABLE tool_monitoring ADD COLUMN source TEXT DEFAULT 'community'` },
+    { table: 'sandbox_config', column: 'risk_level', sql: `ALTER TABLE sandbox_config ADD COLUMN risk_level TEXT DEFAULT 'safe'` },
   ];
   for (const a of ALTERS) {
     try {
+      if (await columnExists(a.table, a.column)) {
+        logger.info(`[SkillsDB] 增量迁移: ${a.table}.${a.column} 列已存在，跳过 ALTER`);
+        continue;
+      }
       await run(a.sql);
-      logger.info(`[SkillsDB] 增量迁移: ${a.table} 补列完成`);
-    } catch {
-      /* 列已存在 → 幂等忽略 */
+      logger.info(`[SkillsDB] 增量迁移: ${a.table} 补列 ${a.column} 完成`);
+    } catch (e: any) {
+      // 兜底：重复列已由列存在性检查前置排除，走到这里的是真实异常 → 显式告警，不再静默吞错
+      logger.warn(`[SkillsDB] 增量迁移: ${a.table} 补列 ${a.column} 失败: ${e?.message ?? e}`);
     }
   }
 
