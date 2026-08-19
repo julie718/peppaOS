@@ -871,20 +871,26 @@ main().catch((err) => { logger.error('[npm-skill] Fatal:', err); process.exit(1)
         this.registerLocalSkill(entry.name, skillDir, pkg);
       } else if (
         config[entry.name].source === 'local'
-        && config[entry.name].command === 'npx'
-        && config[entry.name].args?.[0] === 'tsx'
+        && (config[entry.name].command === 'npx' || config[entry.name].command?.endsWith('/tsx') || config[entry.name].command?.endsWith('.bin/tsx'))
+        && (config[entry.name].command === 'npx' ? config[entry.name].args?.[0] === 'tsx' : true)
       ) {
-        // 存量配置迁移：旧版 `npx tsx <skill>` 生成 2-4 层进程链（见 resolveTsxCli 注释），
-        // 一次性改写为 node <cli.mjs> 直跑，避免重启后仍按旧命令拉起整条链。
+        // 存量配置迁移：旧版 `npx tsx <skill>` / `/app/node_modules/.bin/tsx <skill>` 生成
+        // 2-4 层进程链（见 resolveTsxCli 注释），一次性改写为 node <cli.mjs> 直跑，
+        // 避免重启后仍按旧命令拉起整条链。tsx bin 形式（command 以 /tsx 结尾）同样覆盖。
         // ⚠️ 必须重新读取文件再保存：`config` 是循环开始前捕获的旧对象，
         // 若前面迭代已注册新技能，用它覆盖会把新技能从配置里抹掉。
         const fresh = this.getConfig();
         const cfg = fresh[entry.name];
-        if (cfg && cfg.source === 'local' && cfg.command === 'npx' && cfg.args?.[0] === 'tsx') {
+        const oldCommand = cfg?.command;
+        const isTsxLaunch = cfg
+          && cfg.source === 'local'
+          && (cfg.command === 'npx' ? cfg.args?.[0] === 'tsx' : cfg.command?.endsWith('/tsx') || cfg.command?.endsWith('.bin/tsx'));
+        if (isTsxLaunch) {
           cfg.command = 'node';
-          cfg.args = [this.resolveTsxCli(), ...cfg.args!.slice(1)];
+          // npx tsx <skill> → 去 tsx 参数；tsx bin 形式 <skill> 直接保留
+          cfg.args = [this.resolveTsxCli(), ...cfg.args!.slice(oldCommand === 'npx' ? 1 : 0)];
           this.saveConfig(fresh);
-          logger.info(`[MCP] ${entry.name}: 迁移技能启动命令 npx tsx → node ${this.resolveTsxCli()}`);
+          logger.info(`[MCP] ${entry.name}: 迁移技能启动命令 → node ${this.resolveTsxCli()}`);
         }
       }
     }
