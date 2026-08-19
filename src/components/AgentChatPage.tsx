@@ -635,6 +635,28 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
   const activeChatRequestIdRef = useRef<string | null>(null);
   const initialLoadDoneRef = useRef(false);
   const lastAgentIdRef = useRef<string>('');
+  // P0-3: REST 兜底回复"占位气泡"追踪。
+  // 45s REST fallback 的回复渲染进该气泡（而非追加新消息）；若之后 socket 流式回复
+  //（agent:chunk / agent:response）到达，组件级 handler 接管并替换该气泡，
+  // 保证同一轮请求只产生一条回复气泡（修复"对话不理人"的静默丢弃根因）。
+  const fallbackMsgIdRef = useRef<string | null>(null);
+  const fallbackIsPlaceholderRef = useRef(false);
+
+  // P2-1 网络状态：socket 断开/重连中时显示顶部横幅（订阅 socketService.onStatusChange）
+  const [socketConnected, setSocketConnected] = useState(true);
+  const [socketReconnecting, setSocketReconnecting] = useState(false);
+  useEffect(() => {
+    // 初始同步：仅当已有非默认状态（已连上/重连中）时采用，避免首次加载闪红条
+    const st = socketService.getStatus();
+    if (st !== 'disconnected') {
+      setSocketConnected(st === 'connected');
+      setSocketReconnecting(st === 'reconnecting');
+    }
+    return socketService.onStatusChange(status => {
+      setSocketConnected(status === 'connected');
+      setSocketReconnecting(status === 'reconnecting');
+    });
+  }, []);
   // ── 记忆重放游标（数字生命体·方案④）：记录"感知窗口已看到哪"（最后一条服务端消息的 timestamp+id）──
   const cursorRef = useRef<{ ts: string; id: string } | null>(null);
   const replayingRef = useRef(false);
@@ -666,6 +688,21 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
 
     const onChunk = (data: { text: string; agentName: string; requestId?: string; source?: string }) => {
       if (!isCurrentChatEvent(data)) return;
+      // P0-3: 流式首个 chunk 到来时，若存在 REST 兜底占位气泡 → 接管它
+      //（占位文本整体替换为流式首片，后续 chunk 追加），保证不产生双气泡。
+      const fallbackId = fallbackMsgIdRef.current;
+      if (fallbackId && !streamingMsgId.current) {
+        streamingMsgId.current = fallbackId;
+        fallbackMsgIdRef.current = null;
+        const replaceAll = fallbackIsPlaceholderRef.current;
+        fallbackIsPlaceholderRef.current = false;
+        setMessages(prev => prev.map(m =>
+          m.id === fallbackId
+            ? { ...m, text: replaceAll ? data.text : m.text + data.text, userName: data.agentName }
+            : m
+        ));
+        return;
+      }
       if (streamingMsgId.current) {
         setMessages(prev => prev.map(m =>
           m.id === streamingMsgId.current ? { ...m, text: m.text + data.text } : m
@@ -783,7 +820,19 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
         setWorkflowSteps([]);
         seenWorkflowToolEvents.current.clear();
       }, 5000);
-      if (streamingMsgId.current) {
+      // P0-3: 服务端完整回复优先 — 若 REST 兜底占位气泡仍在（说明 45s 兜底已渲染），
+      // 用服务端文本覆盖之，保证不出现"兜底回复 + 服务端回复"双气泡。
+      if (fallbackMsgIdRef.current) {
+        const fbId = fallbackMsgIdRef.current;
+        fallbackMsgIdRef.current = null;
+        fallbackIsPlaceholderRef.current = false;
+        streamingMsgId.current = null;
+        setMessages(prev => prev.map(m =>
+          m.id === fbId
+            ? { ...m, text: (data.text && data.text.trim()) ? data.text : m.text, userName: data.agentName }
+            : m
+        ));
+      } else if (streamingMsgId.current) {
         // Finalize streamed message; keep chunked text if response text is empty.
         const finalText = (data.text && data.text.trim()) ? data.text : null;
         setMessages(prev => prev.map(m =>
@@ -875,6 +924,14 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
         setWorkflowSteps([]);
         seenWorkflowToolEvents.current.clear();
       }, 5000);
+      // P0-3: 服务端明确失败（agent:error）→ REST 兜底占位气泡一并移除，
+      // 避免"兜底回复"与"失败提示"双气泡语义矛盾（下方会追加错误气泡）。
+      if (fallbackMsgIdRef.current) {
+        const fbId = fallbackMsgIdRef.current;
+        fallbackMsgIdRef.current = null;
+        fallbackIsPlaceholderRef.current = false;
+        setMessages(prev => prev.filter(m => m.id !== fbId));
+      }
       if (streamingMsgId.current) {
         const sid = streamingMsgId.current;
         setMessages(prev => prev.filter(m => m.id !== sid));
@@ -1099,9 +1156,14 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
     setIsTyping(true);
     const requestId = `chat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     activeChatRequestIdRef.current = requestId;
+    // P0-3: 新一轮请求重置 REST 兜底气泡追踪 — 上一轮遗留的占位气泡不再被接管
+    //（旧请求的迟到事件也已被 isCurrentChatEvent 的 requestId 比对过滤）。
+    fallbackMsgIdRef.current = null;
+    fallbackIsPlaceholderRef.current = false;
 
     let resolved = false;
     let safetyTimer: ReturnType<typeof setTimeout>;
+    let hardTimeout: ReturnType<typeof setTimeout>;
     let restFallbackTimer: ReturnType<typeof setTimeout> | null = null;
     const isCurrentResponse = (data?: { requestId?: string; source?: string }) => {
       if (!data?.requestId || !activeChatRequestIdRef.current) return false;
@@ -1118,6 +1180,7 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
       if (resolved) return;
       resolved = true;
       clearTimeout(safetyTimer);
+      clearTimeout(hardTimeout);
       if (restFallbackTimer) clearTimeout(restFallbackTimer);
       cleanupSocketWaiters();
       setIsTyping(false);
@@ -1129,11 +1192,26 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
       if (!isCurrentResponse(data)) return;
       if (data.status === 'idle' || data.status === 'error') resolve();
     };
+    // P0-3 修复（"对话不理人"根因）：30s/60s 超时不再 resolve()/cleanupSocketWaiters()。
+    // 旧逻辑超时后立即清空 activeChatRequestIdRef 并卸载 waiters，此后迟到的
+    // agent:response/agent:chunk 全部被组件级 isCurrentChatEvent 静默丢弃，
+    // 服务器一忙（>30s）用户就永远收不到回复。现在超时只恢复 UI（停打字动画），
+    // 请求追踪与 waiters 保留 — 迟到的回复照常渲染。
     safetyTimer = setTimeout(() => {
       if (!resolved) {
-        resolve();
+        console.warn(`[Chat] ${requestId} 超时（${outgoingAttachments.length > 0 ? 60 : 30}s）未见终态，仅恢复 UI，迟到的回复仍会送达渲染`);
+        setIsTyping(false);
       }
     }, outgoingAttachments.length > 0 ? 60000 : 30000);
+    // 5 分钟硬上限：正常终态（agent:response / agent:error / status idle|error）始终经
+    // resolve() 清理；此处仅防极端情况下（服务器彻底失联且 REST 也失败）waiters 与
+    // requestId 无限期泄漏。
+    hardTimeout = setTimeout(() => {
+      if (!resolved) {
+        console.warn(`[Chat] ${requestId} 5 分钟未收到任何终态事件，强制结束本轮追踪`);
+        resolve();
+      }
+    }, 5 * 60 * 1000);
 
     socket.on('agent:response', onResponse);
     socket.on('agent:error', onError);
@@ -1153,23 +1231,43 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
       requestId,
     });
 
-    // Parallel REST fallback after 5s if socket hasn't responded. It is text-only,
+    // Parallel REST fallback after 45s if socket hasn't responded. It is text-only,
     // so attachment turns wait for the socket path that preserves file context.
     restFallbackTimer = outgoingAttachments.length === 0 ? setTimeout(async () => {
       if (resolved) return;
       try {
         const response = await runAgentLogic(outgoingText, { platform, aiConfig });
         if (resolved) return;
-        resolve();
         setAgentMetadata(response);
-        setMessages(prev => [...prev, {
-          id: msgId(),
-          text: response.text,
-          userName: agentName,
-          timestamp: new Date().toISOString(),
-          type: 'agent'
-        }]);
+        // P0-3：兜底回复渲染进"占位气泡"，而非追加新消息 — 若之后 socket 流式回复
+        //（agent:chunk / agent:response）到达，组件级 handler 会接管/覆盖该气泡，
+        // 同一轮请求最终只显示一条回复。不 resolve()：保留 waiters 与 requestId，
+        // 迟到的服务端回复仍会被接收（修复 30s 静默丢弃）。
+        const streamTargetId = streamingMsgId.current;
+        if (streamTargetId) {
+          // 流式气泡已存在（服务端仍在推流但未完成）— 以 REST 完整回复为准覆盖文本，
+          // 后续迟到 chunk 仍会 append，最终 agent:response 会再次覆盖为服务端全文。
+          setMessages(prev => prev.map(m =>
+            m.id === streamTargetId ? { ...m, text: response.text, userName: agentName } : m
+          ));
+        } else {
+          const fbId = msgId();
+          fallbackMsgIdRef.current = fbId;
+          fallbackIsPlaceholderRef.current = true;
+          setMessages(prev => [...prev, {
+            id: fbId,
+            text: response.text,
+            userName: agentName,
+            timestamp: new Date().toISOString(),
+            type: 'agent',
+            source: 'fallback',
+          }]);
+        }
+        setIsTyping(false);
       } catch (err) {
+        if (resolved) return;
+        // REST 兜底也失败 → 终结本轮（错误气泡已由组件级 agent:error handler 或此处展示；
+        // resolved 为 true 时说明服务端已给出终态，避免重复错误气泡）。
         resolve();
         const message = t.failedToRouteNeuralMesh || "Failed to route through Neural Mesh.";
         setMessages(prev => [...prev, {
@@ -1330,6 +1428,25 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
         accept={CHAT_ATTACHMENT_ACCEPT}
         onChange={(e) => { uploadChatAttachments(e.target.files); e.target.value = ''; }}
       />
+      {/* P2-1 网络状态横幅：socket 断开/重连中提示，避免"对话不理人"时用户无感知；
+          重连成功后（socketService.onStatusChange）自动消失 */}
+      {!socketConnected && (
+        <div className="relative z-[215] flex items-center justify-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-4 py-1.5">
+          <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-amber-400" />
+          <span className="text-xs font-medium text-amber-200">
+            {socketReconnecting
+              ? ui('连接已断开，正在重连…', 'Connection lost — reconnecting…')
+              : ui('连接已断开，消息可能无法送达', 'Connection lost — messages may not be delivered')}
+          </span>
+          <button
+            type="button"
+            onClick={() => socketService.connect()}
+            className="ml-1 rounded-full border border-amber-400/40 px-2.5 py-0.5 text-[11px] font-medium text-amber-200 transition-colors hover:bg-amber-400/20"
+          >
+            {ui('重连', 'Reconnect')}
+          </button>
+        </div>
+      )}
       <WorkflowPanel
         visible={workflowPanelVisible}
         agentStatus={workflowStatus}

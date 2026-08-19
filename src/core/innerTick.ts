@@ -738,7 +738,8 @@ function buildFallbackInnerTickOutput(): InnerTickOutput {
  * 边界承诺：不修改任何全局运行状态，仅返回 InnerTickOutput + 写入 life.db 快照备份。
  */
 export async function runInnerTick(options: InnerTickOptions = {}): Promise<InnerTickOutput> {
-  logger.info(`${TAG} 心智回合开始`);
+  // P2-3 心智通道：独立落盘 logs/mind.log（同时镜像主控制台）
+  logger.mind(`${TAG} 心智回合开始`);
   const userId = options.userId || 'default';
 
   // 读取 life.db 历史快照 → 仅渲染为 prompt 文本（不参与运行状态）
@@ -814,7 +815,7 @@ export async function runInnerTick(options: InnerTickOptions = {}): Promise<Inne
   let failedKind: InnerTickLLMFailureKind | null = null;
   try {
     output = await attemptInnerTickCall();
-    logger.info(`${TAG} 心智推演完成（首次调用成功）`);
+    logger.mind(`${TAG} 心智推演完成（首次调用成功）`);
   } catch (firstErr: any) {
     const firstKind = firstErr instanceof InnerTickLLMError ? firstErr.kind : 'unknown';
     if (firstKind === 'llm_timeout') {

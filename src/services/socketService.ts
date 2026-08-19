@@ -79,10 +79,32 @@ function startWatchdog(socket: Socket) {
   };
 }
 
+export type SocketStatus = 'connected' | 'disconnected' | 'reconnecting';
+
 class SocketService {
   private socket: Socket | null = null;
   private token: string | null = null;
   private watchdogCleanup: (() => void) | null = null;
+  // P2-1 网络状态：供 UI（AgentChatPage 顶部横幅）订阅
+  private status: SocketStatus = 'disconnected';
+  private statusListeners = new Set<(status: SocketStatus) => void>();
+
+  getStatus(): SocketStatus {
+    return this.status;
+  }
+
+  onStatusChange(fn: (status: SocketStatus) => void): () => void {
+    this.statusListeners.add(fn);
+    return () => { this.statusListeners.delete(fn); };
+  }
+
+  private setStatus(status: SocketStatus) {
+    if (this.status === status) return;
+    this.status = status;
+    for (const fn of this.statusListeners) {
+      try { fn(status); } catch {}
+    }
+  }
 
   connect() {
     const token = getStoredToken();
@@ -100,14 +122,26 @@ class SocketService {
 
       this.socket.on("connect", () => {
         console.log("[SocketService] Connected, id:", this.socket?.id);
+        this.setStatus('connected');
       });
 
       this.socket.on("disconnect", (reason) => {
         console.log("[SocketService] Disconnected:", reason);
+        // P2-1 断线重连完善：服务端主动断开（io server disconnect）时 socket.io
+        // 默认不会自动重连 —— 此处显式重连，避免一次服务端重启后前端永久掉线
+        //（修复前仅靠 2min 看门狗整页 reload 兜底，聊天气泡会长时间无响应）。
+        if (reason === "io server disconnect" && this.socket) {
+          console.log("[SocketService] Server requested disconnect — reconnecting...");
+          this.socket.connect();
+          this.setStatus('reconnecting');
+          return;
+        }
+        this.setStatus('disconnected');
       });
 
       this.socket.on("connect_error", (err) => {
         console.error("[SocketService] Connect error:", err.message);
+        this.setStatus('reconnecting');
       });
 
       this.watchdogCleanup = startWatchdog(this.socket);

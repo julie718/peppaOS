@@ -8,5 +8,53 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/entries/mobile-root.tsx"></script>
+    <script>
+      // P0-4 白屏兜底（网页层）：React 未在时限内挂载（JS 包加载失败/崩溃/网络异常）时，
+      // 用纯内联样式渲染可操作的兜底界面，避免整页白屏。与 iOS 原生层看门狗
+      // （MayOSBridgeViewController 内 MayOSWhiteScreenGuard）组成双层兜底。
+      (function () {
+        var TIMEOUT_MS = 10000;
+        var INTERVAL_MS = 500;
+        var guardStartedAt = Date.now();
+        var shown = false;
+        function isMounted() {
+          var el = document.getElementById('root');
+          return !!el && el.childElementCount > 0;
+        }
+        function showFallback() {
+          if (shown) return;
+          shown = true;
+          var div = document.createElement('div');
+          div.id = 'mayos-fallback';
+          div.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#060810;color:#fff;font-family:system-ui,-apple-system,"PingFang SC","Noto Sans SC",sans-serif;text-align:center;padding:24px;';
+          var title = document.createElement('div');
+          title.style.cssText = 'font-size:17px;font-weight:600;letter-spacing:.5px;';
+          title.textContent = 'Peppa OS 加载失败';
+          var sub = document.createElement('div');
+          sub.style.cssText = 'font-size:13px;color:rgba(255,255,255,.55);max-width:320px;line-height:1.6;';
+          sub.textContent = '页面资源加载失败或网络异常，请检查网络后重试。';
+          var btn = document.createElement('button');
+          btn.style.cssText = 'margin-top:8px;padding:9px 26px;border-radius:999px;border:1px solid rgba(255,255,255,.25);background:transparent;color:#fff;font-size:14px;cursor:pointer;';
+          btn.textContent = '重新加载';
+          btn.onclick = function () { window.location.reload(); };
+          div.appendChild(title);
+          div.appendChild(sub);
+          div.appendChild(btn);
+          document.body.appendChild(div);
+        }
+        function check() {
+          if (shown || isMounted()) return;
+          if (Date.now() - guardStartedAt >= TIMEOUT_MS) { showFallback(); return; }
+          setTimeout(check, INTERVAL_MS);
+        }
+        function onLoad() {
+          // module 脚本在 load 事件前已同步执行完：root 仍空 = JS 包加载/执行失败 → 提前兜底
+          setTimeout(function () { if (!shown && !isMounted()) showFallback(); }, 300);
+        }
+        if (document.readyState === 'complete') onLoad();
+        else window.addEventListener('load', onLoad);
+        setTimeout(check, INTERVAL_MS);
+      })();
+    </script>
   </body>
 </html>
