@@ -1,6 +1,11 @@
 # PeppaOS — multi-stage Docker image
 # Build:  docker build -t peppaos .
 # Run:    docker run -p 3000:3000 -e JWT_SECRET=xxx peppaos
+#
+# ⚠️ P3 仅记录（2026-08-19 批次，只记录未修改）：
+# 镜像存在历史构建产生的废料层（多次缓存注入/重试产生的中间层、npm-cache 与
+# node-headers 注入体积叠加等），属"能跑不改"范畴，本批次未改动构建流程；
+# 若后续优化镜像体积，优先考虑：multi-stage 合并 apt 层、npm cache 按需裁剪。
 
 # ── Build stage ──────────────────────────────────────────────────────────
 FROM node:22-slim AS build

@@ -4,6 +4,11 @@
 
 MayOS 是从 [PeppaOS](https://github.com/peppaOS) fork 的全栈 AI Agent 项目，经过深度定制，目标是将 MacBook 上的开发版本部署到飞牛 NAS 作为家庭服务器，配合 iPhone、iPad、Apple Watch、手搓小瓦力机器人等多终端使用。
 
+> **⚠️ P3 仅记录（2026-08-19 批次，只记录未修改）**
+> 1. **nginx-ssl 崩溃问题**：飞牛 NAS 自带 nginx 占用 80/443 且存在 SSL 崩溃问题（详见第十七节、第二十六节）。当前生产用 Caddy 4043 + Let's Encrypt 真证书规避，仓库内无 nginx 配置文件，本批次未对 nginx 做任何修改；若后续启用 nginx 反代需另行复测。
+> 2. **package-lock.json 差异**：`git status` 显示 `M package-lock.json`（与 registry/镜像源相关的既有工作区差异）。本批次**未改动**该文件（JSON 无法加注释，此处仅作记录）；提交时注意不要误并入。
+> 3. **Docker 镜像废料层**：镜像存在历史构建产生的废料层（见 Dockerfile 注释），本批次未改动构建流程。
+
 - **愿景**：拥有一个属于自己的、跑在自己硬件上的 AI Agent
 - **当前状态**：MacBook 本地开发运行（`localhost:3000`），核心功能（文字对话、语音对话）基本可用
 - **下一阶段**：NAS 部署 + 移动终端接入

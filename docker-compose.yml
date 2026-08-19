@@ -3,6 +3,44 @@
 # 启动:
 #   docker compose up -d
 #   → http://qweasd.top:3000  (HTTP 直连)
+#
+# ═══════════════════════════════════════════════════════════════════
+# P2-6 NAS 部署运维（生产目标：群晖 NAS /vol1/1000/docker/peppaos）
+# ───────────────────────────────────────────────────────────────────
+# 0) 前置：NAS 上新建 /vol1/1000/docker/peppaos，把仓库内容同步过去
+#    （rsync -av --delete ./ user@nas:/vol1/1000/docker/peppaos/，排除 node_modules/dist/data），
+#    并放置 .env（JWT_SECRET、OXOG_ENV_KEY、各 LLM key、CLOUDFLARE_TUNNEL_TOKEN）。
+#
+# 1) 部署/升级：
+#    cd /vol1/1000/docker/peppaos
+#    GIT_COMMIT=$(git rev-parse --short HEAD) docker compose up -d --build
+#    验证：docker compose ps 显示 peppaos healthy，curl -s http://localhost:3000/api/health
+#
+# 2) 回滚：git 回到上一 commit 后重新 build；数据（peppa.db、keys.json、用户文件）
+#    全部在 ./data 卷，代码回滚不影响数据。
+#
+# 3) 日志（P2-3 分层 + json-file 轮转）：
+#    docker compose logs -f mayos                # 控制台（pino 主通道）
+#    docker exec peppaos tail -f logs/mind.log   # 心智（InnerTick 推演回合）
+#    docker exec peppaos tail -f logs/perception.log  # 感知（视觉/音频/空间）
+#    docker exec peppaos tail -f logs/action.log # 动作（工具执行）
+#
+# 4) SQLite 数据与归档（P0-1 增量持久化 + P2-4 自动归档）：
+#    ./data/peppa.db —— 唯一数据源；容器重启后 flushDB 只写变化表，秒级启动
+#    ./data/db_archive/peppa-YYYYMMDD.db —— 超 100MB 每天自动 VACUUM INTO 归档
+#    手动备份：cp data/peppa.db data/peppa-$(date +%Y%m%d).bak（应用运行中建议先
+#    sqlite3 快照，或直接用归档文件）。
+#
+# 5) 停止/维护（P2-2 stop_grace_period=30s：SIGTERM → flushDB + 归档收尾再退出，
+#    足够完成收尾，超时才会 SIGKILL）：
+#    docker compose stop     # 优雅停止（等服务收尾，最多 30s）
+#    docker compose down     # 停止并移除容器（保留卷与镜像）
+#    docker compose restart  # 热重启
+#
+# 6) 健康检查（P0-1 后启动窗口秒级，start_period 已从 1200s 恢复 30s）：
+#    caddy 等待 peppaos healthy 后才挂载 upstream，避免旧版 15 分钟启动窗口期间
+#    的 502 连锁；若容器反复 unhealthy，先看启动日志而不是等 start_period。
+# ═══════════════════════════════════════════════════════════════════
 
 services:
   mayos:
@@ -68,15 +106,18 @@ services:
         limits:
           memory: 4g
     restart: unless-stopped
-    # 502 根因修复：peppa.db 100MB 全量重建 + 磁盘 45MB/s → 启动需 15+ 分钟。
-    # 原 30s start_period 导致容器过早被标记 unhealthy；改为 20 分钟启动宽限期，
-    # 期间检查失败不计入 retries。
+    # P2-2 优雅停止：SIGTERM 后给足 30s 让服务完成 flushDB 收尾/归档检查再退出，
+    # 超时才 SIGKILL（默认 10s 在启动期 100MB 全量持久化时代不足以安全落盘）。
+    stop_grace_period: 30s
+    # 502 根因已由 P0-1 修复：增量表级持久化 + flushDB 脏写门控 → 容器重启
+    # 启动窗口从 15+ 分钟降为秒级，start_period 恢复 30s（原 1200s 是旧全量
+    # 重建时代的宽限期，不再需要；保留过大的 start_period 会掩盖真实启动故障）。
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:'+(process.env.PORT||3000)+'/health',r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>process.exit(r.statusCode===200?0:1))}).on('error',()=>process.exit(1))"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 1200s
+      start_period: 30s
     logging:
       driver: "json-file"
       options:
