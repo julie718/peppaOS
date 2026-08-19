@@ -4,16 +4,23 @@ import crypto from 'crypto';
 import { getDataPath } from './data_path';
 
 const KEYS_FILE = getDataPath('keys.json');
-const ENC_KEY_HEX = process.env.OXOG_ENV_KEY || '';
 
+// P1-5：密钥逐次读取 process.env（不缓存模块级常量）。生产行为与缓存一致
+//（env 在进程启动前注入）；运行时读取使测试可注入/撤销 key，也避免 .env 变更后
+// 进程内仍持旧密钥的隐患。
 function getEncryptionKey(): Buffer | null {
-  if (!ENC_KEY_HEX || ENC_KEY_HEX.length !== 64) return null;
-  return Buffer.from(ENC_KEY_HEX, 'hex');
+  const encKeyHex = process.env.OXOG_ENV_KEY || '';
+  if (!encKeyHex || encKeyHex.length !== 64) return null;
+  return Buffer.from(encKeyHex, 'hex');
 }
 
-function encrypt(plaintext: string): string {
+// P1-5 摒弃明文密钥配置：OXOG_ENV_KEY 缺失时禁止写入明文。
+// 原实现 encrypt() 在无 key 时直接返回原文 → keys.json 以明文落盘（仓库/备份泄露面）。
+// 现在无 key 返回 null，saveKeys 拒绝写入并抛错；loadKeys 对既有明文仅做迁移
+// 并给出醒目警告（读兼容 + 强制加密写入）。
+function encrypt(plaintext: string): string | null {
   const key = getEncryptionKey();
-  if (!key) return plaintext; // no key configured, skip encryption
+  if (!key) return null; // P1-5: no key → refuse（不再降级为明文）
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
   const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
@@ -88,6 +95,18 @@ const KEY_TO_CIRCUIT: Partial<Record<keyof KeyStore, string[]>> = {
   DEEPSEEK_API_KEY: ['deepseek'],
 };
 
+let warnedMissingEnvKey = false;
+
+/** P1-5：OXOG_ENV_KEY 缺失警告（仅一次，避免 getKey 高频调用刷屏） */
+function warnMissingEnvKey(): void {
+  if (warnedMissingEnvKey) return;
+  warnedMissingEnvKey = true;
+  console.warn(
+    '[Keys] ⚠️ OXOG_ENV_KEY 未配置（64位hex）— 密钥保存已被拒绝（摒弃明文密钥配置）。' +
+    '生成密钥: openssl rand -hex 32；部署通过 .env 的 OXOG_ENV_KEY 注入（docker-compose 透传）。',
+  );
+}
+
 export function loadKeys(): KeyStore {
   try {
     if (fs.existsSync(KEYS_FILE)) {
@@ -98,11 +117,16 @@ export function loadKeys(): KeyStore {
       // Plaintext — migrate to encrypted on the fly
       const keys = JSON.parse(raw);
       if (getEncryptionKey()) {
-        fs.writeFileSync(KEYS_FILE, encrypt(raw));
+        const encrypted = encrypt(raw);
+        if (encrypted) fs.writeFileSync(KEYS_FILE, encrypted);
+      } else {
+        // P1-5：明文文件 + 无加密 key → 读取兼容但醒目警告（写入路径已严格拒绝）
+        warnMissingEnvKey();
       }
       return keys;
     }
   } catch {}
+  if (!getEncryptionKey()) warnMissingEnvKey();
   return {};
 }
 
@@ -166,6 +190,14 @@ export function isPersistableKeyName(name: string): boolean {
 }
 
 export function saveKeys(keys: Partial<KeyStore>): void {
+  // P1-5 摒弃明文密钥配置：无 OXOG_ENV_KEY 时拒绝写入（原实现 encrypt 无 key 返回原文 → 明文落盘）
+  if (!getEncryptionKey()) {
+    warnMissingEnvKey();
+    throw new Error(
+      'OXOG_ENV_KEY 未配置（64位hex），密钥存储已禁用明文，拒绝写入 keys.json。' +
+      '请先设置 OXOG_ENV_KEY（生成: openssl rand -hex 32）再保存密钥。',
+    );
+  }
   const dir = path.dirname(KEYS_FILE);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   const existing = loadKeys();
@@ -176,7 +208,11 @@ export function saveKeys(keys: Partial<KeyStore>): void {
     }
   }
   const payload = JSON.stringify(merged, null, 2);
-  fs.writeFileSync(KEYS_FILE, encrypt(payload));
+  const encrypted = encrypt(payload);
+  if (!encrypted) {
+    throw new Error('密钥加密失败（OXOG_ENV_KEY 无效），拒绝明文写入 keys.json');
+  }
+  fs.writeFileSync(KEYS_FILE, encrypted);
 
   for (const [key, value] of Object.entries(keys)) {
     if (value && typeof value === 'string' && value.trim().length > 0) {
