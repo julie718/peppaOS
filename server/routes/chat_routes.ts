@@ -15,6 +15,7 @@ import { queryMemoriesVector } from "../memory/store";
 import { loadEmotionalState } from "../personality/state";
 import { getSensory } from "../socket/shared";
 import { readDB, writeDB } from "../../db_layer";
+import { ChatWarnings, buildAmbientWarnings } from "../utils/chatWarnings";
 
 export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
   getDeepSeek: any; getGemini: any; getOpenAI: any; getAnthropic: any; getQwen: any;
@@ -39,9 +40,28 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
     if (!isBYOK) {
       const access = checkLLMAccess({ userId, provider, model: model || '' });
       if (!access.allowed) {
-        return res.status(402).json({ error: access.reason, code: access.tokenLimitReached ? 'TOKEN_LIMIT' : 'PROVIDER_RESTRICTED' });
+        // Phase2 模块3：配额告警进入 warnings（业务正常时为空数组；保留 error/code 兼容旧调用方）
+        return res.status(402).json({
+          error: access.reason,
+          code: access.tokenLimitReached ? 'TOKEN_LIMIT' : 'PROVIDER_RESTRICTED',
+          warnings: [access.tokenLimitReached ? 'Token 配额已用尽，本轮未调用大模型服务。' : '当前模型未授权使用，本轮已取消。'],
+        });
       }
     }
+
+    // ── Phase2 模块3：API 统一返回结构 { content, warnings } 的 warnings 收集器 ──
+    const warnings = new ChatWarnings();
+    /** 工具(MCP/Skill)报错 → warnings（铁则3：仅友好提示，完整堆栈已在服务日志） */
+    const collectToolErrors = (records: any[]) => {
+      for (const tc of records || []) {
+        if (tc && tc.error) warnings.add('mcp_error', `有工具调用未成功（${tc.name || 'unknown'}），已跳过对应步骤。`);
+      }
+    };
+    /** 收尾：合并环境性告警（磁盘水位/迁移失败）后返回最终 warnings 数组 */
+    const finalizeWarnings = async (): Promise<string[]> => {
+      warnings.addAmbient(await buildAmbientWarnings());
+      return warnings.toArray();
+    };
 
     // ── P0-2 首字节先行：校验完成后立即发送响应头并 flush，
     // 修复 Caddy/nginx/Cloudflare 因 upstream 长时间无响应字节判定 502/524 bad-gateway。
@@ -213,7 +233,9 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
           }
           recordUsage(userId, tokens);
           persistInteraction(responseText);
-          res.write(`data: ${JSON.stringify({ done: true, text: responseText, toolCalls: result.toolCalls.length })}\n\n`);
+          // Phase2 模块3：done 事件携带 {content, warnings}（text/toolCalls 保留兼容）
+          collectToolErrors(result.toolCalls);
+          res.write(`data: ${JSON.stringify({ done: true, text: responseText, content: responseText, warnings: await finalizeWarnings(), toolCalls: result.toolCalls.length })}\n\n`);
           stopKeepAlive();
           return res.end();
         }
@@ -239,27 +261,31 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
         }
         const usage = recordUsage(userId, tokens);
         persistInteraction(responseText);
+        // Phase2 模块3：统一返回 {content, warnings}（text/usage/toolCalls 保留兼容）
+        collectToolErrors(result.toolCalls);
         // 头已先行发出（P0-2）：直接以 JSON 体收尾（形状与修复前 res.json 完全一致）
         stopKeepAlive();
-        return res.end(JSON.stringify({ text: responseText, usage, toolCalls: result.toolCalls.length }));
+        return res.end(JSON.stringify({ text: responseText, content: responseText, warnings: await finalizeWarnings(), usage, toolCalls: result.toolCalls.length }));
       }
 
-      // 头已先行发出（P0-2）：直接以 JSON 体收尾（形状与修复前 res.json 完全一致）
+      // Phase2 模块3：BYOK 直连路径同样统一 {content, warnings}（text 保留兼容）
       stopKeepAlive();
-      return res.end(JSON.stringify({ text: responseText }));
+      return res.end(JSON.stringify({ text: responseText, content: responseText, warnings: await finalizeWarnings() }));
     } catch (error: any) {
+      // Phase2 模块3 + 铁则3：完整堆栈保留在服务日志；用户只收到友好业务提示
       logger.error("AI Proxy Error:", error);
       stopKeepAlive();
+      const friendly = '服务暂时不可用，请稍后再试。';
       if (res.headersSent) {
         // P0-2 首字节先行后不能再改状态码：以 JSON 错误体收尾（前端 await res.json() 兼容）
         if (stream) {
-          res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+          res.write(`data: ${JSON.stringify({ error: friendly, done: true })}\n\n`);
         } else {
-          res.write(JSON.stringify({ error: error.message }));
+          res.write(JSON.stringify({ error: friendly }));
         }
         return res.end();
       }
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: friendly });
     }
   });
 
@@ -291,7 +317,11 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
 
     const access = checkLLMAccess({ userId, provider, model: model || '' });
     if (!access.allowed) {
-      return res.status(402).json({ error: access.reason, code: access.tokenLimitReached ? 'TOKEN_LIMIT' : 'PROVIDER_RESTRICTED' });
+      return res.status(402).json({
+        error: access.reason,
+        code: access.tokenLimitReached ? 'TOKEN_LIMIT' : 'PROVIDER_RESTRICTED',
+        warnings: [access.tokenLimitReached ? 'Token 配额已用尽，本次未生成会议报告。' : '当前模型未授权使用，本次未生成会议报告。'],
+      });
     }
 
     const started = startedAt ? new Date(startedAt).toLocaleString() : 'unknown';
@@ -362,6 +392,7 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
     const tokens = estimateTokens(prompt + ' ' + report);
     recordTokenUsage(userId, provider, model, result.usage, `meeting_analyze_${Date.now()}`, 'meeting');
     const usage = recordUsage(userId, tokens);
-    res.json({ report, usage });
+    // Phase2 模块3：统一返回 {content, warnings}（report/usage 保留兼容）
+    res.json({ report, content: report, usage, warnings: await buildAmbientWarnings() });
   }));
 }

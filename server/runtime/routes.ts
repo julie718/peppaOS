@@ -1,6 +1,7 @@
 // Route aggregator — mounts all shared routes on the API router
 import { Router } from "express";
 import { Server } from "socket.io";
+import { mountDebugRoutes } from "../routes/debug_routes";
 import { mountPersonalityRoutes } from "../routes/personality_routes";
 import { mountMcpRoutes } from "../routes/mcp_routes";
 import { mountDeviceRoutes } from "../routes/device_routes";
@@ -41,6 +42,9 @@ export function mountAllRoutes({ apiRouter, jwtSecret, llm, getCookieOptions, io
   mountPersonalityRoutes(apiRouter, jwtSecret, llmGetters);
   mountMcpRoutes(apiRouter);
   mountDeviceRoutes(apiRouter, jwtSecret);
+
+  // Phase2 模块8：调试后台 API（requireAuth + requireAdmin，仅只读观测）
+  mountDebugRoutes(apiRouter);
 
   // System routes (health, tools, llm, settings, stats, ecosystem, modules)
   mountSystemRoutes(apiRouter, jwtSecret, io);

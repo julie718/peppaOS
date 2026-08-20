@@ -70,6 +70,8 @@ import { resolveRole } from "./server/runtime/role";
 import { getLifeSystem } from './server/life/index.js';
 import { logParadigmPhase0Status } from './src/utils/paradigmGuard';
 import { registerDataSources } from './server/lib/dataSourceRegistry.js';
+// Phase2 模块1：感知事件队列（内存队列 + SQLite 后备表 + 空闲回捞 + 超时丢弃）
+import { startPerceptionQueueMaintenance } from './server/perception/queue';
 import {
   configureNcmCredentials,
   normalizeNcmAppId as normalizeStoredNcmAppId,
@@ -361,6 +363,8 @@ process.on('exit', () => {
 
 async function start() {
   await setupStatic(app, __filename, __dirname, ROLE);
+  // Phase2 模块1：感知事件队列维护定时器（空闲回捞后备积压 + 过期清扫）
+  startPerceptionQueueMaintenance();
   await bootstrap({ server, io, PORT, HOST, jwtSecret: JWT_SECRET, llm, __dirname });
 }
 

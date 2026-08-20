@@ -73,6 +73,18 @@ export interface Memory {
     reason: string;
     appliedAt: string;
   };
+  // ── Phase2 模块4：长期记忆权重衰减 ──
+  /** 记忆权重 0-1（默认 1.0 满权重）。随时间衰减；检索强化回补；core_identity 永不衰减。
+   *  旧数据无此字段 → 按 1.0 处理（getMemoryScore 归一化）。 */
+  score?: number;
+  /** 是否已休眠（权重衰减至 MEMORY_HIBERNATE_THRESHOLD 以下）。
+   *  仅标记，数据库记录永不物理删除（铁则1），后台接口可查询。 */
+  hibernated?: boolean;
+  /** 休眠时间（ISO 8601；未休眠为 null/缺省） */
+  hibernatedAt?: string | null;
+  /** 摘要模糊化梗概：低分记忆（≤ MEMORY_BLUR_THRESHOLD）的模糊压缩摘要，
+   *  保留核心梗概（类型+首句+关键词），细节模糊；原始 content 完整保留不删除。 */
+  blurSummary?: string | null;
 }
 
 export interface MemoryTree {
@@ -115,6 +127,9 @@ export interface MemoryQuery {
   /** P0-5: 只读检索 — 不把命中记忆标记为"已检索"（GC 等内部巡检用，
       避免巡检动作本身刷新 lastRetrievedAt 导致低频降权永远无法触发） */
   noTouch?: boolean;
+  /** Phase2 模块4：是否包含休眠记忆（默认 false = 日常检索排除休眠记录；
+      后台调试接口传 true 查询全部记录，铁则1：记录永不删除） */
+  includeHibernated?: boolean;
   /** Filter by domain */
   domain?: string;
   /** Filter by organization ID */

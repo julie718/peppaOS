@@ -281,6 +281,41 @@ const TABLES: { name: string; sql: string }[] = [
       trigger_source TEXT NOT NULL DEFAULT 'manual' CHECK(trigger_source IN ('chat_turn','manual'))
     )`,
   },
+  {
+    // Phase2: 感知事件后备队列（perception 工作队列的 SQLite 持久后备任务表）。
+    // 内存感知队列（perceptionEvents）达到上限后，溢出事件不丢弃、不阻塞内存，
+    // 持久化到本表；系统空闲时由维护定时器捞回内存队列补处理。
+    // 积压事件超过 PERCEPTION_BACKLOG_TIMEOUT_MINUTES（默认45分钟）才由
+    // sweepExpiredPerceptionBacklog 丢弃（写异常日志）；正常感知事件不写 perception.log。
+    // ⚠️ 本表是任务队列数据，非业务记忆数据；过期丢弃是队列行为，不违反「不删业务数据」铁则。
+    name: 'perception_event_queue',
+    sql: `CREATE TABLE IF NOT EXISTS perception_event_queue (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL DEFAULT '',
+      modality TEXT NOT NULL DEFAULT 'unknown',
+      device_id TEXT NOT NULL DEFAULT '',
+      data_json TEXT NOT NULL DEFAULT '{}',
+      enqueued_at TEXT NOT NULL DEFAULT (datetime('now')),
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','drained')),
+      drained_at TEXT
+    )`,
+  },
+  {
+    // Phase2: 外部搜索记录表 — 搜索完成后仅保存：摘要、关键结论、来源URL。
+    // 原始网页全文处理完毕直接丢弃，绝不存入数据库。
+    name: 'search_records',
+    sql: `CREATE TABLE IF NOT EXISTS search_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL DEFAULT '',
+      query TEXT NOT NULL DEFAULT '',
+      provider TEXT NOT NULL DEFAULT 'bing',
+      summary TEXT NOT NULL DEFAULT '',
+      conclusions TEXT NOT NULL DEFAULT '[]',
+      source_urls TEXT NOT NULL DEFAULT '[]',
+      result_count INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+  },
 ];
 
 // ── 全局迁移完成门（P1 修复：新库首启迁移竞态）──
@@ -832,6 +867,72 @@ export async function getLatestInnerTickSnapshot(sessionId: string): Promise<Inn
     'SELECT * FROM inner_tick_snapshot WHERE session_id = ? ORDER BY id DESC LIMIT 1',
     [sessionId],
   );
+}
+
+// ── Phase2 模块5：外部搜索记录（search_records）──
+// 只存摘要/关键结论/来源URL，原始搜索结果全文不落库（内存即弃）。
+
+export interface SearchRecordRow {
+  id: number;
+  userId: string;
+  query: string;
+  provider: string;
+  summary: string;
+  conclusions: string[];
+  sourceUrls: string[];
+  resultCount: number;
+  createdAt: string;
+}
+
+/** 写入一条搜索记录（摘要化存储，不保存原始全文） */
+export async function saveSearchRecord(params: {
+  userId?: string;
+  query: string;
+  provider: string;
+  summary: string;
+  conclusions: string[];
+  sourceUrls: string[];
+  resultCount: number;
+}): Promise<number> {
+  const result = await run(
+    `INSERT INTO search_records (user_id, query, provider, summary, conclusions, source_urls, result_count)
+     VALUES (?,?,?,?,?,?,?)`,
+    [
+      params.userId || '',
+      params.query,
+      params.provider || 'bing',
+      params.summary || '',
+      JSON.stringify(params.conclusions || []),
+      JSON.stringify(params.sourceUrls || []),
+      params.resultCount || 0,
+    ],
+  );
+  return result.lastID!;
+}
+
+/** 读取最近搜索记录（模块8 debug 接口用；userId 为空字符串查全部） */
+export async function getRecentSearchRecords(userId: string, limit = 20): Promise<SearchRecordRow[]> {
+  const rows = await all<any>(
+    `SELECT id, user_id AS userId, query, provider, summary, conclusions, source_urls AS sourceUrls,
+            result_count AS resultCount, created_at AS createdAt
+     FROM search_records
+     WHERE (? = '' OR user_id = ?)
+     ORDER BY id DESC LIMIT ?`,
+    [userId || '', userId || '', limit],
+  );
+  for (const row of rows || []) {
+    try {
+      row.conclusions = JSON.parse(row.conclusions || '[]');
+    } catch {
+      row.conclusions = [];
+    }
+    try {
+      row.sourceUrls = JSON.parse(row.sourceUrls || '[]');
+    } catch {
+      row.sourceUrls = [];
+    }
+  }
+  return rows as SearchRecordRow[];
 }
 
 // ── P1-17: 用户偏好标签（独立表，权重可升可降）──

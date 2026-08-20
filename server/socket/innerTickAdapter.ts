@@ -209,7 +209,7 @@ export function summarizeInnerTickOutput(o: InnerTickOutput): string {
     : '-';
   return (
     `output={ thought="${(o.thought || '').slice(0, 60)}" ` +
-    `mood=${mood} desires=${o.desires.length} goals=${o.goals.length} focus=${o.focus.length} ` +
+    `isPublic=${o.isPublic === true} mood=${mood} desires=${o.desires.length} goals=${o.goals.length} focus=${o.focus.length} ` +
     `archive=${o.archiveItems.length} memoryHints=${o.memoryHints.length} triggerInnerTick=${o.triggerInnerTick} ` +
     `emotionDrift=${emotionDrift} desireEvolve=${o.desireEvolve?.length ?? 0} ` +
     `personalityDrift=${personalityDrift} relationshipAdjustment=${relationshipAdjustment} }`

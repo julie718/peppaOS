@@ -56,6 +56,7 @@ import { processInput, handleLLMFailure, extractSentiment, CognitiveContext } fr
 // quick_commands 关键词→MCP 映射已移除
 import { checkLLMAccess, recordUsage, estimateTokens } from "../subscription/proxy";
 import { recordTokenUsage } from "../llm/token_tracker";
+import { ChatWarnings, buildAmbientWarnings } from "../utils/chatWarnings";
 import { runOrchestratedTask, shouldDistillSkill, buildSkillDescription, classifyComplexity } from "../agents/orchestrator";
 import { buildDelegationAck, shouldDelegateWorkInBackground } from "../agents/background_delegation";
 import {
@@ -314,6 +315,15 @@ export function registerChatHandler(
         source: payload.source || eventSource,
         ...(requestId ? { requestId } : {}),
       });
+    };
+    // ── Phase2 模块3：API 统一返回结构 { content, warnings } ──
+    // 所有系统提示（LLM超时/配额/工具报错/磁盘水位/迁移失败等）只进 warnings（铁则6），
+    // content 只放对话正文。业务正常时 warnings 为空数组。
+    const warnings = new ChatWarnings();
+    // 收尾统一出口：合并环境性告警（磁盘水位/迁移失败）后发出 agent:response（content+warnings）
+    const finishWithResponse = async (text: string, extra: Record<string, any> = {}) => {
+      warnings.addAmbient(await buildAmbientWarnings());
+      emitAgent("agent:response", { ...extra, text, content: text, warnings: warnings.toArray() });
     };
     const conversationAgentId = agentId || 'peppa';
     const uid = userIdFn(socket);
@@ -855,6 +865,14 @@ export function registerChatHandler(
       // ── Subscription enforcement: never switch the user's selected brain silently ──
       const access = checkLLMAccess({ userId: uid, provider: activeProvider, model: activeModel });
       if (!access.allowed) {
+        // Phase2 模块3：配额告警进 warnings；以 {content, warnings} 统一结构收尾本轮
+        warnings.add(
+          'llm_quota',
+          access.tokenLimitReached
+            ? 'Token 配额已用尽，本轮未调用大模型服务。'
+            : `当前模型 ${activeProvider}/${activeModel} 未授权使用，本轮已取消。`,
+        );
+        await finishWithResponse(access.reason, { agentName: personality.name, source: 'quota_blocked' });
         emitAgent("agent:error", {
           message: access.reason,
           code: access.tokenLimitReached ? 'TOKEN_LIMIT' : 'PROVIDER_RESTRICTED',
@@ -900,7 +918,7 @@ export function registerChatHandler(
           logger.info(`[ChatHandler] 宪法拦截(workflow): ${guardedQuick.severity}`);
           workflowQuickResult = guardedQuick.text;
         }
-        emitAgent("agent:response", { text: workflowQuickResult, agentName: personality.name });
+        await finishWithResponse(workflowQuickResult, { agentName: personality.name });
         emitAgent("agent:status", { status: "idle" });
         return;
       }
@@ -959,7 +977,7 @@ export function registerChatHandler(
             : '我想多了解一点，能说得更具体吗？';
 
         logger.info(`[Comprehension] 信息不足，自然追问: ${followUp}`);
-        emitAgent("agent:response", { text: followUp, agentName: personality.name, source: 'comprehension' });
+        await finishWithResponse(followUp, { agentName: personality.name, source: 'comprehension' });
         emitAgent("agent:status", { status: "idle" });
         // 追问与用户原话均落库，保持对话连续性
         if (conversationId) {
@@ -1379,9 +1397,22 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
               });
               pushNotification(uid, { type: 'distill_hint', title: 'Skill Distillation', message: 'I notice this type of task is recurring. I can create an automated skill for this.' });
             }
+          } else if (backgroundComplexity === 'moderate' || backgroundComplexity === 'complex') {
+            // Phase2 模块3：机器人失联检测 — 复杂任务无 worker 可承接，且确实存在离线/终止机器人 →
+            // 提示用户机器人失联（runOrchestratedTask 对复杂任务返回 null 的路径之一）
+            try {
+              const allAgents = readDB().agents || [];
+              const offlineRobots = allAgents.filter((a: any) =>
+                a && a.id && a.id !== conversationAgentId && (a.status === 'offline' || a.status === 'terminated'));
+              if (offlineRobots.length > 0 && availableWorkerAgents.length === 0) {
+                const names = offlineRobots.slice(0, 3).map((a: any) => a.name || a.id).join('、');
+                warnings.add('robot_offline', `协作机器人暂时失联（${names}${offlineRobots.length > 3 ? ' 等' : ''}），本次已由主智能体直接完成。`);
+              }
+            } catch {}
           }
         } catch (orchErr: any) {
-          logger.error('[Orchestrator] Workflow failed, falling back to normal chat:', orchErr.message);
+          // 铁则3：完整堆栈保留在服务日志；不向用户暴露原始错误
+          logger.error('[Orchestrator] Workflow failed, falling back to normal chat:', orchErr);
         }
       }
 
@@ -1628,7 +1659,8 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
                 if (perceiveTimer) clearInterval(perceiveTimer);
                 // 修复(问题1/5): 宁可明确告知超时，也不静默消失 — 用户必须收到一条回复
                 const fallbackReply = '工具响应超时，请稍后再试。';
-                socket.emit('agent:response', { text: fallbackReply, agentName: personality.name, source: 'timeout' });
+                warnings.add('llm_timeout', '工具链路响应超时，本轮已提前结束，请稍后再试。');
+                await finishWithResponse(fallbackReply, { agentName: personality.name, source: 'timeout' });
                 try {
                   addMessage({ userId: uid, agentId: conversationAgentId, conversationId, role: 'assistant', content: fallbackReply, personality: personality.id, domain: resolvedDomain, orgId: resolvedOrgId });
                 } catch {}
@@ -1640,9 +1672,11 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
               llmWasCalled = true;
               if (perceiveTimer) clearInterval(perceiveTimer);
             } else {
-              logger.error('[ChatHandler] Tool execution failed:', toolErr.message);
+              // Phase2 模块3 + 铁则3：完整堆栈保留在服务日志，用户只看到友好提示
+              logger.error('[ChatHandler] Tool execution failed:', toolErr);
+              warnings.add('mcp_error', '工具执行失败，本轮已停止，请稍后再试。');
               socket.emit('agent:error', {
-                message: toolErr.message || '工具执行失败',
+                message: '工具执行失败，请稍后再试。',
                 requestId: requestId || '',
               });
               if (perceiveTimer) clearInterval(perceiveTimer);
@@ -1687,9 +1721,12 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
               llmWasCalled = true;
               logger.warn(`[ChatHandler] 思绪搁置: 保留已生成内容 ${partial.length} 字符`);
               if (perceiveTimer) clearInterval(perceiveTimer);
+              // Phase2 模块3：真实 120s 硬超时（thoughtShelved）才提示超时；用户新消息主动中止不打扰
+              if (thoughtShelved) warnings.add('llm_timeout', '模型响应超时，已保留已生成的内容，可继续追问。');
             } else {
               logger.warn('[ChatHandler] 思绪搁置: 无已生成内容，跳过本轮');
               if (perceiveTimer) clearInterval(perceiveTimer);
+              if (thoughtShelved) warnings.add('llm_timeout', '模型响应超时，本轮未生成内容，请稍后再试。');
               return;
             }
           } else {
@@ -1802,6 +1839,13 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
                 const cf = handleLLMFailure(cognition.intent, fallbackErr);
                 responseText = cf.responseText;
               }
+              // Phase2 模块3：主+兜底 LLM 均失败 → 友好提示进 warnings（铁则3：不暴露原始错误）
+              const fbMsg = String(llmErr?.message || fallbackErr?.message || '');
+              if (/timeout|timed\s*out|ETIMEDOUT|time limit|abort/i.test(fbMsg)) {
+                warnings.add('llm_timeout', '模型响应超时，已用本地兜底逻辑回答，稍后重试效果更佳。');
+              } else {
+                warnings.add('generic', '大模型服务暂时不可用，已用本地兜底逻辑回答，请稍后重试。');
+              }
             }
           } else {
             // LLM failed for other reasons — use cognitive fallback
@@ -1816,6 +1860,13 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
             } else {
               const cf = handleLLMFailure(cognition.intent, llmErr);
               responseText = cf.responseText;
+            }
+            // Phase2 模块3：主链路 LLM 失败 → 友好提示进 warnings（铁则3：不暴露原始错误）
+            const mainMsg = String(llmErr?.message || '');
+            if (/timeout|timed\s*out|ETIMEDOUT|time limit|abort/i.test(mainMsg)) {
+              warnings.add('llm_timeout', '模型响应超时，已用本地兜底逻辑回答，稍后重试效果更佳。');
+            } else {
+              warnings.add('generic', '大模型服务暂时不可用，已用本地兜底逻辑回答，请稍后重试。');
             }
           }
           } // P0-1: 非中止场景兜底处理结束
@@ -1885,9 +1936,17 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
         }
       }
 
+      // ── Phase2 模块3：工具(MCP/Skill)报错 → warnings（铁则3：仅友好提示，完整堆栈已在日志）──
+      for (const tc of allToolRecords) {
+        if (tc.error) {
+          warnings.add('mcp_error', `有工具调用未成功（${tc.name}），已跳过对应步骤，对话其余内容不受影响。`);
+        }
+      }
+
       // Emit response BEFORE conversation_updated so the client finalizes streaming first
       emitAgent("agent:progress", { stage: 'finalizing', message: '正在整理结果…' });
-      emitAgent("agent:response", { text: responseText, agentName: personality.name });
+      // Phase2 模块3：统一收尾 — content=对话正文，warnings=系统提示数组（磁盘水位/迁移失败等 ambient 合并）
+      await finishWithResponse(responseText, { agentName: personality.name });
       // Re-emit conversation_updated AFTER response so the client syncs from API with complete data
       if (conversationId) {
         socket.emit('chat:conversation_updated', { conversationId, agentId: conversationAgentId, source: 'chat' });
@@ -2223,8 +2282,10 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
       }
 
     } catch (error: any) {
+      // Phase2 模块3 + 铁则3：完整堆栈保留在服务日志；用户只收到友好业务提示
       logger.error("[Socket Agent Error]:", error);
-      emitAgent("agent:error", { message: error.message });
+      warnings.add('generic', '服务出现了一点小问题，请稍后再试。');
+      emitAgent("agent:error", { message: '服务暂时不可用，请稍后再试。' });
       emitAgent("agent:status", { status: "error" });
     } finally {
       clearTimeout(llmTimeout);

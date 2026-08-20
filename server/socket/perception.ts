@@ -1,6 +1,6 @@
 import { Socket, Server } from "socket.io";
 import { logger } from '../lib/logger';
-import { perceptionEvents, MAX_PERCEPTION_EVENTS } from "./shared";
+import { enqueuePerceptionEvent } from '../perception/queue';
 import { loadEmotionalState, saveEmotionalState, updateEmotionalState } from "../personality/state";
 
 function socketGuard(fn: (...args: any[]) => void | Promise<void>) {
@@ -16,35 +16,30 @@ function socketGuard(fn: (...args: any[]) => void | Promise<void>) {
   };
 }
 
+// Phase2 模块1 感知事件队列接入：所有感知事件经 enqueuePerceptionEvent 统一入队
+// （内存队列 → 满则落 SQLite 后备表，空闲回捞，超时丢弃）。
+// 日志策略：普通琐碎感知事件不写 perception.log（仅异常/越界/溢出/超时丢弃写该日志，
+// 由 server/perception/queue.ts 统一输出）。
+
 export function registerPerceptionHandlers(socket: Socket, getUserId: (s: Socket) => string, _io: Server) {
   socket.on("perception:visual_scene", socketGuard((data: { description: string; objects?: string[]; faces?: number }) => {
     const uid = getUserId(socket);
-    const events = perceptionEvents.get(uid) || [];
-    events.push({
+    enqueuePerceptionEvent(uid, {
       modality: 'visual',
       deviceId: socket.id,
       timestamp: new Date().toISOString(),
       data,
     });
-    if (events.length > MAX_PERCEPTION_EVENTS) events.shift();
-    perceptionEvents.set(uid, events);
-    // P2-3 感知通道：独立落盘 logs/perception.log
-    logger.perception(`[Perception] visual_scene user=${uid}: ${String(data.description || '').slice(0, 80)}`);
   }));
 
   socket.on("perception:audio_emotion", socketGuard((data: { emotion: string; intensity?: number }) => {
     const uid = getUserId(socket);
-    const events = perceptionEvents.get(uid) || [];
-    events.push({
+    enqueuePerceptionEvent(uid, {
       modality: 'audio',
       deviceId: socket.id,
       timestamp: new Date().toISOString(),
       data,
     });
-    if (events.length > MAX_PERCEPTION_EVENTS) events.shift();
-    perceptionEvents.set(uid, events);
-    // P2-3 感知通道：独立落盘 logs/perception.log
-    logger.perception(`[Perception] audio_emotion user=${uid}: ${String(data.emotion || '')} (${data.intensity ?? ''})`);
 
     if (uid !== 'anonymous') {
       const emotionImpact: Record<string, number> = {
@@ -69,16 +64,11 @@ export function registerPerceptionHandlers(socket: Socket, getUserId: (s: Socket
 
   socket.on("perception:spatial_update", socketGuard((data: { roomType?: string; dimensions?: { x: number; y: number; z: number } }) => {
     const uid = getUserId(socket);
-    const events = perceptionEvents.get(uid) || [];
-    events.push({
+    enqueuePerceptionEvent(uid, {
       modality: 'spatial',
       deviceId: socket.id,
       timestamp: new Date().toISOString(),
       data,
     });
-    if (events.length > MAX_PERCEPTION_EVENTS) events.shift();
-    perceptionEvents.set(uid, events);
-    // P2-3 感知通道：独立落盘 logs/perception.log
-    logger.perception(`[Perception] spatial_update user=${uid}: ${String(data.roomType || '')}`);
   }));
 }

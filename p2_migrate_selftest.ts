@@ -125,6 +125,7 @@ async function main(): Promise<void> {
 
   const driftOutput: InnerTickOutput = {
     thought: 'P2自测：心智演化推演',
+    isPublic: false, // Phase2 铁则：内部推演默认不对外
     mood: { name: '平静', intensity: 0.5 },
     desires: [], goals: [], focus: [], archiveItems: [],
     triggerInnerTick: false, memoryHints: [],

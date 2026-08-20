@@ -220,9 +220,19 @@ export async function consolidateEpisodic(
     // Phase4: 任务末尾派发本任务派生心智事件（非阻塞，失败不影响主流程）
     dispatchDerivedEvents(ctx.userId, eventList);
 
+    // Phase2 模块3：合并成功 → 清除历史失败标记（失败态只在合并持续失败时存在）
+    try {
+      const { clearConsolidationFailure } = await import('./consolidationState');
+      clearConsolidationFailure();
+    } catch {}
     return consolidated;
   } catch (err) {
+    // Phase2 模块3：记录合并失败状态（供 ambient warnings"记忆合并异常"告警；铁则1：不动任何业务数据）
     logger.error('[Consolidator] Consolidation failed:', err);
+    try {
+      const { recordConsolidationFailure } = await import('./consolidationState');
+      recordConsolidationFailure(err?.message || String(err));
+    } catch {}
     return null;
   }
 }

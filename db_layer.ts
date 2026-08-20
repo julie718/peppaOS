@@ -3,6 +3,8 @@ import fs from 'fs';
 import path from 'path';
 import bcrypt from 'bcryptjs';
 import { getDataPath, getDataRoot } from './server/config/data_path';
+// Phase2 模块7（铁则5）：版本化迁移（事务化 + 迁移前备份 + 失败 fail-fast）
+import { runMigrations } from './server/db/migrations';
 
 // Auto-migrate data from old location (project directory) to user directory on first run
 function migrateDataFromOldLocation() {
@@ -210,6 +212,16 @@ export async function initDatabase(): Promise<void> {
   await ensurePragmas(conn); // 启动即自动生效 WAL / synchronous=NORMAL（无需人工执行 sqlite 命令）
   await createTables();
   await migrateSchema();
+  // ── Phase2 模块7（铁则5）：版本化迁移 — 事务化 + 迁移前备份 + 失败 fail-fast ──
+  // 失败时：迁移模块已写失败标记（data/migration_failed.json）+ 输出告警；
+  // 此处抛错 → bootstrap 失败 → 进程退出非零 → 新版本容器不启动（回滚上一个正常运行容器）。
+  const migrationResult = await runMigrations(db!);
+  if (!migrationResult.ok) {
+    throw new Error(
+      `SQLite schema 迁移失败（v${migrationResult.failedVersion}）：拒绝启动新版本，请回滚至上一个正常运行容器` +
+      `（迁移前备份: ${migrationResult.backupPath || '无'}）`,
+    );
+  }
   await loadMemoryDB();
   // P0-1: 加载态即持久态 —— 填充指纹后启动期 flushDB 的比对全部命中，零 SQL
   seedPersistedFingerprints();
@@ -306,7 +318,11 @@ function migrateSchema(): Promise<void> {
       agentId TEXT DEFAULT '',
       nodeType TEXT NOT NULL DEFAULT 'leaf',
       domain TEXT DEFAULT 'personal',
-      orgId TEXT DEFAULT ''
+      orgId TEXT DEFAULT '',
+      score REAL NOT NULL DEFAULT 1.0,
+      hibernated INTEGER NOT NULL DEFAULT 0,
+      hibernatedAt TEXT,
+      blurSummary TEXT
     )`, onAlter);
     // Migrate: add new columns to existing memories table
     db!.run("ALTER TABLE memories ADD COLUMN tier TEXT NOT NULL DEFAULT 'episodic'", onAlter);
@@ -314,6 +330,11 @@ function migrateSchema(): Promise<void> {
     db!.run("ALTER TABLE memories ADD COLUMN importance REAL NOT NULL DEFAULT 0.3", onAlter);
     db!.run("ALTER TABLE memories ADD COLUMN parentId TEXT", onAlter);
     db!.run("ALTER TABLE memories ADD COLUMN nodeType TEXT NOT NULL DEFAULT 'leaf'", onAlter);
+    // Phase2 模块4：记忆权重衰减字段（score/hibernated/blurSummary）
+    db!.run("ALTER TABLE memories ADD COLUMN score REAL NOT NULL DEFAULT 1.0", onAlter);
+    db!.run("ALTER TABLE memories ADD COLUMN hibernated INTEGER NOT NULL DEFAULT 0", onAlter);
+    db!.run("ALTER TABLE memories ADD COLUMN hibernatedAt TEXT", onAlter);
+    db!.run("ALTER TABLE memories ADD COLUMN blurSummary TEXT", onAlter);
     // Add token_usage table if it doesn't exist
     db!.run(`CREATE TABLE IF NOT EXISTS token_usage (
       id TEXT PRIMARY KEY,
@@ -780,7 +801,10 @@ async function loadMemoryDB(): Promise<void> {
     marketplaceSkills,
     skills,
     founderVision,
-    memories: (memories || []).map((m: any) => ({ ...m, domain: m.domain || 'personal', orgId: m.orgId || '' })),
+    // Phase2 模块4：hibernated 物理列是 INTEGER(0/1) → 加载时归一化为布尔
+    // （queryMemories 用 m.hibernated === true 排除休眠记录；不做归一化则重启后
+    //  休眠记忆会重新出现在日常检索中）
+    memories: (memories || []).map((m: any) => ({ ...m, hibernated: m.hibernated === true || m.hibernated === 1 || m.hibernated === '1', domain: m.domain || 'personal', orgId: m.orgId || '' })),
     reminders: remindersRaw || [],
     conversations: (conversationsRaw || []).map((c: any) => ({ ...c, domain: c.domain || 'personal', orgId: c.orgId || '' })),
     canvas_sessions: (canvasSessionsRaw || []).map((s: any) => ({ ...s, edges: s.edges || '[]', domain: s.domain || 'personal', orgId: s.orgId || '' })),
@@ -856,10 +880,13 @@ export function readDB(): any {
 }
 
 // Prune old entries from memory + SQLite to prevent unbounded growth
+// Phase2 模块4（铁则1）：业务记忆数据（memories）绝不物理删除 — 超限的最旧记忆改为休眠
+// （hibernated=1 + blurSummary 梗概，记录保留在 DB，后台接口可查询）；仅操作日志类数据
+// （interactions/token_usage）仍做物理裁剪。
 export function pruneOldData(): void {
   if (!memoryDB || !db) return;
-  const limits: Record<string, number> = { interactions: 20000, memories: 5000, tokenUsage: 5000 };
-  const tableMap: Record<string, string> = { interactions: 'interactions', memories: 'memories', tokenUsage: 'token_usage' };
+  const limits: Record<string, number> = { interactions: 20000, tokenUsage: 5000 };
+  const tableMap: Record<string, string> = { interactions: 'interactions', tokenUsage: 'token_usage' };
   for (const [key, max] of Object.entries(limits)) {
     const arr = memoryDB[key];
     if (arr && arr.length > max) {
@@ -872,6 +899,31 @@ export function pruneOldData(): void {
         }
       } catch { /* best-effort, memory is already trimmed */ }
       console.log(`[DB] Pruned ${excess} old ${key} (${max} kept)`);
+    }
+  }
+  // ── Phase2 模块4：memories 超限 → 最旧记忆休眠（绝不删除，铁则1）──
+  const memories = memoryDB.memories;
+  const MEMORY_HARD_CAP = 5000;
+  if (Array.isArray(memories) && memories.length > MEMORY_HARD_CAP) {
+    const now = new Date().toISOString();
+    let hibernated = 0;
+    for (const entry of memories.slice(0, memories.length - MEMORY_HARD_CAP)) {
+      if (entry && entry.hibernated !== true) {
+        entry.hibernated = true;
+        entry.hibernatedAt = now;
+        if (!entry.blurSummary) {
+          // 摘要模糊化梗概（与 store.ts buildBlurSummary 同构：类型 + 首分句截断 + 关键词）
+          const typeLabel = entry.type === 'knowledge' ? '知识' : entry.type === 'preference' ? '偏好' : entry.type === 'habit' ? '习惯' : '事实';
+          const firstClause = String(entry.content || '').replace(/\s+/g, ' ').split(/[，。！？；,!?;]/u, 1)[0]?.trim() || '';
+          const head = firstClause.length > 30 ? firstClause.slice(0, 30) + '…' : firstClause;
+          const kw = (Array.isArray(entry.keywords) ? entry.keywords : []).slice(0, 3).join('、');
+          entry.blurSummary = kw ? `${typeLabel}：${head}（关键词：${kw}）` : `${typeLabel}：${head}`;
+        }
+        hibernated++;
+      }
+    }
+    if (hibernated > 0) {
+      console.log(`[DB] 记忆超限保护：${hibernated} 条最旧记忆已休眠（记录保留在库，永不删除 — 铁则1）`);
     }
   }
   dbDirty = true;
@@ -1031,9 +1083,12 @@ function buildAllSpecs(): TableSpec[] {
     },
     {
       name: 'memories',
-      createSQL: `CREATE TABLE _temp_memories (id TEXT PRIMARY KEY, userId TEXT NOT NULL, type TEXT NOT NULL, content TEXT NOT NULL, keywords TEXT NOT NULL DEFAULT '[]', confidence REAL NOT NULL DEFAULT 0.5, sourceInteractionId TEXT NOT NULL DEFAULT '', createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL, lastRetrievedAt TEXT, retrieveCount INTEGER NOT NULL DEFAULT 0, tier TEXT NOT NULL DEFAULT 'episodic', perspective TEXT NOT NULL DEFAULT 'owner_trait', importance REAL NOT NULL DEFAULT 0.3, parentId TEXT, agentId TEXT DEFAULT '', nodeType TEXT NOT NULL DEFAULT 'leaf', location TEXT DEFAULT '', domain TEXT DEFAULT 'personal', orgId TEXT DEFAULT '')`,
-      insertSQL: `INSERT INTO _temp_memories (id, userId, type, content, keywords, confidence, sourceInteractionId, createdAt, updatedAt, lastRetrievedAt, retrieveCount, tier, perspective, importance, parentId, agentId, nodeType, location, domain, orgId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      rows: () => (memoryDB.memories || []).map((m: any) => [m.id, m.userId, m.type, m.content, JSON.stringify(m.keywords || []), m.confidence || 0.5, m.sourceInteractionId || '', m.createdAt, m.updatedAt, m.lastRetrievedAt, m.retrieveCount || 0, m.tier || 'episodic', m.perspective || 'owner_trait', m.importance ?? 0.3, m.parentId || null, m.agentId || '', m.nodeType || 'leaf', m.location || '', m.domain || 'personal', m.orgId || '']),
+      // ⚠️ Phase2 模块4：temp 表结构必须与 migrateSchema 的 memories 新列一致（score/hibernated/
+      // hibernatedAt/blurSummary）。此前 temp 表缺失这 4 列 → 每次该表指纹变化重建时物理列被
+      // DROP 掉（ALTER 加的列丢失）→ 记忆权重衰减/休眠状态重启即清零。修复：重建表时带上新列。
+      createSQL: `CREATE TABLE _temp_memories (id TEXT PRIMARY KEY, userId TEXT NOT NULL, type TEXT NOT NULL, content TEXT NOT NULL, keywords TEXT NOT NULL DEFAULT '[]', confidence REAL NOT NULL DEFAULT 0.5, sourceInteractionId TEXT NOT NULL DEFAULT '', createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL, lastRetrievedAt TEXT, retrieveCount INTEGER NOT NULL DEFAULT 0, tier TEXT NOT NULL DEFAULT 'episodic', perspective TEXT NOT NULL DEFAULT 'owner_trait', importance REAL NOT NULL DEFAULT 0.3, parentId TEXT, agentId TEXT DEFAULT '', nodeType TEXT NOT NULL DEFAULT 'leaf', location TEXT DEFAULT '', domain TEXT DEFAULT 'personal', orgId TEXT DEFAULT '', score REAL NOT NULL DEFAULT 1.0, hibernated INTEGER NOT NULL DEFAULT 0, hibernatedAt TEXT, blurSummary TEXT)`,
+      insertSQL: `INSERT INTO _temp_memories (id, userId, type, content, keywords, confidence, sourceInteractionId, createdAt, updatedAt, lastRetrievedAt, retrieveCount, tier, perspective, importance, parentId, agentId, nodeType, location, domain, orgId, score, hibernated, hibernatedAt, blurSummary) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      rows: () => (memoryDB.memories || []).map((m: any) => [m.id, m.userId, m.type, m.content, JSON.stringify(m.keywords || []), m.confidence || 0.5, m.sourceInteractionId || '', m.createdAt, m.updatedAt, m.lastRetrievedAt, m.retrieveCount || 0, m.tier || 'episodic', m.perspective || 'owner_trait', m.importance ?? 0.3, m.parentId || null, m.agentId || '', m.nodeType || 'leaf', m.location || '', m.domain || 'personal', m.orgId || '', typeof m.score === 'number' ? m.score : 1.0, m.hibernated === true ? 1 : 0, m.hibernatedAt || null, m.blurSummary || null]),
     },
     {
       name: 'reminders',

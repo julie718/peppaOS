@@ -803,9 +803,14 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
       }]);
     };
 
-    const onResponse = (data: { text: string; agentName: string; source?: string; requestId?: string }) => {
+    const onResponse = (data: { text: string; agentName: string; source?: string; requestId?: string; warnings?: string[] }) => {
       console.log("[前端] 收到 agent:response:", data);
       if (!isCurrentChatEvent(data)) return;
+      // Phase2 模块9: warnings 提示 — 服务端 ambient 告警（磁盘/迁移/工具失败）逐条 toast。
+      // 只显示不打断：content 保持纯净（铁则6），warnings 绝不混入对话文本。
+      if (Array.isArray(data.warnings) && data.warnings.length > 0) {
+        data.warnings.forEach(w => toast.warning(w, { duration: 8000 }));
+      }
       setIsTyping(false);
       setWorkflowStatus('done');
       setWorkflowSteps(prev => [...prev, {

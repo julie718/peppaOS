@@ -1,6 +1,10 @@
 // Versioned database migrations — replaces the old silently-failing ALTER TABLE approach
 import sqlite3 from 'sqlite3';
+import fs from 'fs';
+import path from 'path';
 import { logger } from '../lib/logger';
+import { getDataPath } from '../config/data_path';
+import { recordMigrationFailure, clearMigrationFailure } from './migrationState';
 
 export interface Migration {
   version: number;
@@ -71,6 +75,16 @@ export const MIGRATIONS: Migration[] = [
   { version: 33, description: 'Add edges to canvas_sessions', sql: `ALTER TABLE canvas_sessions ADD COLUMN edges TEXT NOT NULL DEFAULT '[]'` },
   { version: 34, description: 'Add domain to canvas_sessions', sql: `ALTER TABLE canvas_sessions ADD COLUMN domain TEXT DEFAULT 'personal'` },
   { version: 35, description: 'Add orgId to canvas_sessions', sql: `ALTER TABLE canvas_sessions ADD COLUMN orgId TEXT DEFAULT ''` },
+  // ── Phase2 模块4：长期记忆权重衰减 ──
+  // score：记忆权重（0-1，默认 1.0 满权重；高权重记忆完整保留不受衰减影响）
+  // hibernated：休眠标记（0=活跃 1=休眠；权重衰减到阈值后标记休眠，不再参与日常对话召回，
+  //             数据库记录保留，后台接口可查询 —— 铁则1：绝不物理删除业务记忆数据）
+  // hibernated_at：休眠时间
+  // blur_summary：摘要模糊化后的梗概（普通日常琐事细节做摘要模糊压缩，保留核心梗概；记录不删除）
+  { version: 36, description: 'Add score to memories', sql: `ALTER TABLE memories ADD COLUMN score REAL NOT NULL DEFAULT 1.0` },
+  { version: 37, description: 'Add hibernated to memories', sql: `ALTER TABLE memories ADD COLUMN hibernated INTEGER NOT NULL DEFAULT 0` },
+  { version: 38, description: 'Add hibernatedAt to memories', sql: `ALTER TABLE memories ADD COLUMN hibernatedAt TEXT` },
+  { version: 39, description: 'Add blurSummary to memories', sql: `ALTER TABLE memories ADD COLUMN blurSummary TEXT` },
 ];
 
 // Indexes are safe to create repeatedly
@@ -93,7 +107,26 @@ export const INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_canvas_sessions_org ON canvas_sessions(orgId, userId)`,
 ];
 
-export function runMigrations(db: sqlite3.Database): Promise<number[]> {
+export interface MigrationRunResult {
+  ok: boolean;                 // false = 存在失败迁移（调用方必须 fail-fast，铁则5）
+  applied: number[];           // 本次成功应用的版本号列表
+  failedVersion?: number;      // 失败版本（ok=false 时有值）
+  error?: string;              // 失败错误信息（完整堆栈保留在服务日志，铁则3）
+  backupPath: string | null;   // 迁移前备份文件路径（VACUUM INTO，回滚可用）
+}
+
+/**
+ * 执行版本化迁移（Phase2 模块7 铁则5 硬化）：
+ *   1) 迁移前自动备份：VACUUM INTO data/db_archive/pre-migration-v<next>.db
+ *      （SQLite 安全快照，回滚/人工修复的数据底座）；
+ *   2) 每条迁移独立事务执行（BEGIN IMMEDIATE → SQL → COMMIT / 失败 ROLLBACK），
+ *      失败不残留半迁移状态；
+ *   3) 幂等容错：duplicate column / already exists / no such table 视为已应用，
+ *      记录版本继续（兼容旧版 ad-hoc ALTER 的存量库）；
+ *   4) 真实失败：停止后续迁移 → 写失败标记（migrationState）→ 返回 ok=false，
+ *      调用方 fail-fast（进程退出非零，容器绝不带残缺 schema 服务，回滚上一容器）。
+ */
+export function runMigrations(db: sqlite3.Database): Promise<MigrationRunResult> {
   return new Promise((resolve) => {
     // Create version table
     db.run(`CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY, appliedAt TEXT NOT NULL)`, () => {
@@ -101,36 +134,91 @@ export function runMigrations(db: sqlite3.Database): Promise<number[]> {
         const current = row?.current || 0;
         const pending = MIGRATIONS.filter(m => m.version > current);
         const applied: number[] = [];
+        let backupPath: string | null = null;
 
         if (pending.length === 0) {
-          resolve(applied);
+          // 无待迁移 → 清除历史失败标记（上次失败已被修复/回滚），正常放行
+          clearMigrationFailure();
+          resolve({ ok: true, applied, backupPath });
+          return;
+        }
+
+        // 迁移前自动备份（失败则拒绝继续迁移：宁可回滚容器也不在无备份下动 schema）
+        const nextVersion = pending[0].version;
+        try {
+          const archiveDir = path.join(getDataPath(''), 'db_archive');
+          fs.mkdirSync(archiveDir, { recursive: true });
+          backupPath = path.join(archiveDir, `pre-migration-v${nextVersion}.db`);
+          db.run(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`, (bakErr: Error | null) => {
+            if (bakErr) {
+              // 备份失败 → 迁移前失败处理（铁则5：不启动新版本）
+              const msg = `迁移前备份失败（VACUUM INTO ${backupPath}）: ${bakErr?.message || bakErr}`;
+              logger.error(`[Migration] ${msg}`);
+              recordMigrationFailure(nextVersion, msg, null);
+              resolve({ ok: false, applied, failedVersion: nextVersion, error: msg, backupPath: null });
+              return;
+            }
+            logger.info(`[Migration] 迁移前备份完成: ${backupPath}`);
+            applyNext(0);
+          });
+        } catch (e: any) {
+          const msg = `迁移前备份失败: ${e?.message || String(e)}`;
+          logger.error(`[Migration] ${msg}`);
+          recordMigrationFailure(nextVersion, msg, null);
+          resolve({ ok: false, applied, failedVersion: nextVersion, error: msg, backupPath: null });
           return;
         }
 
         function applyNext(i: number) {
-          if (i >= pending.length) { resolve(applied); return; }
+          if (i >= pending.length) {
+            // 全部成功 → 清除失败标记（若曾失败并被回滚修复）
+            clearMigrationFailure();
+            resolve({ ok: true, applied, backupPath });
+            return;
+          }
           const m = pending[i];
-          db.run(m.sql, (err) => {
-            if (err) {
-              // Column/table already exists — record version anyway to avoid re-running
-              if (err.message?.includes('duplicate column') || err.message?.includes('already exists')) {
+          // 每条迁移独立事务：失败 ROLLBACK 不残留半迁移状态
+          db.run('BEGIN IMMEDIATE', (beginErr) => {
+            if (beginErr) {
+              finishFail(m.version, `开启事务失败: ${beginErr?.message || beginErr}`);
+              return;
+            }
+            db.run(m.sql, (runErr) => {
+              if (runErr) {
+                // 幂等容错：列/表已存在（旧库已 ad-hoc 应用过）→ 视为已应用，回滚空事务后继续
+                const msg = runErr?.message || String(runErr);
+                if (msg.includes('duplicate column') || msg.includes('already exists') || msg.includes('no such table')) {
+                  db.run('ROLLBACK', () => {
+                    db.run(`INSERT OR IGNORE INTO schema_version (version, appliedAt) VALUES (?, ?)`, [m.version, new Date().toISOString()], () => {
+                      applyNext(i + 1);
+                    });
+                  });
+                  return;
+                }
+                // 真实失败：回滚 → 记录失败标记 → 停止后续迁移（铁则5）
+                db.run('ROLLBACK', () => finishFail(m.version, `执行失败: ${msg}`));
+                return;
+              }
+              db.run('COMMIT', (commitErr) => {
+                if (commitErr) {
+                  db.run('ROLLBACK', () => finishFail(m.version, `提交事务失败: ${commitErr?.message || commitErr}`));
+                  return;
+                }
                 db.run(`INSERT OR IGNORE INTO schema_version (version, appliedAt) VALUES (?, ?)`, [m.version, new Date().toISOString()], () => {
+                  applied.push(m.version);
+                  logger.info(`[Migration v${m.version}] ${m.description}`);
                   applyNext(i + 1);
                 });
-              } else {
-                logger.error(`[Migration v${m.version}] ${m.description} FAILED:`, err.message);
-                applyNext(i + 1);
-              }
-            } else {
-              db.run(`INSERT OR IGNORE INTO schema_version (version, appliedAt) VALUES (?, ?)`, [m.version, new Date().toISOString()], () => {
-                applied.push(m.version);
-                logger.info(`[Migration v${m.version}] ${m.description}`);
-                applyNext(i + 1);
               });
-            }
+            });
           });
         }
-        applyNext(0);
+
+        function finishFail(version: number, error: string) {
+          logger.error(`[Migration v${version}] ${error}`);
+          recordMigrationFailure(version, error, backupPath);
+          resolve({ ok: false, applied, failedVersion: version, error, backupPath });
+        }
       });
     });
   });

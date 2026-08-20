@@ -17,6 +17,7 @@ import { logger } from '../../server/lib/logger';
 import { MIND_SWITCH } from '../config/mindSwitch';
 import { getLatestInnerTickSnapshot } from '../../server/db/lifeDb';
 import { guardSessionMindPersist } from '../utils/paradigmGuard';
+import { isInnerTickOutputPublic } from './innerTick';
 import type { InnerTickMood, InnerTickOutput } from '../types/innerTickSchema';
 
 const TAG = '[Phase3-MindProvider]';
@@ -183,7 +184,16 @@ export async function resolveSessionMind(sessionId: string): Promise<SessionMind
 
     // B模式生效：InnerTick 输出作为本会话运行时心智源（仅内存，不写任何库）
     const base = await loadOldLifeMind();
-    logger.info(`${TAG} session=${sessionId} mode=inner_tick_active snapshotId=${row.id} ` +
+
+    // ── Phase2 铁则2：isPublic=false 的内部推演内容禁止注入对话（普通聊天返回）。
+    // 代码级拦截：快照 isPublic 非 true → innerMindPromptText 置空（内心独白/欲望/焦点等
+    // 内部推演内容不进入 System Prompt，仅情绪向量保留用于向量接口），输出拦截日志。
+    const publicText = isInnerTickOutputPublic(output) ? renderInnerMindPromptText(output) : '';
+    if (!publicText) {
+      logger.warn(`${TAG} session=${sessionId} snapshotId=${row.id} isPublic=false 内部推演内容已被代码拦截，不注入对话上下文（仅落库与日志）`);
+    }
+
+    logger.info(`${TAG} session=${sessionId} mode=inner_tick_active snapshotId=${row.id} isPublic=${output.isPublic === true} ` +
       `mood=${output.mood.name}(${output.mood.intensity.toFixed(2)}) desires=${output.desires?.length ?? 0} goals=${output.goals?.length ?? 0}`);
     return {
       mode: 'inner_tick_active',
@@ -192,7 +202,7 @@ export async function resolveSessionMind(sessionId: string): Promise<SessionMind
       emotionVector: emotionVectorFromMood(output.mood),
       personalityVector: base.personalityVector, // InnerTick 输出无人格字段，人格沿用旧life（只读）
       innerOutput: output,
-      innerMindPromptText: renderInnerMindPromptText(output),
+      innerMindPromptText: publicText,
     };
   } catch (e: any) {
     // 兜底4：读取异常（DB故障等）→ 降级回退旧life，打出明确告警日志，绝不抛异常

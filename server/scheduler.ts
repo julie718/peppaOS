@@ -316,6 +316,13 @@ class Scheduler {
       case 'every_7d': return { type: 'interval', intervalMs: 7 * 24 * 60 * 60 * 1000 };
     }
 
+    // Phase2 模块4：动态小时间隔（every_Nh，N 整数 ≥1），供记忆权重衰减周期等 .env 可配置任务
+    const dynamicHours = cron.match(/^every_(\d+)h$/);
+    if (dynamicHours) {
+      const hours = Math.max(1, Math.min(24 * 7, Number(dynamicHours[1]) || 1));
+      return { type: 'interval', intervalMs: hours * 60 * 60 * 1000 };
+    }
+
     // Real cron: 5 fields — minute hour dom month dow
     const parts = cron.trim().split(/\s+/);
     if (parts.length === 5) {
@@ -423,10 +430,32 @@ export function registerScheduledTasks(
     },
   });
 
-  // Memory decay — value-modulated tier-based decay for all users (every 6h)
+  // Phase2 模块7：磁盘水位巡检（默认每 30 分钟）— 铁则4：只输出告警，绝不自动删除任何数据
+  // 超限时输出告警日志；同时 chatWarnings.buildAmbientWarnings() 会在每轮对话回复的 warnings 数组里带上磁盘告警。
+  scheduler.register({
+    id: 'disk_space_check',
+    cron: 'every_30m',
+    quiet: true,
+    lastRun: null,
+    handler: async () => {
+      const { checkDiskStatus } = await import('./monitor/disk');
+      const disk = await checkDiskStatus();
+      if (disk && !disk.ok) {
+        return `[磁盘告警] ${disk.warning}`; // scheduler 将输出到日志（主动推送走独立通道，不混入对话）
+      }
+      return null;
+    },
+  });
+
+  // Memory decay — value-modulated tier-based decay for all users (every 6h, .env 可配置)
+  // Phase2 模块4：MEMORY_DECAY_INTERVAL_HOURS 控制维护周期（默认 6h；衰减量为 MEMORY_DECAY_RATE）
+  const decayIntervalHours = (() => {
+    const n = Number(process.env.MEMORY_DECAY_INTERVAL_HOURS);
+    return Number.isFinite(n) && n >= 1 ? Math.min(168, Math.floor(n)) : 6;
+  })();
   scheduler.register({
     id: 'memory_decay',
-    cron: 'every_6h',
+    cron: `every_${decayIntervalHours}h`,
     quiet: true,
     lastRun: null,
     handler: async () => {

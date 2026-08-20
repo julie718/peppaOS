@@ -1,5 +1,8 @@
 import { ToolRegistry } from '../registry';
 import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
+import { saveSearchRecord } from '../../db/lifeDb';
+import { logger } from '../../lib/logger';
+import type { ToolContext } from '../types';
 
 async function tryBingSearch(query: string, maxResults: number): Promise<string | null> {
   try {
@@ -48,7 +51,64 @@ async function tryBingSearch(query: string, maxResults: number): Promise<string 
   }
 }
 
-async function webSearchHandler(args: Record<string, any>): Promise<string> {
+/**
+ * Phase2 模块5：从搜索结果文本中提取摘要/结论/来源URL（原始全文不落库，仅内存即弃）。
+ * summary：前 500 字符的扁平化摘要；conclusions：各结果块首行标题；sourceUrls：去重 URL 列表。
+ */
+function parseSearchOutput(rawText: string, maxResults: number): {
+  summary: string;
+  conclusions: string[];
+  sourceUrls: string[];
+  resultCount: number;
+} {
+  const blocks = rawText.split(/\n\n+/).map(b => b.trim()).filter(Boolean);
+  const conclusions: string[] = [];
+  const sourceUrls: string[] = [];
+  const urlRe = /https?:\/\/[^\s)"'<>，。；]+/g;
+
+  for (const block of blocks) {
+    const firstLine = block.split('\n')[0].trim();
+    if (firstLine && !firstLine.startsWith('http')) conclusions.push(firstLine.slice(0, 120));
+    for (const m of block.match(urlRe) || []) {
+      if (!sourceUrls.includes(m)) sourceUrls.push(m);
+    }
+  }
+
+  return {
+    summary: rawText.replace(/\s+/g, ' ').trim().slice(0, 500),
+    conclusions: conclusions.slice(0, Math.max(maxResults, 5)),
+    sourceUrls: sourceUrls.slice(0, 10),
+    resultCount: Math.min(Math.max(blocks.length, 1), maxResults),
+  };
+}
+
+/** 摘要化持久化搜索记录；落库失败只记日志，绝不阻断搜索结果返回。 */
+async function persistSearch(
+  query: string,
+  maxResults: number,
+  provider: string,
+  rawText: string,
+  context?: ToolContext,
+): Promise<void> {
+  try {
+    const parsed = parseSearchOutput(rawText, maxResults);
+    await saveSearchRecord({
+      userId: context?.userId,
+      query,
+      provider,
+      summary: parsed.summary,
+      conclusions: parsed.conclusions,
+      sourceUrls: parsed.sourceUrls,
+      resultCount: parsed.resultCount,
+    });
+    // 动作通道（logs/action.log）：与验收文档模块5一致，搜索记录落库标记走工具动作通道
+    logger.action(`[web_search] 记录落库 provider=${provider} query="${query.slice(0, 50)}" results=${parsed.resultCount}`);
+  } catch (err: any) {
+    logger.error(`[web_search] 搜索记录落库失败（不影响搜索结果）: ${err?.message || err}`);
+  }
+}
+
+async function webSearchHandler(args: Record<string, any>, context?: ToolContext): Promise<string> {
   const query = String(args.query || '');
   if (!query.trim()) throw new Error('Search query is required.');
 
@@ -56,7 +116,10 @@ async function webSearchHandler(args: Record<string, any>): Promise<string> {
 
   // Bing first — works in China, returns real search results
   const bingResults = await tryBingSearch(query, maxResults);
-  if (bingResults) return bingResults;
+  if (bingResults) {
+    await persistSearch(query, maxResults, 'bing', bingResults, context);
+    return bingResults;
+  }
 
   // Fallback: DuckDuckGo Instant Answers (useful for definitions/facts)
   try {
@@ -91,7 +154,11 @@ async function webSearchHandler(args: Record<string, any>): Promise<string> {
         }
       }
 
-      if (results.length > 0) return results.join('\n\n');
+      if (results.length > 0) {
+        const ddgText = results.join('\n\n');
+        await persistSearch(query, maxResults, 'duckduckgo', ddgText, context);
+        return ddgText;
+      }
     }
   } catch {
     // DDG unavailable
@@ -149,10 +216,11 @@ async function urlFetchHandler(args: Record<string, any>): Promise<string> {
 
     return text || '(No text content extracted)';
   } catch (err: any) {
-    if (err.name === 'AbortError') {
-      return `URL fetch timed out for "${url}".`;
-    }
-    return `URL fetch failed: ${err.message}`;
+    // 铁则3：不把原始错误字符串当作"成功结果"返回给 LLM 上下文（否则原始 message
+    // 可能经 LLM 转述进入用户可见内容，且完整堆栈无从记入日志）。
+    // 重新抛出，由 registry.execute 的 toFriendlyToolError 统一分类：
+    // 完整堆栈 → 服务日志，对外只暴露友好文案（AbortError→timeout，fetch 失败→network）。
+    throw err;
   }
 }
 

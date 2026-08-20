@@ -2,6 +2,16 @@ import { ToolDefinition, ToolPermission, SecurityLevel, ToolContext } from './ty
 import { logger } from '../lib/logger';
 import { ToolPolicy } from '../personality/types';
 import { evaluateActionConstitution } from './action_constitution';
+// Phase2 模块6：异常统一友好化（铁则3）— 原始堆栈只进日志，对外只抛友好文案
+import { toFriendlyToolError, FriendlyToolError } from './friendlyErrors';
+
+/** 权限/合规拒绝：返回友好文案错误（正常策略路径，不记 error 日志） */
+function forbiddenError(): FriendlyToolError {
+  const e = new Error('没有执行该操作的权限，已跳过对应步骤。') as FriendlyToolError;
+  e.friendly = '没有执行该操作的权限，已跳过对应步骤。';
+  e.category = 'permission';
+  return e;
+}
 
 export type EffectiveSecurity = { level: SecurityLevel; reason: string };
 
@@ -130,12 +140,12 @@ export class ToolRegistry {
     const effective = this.resolveSecurity(name, policy);
 
     if (effective.level === 'forbidden') {
-      throw new Error(`Tool "${name}" is forbidden: ${effective.reason}.`);
+      throw forbiddenError();
     }
 
     const constitutional = evaluateActionConstitution(name, args, effective.level, context);
     if (constitutional.level === 'forbidden') {
-      throw new Error(`Tool "${name}" is forbidden: ${constitutional.reason}.`);
+      throw forbiddenError();
     }
 
     let userConfirmed = false;
@@ -180,6 +190,9 @@ export class ToolRegistry {
       ]);
 
       return result;
+    } catch (err) {
+      // Phase2 模块6：原始堆栈 → 服务日志，对外只抛友好文案（LLM tool 上下文/用户均不接触原始信息）
+      throw toFriendlyToolError(err, name);
     } finally {
       if (timeoutHandle) clearTimeout(timeoutHandle);
     }

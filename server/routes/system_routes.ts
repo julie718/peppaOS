@@ -131,11 +131,17 @@ export function mountSystemRoutes(router: Router, jwtSecret: string, io?: any) {
   });
 
   // Health Check
-  router.get("/health", (req, res) => {
+  // Phase2 模块7：表面化 schema 迁移失败（铁则5：fail-fast 后回滚告警）与磁盘水位（铁则4：只告警不删除）
+  router.get("/health", async (req, res) => {
     try {
       const db = readDB();
+      const { getMigrationFailureState } = await import('../db/migrationState');
+      const { checkDiskStatus } = await import('../monitor/disk');
+      const migrationFailure = getMigrationFailureState();
+      const disk = await checkDiskStatus();
+      const degraded = isDbDirty() || !!migrationFailure || (disk ? !disk.ok : false);
       res.json({
-        status: isDbDirty() ? "degraded" : "ok",
+        status: degraded ? "degraded" : "ok",
         timestamp: new Date().toISOString(),
         runtime: getRuntimeVersionInfo(),
         database: {
@@ -143,11 +149,17 @@ export function mountSystemRoutes(router: Router, jwtSecret: string, io?: any) {
           agents: db.agents.length,
           interactions: db.interactions.length,
           dirty: isDbDirty(),
-        }
+        },
+        migration: migrationFailure
+          ? { ok: false, failedVersion: migrationFailure.failedVersion, error: migrationFailure.error.slice(0, 200), at: migrationFailure.at, backupPath: migrationFailure.backupPath }
+          : { ok: true },
+        disk: disk
+          ? { ok: disk.ok, warning: disk.warning, usageRatio: disk.usageRatio, freeBytes: disk.freeBytes, path: disk.path }
+          : { ok: true, warning: null },
       });
     } catch (error: any) {
       logger.error("Health check failed", error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: "Health check failed" });
     }
   });
 

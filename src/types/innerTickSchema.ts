@@ -87,9 +87,17 @@ export interface InnerTickRelationshipAdjustment {
  * InnerTick 心智回合完整结构化输出。
  * runInnerTick() 返回本对象，并将完整序列化写入 life.db 快照备份；
  * 本阶段不据此修改任何全局运行状态。
+ *
+ * ⚠️ Phase2 铁则：isPublic — 本回合推演内容是否允许对外公开呈现。
+ *   - isPublic=true  ：内容可作为对外对话输出素材（由上层决定是否采用）；
+ *   - isPublic=false ：内部推演内容，代码强制拦截，禁止输出到普通聊天返回，
+ *                      仅落库与日志（mind.log / inner_tick_snapshot）。
+ *   默认语义：LLM 未输出该字段时按 false 处理（保守拦截，宁缺勿漏）。
  */
 export interface InnerTickOutput {
   thought: string;
+  /** Phase2 铁则：是否允许对外公开输出（false=内部推演，代码强制拦截不对外） */
+  isPublic: boolean;
   mood: InnerTickMood;
   desires: InnerTickDesire[];
   goals: InnerTickGoal[];

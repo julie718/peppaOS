@@ -10,6 +10,54 @@ function getMemoryStore(): Memory[] {
   return db.memories;
 }
 
+// ── Phase2 模块4：长期记忆权重衰减参数（.env 可配置）──
+function envNum(name: string, fallback: number, min: number, max: number): number {
+  const n = Number(process.env[name]);
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
+}
+/** 每轮维护的基础衰减量（0-0.2，默认 0.01；实际衰减 = 基础量 × tier倍率 × retention倍率 × 权重系数） */
+export const MEMORY_DECAY_RATE = envNum('MEMORY_DECAY_RATE', 0.01, 0, 0.2);
+/** 摘要模糊化阈值：score ≤ 该值时生成 blurSummary（核心梗概保留，细节模糊） */
+export const MEMORY_BLUR_THRESHOLD = envNum('MEMORY_BLUR_THRESHOLD', 0.35, 0, 1);
+/** 休眠阈值：score ≤ 该值时标记休眠（hibernated=1，日常检索排除；记录永不删除 — 铁则1） */
+export const MEMORY_HIBERNATE_THRESHOLD = envNum('MEMORY_HIBERNATE_THRESHOLD', 0.2, 0, 1);
+/** 检索强化回补：记忆被召回时 score 提升量（召回 = 强化，对抗时间衰减） */
+export const MEMORY_RETRIEVAL_BOOST = envNum('MEMORY_RETRIEVAL_BOOST', 0.05, 0, 0.5);
+
+/** 归一化记忆权重：旧数据无 score 字段 → 视为满权重 1.0 */
+export function getMemoryScore(m: Memory): number {
+  return typeof m.score === 'number' && Number.isFinite(m.score)
+    ? Math.min(1, Math.max(0, m.score))
+    : 1;
+}
+
+/** 权重衰减的 tier 倍率：core_identity 永不衰减（高权重保护），growth 衰减减半 */
+const TIER_DECAY_MULT: Record<MemoryTier, number> = {
+  core_identity: 0,
+  growth: 0.5,
+  internalized: 0.75,
+  episodic: 1,
+};
+
+/** 权重衰减的 retention 倍率：短期会话记忆快速衰减，长期/永久保留记忆缓慢衰减 */
+const RETENTION_DECAY_MULT: Record<string, number> = {
+  ephemeral: 3,
+  session: 2,
+  long_term: 1,
+  permanent: 0.5,
+};
+
+/** 摘要模糊化：生成核心梗概（类型 + 首分句截断 + 关键词），细节模糊；原始 content 永不删除 */
+function buildBlurSummary(m: Memory): string {
+  const typeLabel = m.type === 'knowledge' ? '知识' : m.type === 'preference' ? '偏好' : m.type === 'habit' ? '习惯' : '事实';
+  // 首分句（逗号/句号处截断）+ 30 字上限：细节抹去，核心梗概保留
+  const firstClause = (m.content || '').replace(/\s+/g, ' ').split(/[，。！？；,!?;]/u, 1)[0]?.trim() || '';
+  const head = firstClause.length > 30 ? firstClause.slice(0, 30) + '…' : firstClause;
+  const kw = (m.keywords || []).slice(0, 3).join('、');
+  const gist = [typeLabel, head].filter(Boolean).join('：');
+  return kw ? `${gist}（关键词：${kw}）` : gist;
+}
+
 // ── Embedding / Vector Search ──
 
 /** LRU cache for embeddings: text → vector. Avoids re-embedding the same content. */
@@ -318,6 +366,8 @@ export function queryMemories(q: MemoryQuery): Memory[] {
 
   // Single-pass filter combining all conditions
   let memories = all.filter(m => {
+    // Phase2 模块4：休眠记忆默认排除（includeHibernated=true 时仍可查询，铁则1：记录永不删除）
+    if (m.hibernated === true && !q.includeHibernated) return false;
     if (q.userId && m.userId !== q.userId) return false;
     if (q.agentId !== undefined && (m.agentId || '') !== q.agentId) return false;
     if (q.type && m.type !== q.type) return false;
@@ -431,6 +481,11 @@ export function queryMemories(q: MemoryQuery): Memory[] {
       if (q.noTouch) continue;
       stored.lastRetrievedAt = now;
       stored.retrieveCount = (stored.retrieveCount || 0) + 1;
+      // Phase2 模块4：检索强化回补 — 被召回 = 被需要，权重回补对抗时间衰减
+      const currentScore = getMemoryScore(stored);
+      if (currentScore < 1) {
+        stored.score = Math.min(1, +(currentScore + MEMORY_RETRIEVAL_BOOST).toFixed(4));
+      }
     }
   }
   if (result.length > 0) saveMemoryStore(store);
@@ -622,7 +677,8 @@ export function addMemory(
     existing.updatedAt = now;
     existing.domain = domain;
     existing.orgId = orgId;
-    applyMemoryFirewallMetadata(existing, firewall);
+    // applyMemoryFirewallMetadata 返回新对象（纯函数）→ 需原位合并，否则 source/retention 等元数据丢失
+    Object.assign(existing, applyMemoryFirewallMetadata(existing, firewall));
     saveMemoryStore(all);
     return existing;
   }
@@ -644,8 +700,14 @@ export function addMemory(
     location: overrides?.location,
     domain,
     orgId,
+    // Phase2 模块4：权重衰减字段默认值（满权重 1.0、未休眠、无模糊梗概）
+    score: 1.0,
+    hibernated: false,
+    hibernatedAt: null,
+    blurSummary: null,
   };
-  applyMemoryFirewallMetadata(newMemory, firewall);
+  // applyMemoryFirewallMetadata 返回新对象（纯函数）→ 需原位合并，否则 source/retention 等元数据丢失
+  Object.assign(newMemory, applyMemoryFirewallMetadata(newMemory, firewall));
 
   all.push(newMemory);
   saveMemoryStore(all);
@@ -881,6 +943,14 @@ export function promoteMemories(userId: string, intimacy: number = 0): number {
 /**
  * Dynamic tier-based decay — value modulates the decay speed.
  * High-value memories resist decay; low-value ones decay faster.
+ *
+ * Phase2 模块4 扩展（长期记忆权重衰减，铁则1：永不物理删除）：
+ *   1) score 权重衰减：实际衰减 = MEMORY_DECAY_RATE × tier倍率 × retention倍率 × 权重系数；
+ *      权重系数 = 0.2 + 0.8×(1−score)（高分保护：满权重记忆衰减仅 1/5 速，低分加速淡出）；
+ *      core_identity 倍率 = 0（永不衰减）；已休眠记录不再衰减（记录保留）。
+ *   2) 摘要模糊化：score ≤ MEMORY_BLUR_THRESHOLD → 生成 blurSummary（细节模糊，梗概保留）。
+ *   3) 休眠：score ≤ MEMORY_HIBERNATE_THRESHOLD → 标记 hibernated=1 + hibernatedAt，
+ *      日常检索排除（queryMemories includeHibernated=true 仍可查，后台接口可查）。
  */
 export function dynamicDecayMemories(userId: string): void {
   const all = getMemoryStore();
@@ -895,23 +965,69 @@ export function dynamicDecayMemories(userId: string): void {
 
   for (const m of all) {
     if (m.userId !== userId) continue;
+    if (m.hibernated) continue; // 已休眠：停止衰减，记录永久保留（铁则1）
     const rate = baseRates[m.tier] || baseRates.episodic;
-    if (rate.amount === 0) continue;
-    if (m.confidence <= rate.min) continue;
+    if (rate.amount === 0 && m.tier === 'core_identity') {
+      // core_identity 永不衰减（含 score，双保险：TIER_DECAY_MULT 也为 0）
+      continue;
+    }
+    if (m.confidence > rate.min) {
+      // Value modulates decay: high-value memories resist decay
+      const childrenCount = all.filter(c => c.parentId === m.id).length;
+      const hebbianBonus = getHebbianBonus(userId, m.id);
+      const value = computeMemoryValue(m, childrenCount, hebbianBonus);
+      const modulation = 1 - (value * 0.6); // value=1 → 0.4x decay, value=0 → 1x decay
+      const effectiveDecay = +(rate.amount * modulation).toFixed(3);
 
-    // Value modulates decay: high-value memories resist decay
-    const childrenCount = all.filter(c => c.parentId === m.id).length;
-    const hebbianBonus = getHebbianBonus(userId, m.id);
-    const value = computeMemoryValue(m, childrenCount, hebbianBonus);
-    const modulation = 1 - (value * 0.6); // value=1 → 0.4x decay, value=0 → 1x decay
-    const effectiveDecay = +(rate.amount * modulation).toFixed(3);
+      if (effectiveDecay > 0) {
+        m.confidence = Math.max(rate.min, +(m.confidence - effectiveDecay).toFixed(2));
+        changed = true;
+      }
+    }
 
-    if (effectiveDecay <= 0) continue;
-    m.confidence = Math.max(rate.min, +(m.confidence - effectiveDecay).toFixed(2));
+    // ── Phase2 模块4：score 权重衰减（高分保护 + 模糊化 + 休眠）──
+    const score = getMemoryScore(m);
+    if (score <= 0) continue;
+    const tierMult = TIER_DECAY_MULT[m.tier] ?? 1;
+    const retentionMult = RETENTION_DECAY_MULT[m.retention || 'long_term'] ?? 1;
+    // 权重系数：score=1.0 → 0.2×（高分保护），score=0 → 1×（低分加速淡出）
+    const weightFactor = 0.2 + 0.8 * (1 - score);
+    const effectiveScoreDecay = +(MEMORY_DECAY_RATE * tierMult * retentionMult * weightFactor).toFixed(4);
+    if (effectiveScoreDecay <= 0) continue;
+    const nextScore = Math.max(0, +(score - effectiveScoreDecay).toFixed(4));
+    if (nextScore === score) continue;
+    m.score = nextScore;
+    m.updatedAt = new Date().toISOString();
     changed = true;
+
+    // 摘要模糊化：达到模糊阈值 → 生成梗概（仅一次，原始 content 保留）
+    if (!m.blurSummary && nextScore <= MEMORY_BLUR_THRESHOLD) {
+      m.blurSummary = buildBlurSummary(m);
+      logger.info(`[Memory] 摘要模糊化: "${m.content.slice(0, 40)}..." → blurSummary: "${m.blurSummary}" (score=${nextScore.toFixed(3)})`);
+    }
+    // 休眠：达到休眠阈值 → 标记（永不删除 — 铁则1）
+    if (nextScore <= MEMORY_HIBERNATE_THRESHOLD && m.hibernated !== true) {
+      m.hibernated = true;
+      m.hibernatedAt = new Date().toISOString();
+      logger.info(`[Memory] 记忆已休眠（记录保留不删除）: "${(m.blurSummary || m.content).slice(0, 40)}..." (score=${nextScore.toFixed(3)})`);
+    }
   }
 
   if (changed) saveMemoryStore(all);
+}
+
+/**
+ * Phase2 模块4：查询休眠记忆（后台调试接口用；铁则1：只读查询，记录永不删除）。
+ * 返回休眠记录（含 blurSummary 梗概），供运维/用户查看被时间淡忘但完整保留的记忆。
+ */
+export function getHibernatedMemories(userId?: string): Memory[] {
+  const all = getMemoryStore();
+  return all.filter(m => m.hibernated === true && (!userId || m.userId === userId));
+}
+
+/** 休眠记忆统计（后台调试接口用） */
+export function countHibernatedMemories(userId?: string): number {
+  return getHibernatedMemories(userId).length;
 }
 
 // ── Semantic dedup & contradiction detection ──

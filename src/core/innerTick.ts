@@ -208,6 +208,7 @@ async function loadLifeSnapshotAsText(): Promise<string> {
 const SCHEMA_SPEC = `输出 JSON 结构（严格符合，禁止输出多余解释文本）:
 {
   "thought": "本轮内心独白/思考文本",
+  "isPublic": true,
   "mood": { "name": "情绪名", "intensity": 0.0-1.0 },
   "desires": [ { "id": "uuid-v4", "content": "欲望内容", "intensity": 0.0-1.0, "status": "active|archived" } ],
   "goals": [ { "id": "uuid-v4", "content": "目标内容", "status": "active|suspended|finished|archived" } ],
@@ -247,6 +248,9 @@ ${conversationSummary}`
 欲望可以随经历减弱、消退、被满足后消失，也可以生成全新欲望；人格允许缓慢演化，禁止剧烈突变。
 参考传入的历史快照信息，但不要直接照搬快照，做独立推演。
 通过archiveItems标记不再活跃的目标、欲望用于归档。
+[Phase2-铁则] isPublic 必填布尔字段：true=本轮思考可对外公开呈现（可让用户看到的心智内容）；
+false=纯内部推演（内心独白、隐私相关、未定稿想法），对外代码强制拦截、仅落库与日志，绝不泄露给用户。
+拿不准时保守填 false。禁止将 isPublic=false 的内容改写为 true 输出。
 [P2-MIGRATE] emotionDrift / desireEvolve / personalityDrift / relationshipAdjustment 为可选字段，仅在发生演化时输出（字段结构见下方 SCHEMA_SPEC）。
 严格输出符合schema的JSON，禁止输出多余解释文本。
 
@@ -404,6 +408,8 @@ function normalizeOutput(raw: any): InnerTickOutput {
 
   return {
     thought: toStr(raw?.thought).slice(0, 2000),
+    // Phase2 铁则：isPublic 默认 false（LLM 未输出/非法 → 按内部推演保守拦截，禁止外泄）
+    isPublic: raw?.isPublic === true,
     mood,
     desires,
     goals,
@@ -723,6 +729,7 @@ export async function applyMentalDriftToBusinessState(output: InnerTickOutput, u
 function buildFallbackInnerTickOutput(): InnerTickOutput {
   return {
     thought: '本轮内部推演未能完成（模型输出异常），维持既有心智状态。',
+    isPublic: false, // 兜底输出一律按内部内容处理（保守拦截，禁止外泄）
     mood: { name: '平静', intensity: 0.5 },
     desires: [],
     goals: [],
@@ -733,6 +740,57 @@ function buildFallbackInnerTickOutput(): InnerTickOutput {
   };
 }
 
+// ─────────────────────────────────────────────
+// 7.5 Phase2 铁则：最小触发间隔硬锁 + 对外输出拦截器
+// ─────────────────────────────────────────────
+
+/**
+ * Phase2 铁则2：InnerTick 心智循环最小触发间隔 3 分钟 —— 代码硬锁。
+ * ⚠️ 硬编码常量，不受任何环境变量控制；按用户维度独立计时（多用户互不饿死）。
+ * 触发过早（距上次 <180s）→ 本轮直接跳过，不调用 LLM、不写库，返回 skipped 标记输出。
+ */
+export const INNER_TICK_MIN_INTERVAL_MS = 3 * 60 * 1000; // 3 分钟，硬锁不可配置
+
+const lastRunAtByUser = new Map<string, number>();
+
+/** 检查用户是否处于冷却期（true=冷却中应跳过） */
+export function isInnerTickInCooldown(userId: string): boolean {
+  const last = lastRunAtByUser.get(userId) ?? 0;
+  if (last <= 0) return false;
+  return Date.now() - last < INNER_TICK_MIN_INTERVAL_MS;
+}
+
+/** 冷却剩余毫秒（调试/观测用；非冷却返回 0） */
+export function innerTickCooldownRemainingMs(userId: string): number {
+  const last = lastRunAtByUser.get(userId) ?? 0;
+  if (last <= 0) return 0;
+  const remain = INNER_TICK_MIN_INTERVAL_MS - (Date.now() - last);
+  return remain > 0 ? remain : 0;
+}
+
+/**
+ * Phase2 铁则2：心智内容对外输出代码级拦截器。
+ * isPublic=false 的内部推演内容：强制拦截，禁止输出到普通聊天返回（仅落库与日志）。
+ * 返回 true 表示允许对外使用；false 表示内容被拦截，调用方必须丢弃/降级，不得透出。
+ */
+export function isInnerTickOutputPublic(output: InnerTickOutput | null | undefined): boolean {
+  if (!output) return false;
+  if (output.isPublic !== true) {
+    logger.warn(`${TAG} 对外输出拦截: isPublic=false 的心智记录禁止输出到普通聊天返回（仅落库与日志），thought="${(output.thought || '').slice(0, 40)}"`);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Phase2 铁则2：取可对外公开的内心独白文本。
+ * isPublic=true → 返回 thought；isPublic=false → 返回 null（调用方禁止透出）。
+ */
+export function getPublicInnerTickThought(output: InnerTickOutput | null | undefined): string | null {
+  if (!isInnerTickOutputPublic(output)) return null;
+  return output!.thought || null;
+}
+
 /**
  * 执行一轮 InnerTick 心智回合。
  * 边界承诺：不修改任何全局运行状态，仅返回 InnerTickOutput + 写入 life.db 快照备份。
@@ -741,6 +799,17 @@ export async function runInnerTick(options: InnerTickOptions = {}): Promise<Inne
   // P2-3 心智通道：独立落盘 logs/mind.log（同时镜像主控制台）
   logger.mind(`${TAG} 心智回合开始`);
   const userId = options.userId || 'default';
+
+  // ── Phase2 铁则2：InnerTick 最小触发间隔 3 分钟硬锁（代码硬锁，不可配置）──
+  // 触发过早 → 本轮直接跳过：不调用 LLM、不写库、不产 logSystemEvent/快照，返回 skipped 标记输出。
+  if (isInnerTickInCooldown(userId)) {
+    const remainSec = Math.round(innerTickCooldownRemainingMs(userId) / 1000);
+    logger.mind(`${TAG} 冷却硬锁 user=${userId} 距上次心智回合不足 3 分钟（剩余 ${remainSec}s），本轮跳过（最小触发间隔 3 分钟，代码硬锁）`);
+    const skipped = buildFallbackInnerTickOutput();
+    (skipped as InnerTickOutput & { skipped: boolean }).skipped = true;
+    return skipped;
+  }
+  lastRunAtByUser.set(userId, Date.now());
 
   // 读取 life.db 历史快照 → 仅渲染为 prompt 文本（不参与运行状态）
   const snapshotText = await loadLifeSnapshotAsText();
