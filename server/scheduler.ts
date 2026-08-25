@@ -16,7 +16,6 @@ import { makeLLMCall, estimateTokenCount } from './llm/providers';
 // Phase-2 综合修复：节律调度 / 后台门闸 / 技能拓展总闸（仅调度层，不改业务逻辑）
 import { getRhythmMode, shouldSkipFullTask } from './runtime/rhythm';
 import { backgroundGate } from './runtime/backgroundGate';
-import { isPhase3Enabled } from './skills_extension/switch';
 import { getWeatherBrief } from './services/weather';
 // 【重构·模块4】固定话术模板剔除：晨间/晚间摘要由心智润色组成（触发数据 → LLM 组织表述）
 import { composeTriggerContent } from './proactive/rhythm';
@@ -38,17 +37,6 @@ import { getTodayPlanSummary } from './autonomy/planner';
 import { getGateConfig } from './autonomy/safety_gate';
 import { parseStoredOperationMode } from './cognition/operation_modes';
 import { getUserPreferredLLMConfig } from './llm/user_preferences';
-// Phase-3 八模块调度接线（全部 quiet + 模块开关门控）
-import { phase3Config } from './phase3/config';
-import { desireSystem } from './desire_system/engine';
-import { selfReflectionEngine } from './self_reflection/engine';
-import { memoryAssociationEngine } from './memory_association/engine';
-import { personalitySlowEvolutionEngine } from './personality_slow_evolution/engine';
-import { emotionSystemEngine } from './emotion_system/engine';
-import { skillFacadeEngine } from './skill_extension_overview/engine';
-import { p3PruneWatchEvents } from './db/lifeDb';
-import { robotRegistry } from './robot/registry';
-import { sweepPending } from './robot/command';
 
 interface ScheduledTask {
   id: string;
@@ -2050,157 +2038,6 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
     },
   });
 
-  // ══════════════ Phase-3 八模块调度任务（全部 switch 门控 + quiet） ══════════════
-
-  // P3-1 欲望衰减巡检（每 6 小时）：欲望强度衰减 → 跌破下限自动放弃
-  scheduler.register({
-    id: 'p3_desire_decay',
-    cron: 'every_6h',
-    quiet: true,
-    lastRun: null,
-    handler: async () => {
-      if (!phase3Config().desireSystemEnabled) return null;
-      const results: string[] = [];
-      for (const userId of getAllUserIds()) {
-        const r = await desireSystem.decayPass(userId);
-        if (r.data && (r.data.decayed > 0 || r.data.abandoned > 0)) {
-          results.push(`${userId}:衰减${r.data.decayed}/放弃${r.data.abandoned}`);
-        }
-      }
-      return results.length > 0 ? `欲望衰减 ${results.join(' | ')}` : null;
-    },
-  });
-
-  // P3-2 每日自省（凌晨 3:23，避开整点）：一天复盘
-  scheduler.register({
-    id: 'p3_self_reflection_daily',
-    cron: '23 3 * * *',
-    quiet: true,
-    lastRun: null,
-    // Phase-2：LLM 后台任务走门闸；休眠降频（full）
-    background: true,
-    sleepMode: 'full',
-    handler: async () => {
-      if (!phase3Config().selfReflectionEnabled) return null;
-      const results: string[] = [];
-      for (const userId of getAllUserIds()) {
-        try {
-          const r = await selfReflectionEngine.runReflection({ userId, triggerType: 'daily' });
-          if (r.ok) results.push(`${userId}:round#${r.recordId ?? '?'}${r.usedFallback ? '(fallback)' : ''}`);
-        } catch (e: any) {
-          logger.warn(`[P3-Reflection] user=${userId} 每日自省失败: ${e?.message || e}`);
-        }
-      }
-      return results.length > 0 ? `每日自省 ${results.join(' | ')}` : null;
-    },
-  });
-
-  // P3-3 联想网络衰减巡检（每 6 小时）：边强度衰减 → 跌破阈值删边（绝不删记忆本体）
-  scheduler.register({
-    id: 'p3_memory_association_decay',
-    cron: 'every_6h',
-    quiet: true,
-    lastRun: null,
-    handler: async () => {
-      if (!phase3Config().memoryAssociationEnabled) return null;
-      const results: string[] = [];
-      for (const userId of getAllUserIds()) {
-        const r = await memoryAssociationEngine.decayPass(userId);
-        if (r.decayed > 0 || r.pruned > 0) results.push(`${userId}:降权${r.decayed}/删边${r.pruned}`);
-      }
-      return results.length > 0 ? `联想衰减 ${results.join(' | ')}` : null;
-    },
-  });
-
-  // P3-4 人格缓慢演化（每周 3:17）：确定性微增量（±0.005/维）+ 7 天冷却
-  scheduler.register({
-    id: 'p3_personality_slow_evolution',
-    cron: '17 3 * * 1',
-    quiet: true,
-    lastRun: null,
-    handler: async () => {
-      if (!phase3Config().personalityEvolutionEnabled) return null;
-      const results: string[] = [];
-      for (const userId of getAllUserIds()) {
-        const r = await personalitySlowEvolutionEngine.runEvolutionRound(userId);
-        if (r.ok) results.push(`${userId}:round#${r.round}`);
-      }
-      return results.length > 0 ? `人格缓慢演化 ${results.join(' | ')}` : null;
-    },
-  });
-
-  // P3-5 情绪系统衰减巡检（每小时）：向基线收敛 3% + 状态历史裁剪
-  scheduler.register({
-    id: 'p3_emotion_decay',
-    cron: 'every_1h',
-    quiet: true,
-    lastRun: null,
-    handler: async () => {
-      if (!phase3Config().emotionSystemEnabled) return null;
-      const results: string[] = [];
-      for (const userId of getAllUserIds()) {
-        const r = await emotionSystemEngine.decayPass(userId);
-        if (r.changed || r.pruned > 0) results.push(`${userId}:${r.changed ? '收敛' : '稳定'}/裁剪${r.pruned}`);
-      }
-      return results.length > 0 ? `情绪衰减 ${results.join(' | ')}` : null;
-    },
-  });
-
-  // P3-6 技能缺口心智扫描（每 30 分钟）：高频缺口 → skill_gap 心智事件
-  scheduler.register({
-    id: 'p3_skill_gap_scan',
-    cron: 'every_30m',
-    quiet: true,
-    lastRun: null,
-    // Phase-2 联动停用（item 10）：skills_extension 总闸关闭时整套 Phase3 能力停用 → 巡检直接跳过
-    background: true,
-    handler: async () => {
-      if (!phase3Config().skillFacadeEnabled) return null;
-      if (!isPhase3Enabled()) {
-        logger.info(`[Scheduler] p3_skill_gap_scan 跳过: PEPPA_PHASE3_SKILL_AUTO_ENABLE=false（技能拓展总闸已停用）`);
-        return null;
-      }
-      const results: string[] = [];
-      for (const userId of getAllUserIds()) {
-        const r = await skillFacadeEngine.scanGapsForMind(userId);
-        if (r.emitted > 0) results.push(`${userId}:注入${r.emitted}`);
-      }
-      return results.length > 0 ? `技能缺口扫描 ${results.join(' | ')}` : null;
-    },
-  });
-
-  // P3-7 Watch 感知事件保留期清理（每日 4:11）：超 30 天 / 超 2000 行裁剪
-  scheduler.register({
-    id: 'p3_watch_prune',
-    cron: '11 4 * * *',
-    quiet: true,
-    lastRun: null,
-    handler: async () => {
-      if (!phase3Config().watchIngestEnabled) return null;
-      const cfg = phase3Config();
-      const r = await p3PruneWatchEvents(cfg.watchEventMaxRows, cfg.watchEventRetentionDays);
-      return r.removed > 0 ? `Watch 感知事件裁剪 ${r.removed} 条` : null;
-    },
-  });
-
-  // P3-8 机器人巡检（每 5 分钟）：无心跳设备下线 + 异常超时指令兜底清理
-  scheduler.register({
-    id: 'p3_robot_sweep',
-    cron: 'every_5m',
-    quiet: true,
-    lastRun: null,
-    handler: async () => {
-      if (!phase3Config().robotEnabled) return null;
-      const [sweep, pendingSweep] = await Promise.all([
-        robotRegistry.sweep(3 * 60 * 1000), // 3 分钟无心跳 → offline
-        sweepPending(),
-      ]);
-      if (sweep.tookOffline.length > 0 || pendingSweep.swept > 0) {
-        return `机器人巡检: 下线${sweep.tookOffline.join(',') || '无'}, 清理超时指令${pendingSweep.swept}`;
-      }
-      return null;
-    },
-  });
 }
 
 // ══════════════ Phase-2 调度环境变量读取（模块外，供 runTask/scheduleTask/handler 使用） ══════════════
