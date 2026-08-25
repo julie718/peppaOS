@@ -12,7 +12,11 @@ import { queryMemories, getDueReminders, fireReminder, runBehavioralAnalysis, de
 import { consolidateEpisodic, consolidateNarrative, ConsolidationContext } from './memory/consolidator';
 import { runDreamCycle } from './memory/dream';
 import { buildTree, ensureBranch, moveNode } from './memory/tree';
-import { makeLLMCall } from './llm/providers';
+import { makeLLMCall, estimateTokenCount } from './llm/providers';
+// Phase-2 综合修复：节律调度 / 后台门闸 / 技能拓展总闸（仅调度层，不改业务逻辑）
+import { getRhythmMode, shouldSkipFullTask } from './runtime/rhythm';
+import { backgroundGate } from './runtime/backgroundGate';
+import { isPhase3Enabled } from './skills_extension/switch';
 import { getWeatherBrief } from './services/weather';
 // 【重构·模块4】固定话术模板剔除：晨间/晚间摘要由心智润色组成（触发数据 → LLM 组织表述）
 import { composeTriggerContent } from './proactive/rhythm';
@@ -34,6 +38,17 @@ import { getTodayPlanSummary } from './autonomy/planner';
 import { getGateConfig } from './autonomy/safety_gate';
 import { parseStoredOperationMode } from './cognition/operation_modes';
 import { getUserPreferredLLMConfig } from './llm/user_preferences';
+// Phase-3 八模块调度接线（全部 quiet + 模块开关门控）
+import { phase3Config } from './phase3/config';
+import { desireSystem } from './desire_system/engine';
+import { selfReflectionEngine } from './self_reflection/engine';
+import { memoryAssociationEngine } from './memory_association/engine';
+import { personalitySlowEvolutionEngine } from './personality_slow_evolution/engine';
+import { emotionSystemEngine } from './emotion_system/engine';
+import { skillFacadeEngine } from './skill_extension_overview/engine';
+import { p3PruneWatchEvents } from './db/lifeDb';
+import { robotRegistry } from './robot/registry';
+import { sweepPending } from './robot/command';
 
 interface ScheduledTask {
   id: string;
@@ -46,6 +61,11 @@ interface ScheduledTask {
   enabled?: boolean;
   /** P1-2 防重入：handler 执行中置位；下一周期触发时若仍为 true 则跳过本轮 */
   running?: boolean;
+  // ── Phase-2 综合修复：调度元数据 ──
+  /** LLM 后台任务：经 backgroundGate 限并发/排队/预算/内存（用户对话链路不经过） */
+  background?: boolean;
+  /** 节律门控：full=休眠降频/跳过；critical=深度休眠延后但任务保留；always=不受节律影响（默认） */
+  sleepMode?: 'full' | 'critical' | 'always';
 }
 
 type LLMGetters = {
@@ -69,6 +89,8 @@ class Scheduler {
   io: SocketIOServer | null = null;
   private llmGetters: LLMGetters | null = null;
   private disabledTasks: Set<string> = new Set();
+  /** Phase-2 时钟回跳防护：记录上一轮墙钟，检测系统时间回拨 */
+  private _lastRunWall = 0;
 
   setIO(io: SocketIOServer) {
     this.io = io;
@@ -209,10 +231,10 @@ class Scheduler {
     const parsed = this.parseCron(task.cron);
 
     if (parsed.type === 'interval') {
-      // Simple fixed interval — use setInterval (backward compat)
-      const timer = setInterval(async () => {
+      // Phase-2 错峰：单轮触发封装复用（防重入跳过时本轮不算执行，lastRun 不更新）
+      const runOnce = async () => {
         const { ran, message } = await this.runTask(task);
-        if (!ran) return; // P1-2 防重入：上轮未结束，本轮跳过
+        if (!ran) return; // P1-2 防重入 / 节律跳过 / 门闸延后：本轮未执行
         task.lastRun = new Date().toISOString();
         if (message && this.io) {
           this.saveProactiveMessage(task.id, message, task.lastRun);
@@ -224,9 +246,30 @@ class Scheduler {
             });
           }
         }
-      }, parsed.intervalMs);
+      };
+
+      // 短周期任务（≤6h）注册时首次触发加随机抖动（PEPPA_SCHEDULER_STAGGER_MAX_MS，
+      // 默认 60s）→ 破坏各任务相位对齐，避免启动后同周期任务齐射并发（内存膨胀根源）；
+      // 24h/7d 等长周期任务保持原「启动后整周期」语义（如每日晨间/晚间摘要不因重启提前触发）。
+      const isLongCycle = parsed.intervalMs > 6 * 60 * 60 * 1000;
+      let firstDelayMs = parsed.intervalMs;
+      let staggerSec = 0;
+      if (!isLongCycle) {
+        const staggerMaxMs = getSchedulerStaggerMaxMs();
+        staggerSec = staggerMaxMs > 0 ? Math.floor(Math.random() * staggerMaxMs) : 0;
+        firstDelayMs = staggerSec;
+      }
+      const timer = setTimeout(async () => {
+        await runOnce();
+        // 转固定周期：后续按 intervalMs 稳定触发（相位已被抖动错开）
+        const intervalTimer = setInterval(runOnce, parsed.intervalMs);
+        this.timers.set(task.id, intervalTimer);
+      }, firstDelayMs);
       this.timers.set(task.id, timer);
-      logger.info(`[Scheduler] Registered task "${task.id}" every ${parsed.intervalMs / 1000}s${task.quiet ? ' (quiet)' : ''}`);
+      logger.info(
+        `[Scheduler] Registered task "${task.id}" every ${parsed.intervalMs / 1000}s` +
+        `${task.quiet ? ' (quiet)' : ''}${staggerSec > 0 ? ` (stagger ${(staggerSec / 1000).toFixed(0)}s)` : ''}`,
+      );
     } else {
       // Real cron expression — use recursive setTimeout to hit exact times
       const runAndReschedule = async () => {
@@ -276,16 +319,53 @@ class Scheduler {
    * P1-2 任务防重入：interval 与 cron 两条路径共用的执行外壳。
    * handler 执行期间再次触发（慢 LLM 调用跨过多个调度周期）→ 跳过本轮，
    * 防止并发执行导致 LLM token 爆炸 / SQLite 写风暴（同任务多实例）。
-   * ran=false 表示被防重入跳过（本轮不算执行，lastRun 不更新）；handler 异常
+   * ran=false 表示被跳过（本轮不算执行，lastRun 不更新）；handler 异常
    * 已在此捕获并记录（保持原 try/catch 行为）。
+   *
+   * Phase-2 四层防护（均在 handler 之外，全部带原因日志）：
+   *   1) 时钟回跳：Date.now() 比上一轮墙钟回退 >5s → 本轮跳过（容器时钟回拨防护）；
+   *   2) 节律检查：sleepMode='full' 休眠降频/跳过；'critical' 深度休眠延后（任务保留）；
+   *   3) 后台门闸：background 任务经 backgroundGate（并发/排队/预算/内存，用户对话不经过）；
+   *   4) 错峰：interval 注册时相位抖动（见 scheduleTask）。
    */
   private async runTask(task: ScheduledTask): Promise<{ ran: boolean; message: string | null }> {
     if (task.running) {
       logger.warn(`[Scheduler] Task "${task.id}" 仍在上轮执行中，跳过本轮触发（防重入）`);
       return { ran: false, message: null };
     }
+
+    // ── Phase-2 防护1：时钟回跳 ──
+    const nowWall = Date.now();
+    if (this._lastRunWall > 0 && nowWall < this._lastRunWall - 5000) {
+      const diffSec = Math.round((this._lastRunWall - nowWall) / 1000);
+      logger.warn(`[Scheduler] ⏰ 时钟回跳防护: 墙钟从 ${this._lastRunWall} 回退到 ${nowWall}（相差 ${diffSec}s），本轮全部任务跳过`);
+      this._lastRunWall = nowWall;
+      return { ran: false, message: null };
+    }
+    this._lastRunWall = nowWall;
+
+    // ── Phase-2 防护2：节律检查 ──
+    const mode = getRhythmMode();
+    if (task.sleepMode === 'full' && mode !== 'active') {
+      const reason = shouldSkipFullTask(task.id);
+      if (reason) {
+        logger.info(`[Scheduler] 任务 "${task.id}" 跳过: ${reason}`);
+        return { ran: false, message: null };
+      }
+    }
+    if (task.sleepMode === 'critical' && mode === 'deep_sleep') {
+      // consolidate 类任务：只延后不删除，活跃模式自动恢复
+      logger.info(`[Scheduler] 任务 "${task.id}" 延后: 深度休眠（任务保留注册表，活跃模式自动恢复）`);
+      return { ran: false, message: null };
+    }
+
     task.running = true;
     try {
+      // ── Phase-2 防护3：后台门闸（并发/排队/token预算/内存阈值；用户对话链路不经过）──
+      if (task.background) {
+        const gate = await backgroundGate.run(task.id, () => task.handler());
+        return { ran: true, message: gate.ok ? ((gate.message as string | null) ?? null) : null };
+      }
       return { ran: true, message: await task.handler() };
     } catch (err: any) {
       logger.warn(`[Scheduler] Task "${task.id}" failed:`, err?.message ?? err);
@@ -421,12 +501,36 @@ export function registerScheduledTasks(
     lastRun: null,
     handler: async () => {
       const due = getDueReminders();
-      if (due.length > 0) {
-        const messages = due.map(r => r.content);
-        for (const r of due) fireReminder(r.id);
-        return `Reminder: ${messages.join(' | ')}`;
+      if (due.length === 0) return null;
+
+      // Phase-2 防洪（item 4/11）：容器重启/长期停机后提醒堆积 → 单轮最多触发
+      // PEPPA_REMINDER_MAX_PER_ROUND 条；过期超过 PEPPA_REMINDER_MAX_STALE_HOURS 的
+      // 标记跳过（不删除、不补发），杜绝重启后批量轰炸。
+      const maxPerRound = getSchedulerEnv('PEPPA_REMINDER_MAX_PER_ROUND', 5, 1, 50);
+      const maxStaleHours = getSchedulerEnv('PEPPA_REMINDER_MAX_STALE_HOURS', 24, 1, 24 * 30);
+      const now = Date.now();
+      let triggered = 0;
+      let staleSkipped = 0;
+      const messages: string[] = [];
+
+      for (const r of due) {
+        if (triggered >= maxPerRound) break;
+        const dueTs = r.dueAt ? new Date(r.dueAt).getTime() : 0;
+        const staleMs = dueTs > 0 ? now - dueTs : 0;
+        if (staleMs > maxStaleHours * 60 * 60 * 1000) {
+          staleSkipped++;
+          logger.warn(
+            `[Scheduler] reminder 跳过: 已过期 ${(staleMs / 3600000).toFixed(1)}h 超 ${maxStaleHours}h ` +
+            `（超时未触发，不删除不补发）`,
+          );
+          continue;
+        }
+        fireReminder(r.id);
+        triggered++;
+        messages.push(r.content);
       }
-      return null;
+      logger.info(`[Scheduler] reminder_check 本轮触发 ${triggered} 条${staleSkipped > 0 ? `，跳过过期 ${staleSkipped} 条` : ''}`);
+      return messages.length > 0 ? `Reminder: ${messages.join(' | ')}` : null;
     },
   });
 
@@ -501,6 +605,9 @@ export function registerScheduledTasks(
     cron: 'every_30m',
     quiet: true,
     lastRun: null,
+    // Phase-2：LLM 后台任务走门闸；consolidate 只延后不删除（critical：深度休眠延后，活跃自动恢复）
+    background: true,
+    sleepMode: 'critical',
     handler: async () => {
       // Phase4: enableOldSchedulerAutonomy 开关 — false 时跳过记忆固化整套旧逻辑（代码本体保留）
       if (!MIND_SWITCH.enableOldSchedulerAutonomy) return null;
@@ -529,6 +636,9 @@ export function registerScheduledTasks(
     cron: 'every_6h',
     quiet: true,
     lastRun: null,
+    // Phase-2：LLM 后台任务走门闸；休眠降频（full）
+    background: true,
+    sleepMode: 'full',
     handler: async () => {
       // Phase4: enableOldSchedulerAutonomy 开关 — false 时跳过叙事固化整套旧逻辑（代码本体保留）
       if (!MIND_SWITCH.enableOldSchedulerAutonomy) return null;
@@ -564,6 +674,9 @@ export function registerScheduledTasks(
     cron: '17 3 * * *',
     quiet: true,
     lastRun: null,
+    // Phase-2：LLM 后台任务走门闸；休眠降频（full）
+    background: true,
+    sleepMode: 'full',
     handler: async () => {
       // Phase4: enableOldSchedulerAutonomy 开关 — false 时跳过梦境整理整套旧逻辑（代码本体保留）
       if (!MIND_SWITCH.enableOldSchedulerAutonomy) return null;
@@ -607,6 +720,8 @@ export function registerScheduledTasks(
     id: 'daily_summary',
     cron: 'daily_9am',
     lastRun: null,
+    // Phase-2：LLM 后台任务走门闸（每日摘要为定时推送，不受节律降频，确保不漏）
+    background: true,
     handler: async () => {
       const userIds = getAllUserIds();
       const messages: string[] = [];
@@ -642,6 +757,8 @@ export function registerScheduledTasks(
     id: 'evening_wrapup',
     cron: 'evening_8pm',
     lastRun: null,
+    // Phase-2：LLM 后台任务走门闸（晚间回顾为定时推送，不受节律降频，确保不漏）
+    background: true,
     handler: async () => {
       const userIds = getAllUserIds();
       const messages: string[] = [];
@@ -699,6 +816,9 @@ export function registerScheduledTasks(
     cron: 'every_6h',
     quiet: true,
     lastRun: null,
+    // Phase-2：LLM 后台任务走门闸；休眠模式降频（full）
+    background: true,
+    sleepMode: 'full',
     handler: async () => {
       const userIds = getAllUserIds();
       let totalBranches = 0;
@@ -713,18 +833,35 @@ export function registerScheduledTasks(
           );
           if (orphans.length < 3) continue;
 
-          const tree = buildTree(allMemories.filter((m: any) => m.userId === userId));
-          const treeSummary = tree.map(
+          // ── Phase-2 修复（item 2/11/13/15）：memory_tree prompt 炸弹 — 价值排序 + 上限采样 + token 硬截断 ──
+          // 旧实现把全部 orphan 与全部 tree 节点无上限装进 prompt（数千条记忆可超 1M token）。
+          // 新实现：orphan 按 importance×confidence 降序采样前 maxOrphans 条（每条 content 截断），
+          // tree 只取前 maxTreeNodes 节点，构建后 estimateTokenCount 硬截断至 maxPromptTokens。
+          // 业务行为不变：分组/挂枝仍按原始记忆全量执行（仅 prompt 输入被采样）。
+          const maxOrphans = getMemoryTreeEnv('PEPPA_MEMORY_TREE_MAX_ORPHANS', 80, 10, 500);
+          const maxTreeNodes = getMemoryTreeEnv('PEPPA_MEMORY_TREE_MAX_TREE_NODES', 60, 10, 500);
+          const maxPromptTokens = getMemoryTreeEnv('PEPPA_MEMORY_TREE_MAX_PROMPT_TOKENS', 4000, 500, 20000);
+
+          // 价值降序采样（importance×confidence，缺失按 0.5 计）
+          let orphansChosen: any[] = orphans
+            .map((m: any) => ({ m, score: (Number(m.importance) || 0.5) * (Number(m.confidence) || 0.5) }))
+            .sort((a, b) => b.score - a.score)
+            .slice(0, maxOrphans)
+            .map(({ m }) => ({ ...m, content: String(m.content || '').slice(0, 120) }));
+
+          const fullTree = buildTree(allMemories.filter((m: any) => m.userId === userId));
+          const treeNodes = fullTree.slice(0, maxTreeNodes);
+          const treeSummary = treeNodes.map(
             t => `- ${t.node.content} [${t.node.nodeType}] (${t.children.length} children)`,
           ).join('\n');
 
-          const prompt = `You are organizing a memory tree. Below is the current tree structure and a list of unorganized memories.
+          const buildPrompt = () => `You are organizing a memory tree. Below is the current tree structure and a list of unorganized memories.
 
 CURRENT TREE:
 ${treeSummary || '(empty)'}
 
 UNORGANIZED MEMORIES:
-${orphans.map((m: any) => `- [${m.id}] ${m.content}`).join('\n')}
+${orphansChosen.map((m: any) => `- [${m.id}] ${m.content}`).join('\n')}
 
 Group these unorganized memories into 3-8 topic branches. For each memory, decide which topic it belongs to.
 Return JSON:
@@ -740,6 +877,33 @@ Rules:
 - Create as few branches as necessary (merge similar topics)
 - Return ONLY valid JSON, no markdown`;
 
+          let prompt = buildPrompt();
+          const promptTokensBefore = estimateTokenCount(prompt);
+
+          // 超限 → 按最低价值 orphan 逐步剔除（列表已按价值降序，从尾部弹）
+          while (orphansChosen.length > 0 && estimateTokenCount(prompt) > maxPromptTokens) {
+            orphansChosen.pop();
+            prompt = buildPrompt();
+          }
+          // 字符兜底（极端情况：tree 摘要本身超限）— 二分求「估算 token ≤ 上限」的最大前缀，
+          // 保证 estimateTokenCount(prompt) ≤ maxPromptTokens（estimator 单调不减，CJK 1.5 字符/token，
+          // 按字符数上限截断无法保证 token 上限，此处直接以 estimator 为目标迭代）
+          if (estimateTokenCount(prompt) > maxPromptTokens) {
+            let lo = 0;
+            let hi = prompt.length;
+            while (lo < hi) {
+              const mid = Math.ceil((lo + hi) / 2);
+              if (estimateTokenCount(prompt.slice(0, mid)) <= maxPromptTokens) lo = mid;
+              else hi = mid - 1;
+            }
+            prompt = prompt.slice(0, Math.max(400, lo));
+          }
+
+          logger.info(
+            `[Scheduler] memory_tree prompt_tokens=${estimateTokenCount(prompt)} (截断前 ${promptTokensBefore}, ` +
+            `orphans ${orphansChosen.length}/${orphans.length}, tree ${treeNodes.length}/${fullTree.length} nodes, 上限 ${maxPromptTokens})`,
+          );
+
           const llmResult = await makeLLMCall(
             [{ role: 'user', content: prompt }],
             [],
@@ -747,6 +911,11 @@ Rules:
             getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
               getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
             );
+
+          // Phase-2（item 13）：大 prompt 对象用后立即释放引用，让 GC 尽快回收
+          prompt = '' as any;
+          orphansChosen = null as any;
+          treeNodes.length = 0;
 
           let plan: { branches: { title: string; memoryIds: string[] }[] };
           try {
@@ -793,6 +962,9 @@ Rules:
     cron: 'every_6h',
     quiet: true,
     lastRun: null,
+    // Phase-2：LLM 后台任务走门闸；休眠降频（full）
+    background: true,
+    sleepMode: 'full',
     handler: async () => {
       const userIds = getAllUserIds();
       const messages: string[] = [];
@@ -862,6 +1034,9 @@ Rules:
     cron: 'every_7d',
     quiet: true,
     lastRun: null,
+    // Phase-2：LLM 后台任务走门闸；休眠降频（full）
+    background: true,
+    sleepMode: 'full',
     handler: async () => {
       // Phase3: enableOldSchedulerAutonomy 开关 — false 时跳过整套旧自主任务（代码本体保留）
       if (!MIND_SWITCH.enableOldSchedulerAutonomy) return null;
@@ -937,6 +1112,9 @@ Rules:
     cron: '1 0 1 * *',
     quiet: true,
     lastRun: null,
+    // Phase-2：LLM 后台任务走门闸；休眠降频（full）
+    background: true,
+    sleepMode: 'full',
     handler: async () => {
       // Phase3: enableOldSchedulerAutonomy 开关 — false 时跳过整套旧自主任务（代码本体保留）
       if (!MIND_SWITCH.enableOldSchedulerAutonomy) return null;
@@ -1012,6 +1190,9 @@ Rules:
     cron: '0 0 1 1 *',
     quiet: true,
     lastRun: null,
+    // Phase-2：LLM 后台任务走门闸；休眠降频（full）
+    background: true,
+    sleepMode: 'full',
     handler: async () => {
       // Phase3: enableOldSchedulerAutonomy 开关 — false 时跳过整套旧自主任务（代码本体保留）
       if (!MIND_SWITCH.enableOldSchedulerAutonomy) return null;
@@ -1087,6 +1268,9 @@ Rules:
     cron: 'every_30m',
     quiet: true,
     lastRun: null,
+    // Phase-2：LLM 后台任务走门闸；休眠降频（full）
+    background: true,
+    sleepMode: 'full',
     handler: async () => {
       const result = await autoGenerateSkill(
         getDeepSeek,
@@ -1108,6 +1292,9 @@ Rules:
     cron: 'every_hour',
     quiet: true,
     lastRun: null,
+    // Phase-2：LLM 后台任务走门闸；休眠降频（full）
+    background: true,
+    sleepMode: 'full',
     handler: async () => {
       try {
         const created = await autoGenerateWorkflows();
@@ -1159,6 +1346,8 @@ Rules:
     cron: 'every_6h',
     quiet: true,
     lastRun: null,
+    // Phase-2：LLM 后台任务走门闸（健康审计为系统维护，不受节律降频）
+    background: true,
     handler: async () => {
       try {
         const userIds = getAllUserIds();
@@ -1188,6 +1377,9 @@ Rules:
     id: 'growth_journal',
     cron: 'daily_9am',
     lastRun: null,
+    // Phase-2：LLM 后台任务走门闸；休眠降频（full）
+    background: true,
+    sleepMode: 'full',
     handler: async () => {
       // Phase3: enableOldSchedulerAutonomy 开关 — false 时跳过整套旧自主任务（代码本体保留）
       if (!MIND_SWITCH.enableOldSchedulerAutonomy) return null;
@@ -1334,6 +1526,9 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
     cron: 'every_30m',
     quiet: true,
     lastRun: null,
+    // Phase-2：LLM 后台任务走门闸；休眠降频（full）
+    background: true,
+    sleepMode: 'full',
     handler: async () => {
       // Phase3: enableOldSchedulerAutonomy 开关 — false 时跳过整套旧自主任务（代码本体保留）
       if (!MIND_SWITCH.enableOldSchedulerAutonomy) return null;
@@ -1407,6 +1602,8 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
     cron: 'every_1h',
     quiet: true,
     lastRun: null,
+    // Phase-2：休眠降频（full）——handler 为纯模板（无直接 LLM 调用），仅节律门控
+    sleepMode: 'full',
     handler: async () => {
       // Phase3: enableOldSchedulerAutonomy 开关 — false 时跳过整套旧自主任务（代码本体保留）
       if (!MIND_SWITCH.enableOldSchedulerAutonomy) return null;
@@ -1751,6 +1948,9 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
     id: 'autonomous_work_cycle',
     cron: 'every_2h',
     lastRun: null,
+    // Phase-2：LLM 后台任务走门闸；休眠降频（full）
+    background: true,
+    sleepMode: 'full',
     handler: async () => {
       // Phase3: enableOldSchedulerAutonomy 开关 — false 时跳过整套旧自主任务（代码本体保留）
       if (!MIND_SWITCH.enableOldSchedulerAutonomy) return null;
@@ -1838,6 +2038,8 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
     cron: 'every_5m',
     quiet: true,
     lastRun: null,
+    // Phase-2：LLM 后台任务走门闸（IdleBrain 含 LLM 推演；系统维护不受节律降频）
+    background: true,
     handler: async () => {
       try {
         const { idleBrainCheck } = await import('./autonomy/idle_brain');
@@ -1847,6 +2049,176 @@ Write in first-person as Peppa, warm and introspective tone. Keep it under 150 C
       }
     },
   });
+
+  // ══════════════ Phase-3 八模块调度任务（全部 switch 门控 + quiet） ══════════════
+
+  // P3-1 欲望衰减巡检（每 6 小时）：欲望强度衰减 → 跌破下限自动放弃
+  scheduler.register({
+    id: 'p3_desire_decay',
+    cron: 'every_6h',
+    quiet: true,
+    lastRun: null,
+    handler: async () => {
+      if (!phase3Config().desireSystemEnabled) return null;
+      const results: string[] = [];
+      for (const userId of getAllUserIds()) {
+        const r = await desireSystem.decayPass(userId);
+        if (r.data && (r.data.decayed > 0 || r.data.abandoned > 0)) {
+          results.push(`${userId}:衰减${r.data.decayed}/放弃${r.data.abandoned}`);
+        }
+      }
+      return results.length > 0 ? `欲望衰减 ${results.join(' | ')}` : null;
+    },
+  });
+
+  // P3-2 每日自省（凌晨 3:23，避开整点）：一天复盘
+  scheduler.register({
+    id: 'p3_self_reflection_daily',
+    cron: '23 3 * * *',
+    quiet: true,
+    lastRun: null,
+    // Phase-2：LLM 后台任务走门闸；休眠降频（full）
+    background: true,
+    sleepMode: 'full',
+    handler: async () => {
+      if (!phase3Config().selfReflectionEnabled) return null;
+      const results: string[] = [];
+      for (const userId of getAllUserIds()) {
+        try {
+          const r = await selfReflectionEngine.runReflection({ userId, triggerType: 'daily' });
+          if (r.ok) results.push(`${userId}:round#${r.recordId ?? '?'}${r.usedFallback ? '(fallback)' : ''}`);
+        } catch (e: any) {
+          logger.warn(`[P3-Reflection] user=${userId} 每日自省失败: ${e?.message || e}`);
+        }
+      }
+      return results.length > 0 ? `每日自省 ${results.join(' | ')}` : null;
+    },
+  });
+
+  // P3-3 联想网络衰减巡检（每 6 小时）：边强度衰减 → 跌破阈值删边（绝不删记忆本体）
+  scheduler.register({
+    id: 'p3_memory_association_decay',
+    cron: 'every_6h',
+    quiet: true,
+    lastRun: null,
+    handler: async () => {
+      if (!phase3Config().memoryAssociationEnabled) return null;
+      const results: string[] = [];
+      for (const userId of getAllUserIds()) {
+        const r = await memoryAssociationEngine.decayPass(userId);
+        if (r.decayed > 0 || r.pruned > 0) results.push(`${userId}:降权${r.decayed}/删边${r.pruned}`);
+      }
+      return results.length > 0 ? `联想衰减 ${results.join(' | ')}` : null;
+    },
+  });
+
+  // P3-4 人格缓慢演化（每周 3:17）：确定性微增量（±0.005/维）+ 7 天冷却
+  scheduler.register({
+    id: 'p3_personality_slow_evolution',
+    cron: '17 3 * * 1',
+    quiet: true,
+    lastRun: null,
+    handler: async () => {
+      if (!phase3Config().personalityEvolutionEnabled) return null;
+      const results: string[] = [];
+      for (const userId of getAllUserIds()) {
+        const r = await personalitySlowEvolutionEngine.runEvolutionRound(userId);
+        if (r.ok) results.push(`${userId}:round#${r.round}`);
+      }
+      return results.length > 0 ? `人格缓慢演化 ${results.join(' | ')}` : null;
+    },
+  });
+
+  // P3-5 情绪系统衰减巡检（每小时）：向基线收敛 3% + 状态历史裁剪
+  scheduler.register({
+    id: 'p3_emotion_decay',
+    cron: 'every_1h',
+    quiet: true,
+    lastRun: null,
+    handler: async () => {
+      if (!phase3Config().emotionSystemEnabled) return null;
+      const results: string[] = [];
+      for (const userId of getAllUserIds()) {
+        const r = await emotionSystemEngine.decayPass(userId);
+        if (r.changed || r.pruned > 0) results.push(`${userId}:${r.changed ? '收敛' : '稳定'}/裁剪${r.pruned}`);
+      }
+      return results.length > 0 ? `情绪衰减 ${results.join(' | ')}` : null;
+    },
+  });
+
+  // P3-6 技能缺口心智扫描（每 30 分钟）：高频缺口 → skill_gap 心智事件
+  scheduler.register({
+    id: 'p3_skill_gap_scan',
+    cron: 'every_30m',
+    quiet: true,
+    lastRun: null,
+    // Phase-2 联动停用（item 10）：skills_extension 总闸关闭时整套 Phase3 能力停用 → 巡检直接跳过
+    background: true,
+    handler: async () => {
+      if (!phase3Config().skillFacadeEnabled) return null;
+      if (!isPhase3Enabled()) {
+        logger.info(`[Scheduler] p3_skill_gap_scan 跳过: PEPPA_PHASE3_SKILL_AUTO_ENABLE=false（技能拓展总闸已停用）`);
+        return null;
+      }
+      const results: string[] = [];
+      for (const userId of getAllUserIds()) {
+        const r = await skillFacadeEngine.scanGapsForMind(userId);
+        if (r.emitted > 0) results.push(`${userId}:注入${r.emitted}`);
+      }
+      return results.length > 0 ? `技能缺口扫描 ${results.join(' | ')}` : null;
+    },
+  });
+
+  // P3-7 Watch 感知事件保留期清理（每日 4:11）：超 30 天 / 超 2000 行裁剪
+  scheduler.register({
+    id: 'p3_watch_prune',
+    cron: '11 4 * * *',
+    quiet: true,
+    lastRun: null,
+    handler: async () => {
+      if (!phase3Config().watchIngestEnabled) return null;
+      const cfg = phase3Config();
+      const r = await p3PruneWatchEvents(cfg.watchEventMaxRows, cfg.watchEventRetentionDays);
+      return r.removed > 0 ? `Watch 感知事件裁剪 ${r.removed} 条` : null;
+    },
+  });
+
+  // P3-8 机器人巡检（每 5 分钟）：无心跳设备下线 + 异常超时指令兜底清理
+  scheduler.register({
+    id: 'p3_robot_sweep',
+    cron: 'every_5m',
+    quiet: true,
+    lastRun: null,
+    handler: async () => {
+      if (!phase3Config().robotEnabled) return null;
+      const [sweep, pendingSweep] = await Promise.all([
+        robotRegistry.sweep(3 * 60 * 1000), // 3 分钟无心跳 → offline
+        sweepPending(),
+      ]);
+      if (sweep.tookOffline.length > 0 || pendingSweep.swept > 0) {
+        return `机器人巡检: 下线${sweep.tookOffline.join(',') || '无'}, 清理超时指令${pendingSweep.swept}`;
+      }
+      return null;
+    },
+  });
+}
+
+// ══════════════ Phase-2 调度环境变量读取（模块外，供 runTask/scheduleTask/handler 使用） ══════════════
+
+/** 整数环境变量读取（越界截断），缺省用默认值 */
+function getSchedulerEnv(name: string, fallback: number, min: number, max: number): number {
+  const n = Number(process.env[name]);
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.floor(n))) : fallback;
+}
+
+/** interval 任务错峰抖动上限（毫秒；0 = 不错峰） */
+function getSchedulerStaggerMaxMs(): number {
+  return getSchedulerEnv('PEPPA_SCHEDULER_STAGGER_MAX_MS', 60_000, 0, 10 * 60 * 1000);
+}
+
+/** memory_tree prompt 构建上限参数（数量/节点数/token 上限，越界截断到安全区间） */
+function getMemoryTreeEnv(name: string, fallback: number, min: number, max: number): number {
+  return getSchedulerEnv(name, fallback, min, max);
 }
 
 

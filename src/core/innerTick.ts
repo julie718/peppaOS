@@ -19,6 +19,8 @@ import type { NormalizedLLMResponse } from '../../server/tools/types';
 import { createLLMRuntime } from '../../server/runtime/llm';
 import type { LLMClients } from '../../server/runtime/llm';
 import { getUserPreferredLLMConfig } from '../../server/llm/user_preferences';
+// Phase-2 综合修复：休眠模式 prompt 瘦身（inner_tick 非活跃模式减少召回记忆条数）
+import { getRhythmMode } from '../../server/runtime/rhythm';
 import { MIND_SWITCH } from '../config/mindSwitch';
 import { addMemory } from '../../server/memory/store';
 import {
@@ -104,6 +106,8 @@ export interface InnerTickOptions {
   turnIndex?: number;              // 会话内轮次序号；不传时按该会话快照条数自增推断
   // ── 测试注入（生产调用不传）：覆盖 LLM provider getters，供自测脚本模拟超时/空content 等异常响应 ──
   llmGetters?: Partial<LLMClients>;
+  // ── Phase-2：休眠模式 prompt 瘦身（显式覆盖用；不传时按节律模式自动判定）──
+  slim?: boolean;
 }
 
 // ─────────────────────────────────────────────
@@ -113,8 +117,11 @@ export interface InnerTickOptions {
 /**
  * 读取 life.db 历史快照（人格/情绪/欲望/反思/关系/事件/搁置思绪 + 上一轮 InnerTick 快照），
  * 渲染为文本供 LLM 参考。快照对象绝不赋值给任何运行状态。
+ *
+ * Phase-2 综合修复：slim=true（半休眠/深度休眠）时减少召回条数做 prompt 瘦身，
+ * 活跃模式（slim=false）保持原有召回逻辑完全不变。
  */
-async function loadLifeSnapshotAsText(): Promise<string> {
+async function loadLifeSnapshotAsText(slim: boolean = false): Promise<string> {
   const lines: string[] = [];
 
   try {
@@ -127,7 +134,7 @@ async function loadLifeSnapshotAsText(): Promise<string> {
   }
 
   try {
-    const emotions = await getRecentEmotions(10);
+    const emotions = await getRecentEmotions(slim ? 4 : 10);
     if (emotions.length) {
       lines.push(`最近情绪: ${emotions.map((x: any) => `${x.emotion_type}(${(+x.intensity).toFixed(2)})`).join(', ')}`);
     }
@@ -136,7 +143,8 @@ async function loadLifeSnapshotAsText(): Promise<string> {
   }
 
   try {
-    const desires = await getActiveDesires();
+    const allDesires = await getActiveDesires();
+    const desires = slim ? allDesires.slice(0, 3) : allDesires;
     if (desires.length) {
       lines.push(`活跃欲望: ${desires.map((x: any) => `${x.desire_text}(${(+x.priority).toFixed(2)})`).join('; ')}`);
     }
@@ -149,7 +157,7 @@ async function loadLifeSnapshotAsText(): Promise<string> {
   }
 
   try {
-    const reflections = await getRecentReflections(5);
+    const reflections = await getRecentReflections(slim ? 2 : 5);
     if (reflections.length) {
       lines.push(`最近反思: ${reflections.map((x: any) => x.reflection_text).join('; ')}`);
     }
@@ -158,7 +166,7 @@ async function loadLifeSnapshotAsText(): Promise<string> {
   }
 
   try {
-    const memories = await getSignificantMemories(0.6, 10);
+    const memories = await getSignificantMemories(0.6, slim ? 4 : 10);
     if (memories.length) {
       lines.push(`重要交互记忆: ${memories.map((x: any) => x.event_type || JSON.stringify(x.context_json || {}).slice(0, 80)).join('; ')}`);
     }
@@ -176,7 +184,7 @@ async function loadLifeSnapshotAsText(): Promise<string> {
   }
 
   try {
-    const thoughts = await getUnresolvedThoughts(3);
+    const thoughts = await getUnresolvedThoughts(slim ? 1 : 3);
     if (thoughts.length) {
       lines.push(`搁置思绪: ${thoughts.map((x: any) => x.event_type || x.context_json).join('; ')}`);
     }
@@ -186,7 +194,7 @@ async function loadLifeSnapshotAsText(): Promise<string> {
 
   // 上一轮 InnerTick 快照（从 system_events 读回，保证跨回合连续性，仍仅作 prompt 素材）
   try {
-    const events = await getRecentEvents(50);
+    const events = await getRecentEvents(slim ? 15 : 50);
     const prev = events.find((x: any) => x.event_type === INNER_TICK_SNAPSHOT_EVENT);
     if (prev?.data_json) {
       try {
@@ -769,6 +777,17 @@ export function innerTickCooldownRemainingMs(userId: string): number {
 }
 
 /**
+ * Phase-2 综合修复：休眠模式 prompt 瘦身总开关。
+ * PEPPA_INNER_TICK_SLIM=true（默认）时，半休眠/深度休眠模式下的 inner_tick 快照召回条数减量，
+ * 活跃模式（active）恒不瘦身（用户交互后的完整推演不受影响）。
+ */
+export function isInnerTickSlimEnabled(): boolean {
+  const v = process.env.PEPPA_INNER_TICK_SLIM;
+  if (v === undefined || v === '') return true; // 默认开启
+  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+}
+
+/**
  * Phase2 铁则2：心智内容对外输出代码级拦截器。
  * isPublic=false 的内部推演内容：强制拦截，禁止输出到普通聊天返回（仅落库与日志）。
  * 返回 true 表示允许对外使用；false 表示内容被拦截，调用方必须丢弃/降级，不得透出。
@@ -812,7 +831,13 @@ export async function runInnerTick(options: InnerTickOptions = {}): Promise<Inne
   lastRunAtByUser.set(userId, Date.now());
 
   // 读取 life.db 历史快照 → 仅渲染为 prompt 文本（不参与运行状态）
-  const snapshotText = await loadLifeSnapshotAsText();
+  // Phase-2 综合修复：半休眠/深度休眠模式（非 active）自动瘦身快照召回条数；
+  // 聊天触发时用户刚交互 → 模式为 active → 保持原有完整召回，行为不变。
+  const slim = options.slim ?? (isInnerTickSlimEnabled() && getRhythmMode() !== 'active');
+  if (slim) {
+    logger.mind(`${TAG} 休眠模式 prompt 瘦身生效（mode=${getRhythmMode()}），快照召回条数减量`);
+  }
+  const snapshotText = await loadLifeSnapshotAsText(slim);
   // Phase4: 旧模块派生心智事件（derivedMentalEvents）一并注入 LLM 推演上下文
   // Phase2: 本轮对话上下文摘要（conversationSummary）一并注入，作为对话触发的推演输入素材
   const systemPrompt = buildInnerTickSystemPrompt(snapshotText, options.derivedMentalEvents, options.conversationSummary);

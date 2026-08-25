@@ -20,6 +20,9 @@ export interface LLMCallConfig {
   orgId?: string;
   signal?: AbortSignal;
   scene?: string;
+  /** Phase-2（item 9）：重试次数覆盖（透传 withCloudResilience maxRetries）。
+   *  不传 → 保持原默认 2 次（用户 chat 链路行为不变）；后台任务传 0（PEPPA_BG_LLM_RETRY）。 */
+  retries?: number;
 }
 
 function recordLLMMetrics(provider: string, model: string, usage: any, startMs: number, opts?: { cancelled?: boolean; error?: string; scene?: string }) {
@@ -582,6 +585,10 @@ async function makeLLMCallCore(
   assertQwenAllowedByUserPrefs(config);
   const _start = Date.now();
 
+  // Phase-2（item 9）：重试收紧 — 后台任务经门闸注入 retries=0（PEPPA_BG_LLM_RETRY，失败即放弃，
+  // 防重试风暴）；用户 chat 链路不传 → 保持原默认 2 次重试行为不变。
+  const retries = config.retries ?? 2;
+
   // ── Privacy gate: strict mode blocks cloud providers ──
   // Reasoning models need high token budget — their CoT eats into max_tokens
   const maxTokens = isReasoningModel(config.model)
@@ -666,7 +673,7 @@ async function makeLLMCallCore(
 
     const response = await withCloudResilience(
       () => client.chat.completions.create(params, { signal: config.signal }),
-      { provider: config.provider, model: config.model },
+      { provider: config.provider, model: config.model, maxRetries: retries },
     );
     const _res = parseDeepSeekResponse(response); recordLLMMetrics(config.provider, config.model, _res.usage, _start, { scene: config.scene }); return _res;
   }
@@ -685,7 +692,7 @@ async function makeLLMCallCore(
     const modelInstance = client.getGenerativeModel(modelConfig);
     const result = await withCloudResilience(
       () => modelInstance.generateContent({ contents }, { signal: config.signal }),
-      { provider: 'gemini', model: config.model },
+      { provider: 'gemini', model: config.model, maxRetries: retries },
     );
     const _res = parseGeminiResponse(result); recordLLMMetrics(config.provider, config.model, _res.usage, _start, { scene: config.scene }); return _res;
   }
@@ -704,7 +711,7 @@ async function makeLLMCallCore(
 
     const response = await withCloudResilience(
       () => client.chat.completions.create(params, { signal: config.signal }),
-      { provider: 'openai', model: config.model },
+      { provider: 'openai', model: config.model, maxRetries: retries },
     );
     const _res = parseOpenAIResponse(response); recordLLMMetrics(config.provider, config.model, _res.usage, _start, { scene: config.scene }); return _res;
   }
@@ -722,12 +729,28 @@ async function makeLLMCallCore(
 
     const response = await withCloudResilience(
       () => client.messages.create(params, { signal: config.signal }),
-      { provider: 'anthropic', model: config.model },
+      { provider: 'anthropic', model: config.model, maxRetries: retries },
     );
     const _res = parseAnthropicResponse(response); recordLLMMetrics(config.provider, config.model, _res.usage, _start, { scene: config.scene }); return _res;
   }
 
   throw new Error(`Unsupported provider: ${config.provider}`);
+}
+
+/** 用户对话场景：重试保持 2 次（可靠优先，与 tokenBudget 用户白名单一致） */
+const USER_RETRY_SCENES: ReadonlySet<string> = new Set([
+  'chat', 'task', 'voice', 'summary', 'classifier', 'identity_check', 'music', 'stream',
+]);
+
+/**
+ * Phase-2（item 9）：后台场景默认重试次数。
+ * PEPPA_BG_LLM_RETRY（默认 0）— 后台任务失败即放弃本轮（防重试风暴），
+ * 用户对话场景恒为 2 次（chat 重试行为保持不变）。调用方显式传 config.retries 优先。
+ */
+function defaultRetriesForScene(scene?: string): number {
+  if (scene && USER_RETRY_SCENES.has(scene)) return 2;
+  const v = Number(process.env.PEPPA_BG_LLM_RETRY);
+  return Number.isFinite(v) && v >= 0 ? Math.min(5, Math.floor(v)) : 0;
 }
 
 // P2-11: 统一埋点包装 — 成功路径由 core 各分支 recordLLMMetrics 记录，取消/失败在此兜底
@@ -747,9 +770,11 @@ export async function makeLLMCall(...args: Parameters<typeof makeLLMCallCore>): 
 
   // ② 模型强制分发
   const routed = resolveRoute(config);
+  // Phase-2（item 9）：重试默认值注入 — 后台场景 0 次（PEPPA_BG_LLM_RETRY），用户对话场景 2 次
+  const retries = config.retries ?? defaultRetriesForScene(config.scene);
   const effective: LLMCallConfig = routed
-    ? { ...config, provider: routed.provider as LLMCallConfig['provider'], model: routed.model }
-    : config;
+    ? { ...config, provider: routed.provider as LLMCallConfig['provider'], model: routed.model, retries }
+    : { ...config, retries };
   const coreArgs = [messages, toolDeclarations, effective, ...args.slice(3)] as Parameters<typeof makeLLMCallCore>;
 
   try {
@@ -822,6 +847,9 @@ async function makeLLMCallStreamingCore(
   assertQwenAllowedByUserPrefs(config);
   const _start = Date.now();
 
+  // Phase-2（item 9）：重试收紧 — 同非流式，后台任务 retries=0，用户链路默认 2 次不变
+  const retries = config.retries ?? 2;
+
   // ── Privacy gate ──
   if (isStrictPrivacy() && config.provider !== 'auto') {
     requireLocalProvider(config.provider);
@@ -868,7 +896,7 @@ async function makeLLMCallStreamingCore(
 
     const stream: any = await withCloudResilience(
       () => client.chat.completions.create(params, { signal: config.signal }),
-      { provider: config.provider, model: config.model },
+      { provider: config.provider, model: config.model, maxRetries: retries },
     );
     const accumulatedText: string[] = [];
     const accumulatedReasoning: string[] = [];
@@ -943,7 +971,7 @@ async function makeLLMCallStreamingCore(
     const modelInstance = client.getGenerativeModel(modelConfig);
     const result: any = await withCloudResilience(
       () => modelInstance.generateContentStream({ contents }),
-      { provider: 'gemini', model: config.model },
+      { provider: 'gemini', model: config.model, maxRetries: retries },
     );
 
     const accumulatedText: string[] = [];
@@ -993,7 +1021,7 @@ async function makeLLMCallStreamingCore(
 
     const stream: any = await withCloudResilience(
       () => client.messages.stream(params),
-      { provider: 'anthropic', model: config.model },
+      { provider: 'anthropic', model: config.model, maxRetries: retries },
     );
 
     const textParts: string[] = [];
@@ -1065,9 +1093,11 @@ export async function makeLLMCallStreaming(...args: Parameters<typeof makeLLMCal
 
   // ② 模型强制分发
   const routed = resolveRoute(config);
+  // Phase-2（item 9）：重试默认值注入（流式同非流式 — 后台场景 0 次，用户对话场景 2 次）
+  const retries = config.retries ?? defaultRetriesForScene(config.scene);
   const effective: LLMCallConfig = routed
-    ? { ...config, provider: routed.provider as LLMCallConfig['provider'], model: routed.model }
-    : config;
+    ? { ...config, provider: routed.provider as LLMCallConfig['provider'], model: routed.model, retries }
+    : { ...config, retries };
   const coreArgs = [messages, toolDeclarations, effective, ...args.slice(3)] as Parameters<typeof makeLLMCallStreamingCore>;
 
   try {

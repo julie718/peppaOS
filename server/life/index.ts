@@ -21,6 +21,8 @@ import { readDB, ensureDatabaseInitialized } from '../../db_layer';
 import { guardMentalStateWrite } from '../../src/utils/paradigmGuard';
 // Phase3: 全局功能开关 — 控制旧 life 10min TICK 业务是否执行（定时器本身不销毁）
 import { MIND_SWITCH } from '../../src/config/mindSwitch';
+// Phase-2 综合修复：动态节律调度（active/half_sleep/deep_sleep → inner_tick 动态间隔 + 时钟回跳防护）
+import { getInnerTickIntervalMs, getIdleMs, logRhythmModeIfChanged } from '../runtime/rhythm';
 
 // T80: 子任务独立超时辅助（超时后 Promise 以 timeout 标记拒绝，由调用方决定如何处理）
 function withTimeout<T>(p: Promise<T>, ms: number, name: string): Promise<T> {
@@ -57,7 +59,9 @@ function collectUserIds(): string[] {
   }
 }
 
-const TICK_INTERVAL_MS = 10 * 60000; // 10 分钟
+// Phase-2 综合修复：主 TICK 间隔已改为动态节律调度（rhythm.getInnerTickIntervalMs），
+// 活跃 10min / 半休眠 60min / 深度休眠 120-180min；本常量保留仅作注释参考（活跃模式默认值）。
+const TICK_INTERVAL_MS = 10 * 60000; // 活跃模式默认 10 分钟
 const DEGRADED_THRESHOLD = 3; // 连续 3 次失败进入降级模式
 // T80: 记忆 GC 独立调度（移出主 TICK 循环，30 分钟一次）
 const MEMORY_GC_INTERVAL_MS = 30 * 60000;
@@ -91,6 +95,8 @@ export class LifeSystem {
 
   private tickTimer: ReturnType<typeof setInterval> | null = null;
   private memoryGcTimer: ReturnType<typeof setInterval> | null = null;
+  /** Phase-2 时钟回跳防护：记录上一轮墙钟，回退超阈值 → 本轮跳过（禁止批量补发） */
+  private lastTickWall = 0;
   private consecutiveFailures = 0;
   private degraded = false;
   private running = false;
@@ -214,10 +220,49 @@ export class LifeSystem {
     // 立即执行首次 tick
     this.tick().catch(e => console.error('[LifeSystem] 首次tick失败:', e.message));
 
-    // 每 10 分钟执行
-    this.tickTimer = setInterval(() => {
+    // ── Phase-2 综合修复：inner_tick 动态节律间隔 ──
+    // 活跃模式 10min → 半休眠 60min → 深度休眠 120-180min（PEPPA_RHYTHM_*_TICK_MIN 可调）。
+    // 递归 setTimeout：每周期重新读取当前节律模式决定下一轮间隔；tick 执行期间不会重复触发。
+    this.scheduleNextTick();
+  }
+
+  /**
+   * 时钟回跳防护：系统时间回退超过 5s → 本轮 TICK 跳过（防止补发积压轮次造成瞬间任务爆发）。
+   * 返回 true = 检测到回跳（本轮应跳过）。
+   */
+  private isClockRollback(): boolean {
+    const now = Date.now();
+    if (this.lastTickWall > 0 && now < this.lastTickWall - 5000) {
+      console.warn(`[LifeSystem] ⏰ 时钟回跳防护: 墙钟从 ${this.lastTickWall} 回退到 ${now}（相差 ${Math.round((this.lastTickWall - now) / 1000)}s），本轮 TICK 跳过`);
+      this.lastTickWall = now;
+      return true;
+    }
+    this.lastTickWall = now;
+    return false;
+  }
+
+  /** 动态节律排程：每轮按当前模式计算下一轮间隔（active=10min / half=60min / deep=120-180min） */
+  private scheduleNextTick(): void {
+    if (!this.running) return;
+    const mode = logRhythmModeIfChanged();
+    const intervalMs = getInnerTickIntervalMs(mode);
+    if (this.tickTimer) {
+      clearTimeout(this.tickTimer);
+      this.tickTimer = null;
+    }
+    this.tickTimer = setTimeout(() => {
+      if (!this.running) return;
+      if (this.isClockRollback()) {
+        this.scheduleNextTick();
+        return;
+      }
+      const idleMs = getIdleMs();
+      const idleDesc = idleMs > 0 ? `${(idleMs / 3600000).toFixed(1)}h` : 'unknown';
+      console.log(`[Rhythm] tick mode=${mode} idle=${idleDesc} next=${Math.round(intervalMs / 60000)}min`);
+      // 先排下一轮（防重入），再执行业务
+      this.scheduleNextTick();
       this.tick().catch(e => console.error('[LifeSystem] tick失败:', e.message));
-    }, TICK_INTERVAL_MS);
+    }, intervalMs);
   }
 
   /** T80: 记忆 GC 独立步骤（30 分钟调度 + 首次启动后 30 秒兜底） */

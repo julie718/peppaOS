@@ -182,18 +182,19 @@ describe('强制分发（任务2）', () => {
 
 describe('故障降级（任务2）', () => {
   it('pro 返回 429 限流 → 核心场景（evolution）自动降级 flash 重试一次，接口恢复后下次自动回 pro', async () => {
-    // withCloudResilience 对 429 自动重试 2 次（共 3 次尝试）→ 全部失败后路由层才接管降级
-    const fake = makeFakeClient({ behaviors: ['fail-429', 'fail-429', 'fail-429', 'ok'] });
+    // Phase-2 重试收紧（item 9）：evolution 属后台核心心智场景 → 0 次重试（PEPPA_BG_LLM_RETRY=0，
+    // 防重试风暴），pro 失败 1 次即由路由层应急降级 flash（降级是换模型，不是重试）
+    const fake = makeFakeClient({ behaviors: ['fail-429', 'ok'] });
     const g = gettersFor(fake);
     const result = await providers.makeLLMCall(
       [{ role: 'system', content: '人格演化' }, { role: 'user', content: '演化' }],
       EMPTY_TOOLS, cfg('evolution'),
       g.getDeepSeek, g.getGemini, g.getOpenAI, g.getAnthropic, g.getQwen, g.getOllama, g.getLmStudio, g.getArk, g.getXiaomi, g.getKimi, g.getGlm, g.getRelay,
     );
-    // 首次全部打 pro（含重试），pro 彻底失败后应急降级 flash 一次
+    // 后台场景不重试：pro 仅 1 次尝试，失败后应急降级 flash 一次
     const proCalls = fake.calls.filter((c) => c.model === 'deepseek-v4-pro');
     const flashCalls = fake.calls.filter((c) => c.model === 'deepseek-v4-flash');
-    expect(proCalls.length).toBeGreaterThan(0);
+    expect(proCalls).toHaveLength(1);                          // 重试收紧：0 次 pro 重试
     expect(fake.calls[0].model).toBe('deepseek-v4-pro');       // 永远先探测 pro
     expect(flashCalls).toHaveLength(1);
     expect(fake.calls[fake.calls.length - 1].model).toBe('deepseek-v4-flash'); // 最后一次是降级调用

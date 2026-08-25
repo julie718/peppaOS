@@ -56,6 +56,11 @@ export function isPhase3Enabled(): boolean {
   return phase3Config().enabled;
 }
 
+/** 测试/运维用：清空惰性缓存，下次 phase3Config() 重新读取环境变量 */
+export function resetPhase3SwitchCache(): void {
+  _cfg = null;
+}
+
 export interface SkillEventPayload {
   /** 事件名：search / assess / risk_assess / install / generate / call / enable / disable / uninstall / upgrade / rollback / breach / blocked */
   event: string;

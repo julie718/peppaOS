@@ -34,6 +34,8 @@ import { logger } from '../lib/logger';
 import { getRouterConfig, isDeepSeekConfigured } from './routerConfig';
 import { getBudgetState, recordProTokens, getTodayProUsage, resetTodayUsage, BudgetSleepError, BudgetState } from './budgetGate';
 import { classifyCloudError, CloudErrorCategory } from '../cloud/core';
+// Phase-2（item 6/14）：每日后台 token 预算记账（afterCall 挂接，仅记账+日志，绝不抛错）
+import { recordUsage as recordDailyBackgroundUsage } from '../runtime/tokenBudget';
 // 类型导入（type-only）：避免与 providers.ts 运行时互相 import 形成循环依赖
 import type { LLMCallConfig } from './providers';
 import type { NormalizedLLMResponse } from '../tools/types';
@@ -131,6 +133,15 @@ export function afterCall(
 ): void {
   const tier = routed?.tier ?? classifyScene(config.scene);
   const cacheHit = !!usage && (usage.cacheHitTokens || 0) > 0;
+
+  // ── Phase-2（item 6/14）：每日后台 token 预算记账 ──
+  // 用户场景（chat/task/voice 等）白名单不计入；其余场景消耗计入后台额度，
+  // 供 backgroundGate 熔断判定（额度耗尽 → 后台任务跳过，用户对话不受影响）。
+  // 仅记账+周期日志，内部已兜底 try/catch，绝不影响 LLM 主流程。
+  recordDailyBackgroundUsage(config.scene, {
+    promptTokens: usage?.promptTokens,
+    completionTokens: usage?.completionTokens,
+  });
 
   // ── 任务5：仅 pro 核心心智计入预算（flash 外围不受熔断约束）──
   if (tier === 'core_mind' && usage) {
