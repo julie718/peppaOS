@@ -13,10 +13,10 @@ import { registerConversationHandlers } from "../socket/conversations";
 import { registerWakeHandlers } from "../socket/wake";
 import { registerTerminalHandlers } from "../socket/terminal";
 import { registerMusicHandlers } from "../socket/music";
-// Phase-3 接线：Watch 感知占位层（bio 复用通道 + perception:update 死链路补齐）与机器人上行
-import { watchIngestEngine } from "../watch/ingest";
-import { registerRobotHandlers } from "../robot/socket";
-import { phase3Config } from "../phase3/config";
+// Phase-3 接线（watch/robot/phase3 均为本地未提交模块，Docker 构建环境不存在 → 已注释停用，恢复时取消注释即可）
+// import { watchIngestEngine } from "../watch/ingest";
+// import { registerRobotHandlers } from "../robot/socket";
+// import { phase3Config } from "../phase3/config";
 import { registerClientSelfHandlers } from "../socket/client_self";
 import { getSensory } from "../socket/shared";
 import { perceptionEvents } from "../socket/shared";
@@ -169,15 +169,7 @@ export function initSocketRuntime({ io, jwtSecret, llm }: SocketContext) {
         engine.tick();
         triggerHeartbeatIfReady('rest');
 
-        // [P3-M7] Watch 感知占位层：bio 载荷同步进 P3 通道（事件持久化 + 感知队列 + 情绪确定性规则）。
-        // skipDesireIngest=true：本处理器上方已对同一载荷 ingest 过欲望增量（P2 既有逻辑），
-        // P3 通道若再 ingest 会二次叠加 —— 欲望只走单通道；REST /api/p3/watch/ingest-bio 不跳过。
-        const uid = getUserId(socket);
-        if (uid && uid !== 'anonymous' && phase3Config().watchIngestEnabled) {
-          void watchIngestEngine.ingestBioUpdate(uid, { heartRate, hrv, steps }, { skipDesireIngest: true }).catch((e: any) =>
-            logger.warn('[P3-Watch] bio 占位层接入失败（不阻断原流程）:', e?.message || e),
-          );
-        }
+        // [P3-M7] Watch 占位层 bio 接入（依赖本地未提交模块）已随 P3 停用移除
 
         const intent = engine.getTopIntent();
         if (intent.score >= 0.55) {
@@ -193,25 +185,7 @@ export function initSocketRuntime({ io, jwtSecret, llm }: SocketContext) {
     // Register all handlers
     registerDeviceHandlers(socket, getUserId, io);
     registerPerceptionHandlers(socket, getUserId, io);
-    registerRobotHandlers(io, socket);
-
-    // [P3-M7] perception:update 死链路补齐 —— 客户端此前发送的 12 维感知向量无处理器，现接入 Watch 占位层
-    socket.on("perception:update", (payload) => {
-      try {
-        const vector = Array.isArray(payload?.vector) ? payload.vector : payload;
-        const uid = getUserId(socket);
-        if (uid && uid !== 'anonymous') {
-          void watchIngestEngine.ingestPerceptionUpdate(uid, vector).catch((e: any) =>
-            logger.warn('[P3-Watch] perception:update 接入失败:', e?.message || e),
-          );
-          socket.emit('perception:update_ack', { ok: true });
-        } else {
-          socket.emit('perception:update_ack', { ok: false, error: 'unauth' });
-        }
-      } catch (err) {
-        logger.warn('[P3-Watch] perception:update 解析失败:', err);
-      }
-    });
+    // [P3-M7] robot 处理器与 perception:update 占位层（依赖本地未提交模块）已随 P3 停用移除
     registerAmbientHandlers(socket, getUserId, io);
     registerConversationHandlers(socket, getUserId);
     registerWakeHandlers(socket, getUserId);

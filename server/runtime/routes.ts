@@ -7,7 +7,7 @@ import { mountMcpRoutes } from "../routes/mcp_routes";
 import { mountDeviceRoutes } from "../routes/device_routes";
 import { mountSystemRoutes } from "../routes/system_routes";
 import { mountSelfHealRoutes } from "../self_heal/routes";
-import { mountPhase3Routes } from "../phase3/routes";
+// import { mountPhase3Routes } from "../phase3/routes"; // 本地未提交模块，Docker 构建环境不存在 → 已注释停用
 import { mountSkillsRoutes } from "../skills_extension/routes";
 import { mountChatRoutes } from "../routes/chat_routes";
 import { mountPreferencesRoutes } from "../routes/preferences_routes";
@@ -47,8 +47,8 @@ export function mountAllRoutes({ apiRouter, jwtSecret, llm, getCookieOptions, io
   // Phase2 模块8：调试后台 API（requireAuth + requireAdmin，仅只读观测）
   mountDebugRoutes(apiRouter);
 
-  // Phase-3 八模块（欲望/自省/联想/人格演化/情绪/技能总览/Watch感知/机器人）统一挂载
-  mountPhase3Routes(apiRouter, io);
+  // Phase-3 八模块统一挂载（../phase3 为本地未提交模块 → 已注释停用，恢复时取消注释即可）
+  // mountPhase3Routes(apiRouter, io);
 
   // System routes (health, tools, llm, settings, stats, ecosystem, modules)
   mountSystemRoutes(apiRouter, jwtSecret, io);
