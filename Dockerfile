@@ -53,6 +53,11 @@ RUN mkdir -p /usr/local/share/.cache/node-gyp/22.23.2 && \
     tar -xzf /tmp/node-headers/node-v22.23.2-headers.tar.gz -C /usr/local/share/.cache/node-gyp/22.23.2 --strip-components=1
 RUN npm ci || npm install
 
+# 技能运行时编译依赖的源目录，显式声明（COPY . . 已含，此处防止 .dockerignore 误排除后静默缺失）：
+#   - server/config/: data_path.ts 等路径解析模块，大量技能 import ../config/data_path
+#   - server/music/: ncm_cli.ts 网易云 CLI（bundled neteasemusic 技能 import ../../../music/ncm_cli）
+COPY server/config/ /app/server/config/
+COPY server/music/ /app/server/music/
 COPY . .
 RUN npm run build:frontends && npm run build:server
 
@@ -105,6 +110,11 @@ COPY --from=build /app/server/lib/ /app/server/lib/
 COPY --from=build /app/server/personality/personalities.json /app/server/personality/personalities.json
 COPY --from=build /app/server/mcp/config.example.json /app/server/mcp/config.example.json
 COPY --from=build /app/tsconfig.json /app/tsconfig.json
+# 技能运行时 tsx 编译按源文件路径 import（不进 bundle），缺失即 ERR_MODULE_NOT_FOUND：
+#   - server/config/data_path.ts: getDataPath/getPeppaDbPath 路径解析（大量技能 import ../config/data_path）
+#   - server/music/ncm_cli.ts: 网易云 CLI 执行（bundled neteasemusic 技能 import ../../../music/ncm_cli）
+COPY --from=build /app/server/config/ /app/server/config/
+COPY --from=build /app/server/music/ /app/server/music/
 
 RUN mkdir -p /app/data /app/peppa_output && \
     chown -R node:node /app/data /app/peppa_output /app/dist /app/dist-server /app/server
