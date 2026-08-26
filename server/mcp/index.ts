@@ -22,6 +22,13 @@ export async function registerMCPTools(io?: any): Promise<string[]> {
   }
 
   mcpManager.setOnServerRecovered(recoverServerTools);
+  // Bug 修复：崩溃即注销该 server 的注册工具（计数不再虚高，注册集合稳定）
+  mcpManager.setOnServerCrashed((name) => {
+    toolRegistry.unregisterByPrefix(`mcp_${name}_`);
+  });
+
+  // Bug 修复：启动输出完整工具清单日志（此前仅按 server 打印计数，无法核对注册集合是否稳定）
+  logger.info(`[MCP] 启动工具注册完成: 共 ${registered.length} 个工具 — ${registered.join(', ')}`);
 
   return registered;
 }

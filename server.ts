@@ -72,6 +72,8 @@ import { logParadigmPhase0Status } from './src/utils/paradigmGuard';
 import { registerDataSources } from './server/lib/dataSourceRegistry.js';
 // Phase2 模块1：感知事件队列（内存队列 + SQLite 后备表 + 空闲回捞 + 超时丢弃）
 import { startPerceptionQueueMaintenance } from './server/perception/queue';
+// Phase-3 总入口：lifeDb 迁移 + 记忆联想网络（注册 store.ts 强化监听器 + 持久化边水合）
+import { initPhase3 } from './server/phase3';
 import {
   configureNcmCredentials,
   normalizeNcmAppId as normalizeStoredNcmAppId,
@@ -365,6 +367,14 @@ async function start() {
   await setupStatic(app, __filename, __dirname, ROLE);
   // Phase2 模块1：感知事件队列维护定时器（空闲回捞后备积压 + 过期清扫）
   startPerceptionQueueMaintenance();
+  // Phase-3 初始化：lifeDb P3 表迁移 + 记忆联想网络（注册 store.ts 强化监听器 → 检索联想自动
+  // 写入 memory_associations 表；把表内历史联想边水合回内存共检索图，修复重启归零）。
+  // 幂等；失败不阻断主服务启动（仅记录，联想持久化为加法桥，不影响既有链路）。
+  try {
+    await initPhase3();
+  } catch (err: any) {
+    console.error('[Phase3] 初始化失败（不阻断主服务）:', err?.message || err);
+  }
   await bootstrap({ server, io, PORT, HOST, jwtSecret: JWT_SECRET, llm, __dirname });
 }
 

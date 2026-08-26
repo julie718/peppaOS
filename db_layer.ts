@@ -1312,6 +1312,21 @@ async function archiveDatabase(): Promise<void> {
     fs.mkdirSync(archiveDir, { recursive: true });
     const archivePath = path.join(archiveDir, `peppa-${archiveTodayKey()}.db`);
     if (fs.existsSync(archivePath)) return; // 当天已归档过，避免重复膨胀
+    // Bug 修复：归档前先 WAL checkpoint（TRUNCATE）— 把 WAL 中待归档页合并进主库并收缩 WAL 文件，
+    // 确保归档副本完整一致、避免 VACUUM INTO 复制时 WAL 未落盘页丢失
+    try {
+      await enqueueOp(() =>
+        execWithRetry(
+          (conn) =>
+            new Promise<void>((resolve, reject) => {
+              conn.run('PRAGMA wal_checkpoint(TRUNCATE)', (err) => (err ? reject(err) : resolve()));
+            }),
+          'wal_checkpoint',
+        ),
+      );
+    } catch (err) {
+      console.warn('[DB] 归档前 wal_checkpoint 失败（非致命，继续归档）:', (err as any)?.message ?? err);
+    }
     // VACUUM INTO 必须在事务外执行；经串行队列独占连接（含 BUSY 指数退避外壳）
     await enqueueOp(() =>
       execWithRetry(

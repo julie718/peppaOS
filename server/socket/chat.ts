@@ -119,6 +119,63 @@ function normalizeChatHistoryRecord(m: any): NormalizedMessage[] {
   return entries;
 }
 
+// Bug 修复：对话上下文 token 硬上限截断 — 修复单轮 56k tokens 无限膨胀
+// （客户端 history 与持久化历史无上限拼接，长会话越滚越大）。
+// 策略：system（首条）+ 最新用户消息（末条）恒保留；历史按「保留近期对话」从最旧处
+// 逐条丢弃、至少保留最近 2 条（上一轮问答连续性）；只作用于最终拼装数组，不改底层检索逻辑。
+const LLM_CONTEXT_TOKEN_LIMIT = parseInt(process.env.LLM_CONTEXT_TOKEN_LIMIT || '40000', 10);
+
+export function trimContextToTokenBudget(messages: NormalizedMessage[], budget: number): NormalizedMessage[] {
+  // content 可能是 string 或多模态内容数组（图片等），统一抽取文本部分估算 token
+  const est = (m: NormalizedMessage) => {
+    const raw = m.content as any;
+    const text = typeof raw === 'string' ? raw : Array.isArray(raw) ? raw.map((p: any) => (typeof p === 'string' ? p : p?.text || '')).join(' ') : '';
+    return estimateTokens(text);
+  };
+  const totalBefore = messages.reduce((s, m) => s + est(m), 0);
+  if (totalBefore <= budget) return messages;
+
+  const head = messages[0];
+  const tail = messages[messages.length - 1];
+  const history = messages.slice(1, -1);
+  const minKeep = Math.min(history.length, 2);
+
+  let total = totalBefore;
+  const kept: NormalizedMessage[] = [...history];
+  while (total > budget && kept.length > minKeep) {
+    const dropped = kept.shift();
+    if (dropped) total -= est(dropped);
+  }
+
+  // 兜底：最近 2 条历史仍超预算时（典型场景：单条助手回复本身巨大），
+  // 对最旧保留历史做文本级截断（新对象，不改调用方引用），保证硬上限不被击穿。
+  // 按比例 0.8 逐轮收缩并用估算器校验，避免「1 token ≈ N 字符」线性换算在 CJK 下失真。
+  let idx = 0;
+  while (total > budget && idx < kept.length) {
+    const target = kept[idx];
+    const cur = typeof (target as any).content === 'string' ? (target as any).content : '';
+    if (!cur) { idx++; continue; }
+    const estCur = est(target);
+    const shrinkTarget = Math.max(20, estCur - (total - budget)); // 该条需降至的目标 token（最低 20）
+    let sliced = cur;
+    while (est({ ...target, content: sliced } as any) > shrinkTarget && sliced.length > 20) {
+      sliced = sliced.slice(0, Math.floor(sliced.length * 0.8));
+    }
+    const estSliced = estimateTokens(sliced);
+    if (estSliced >= estCur) { idx++; continue; } // 无法继续收缩，尝试下一条
+    kept[idx] = { ...target, content: sliced } as NormalizedMessage;
+    total -= estCur - estSliced;
+    if (total <= budget) break;
+    idx++;
+  }
+
+  const trimmed = [head, ...kept, tail];
+  logger.warn(
+    `[ChatHandler] 上下文超限截断: ${totalBefore} tokens → ${total} tokens（预算 ${budget}，丢弃 ${totalBefore - total} tokens 旧历史/内容，保留最近 ${kept.length} 条）`,
+  );
+  return trimmed;
+}
+
 interface ChatIncomingAttachment {
   id?: string;
   fileName: string;
@@ -1476,6 +1533,8 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
           ...conversationHistory,
           { role: 'user', content: text },
         ];
+        // Bug 修复：上下文 token 硬上限截断（默认 40000，可用 LLM_CONTEXT_TOKEN_LIMIT 调整）
+        const boundedMessages = trimContextToTokenBudget(messages, LLM_CONTEXT_TOKEN_LIMIT);
 
         // P0-1: streamChunks 提升到 try 外层声明，供 catch 中思绪搁置保留已生成内容
         const streamChunks: string[] = [];
@@ -1498,7 +1557,7 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
           // P1-2: 纯对话路径（无工具）— Sanctuary / 工具禁用 / 概率阻断时使用
           const runChatOnlyPath = async (): Promise<void> => {
             const response = await makeLLMCallStreaming(
-              messages,
+              boundedMessages,
               [],
               { provider: activeProvider, model: activeModel, userId: uid, domain: resolvedDomain, orgId: resolvedOrgId, signal: abortController.signal, scene: 'chat' },
               onChunk,
@@ -1579,7 +1638,7 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
           }, 3000);
           try {
           result = await runWithTools(
-            messages,
+            boundedMessages,
             toolRegistry,
             // P0-1: 透传 abortController.signal，使用户新消息/超时能真正中止在途 LLM 流式推理
             { provider: activeProvider, model: activeModel, userId: uid, domain: resolvedDomain, orgId: resolvedOrgId, signal: abortController.signal, scene: 'chat' },
@@ -1740,7 +1799,7 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
               if (!allowToolUseForTurn || isSanctuary) {
                 const fallbackChunks: string[] = [];
                 const fallback = await makeLLMCallStreaming(
-                  messages,
+                  boundedMessages,
                   [],
                   { provider: 'gemini', model: DEFAULT_MODELS.gemini, userId: uid, domain: resolvedDomain, orgId: resolvedOrgId, signal: abortController.signal, scene: 'chat' },
                   (chunk) => {
@@ -1761,7 +1820,7 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
                 }
               } else {
               const fallback = await runWithTools(
-                messages, toolRegistry,
+                boundedMessages, toolRegistry,
                 { provider: 'gemini', model: DEFAULT_MODELS.gemini, userId: uid, domain: resolvedDomain, orgId: resolvedOrgId },
                 (record) => {
                   allToolRecords.push(record);

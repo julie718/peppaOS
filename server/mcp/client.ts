@@ -73,6 +73,17 @@ interface MCPConfigFile {
 const SKILLS_DIR = getDataPath('skills');
 
 /**
+ * 解析 PEPPA_DISABLE_SKILLS（逗号分隔技能名列表，docker-compose.yml 已配置 neteasemusic）。
+ * 命中的技能完全跳过：不初始化、不创建子进程、不注册 MCP（Bug 修复：此前该变量零读取，
+ * 仅靠技能自身 ERR_MODULE_NOT_FOUND 崩溃"被动屏蔽"）。
+ */
+function parseDisabledSkills(): Set<string> {
+  const raw = (process.env.PEPPA_DISABLE_SKILLS || '').trim();
+  if (!raw) return new Set();
+  return new Set(raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean));
+}
+
+/**
  * P2-8 供应链防护开关：ALLOW_UNSIGNED_MCP_NPM_PACKAGES（默认 false）。
  * 社区 MCP 通过 npm 包形式加载（installFromNpm → tsx wrapper import），
  * 无法做包签名/完整性校验，属供应链风险。开关关闭时禁止加载任何第三方 npm MCP 包，
@@ -149,6 +160,13 @@ class MCPClientManager {
   private crashTrackers: Map<string, CrashTracker> = new Map();
   private closingSet: Set<string> = new Set();
   private onServerRecovered?: (name: string, tools: MCPToolDef[]) => void;
+  // Bug 修复（MCP 子进程稳定性）：
+  //   - connectPromise：connectAll 单飞互斥，杜绝 bootstrap 与 updateMCPConfig 并发双跑
+  //     （并发双跑 → 同一 skillId 双份 spawn，后 set 者覆盖 Map，先启动进程成孤儿常驻）；
+  //   - connecting：同一 serverName 单实例保护，并发 connectServer/restart 复用同一在途连接。
+  private connectPromise: Promise<MCPToolDef[]> | null = null;
+  private connecting: Map<string, Promise<MCPToolDef[]>> = new Map();
+  private onServerCrashed?: (name: string) => void;
   private ioRef?: any;
 
   constructor(configPath?: string) {
@@ -159,6 +177,7 @@ class MCPClientManager {
 
   setSocketIO(io: any): void { this.ioRef = io; }
   setOnServerRecovered(cb: (name: string, tools: MCPToolDef[]) => void): void { this.onServerRecovered = cb; }
+  setOnServerCrashed(cb: (name: string) => void): void { this.onServerCrashed = cb; }
 
   getConfig(): Record<string, MCPServerConfig> {
     return this.readConfigFile().mcpServers || {};
@@ -850,6 +869,18 @@ main().catch((err) => { logger.error('[npm-skill] Fatal:', err); process.exit(1)
   // ── MCP Server connection management ──
 
   async connectAll(): Promise<MCPToolDef[]> {
+    // 单飞互斥（Bug 修复）：bootstrap 启动路径与 updateMCPConfig（marketplace/skill/mcp 路由）
+    // 可能并发触发 connectAll —— 并发双跑会在 servers.set 之前同时通过去重检查、双份 spawn 子进程。
+    if (this.connectPromise) return this.connectPromise;
+    this.connectPromise = this.connectAllInternal()
+      .finally(() => { this.connectPromise = null; });
+    return this.connectPromise;
+  }
+
+  private async connectAllInternal(): Promise<MCPToolDef[]> {
+    // PEPPA_DISABLE_SKILLS（Bug 修复）：命中的技能完全跳过加载（不扫描、不注册、不连接）
+    const disabledSkills = parseDisabledSkills();
+
     // Scan local skills directory and register any unregistered skills
     this.ensureSkillsDir();
     const localEntries = fs.existsSync(SKILLS_DIR)
@@ -859,6 +890,10 @@ main().catch((err) => { logger.error('[npm-skill] Fatal:', err); process.exit(1)
 
     for (const entry of localEntries) {
       if (!entry.isDirectory()) continue;
+      if (disabledSkills.has(entry.name.toLowerCase())) {
+        logger.info(`[MCP] ${entry.name}: PEPPA_DISABLE_SKILLS 命中，跳过加载（不初始化、不创建子进程）`);
+        continue;
+      }
       const skillDir = path.join(SKILLS_DIR, entry.name);
       const indexPath = path.join(skillDir, 'index.ts');
       if (!fs.existsSync(indexPath)) continue;
@@ -901,6 +936,11 @@ main().catch((err) => { logger.error('[npm-skill] Fatal:', err); process.exit(1)
 
     for (const [serverName, serverConfig] of Object.entries(finalConfig)) {
       if (!serverConfig.enabled) continue;
+      // PEPPA_DISABLE_SKILLS：配置里已存在的被禁用技能同样跳过（不创建子进程、不注册 MCP）
+      if (disabledSkills.has(serverName.toLowerCase())) {
+        logger.info(`[MCP] ${serverName}: PEPPA_DISABLE_SKILLS 命中，跳过连接`);
+        continue;
+      }
       if (this.isMissingRequiredApiKey(serverConfig)) {
         logger.info(`[MCP] ${serverName}: skipped (missing ${serverConfig.apiKeyEnv})`);
         continue;
@@ -930,6 +970,18 @@ main().catch((err) => { logger.error('[npm-skill] Fatal:', err); process.exit(1)
   }
 
   private async connectServer(name: string, config: MCPServerConfig): Promise<MCPToolDef[]> {
+    // 单实例保护（Bug 修复）：同一 serverName 只允许一个在途连接。
+    // 此前 servers.set 在 await connect 之后，并发调用可同时通过去重检查 → 同一 skillId 双份 spawn，
+    // 后 set 者覆盖 Map，先启动的孤儿进程常驻（hk-stock 双实例即此竞态产物）。
+    const inFlight = this.connecting.get(name);
+    if (inFlight) return inFlight;
+    const pending = this.connectServerInternal(name, config)
+      .finally(() => { this.connecting.delete(name); });
+    this.connecting.set(name, pending);
+    return pending;
+  }
+
+  private async connectServerInternal(name: string, config: MCPServerConfig): Promise<MCPToolDef[]> {
     // Dedup: if already connected, return cached tools
     const existing = this.servers.get(name);
     if (existing) {
@@ -965,16 +1017,31 @@ main().catch((err) => { logger.error('[npm-skill] Fatal:', err); process.exit(1)
       try {
         Object.assign(storedKeys, loadKeys());
       } catch {}
-      const resolvedEnv: Record<string, string> = {};
+      // 子进程 env = 完整继承主进程环境（LUMI_DATA_DIR/API keys/PEPPA_* 等）+ 技能私有 env。
+      // ⚠️ 旧实现仅传技能私有 env：SDK 的 getDefaultEnvironment 只继承 PATH 等白名单变量，
+      // 技能侧 getDataPath 等依赖 LUMI_DATA_DIR 的逻辑在 Docker 下会静默解析到错误路径。
+      const resolvedEnv: Record<string, string> = { ...process.env };
       if (config.env) {
         for (const [k, v] of Object.entries(config.env)) {
           resolvedEnv[k] = v.replace(/\$\{(\w+)\}/g, (_, name) => process.env[name] || storedKeys[name] || '');
         }
       }
+      // stdout 洁净垫片（Bug 修复）：MCP 子进程 stdout 只允许 JSON-RPC 协议流。
+      // 技能入口把 console.log/warn 打入 stdout 会破坏 JSON 报文 → 解析报错、工具不可用
+      // （meituan-stock-price / stock-price-query / comprehensive-markdown-scraper /
+      //   voice-module-status-check 均死于该 bug）。经 NODE_OPTIONS --import 预加载垫片，
+      // 在技能代码执行前把 console.log/warn/info 全局重定向到 stderr。
+      if (transportType === 'stdio') {
+        const shim = path.join(process.cwd(), 'server', 'lib', 'mcp_stdout_shim.mjs');
+        if (fs.existsSync(shim)) {
+          const prev = resolvedEnv.NODE_OPTIONS || '';
+          resolvedEnv.NODE_OPTIONS = [prev, `--import=${shim}`].filter(Boolean).join(' ');
+        }
+      }
       transport = new StdioClientTransport({
         command: expandPortablePath(config.command),
         args: (config.args || []).map(arg => expandPortablePath(arg)),
-        env: Object.keys(resolvedEnv).length > 0 ? resolvedEnv : (config.env || undefined),
+        env: resolvedEnv,
       });
     } else {
       throw new Error(`MCP server "${name}": must provide "url" for http/ws transport or "command" for stdio transport`);
@@ -985,7 +1052,13 @@ main().catch((err) => { logger.error('[npm-skill] Fatal:', err); process.exit(1)
       { capabilities: {} },
     );
 
-    await client.connect(transport);
+    try {
+      await client.connect(transport);
+    } catch (err) {
+      // 连接失败/超时：立即关闭 transport 收割子进程（防 esbuild/tsx 僵尸残留），随后原样抛出
+      try { await transport.close(); } catch {}
+      throw err;
+    }
 
     this.servers.set(name, { client, transport, config });
 
@@ -1015,6 +1088,8 @@ main().catch((err) => { logger.error('[npm-skill] Fatal:', err); process.exit(1)
         if (tracker) {
           tracker.lastCrashTime = new Date().toISOString();
         }
+        // Bug 修复：崩溃即注销其注册工具（此前仅恢复成功后才注销，崩溃未恢复期间工具残留、计数虚高）
+        self.onServerCrashed?.(name);
         self.scheduleRestart(name);
         self.broadcastHealth();
       }
@@ -1085,6 +1160,11 @@ main().catch((err) => { logger.error('[npm-skill] Fatal:', err); process.exit(1)
   }
 
   async restartServer(name: string): Promise<MCPToolDef[]> {
+    // PEPPA_DISABLE_SKILLS：被禁用技能即使被手动重启也拒绝拉起子进程
+    if (parseDisabledSkills().has(name.toLowerCase())) {
+      logger.warn(`[MCP] ${name}: PEPPA_DISABLE_SKILLS 命中，拒绝重启`);
+      return [];
+    }
     const server = this.servers.get(name);
     if (server) {
       this.closingSet.add(name);

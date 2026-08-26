@@ -3,13 +3,48 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import {
-  configureNcmCredentials,
-  normalizeNcmAppId,
-  normalizeNcmPrivateKey,
-} from '../../../music/ncm_cli';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const execAsync = promisify(exec);
+
+// ── ncm_cli 模块加载：兼容两种部署布局（Bug 修复：ERR_MODULE_NOT_FOUND） ──
+// 技能可能从两处运行：
+//   A. 仓库原位置 server/skills/bundled/neteasemusic/（本地 dev / Docker COPY 原生布局）
+//   B. 数据卷副本 <data根>/skills/neteasemusic/（Docker ENTRYPOINT cp -rn 复制，cwd 仍为 /app）
+// 静态相对导入 ../../../music/ncm_cli 在布局 B 下解析为 <data根>/music（不存在）→ 持续崩溃。
+// 统一改为按 process.cwd()（Docker=/app、本地=仓库根）动态解析 /server/music/ncm_cli，两种布局均命中。
+const NCM_CLI_CANDIDATES = [
+  path.join(process.cwd(), 'server', 'music', 'ncm_cli'),
+  path.join(process.cwd(), 'music', 'ncm_cli'), // 历史镜像旧布局兜底
+];
+
+interface NcmCliModule {
+  configureNcmCredentials(appId: string, privateKey: string, timeoutMs: number): Promise<unknown>;
+  normalizeNcmAppId(v: unknown): string | null;
+  normalizeNcmPrivateKey(v: unknown): string | null;
+}
+
+let ncmCliPromise: Promise<NcmCliModule> | null = null;
+function loadNcmCli(): Promise<NcmCliModule> {
+  if (!ncmCliPromise) {
+    ncmCliPromise = (async () => {
+      let lastErr: unknown = null;
+      for (const base of NCM_CLI_CANDIDATES) {
+        for (const ext of ['.ts', '.mjs', '.js']) {
+          try {
+            // tsx 编译技能时已挂载 ESM loader，file:// 动态导入 .ts 源码同样被 tsx 接管
+            return await import(pathToFileURL(base + ext).href) as NcmCliModule;
+          } catch (e) { lastErr = e; }
+        }
+      }
+      throw new Error(
+        `无法加载 ncm_cli 模块（候选: ${NCM_CLI_CANDIDATES.join(', ')}）: ${(lastErr as Error)?.message || String(lastErr)}`,
+      );
+    })();
+  }
+  return ncmCliPromise;
+}
 
 // ── Public API helpers (search, lyrics — no auth needed) ─────────────────────
 
@@ -64,6 +99,7 @@ function err(message: string) {
 // ── Auto-configure ncm-cli from env/stored keys ─────────────────────────────
 
 async function autoConfigureFromEnv() {
+  const { normalizeNcmAppId, normalizeNcmPrivateKey, configureNcmCredentials } = await loadNcmCli();
   const appId = normalizeNcmAppId(process.env.NETEASE_APP_ID);
   const privateKey = normalizeNcmPrivateKey(process.env.NETEASE_PRIVATE_KEY);
   if (appId && privateKey) {
@@ -79,6 +115,7 @@ const server = new McpServer({ name: 'netease-music', version: '1.0.0' }, { capa
 
 async function setupHandler(args: any) {
   try {
+    const { normalizeNcmAppId, normalizeNcmPrivateKey, configureNcmCredentials } = await loadNcmCli();
     const appId = normalizeNcmAppId(args.appId);
     const privateKey = normalizeNcmPrivateKey(args.privateKey);
     if (!appId || !privateKey) return err('appId and privateKey are required. Get them from developer.music.163.com');

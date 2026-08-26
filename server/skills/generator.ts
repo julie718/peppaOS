@@ -71,6 +71,7 @@ Output ONLY a JSON object with these fields:
 - Always set 'result' to a string before the function returns
 - For async operations, use 'await' — the handler is an async function
 - Do NOT include 'import' statements or 'export' — those are added automatically
+- IMPORTANT: Never use console.log / console.info / console.warn — stdout is reserved for the MCP JSON-RPC protocol; if you need to log, use console.error (goes to stderr, invisible to the protocol)
 
 JSON output:`;
 

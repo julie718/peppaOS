@@ -223,6 +223,62 @@ function strengthenAssociations(userId: string, memoryIds: string[]): void {
 
   // Persist periodically (on every ~10th co-retrieval, to avoid excessive writes)
   saveCoRetrievalMap();
+
+  // [Phase3 加法桥] 联想边监听器：通知 P3 记忆联想网络模块（memory_association）持久化到
+  // life.db memory_associations 表。无监听器注册时零开销、零行为变化（纯新增，不改既有逻辑）。
+  notifyAssociationListeners(userId, memoryIds);
+}
+
+// ── Phase3 加法桥：P3 记忆联想网络模块（server/memory_association/）的持久化对接 ──
+// 背景：coRetrievalMap 原为纯内存 + writeDB 落 JSON（db_layer 持久化清单不含 memoryAssociations，
+// 重启归零）。P3 模块以 life.db memory_associations 表为持久真相，本桥只做三件事：
+//   1) strengthen 后通知监听器（P3 模块把最新联想写入自身表）；
+//   2) getCoRetrievalSnapshot 只读导出（P3 模块初始化时导入历史数据）；
+//   3) hydrateCoRetrievalMap 水合导入（P3 模块重启后把持久化边恢复进内存，修复重启归零缺陷）。
+// 全部为纯新增导出；未注册监听器时行为与既有实现完全一致。
+
+type AssociationListener = (userId: string, memoryIds: string[]) => void;
+const associationListeners: AssociationListener[] = [];
+
+/** 注册联想边监听器（P3 memory_association 模块调用；注册后每次强化即收到通知） */
+export function registerAssociationListener(listener: AssociationListener): void {
+  if (!associationListeners.includes(listener)) associationListeners.push(listener);
+}
+
+function notifyAssociationListeners(userId: string, memoryIds: string[]): void {
+  for (const listener of associationListeners) {
+    try { listener(userId, memoryIds); } catch { /* 监听器异常不阻断主链路 */ }
+  }
+}
+
+/** 只读快照：导出当前用户（或全部）的共检索联想边（规范序去重，strength >= 0.01） */
+export function getCoRetrievalSnapshot(userId?: string): { userId: string; memA: string; memB: string; strength: number }[] {
+  const rows: { userId: string; memA: string; memB: string; strength: number }[] = [];
+  const targets = userId ? [userId] : [...coRetrievalMap.keys()];
+  for (const uid of targets) {
+    const userMap = coRetrievalMap.get(uid);
+    if (!userMap) continue;
+    for (const [memA, assocMap] of userMap) {
+      for (const [memB, strength] of assocMap) {
+        if (memA < memB && strength >= 0.01) rows.push({ userId: uid, memA, memB, strength: +strength.toFixed(3) });
+      }
+    }
+  }
+  return rows;
+}
+
+/** 水合导入：把持久化的联想边恢复进内存共检索图（不触发落盘，避免与 P3 表重复写入） */
+export function hydrateCoRetrievalMap(userId: string, rows: { memA: string; memB: string; strength: number }[]): void {
+  if (!rows || rows.length === 0) return;
+  if (!coRetrievalMap.has(userId)) coRetrievalMap.set(userId, new Map());
+  const userMap = coRetrievalMap.get(userId)!;
+  for (const r of rows) {
+    const s = Math.min(1, Math.max(0, r.strength));
+    if (!userMap.has(r.memA)) userMap.set(r.memA, new Map());
+    userMap.get(r.memA)!.set(r.memB, s);
+    if (!userMap.has(r.memB)) userMap.set(r.memB, new Map());
+    userMap.get(r.memB)!.set(r.memA, s);
+  }
 }
 
 /** Periodically decay weak associations and remove dead ones */
@@ -736,6 +792,23 @@ export function setMemoryImportance(id: string, importance: number): boolean {
   const mem = all.find(m => m.id === id);
   if (!mem) return false;
   mem.importance = Math.max(0.1, Math.min(1, +(importance).toFixed(4)));
+  mem.updatedAt = new Date().toISOString();
+  saveMemoryStore(all);
+  return true;
+}
+
+/**
+ * Bug 修复：MemoryGC 冬眠分支支持 —— 标记单条记忆休眠（hibernated=1 + hibernatedAt）。
+ * 记录永不删除（铁则1），仅日常检索排除（includeHibernated=true 仍可查）；
+ * 落库方式与 dynamicDecayMemories 的休眠标记保持一致。
+ */
+export function hibernateMemory(id: string, userId: string): boolean {
+  const all = getMemoryStore();
+  const mem = all.find(m => m.id === id);
+  if (!mem || mem.userId !== userId) return false;
+  if (mem.hibernated === true) return false; // 已休眠：幂等
+  mem.hibernated = true;
+  mem.hibernatedAt = new Date().toISOString();
   mem.updatedAt = new Date().toISOString();
   saveMemoryStore(all);
   return true;

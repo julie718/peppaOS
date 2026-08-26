@@ -4,12 +4,13 @@
 import { getPersonalityEngine, Personality } from './personality';
 import { getEmotionEngine, EmotionEngine } from './emotions';
 import { getDesireEngineV2, DesireEngine } from './desires';
+import { getDesireEngine } from '../desire/engine';
 import { getDirectionState } from './direction';
 import { getSelfAwarenessEngine, SelfAwarenessEngine } from './selfAwareness';
 import { getRelationshipEngine, RelationshipEngine } from './relationship';
 // checkGates/recordHeartbeat 由 injector.ts 内部调用，life/index.ts 只需 triggerHeartbeatIfReady
 import { triggerHeartbeatIfReady } from '../heartbeat/injector';
-import { logSystemEvent, migrateLifeTables, autoBackup, verifyIntegrity, addInteractionMemory, markObservationsIgnored } from '../db/lifeDb';
+import { logSystemEvent, migrateLifeTables, autoBackup, verifyIntegrity, addInteractionMemory, markObservationsIgnored, walCheckpoint } from '../db/lifeDb';
 import { shouldTriggerPrefetch, prefetchContext } from '../memory/prefetch';
 import { getVitality } from './vitality';
 import { dailyNarrativeGeneration } from './narrative';
@@ -271,9 +272,8 @@ export class LifeSystem {
     // P0-5: 确保 db_layer 已初始化 — 首次 tick 可能在 initDatabase 完成前触发
     await ensureDatabaseInitialized();
     const gcResult = await runMemoryGC(collectUserIds());
-    if (gcResult.downweighted > 0 || gcResult.merged > 0 || gcResult.cleaned > 0) {
-      console.log(`[LifeSystem] 🧹 记忆GC: 降权${gcResult.downweighted} 合并${gcResult.merged} 清理${gcResult.cleaned} (${Date.now() - gcStart}ms)`);
-    }
+    // Bug 修复：GC 汇总无条件打印（此前全 0 时静默，无法观测各分支是否跑通），并补冬眠计数
+    console.log(`[LifeSystem] 🧹 记忆GC: 降权${gcResult.downweighted} 合并${gcResult.merged} 清理${gcResult.cleaned} 冬眠${gcResult.hibernated} (${Date.now() - gcStart}ms)`);
     // L-18: 搁置思绪 72h 自动归档 — 未在对话中接续的旧思绪标记 expired
     try {
       const { expireStaleThoughts } = await import('../db/lifeDb');
@@ -504,7 +504,16 @@ export class LifeSystem {
         { name: 'direction.tick', fn: async () => { await getDirectionState().tick(); } },
 
         // 步骤 2: 欲望生成与衰减
-        { name: 'desires.generate', fn: async () => { await this.desires.generateDesires(); await this.desires.tick(); } },
+        // Bug 修复：本步骤结束无论成功失败，强制刷新 V1 状态文件 lastTick（与 db desires 表持续更新对齐，
+        // 不再出现「表在动、状态文件 lastTick 卡死」的观测割裂）
+        { name: 'desires.generate', fn: async () => {
+          try {
+            await this.desires.generateDesires();
+            await this.desires.tick();
+          } finally {
+            getDesireEngine().refreshLastTick();
+          }
+        } },
 
         // 步骤 3: 人格适应（基于交互事件）
         // P1-15: 激活 long_silence 事件 — 原分支条件错误（依赖度<0.25 与沉默无关），
@@ -542,8 +551,9 @@ export class LifeSystem {
           }
         } },
 
-        // 步骤 7: 数据库维护
-        { name: 'backup', fn: async () => { await autoBackup(); } },
+        // 步骤 7: 数据库维护（Bug 修复：备份后主动 WAL checkpoint，控制 WAL 文件膨胀 —
+        // 备份是低峰维护时机，TRUNCATE 模式将 WAL 收缩至 0，配合 wal_autocheckpoint 双保险）
+        { name: 'backup', fn: async () => { await autoBackup(); await walCheckpoint(); } },
 
         // 步骤 7.5: 标记忽略的主动推送
         { name: 'markIgnored', fn: async () => {

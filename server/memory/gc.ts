@@ -1,10 +1,11 @@
 // server/memory/gc.ts
 // T80 记忆降噪 — TICK 步骤 10
-// 长期低频记忆降权重、重复记忆合并、过期 TTL 清理
-// P0-5: 按真实业务用户 ID 逐用户执行；降权原地修改；合并后物理删除旧记忆；TTL 真删
+// 长期低频记忆降权重、重复记忆合并、过期 TTL 清理、低分记忆冬眠
+// P0-5: 按真实业务用户 ID 逐用户执行；降权原地修改；合并后物理删除旧记忆；TTL 真删；
+// Bug 修复：冬眠仅标记（hibernated=1，记录永不删除 — 铁则1）
 
 import { logger } from '../lib/logger';
-import { queryMemories, removeMemory, setMemoryImportance } from './store';
+import { queryMemories, removeMemory, setMemoryImportance, hibernateMemory, getMemoryScore, MEMORY_HIBERNATE_THRESHOLD } from './store';
 
 // ── 配置 ──
 const CONFIG = {
@@ -38,6 +39,14 @@ function isTTLExpired(memory: any): boolean {
 
   const expiryMs = createdAt + ttlDays * 86400000;
   return Date.now() > expiryMs;
+}
+
+/** 归一化内容用于精确重复判定（去 TTL 标记 / 空白 / 大小写；空串永不判重） */
+function normalizeContent(text: string): string {
+  return String(text || '')
+    .replace(/\[TTL:\d+d\]/g, '')
+    .replace(/\s+/g, '')
+    .toLowerCase();
 }
 
 /**
@@ -75,7 +84,7 @@ function jaccardSimilarity(a: string, b: string): number {
 }
 
 /** 对单个用户执行一轮记忆降噪 */
-async function gcForUser(userId: string, result: { downweighted: number; merged: number; cleaned: number }): Promise<void> {
+async function gcForUser(userId: string, result: { downweighted: number; merged: number; cleaned: number; hibernated: number }): Promise<void> {
   // 1. 低频记忆降权（原地修改 importance，支持真实下降）
   // L-5: 全量扫描（取消 50 条上限）+ core_identity/growth 核心层豁免
   const lowFreqMemories = queryAllForUser(userId).filter(mem => {
@@ -114,7 +123,11 @@ async function gcForUser(userId: string, result: { downweighted: number; merged:
       if (CORE_TIERS.includes(b.tier)) continue; // L-5: 核心层不参与合并
 
       const jaccard = jaccardSimilarity(a.content, b.content);
-      if (jaccard > CONFIG.DUPLICATE_SIMILARITY * 0.8) {
+      // Bug 修复：精确重复快速通道 —— 归一化内容完全一致即确定重复，不再受 0.72 近似阈值
+      // 限制（bigram Jaccard 下同义改写很难过阈值，全量重复却因「非 1.0 即不合并」漏掉）。
+      // 原语义化近似阈值策略（>0.72）完整保留，两者并行。
+      const isExactDuplicate = a.content !== '' && b.content !== '' && normalizeContent(a.content) === normalizeContent(b.content);
+      if (isExactDuplicate || jaccard > CONFIG.DUPLICATE_SIMILARITY * 0.8) {
         // 保留较新的，删除较旧的（物理删除，不再产生第三份）
         const newer = a.createdAt > b.createdAt ? a : b;
         const older = a.createdAt > b.createdAt ? b : a;
@@ -145,14 +158,48 @@ async function gcForUser(userId: string, result: { downweighted: number; merged:
     }
   }
 
+  // Bug 修复：无效记忆清理 —— 内容为空/纯空白的记忆属于写入异常产物（正常写入必有内容），
+  // 明确排除（TTL 分支此前仅匹配 [TTL:n天] 标记、对无标记垃圾无处理，清理链路近乎不触发）
+  const invalidMemories = queryAllForUser(userId).filter(m =>
+    !CORE_TIERS.includes(m.tier) && !String(m.content || '').trim()
+  );
+  for (const mem of invalidMemories) {
+    if (removeMemory(mem.id)) {
+      result.cleaned++;
+      logger.info(`[MemoryGC] ${userId} 无效记忆清理: "${mem.id}"（内容为空/纯空白）`);
+    }
+  }
+
   if (result.cleaned > 0) {
-    logger.info(`[MemoryGC] ${userId} TTL 清理: ${result.cleaned} 条过期`);
+    logger.info(`[MemoryGC] ${userId} 清理: ${result.cleaned} 条（TTL 过期 + 无效内容）`);
+  }
+
+  // 4. 低分记忆冬眠（Phase2 铁则1：记录永不删除 — 仅标记 hibernated=1，日常检索排除）
+  // Bug 修复：此前没有任何分支触发冬眠（唯一来源是 score 慢速衰减触达 0.2，长时间归零），
+  // 新增 GC 冬眠分支。严格沿用原有阈值策略（MEMORY_HIBERNATE_THRESHOLD=0.2 不变）：
+  // score ≤ 0.2 且足够陈旧（≥ LOW_FREQ_DAYS 天）的非核心层记忆标记休眠，不做任何删除。
+  const hibernatable = queryAllForUser(userId).filter(m =>
+    !CORE_TIERS.includes(m.tier) &&
+    getMemoryScore(m) <= MEMORY_HIBERNATE_THRESHOLD &&
+    (m.createdAt ? (Date.now() - new Date(m.createdAt).getTime()) / 86400000 : 0) >= CONFIG.LOW_FREQ_DAYS
+  );
+  for (const mem of hibernatable) {
+    try {
+      if (hibernateMemory(mem.id, userId)) {
+        result.hibernated++;
+        logger.info(`[MemoryGC] ${userId} 记忆冬眠（记录保留不删除）: "${String(mem.content).slice(0, 30)}…"`);
+      }
+    } catch {}
+  }
+
+  if (result.hibernated > 0) {
+    logger.info(`[MemoryGC] ${userId} 冬眠: ${result.hibernated} 条（score ≤ ${MEMORY_HIBERNATE_THRESHOLD} 且 ≥${CONFIG.LOW_FREQ_DAYS} 天）`);
   }
 }
 
 // ── 主 GC 函数（P0-5: 按真实业务用户 ID 逐用户执行）──
-export async function runMemoryGC(userIds: string[] = []): Promise<{ downweighted: number; merged: number; cleaned: number }> {
-  const result = { downweighted: 0, merged: 0, cleaned: 0 };
+export async function runMemoryGC(userIds: string[] = []): Promise<{ downweighted: number; merged: number; cleaned: number; hibernated: number }> {
+  const result = { downweighted: 0, merged: 0, cleaned: 0, hibernated: 0 };
 
   try {
     const targets = userIds.length > 0 ? userIds : ['anonymous'];
@@ -165,10 +212,8 @@ export async function runMemoryGC(userIds: string[] = []): Promise<{ downweighte
       }
     }
 
-    // 汇总
-    if (result.downweighted > 0 || result.merged > 0 || result.cleaned > 0) {
-      logger.info(`[MemoryGC] 完成: 降权${result.downweighted} 合并${result.merged} 清理${result.cleaned}`);
-    }
+    // 汇总（Bug 修复：无条件打印 + 补冬眠计数 —— 此前全 0 时静默，无法观测链路是否跑通）
+    logger.info(`[MemoryGC] 完成: 降权${result.downweighted} 合并${result.merged} 清理${result.cleaned} 冬眠${result.hibernated}`);
 
     return result;
   } catch (e: any) {

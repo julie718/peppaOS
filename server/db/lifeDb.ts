@@ -33,7 +33,25 @@ const PRAGMAS: string[] = [
   'PRAGMA synchronous=NORMAL', // 与 WAL 搭配的推荐持久性级别
   'PRAGMA foreign_keys=ON',
   'PRAGMA busy_timeout=5000',  // 驱动内部锁等待上限
+  // Bug 修复：补齐 db_layer.ts 已有的两项（此前 life.db 连接缺失，WAL 文件无上限增长）
+  'PRAGMA cache_size=-20000',        // 页缓存 20MB（负值=KB 单位），降低高频小查询磁盘往返
+  'PRAGMA wal_autocheckpoint=5000',  // WAL 达 5000 页（≈20MB）自动 checkpoint，与 db_layer 保持一致
 ];
+
+/**
+ * Bug 修复：WAL checkpoint（TRUNCATE 模式）— 主动收缩 WAL 文件，控制磁盘膨胀。
+ * 在自动 checkpoint 之外，于备份/归档等低峰时机显式触发；TRUNCATE 会把 WAL 截断为 0。
+ * 返回 { ok, walFrames }（walFrames = checkpoint 前 WAL 日志帧数）；失败不抛出（非关键路径）。
+ */
+export async function walCheckpoint(): Promise<{ ok: boolean; walFrames: number }> {
+  try {
+    const row = await get<{ busy: number; log: number; checkpointed: number }>('PRAGMA wal_checkpoint(TRUNCATE)');
+    return { ok: true, walFrames: row?.log ?? 0 };
+  } catch (err) {
+    console.warn('[LifeDB] wal_checkpoint 执行失败（非关键路径，忽略）:', (err as any)?.message ?? err);
+    return { ok: false, walFrames: -1 };
+  }
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -314,6 +332,169 @@ const TABLES: { name: string; sql: string }[] = [
       source_urls TEXT NOT NULL DEFAULT '[]',
       result_count INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+  },
+  // ═══════════════════════════════════════════════════════════════
+  // Phase-3 模块新增表（全部纯新增，绝不改动既有表结构与迁移逻辑）
+  // 约定：
+  //   - 每张表均带 user_id 归属（默认 'default'，与既有 skills adapter 一致）；
+  //   - 内部推演记录均带 is_public（0=纯内部推演，DB 留存、聊天 UI 隐藏，仅管理端可见）——
+  //     与 InnerTick isPublic 铁则一致：拿不准一律 0；
+  //   - 写入方为各自 P3 模块（server/desire_system|self_reflection|memory_association|
+  //     personality_slow_evolution|emotion_system|watch|robot），经本文件统一 CRUD 出口。
+  // ═══════════════════════════════════════════════════════════════
+  {
+    // P3 模块1 欲望系统：欲望记录（比旧 desires 表更丰富的生命周期字段）
+    name: 'desire_records',
+    sql: `CREATE TABLE IF NOT EXISTS desire_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL DEFAULT 'default',
+      content TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'general',
+      priority REAL NOT NULL DEFAULT 0.5 CHECK(priority >= 0 AND priority <= 1),
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','in_progress','completed','abandoned','decayed')),
+      source TEXT NOT NULL DEFAULT 'intrinsic',
+      is_public INTEGER NOT NULL DEFAULT 0,
+      evidence TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      fulfilled_at TEXT,
+      decayed_at TEXT
+    )`,
+  },
+  {
+    // P3 模块1 欲望系统：生命周期事件审计（created/priority_updated/status_changed/decayed/fulfilled）
+    name: 'desire_record_events',
+    sql: `CREATE TABLE IF NOT EXISTS desire_record_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      desire_id INTEGER NOT NULL,
+      event_type TEXT NOT NULL,
+      detail TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+  },
+  {
+    // P3 模块2 自省复盘：结构化反思记录（内容/洞察/教训/情绪评估/未来意向 + 证据与隐私标记）
+    name: 'self_reflection_records',
+    sql: `CREATE TABLE IF NOT EXISTS self_reflection_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL DEFAULT 'default',
+      trigger_type TEXT NOT NULL DEFAULT 'manual',
+      topic TEXT DEFAULT '',
+      content TEXT NOT NULL,
+      insight TEXT DEFAULT '',
+      lessons TEXT NOT NULL DEFAULT '[]',
+      emotion_assessment TEXT DEFAULT '',
+      future_intention TEXT DEFAULT '',
+      evidence_json TEXT NOT NULL DEFAULT '{}',
+      is_public INTEGER NOT NULL DEFAULT 0,
+      model TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+  },
+  {
+    // P3 模块3 记忆联想网络：Hebbian 共检索联想边（持久化存储，修复原 coRetrievalMap 重启归零缺陷）
+    name: 'memory_associations',
+    sql: `CREATE TABLE IF NOT EXISTS memory_associations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL DEFAULT 'default',
+      mem_a TEXT NOT NULL,
+      mem_b TEXT NOT NULL,
+      strength REAL NOT NULL DEFAULT 0.3 CHECK(strength >= 0 AND strength <= 1),
+      hit_count INTEGER NOT NULL DEFAULT 1,
+      source TEXT NOT NULL DEFAULT 'co_retrieval',
+      last_strengthened_at TEXT NOT NULL DEFAULT (datetime('now')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(user_id, mem_a, mem_b)
+    )`,
+  },
+  {
+    // P3 模块4 人格缓慢演化：逐轮漂移审计（8 维增量 + 前后向量 + 依据；缓慢演化：单轮每维 ≤0.005）
+    name: 'personality_drift_records',
+    sql: `CREATE TABLE IF NOT EXISTS personality_drift_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL DEFAULT 'default',
+      round INTEGER NOT NULL DEFAULT 1,
+      signal_summary TEXT DEFAULT '',
+      deltas_json TEXT NOT NULL DEFAULT '[]',
+      before_json TEXT NOT NULL DEFAULT '[]',
+      after_json TEXT NOT NULL DEFAULT '[]',
+      rationale TEXT DEFAULT '',
+      is_public INTEGER NOT NULL DEFAULT 0,
+      model TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+  },
+  {
+    // P3 模块5 情绪系统：8 维情绪状态（追加模式，同 emotion_state 先例）
+    name: 'emotion_system_state',
+    sql: `CREATE TABLE IF NOT EXISTS emotion_system_state (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL DEFAULT 'default',
+      vector_json TEXT NOT NULL DEFAULT '[]',
+      dominant TEXT DEFAULT '',
+      context_json TEXT NOT NULL DEFAULT '{}',
+      source TEXT NOT NULL DEFAULT 'decay',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+  },
+  {
+    // P3 模块5 情绪系统：情绪事件日志（事件类型 + 8 维增量）
+    name: 'emotion_system_events',
+    sql: `CREATE TABLE IF NOT EXISTS emotion_system_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL DEFAULT 'default',
+      event_type TEXT NOT NULL,
+      delta_json TEXT NOT NULL DEFAULT '{}',
+      context TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+  },
+  {
+    // P3 模块7 Apple-Watch 感知数据接入占位层：原始载荷 + 派生增量（有界：保留期 + 行数硬上限）
+    name: 'watch_perception_events',
+    sql: `CREATE TABLE IF NOT EXISTS watch_perception_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL DEFAULT 'default',
+      source TEXT NOT NULL DEFAULT 'bio:update',
+      modality TEXT NOT NULL DEFAULT 'health',
+      payload_json TEXT NOT NULL DEFAULT '{}',
+      derived_json TEXT NOT NULL DEFAULT '{}',
+      emotion_delta_json TEXT NOT NULL DEFAULT '{}',
+      desire_delta_json TEXT NOT NULL DEFAULT '{}',
+      status TEXT NOT NULL DEFAULT 'processed',
+      received_at TEXT NOT NULL DEFAULT (datetime('now')),
+      processed_at TEXT
+    )`,
+  },
+  {
+    // P3 模块8 实体机器人交互适配层：设备注册表（ESP32 瓦力 / 通用）
+    name: 'robot_devices',
+    sql: `CREATE TABLE IF NOT EXISTS robot_devices (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'generic',
+      status TEXT NOT NULL DEFAULT 'registered' CHECK(status IN ('registered','online','offline','disabled')),
+      capabilities TEXT NOT NULL DEFAULT '[]',
+      firmware TEXT DEFAULT '',
+      owner_uid TEXT NOT NULL DEFAULT 'default',
+      last_heartbeat_at TEXT,
+      registered_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+  },
+  {
+    // P3 模块8 实体机器人交互适配层：指令下行日志（correlationId 关联，结果回填）
+    name: 'robot_command_log',
+    sql: `CREATE TABLE IF NOT EXISTS robot_command_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      robot_id TEXT NOT NULL,
+      command TEXT NOT NULL,
+      params_json TEXT NOT NULL DEFAULT '{}',
+      correlation_id TEXT DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','delivered','acknowledged','timeout','failed','offline')),
+      result_json TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      acknowledged_at TEXT
     )`,
   },
 ];
@@ -640,7 +821,8 @@ export async function addDesire(text: string, priority: number, source = 'intrin
 }
 
 export async function getActiveDesires(): Promise<any[]> {
-  return all('SELECT * FROM desires WHERE status="active" ORDER BY priority DESC');
+  // Bug 修复：分页上限 LIMIT 200（业务上限 MAX_ACTIVE=10，200 为安全兜底，杜绝异常表全量读取）
+  return all('SELECT * FROM desires WHERE status="active" ORDER BY priority DESC LIMIT 200');
 }
 
 export async function updateDesirePriority(id: number, delta: number): Promise<void> {
@@ -712,10 +894,11 @@ export async function getSignificantMemories(minScore = 0.6, limit = 50): Promis
   );
 }
 
-export async function searchMemoriesByType(eventType: string): Promise<any[]> {
+export async function searchMemoriesByType(eventType: string, limit = 500): Promise<any[]> {
+  // Bug 修复：分页上限（默认 500），杜绝交互记忆大表一次性全量读取
   return all(
-    'SELECT * FROM interaction_memories WHERE event_type=? ORDER BY created_at DESC',
-    [eventType]
+    'SELECT * FROM interaction_memories WHERE event_type=? ORDER BY created_at DESC LIMIT ?',
+    [eventType, limit]
   );
 }
 
@@ -995,9 +1178,11 @@ export async function createProactiveObservation(energy: number, userState: stri
   return result.lastID!;
 }
 
-export async function getUnrespondedObservations(): Promise<any[]> {
+export async function getUnrespondedObservations(limit = 100): Promise<any[]> {
+  // Bug 修复：分页上限（默认 100）— 每次对话至多取 100 条未回应观察，剩余下轮继续（markObservationResponded 逐条落库）
   return all(
-    'SELECT * FROM proactive_observations WHERE responded=0 AND ignored=0 ORDER BY created_at DESC'
+    'SELECT * FROM proactive_observations WHERE responded=0 AND ignored=0 ORDER BY created_at DESC LIMIT ?',
+    [limit]
   );
 }
 
@@ -1232,6 +1417,570 @@ export async function getUpcomingTravels(userId: string, withinHours: number): P
        AND julianday(depart_at) - julianday('now') <= MAX(remind_hours / 24.0, ?)
      ORDER BY depart_at`,
     [userId, withinHours / 24.0, withinHours / 24.0],
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Phase-3 模块数据层（纯新增，遵循本文件既有 CRUD 风格：execWithRetry + 串行队列）
+// 各模块：desire_system / self_reflection / memory_association /
+//         personality_slow_evolution / emotion_system / watch / robot
+// ═══════════════════════════════════════════════════════════════
+
+// ── P3 模块1 欲望系统 ──
+
+export interface P3DesireRecord {
+  id: number;
+  user_id: string;
+  content: string;
+  category: string;
+  priority: number;
+  status: 'active' | 'in_progress' | 'completed' | 'abandoned' | 'decayed';
+  source: string;
+  is_public: number;
+  evidence: string;
+  created_at: string;
+  updated_at: string;
+  fulfilled_at: string | null;
+  decayed_at: string | null;
+}
+
+export async function p3CreateDesire(params: {
+  userId: string;
+  content: string;
+  category?: string;
+  priority?: number;
+  source?: string;
+  isPublic?: boolean;
+  evidence?: string;
+}): Promise<number> {
+  const p = Math.min(1, Math.max(0, params.priority ?? 0.5));
+  return run(
+    `INSERT INTO desire_records (user_id, content, category, priority, source, is_public, evidence)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [params.userId, params.content, params.category || 'general', p, params.source || 'intrinsic', params.isPublic ? 1 : 0, params.evidence || ''],
+  ).then((r) => Number(r.lastID));
+}
+
+export async function p3ListDesires(userId: string, status?: string, limit = 50): Promise<P3DesireRecord[]> {
+  if (status) {
+    return all<P3DesireRecord>(
+      `SELECT * FROM desire_records WHERE user_id = ? AND status = ? ORDER BY priority DESC, id DESC LIMIT ?`,
+      [userId, status, limit],
+    );
+  }
+  return all<P3DesireRecord>(
+    `SELECT * FROM desire_records WHERE user_id = ? ORDER BY CASE status WHEN 'active' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END, priority DESC, id DESC LIMIT ?`,
+    [userId, limit],
+  );
+}
+
+export async function p3GetDesire(id: number): Promise<P3DesireRecord | null> {
+  return get<P3DesireRecord>('SELECT * FROM desire_records WHERE id = ?', [id]);
+}
+
+export async function p3UpdateDesirePriority(id: number, delta: number): Promise<P3DesireRecord | null> {
+  await run('UPDATE desire_records SET priority = MIN(1, MAX(0, priority + ?)), updated_at = datetime(\'now\') WHERE id = ?', [delta, id]);
+  return p3GetDesire(id);
+}
+
+export async function p3SetDesireStatus(id: number, status: P3DesireRecord['status'], detail = ''): Promise<P3DesireRecord | null> {
+  await run(
+    `UPDATE desire_records SET status = ?, updated_at = datetime('now'),
+       fulfilled_at = CASE WHEN ? = 'completed' THEN datetime('now') ELSE fulfilled_at END,
+       decayed_at = CASE WHEN ? = 'decayed' THEN datetime('now') ELSE decayed_at END
+     WHERE id = ?`,
+    [status, status, status, id],
+  );
+  await p3LogDesireEvent(id, `status_changed`, `${detail || ''}`.trim() ? detail : `→ ${status}`);
+  return p3GetDesire(id);
+}
+
+export async function p3LogDesireEvent(desireId: number, eventType: string, detail = ''): Promise<void> {
+  try {
+    await run('INSERT INTO desire_record_events (desire_id, event_type, detail) VALUES (?, ?, ?)', [desireId, eventType, detail]);
+  } catch (e: any) {
+    console.warn(`[LifeDB] desire_record_events 写入失败 desire#${desireId}: ${e.message}`);
+  }
+}
+
+export async function p3GetDesireStats(userId: string): Promise<{ status: string; count: number }[]> {
+  return all<{ status: string; count: number }>(
+    `SELECT status, COUNT(*) AS count FROM desire_records WHERE user_id = ? GROUP BY status`,
+    [userId],
+  );
+}
+
+/** 欲望衰减巡检：active 欲望按 factor 指数衰减；跌破 0.2 自动转 decayed（不物理删除） */
+export async function p3DecayDesires(userId: string, factor = 0.05, floor = 0.2): Promise<{ decayed: number; abandoned: number }> {
+  const decayed = await run(
+    `UPDATE desire_records SET priority = MIN(1, MAX(0, priority * (1 - ?))), updated_at = datetime('now')
+     WHERE user_id = ? AND status IN ('active','in_progress') AND priority > 0`,
+    [factor, userId],
+  );
+  const abandoned = await run(
+    `UPDATE desire_records SET status = 'decayed', decayed_at = datetime('now'), updated_at = datetime('now')
+     WHERE user_id = ? AND status = 'active' AND priority < ?`,
+    [userId, floor],
+  );
+  return { decayed: decayed.changes ?? 0, abandoned: abandoned.changes ?? 0 };
+}
+
+// ── P3 模块2 自省复盘 ──
+
+export interface P3ReflectionRecord {
+  id: number;
+  user_id: string;
+  trigger_type: string;
+  topic: string;
+  content: string;
+  insight: string;
+  lessons: string;
+  emotion_assessment: string;
+  future_intention: string;
+  evidence_json: string;
+  is_public: number;
+  model: string;
+  created_at: string;
+}
+
+export async function p3InsertReflection(params: {
+  userId: string;
+  triggerType: string;
+  topic: string;
+  content: string;
+  insight?: string;
+  lessons?: string[];
+  emotionAssessment?: string;
+  futureIntention?: string;
+  evidence?: Record<string, unknown>;
+  isPublic?: boolean;
+  model?: string;
+}): Promise<number> {
+  return run(
+    `INSERT INTO self_reflection_records
+       (user_id, trigger_type, topic, content, insight, lessons, emotion_assessment, future_intention, evidence_json, is_public, model)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      params.userId, params.triggerType, params.topic, params.content,
+      params.insight || '', JSON.stringify(params.lessons || []),
+      params.emotionAssessment || '', params.futureIntention || '',
+      JSON.stringify(params.evidence || {}), params.isPublic ? 1 : 0, params.model || '',
+    ],
+  ).then((r) => Number(r.lastID));
+}
+
+export async function p3ListReflections(userId: string, limit = 20): Promise<P3ReflectionRecord[]> {
+  return all<P3ReflectionRecord>(
+    'SELECT * FROM self_reflection_records WHERE user_id = ? ORDER BY id DESC LIMIT ?',
+    [userId, limit],
+  );
+}
+
+export async function p3GetReflection(id: number): Promise<P3ReflectionRecord | null> {
+  return get<P3ReflectionRecord>('SELECT * FROM self_reflection_records WHERE id = ?', [id]);
+}
+
+// ── P3 模块3 记忆联想网络 ──
+
+export interface P3AssociationRow {
+  id: number;
+  user_id: string;
+  mem_a: string;
+  mem_b: string;
+  strength: number;
+  hit_count: number;
+  source: string;
+  last_strengthened_at: string;
+  created_at: string;
+}
+
+/** 联想边 upsert：memA/memB 需按规范序（小者在前）由调用方传入；命中则强化+计数 */
+export async function p3UpsertAssociation(params: {
+  userId: string;
+  memA: string;
+  memB: string;
+  strength: number;
+  source?: string;
+  hitCountInc?: number;
+}): Promise<void> {
+  const s = Math.min(1, Math.max(0, params.strength));
+  await run(
+    `INSERT INTO memory_associations (user_id, mem_a, mem_b, strength, hit_count, source)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(user_id, mem_a, mem_b) DO UPDATE SET
+       strength = MIN(1, strength + ?),
+       hit_count = hit_count + ?,
+       source = excluded.source,
+       last_strengthened_at = datetime('now')`,
+    [params.userId, params.memA, params.memB, s, params.source || 'co_retrieval', params.hitCountInc ?? 0, params.hitCountInc ?? 0],
+  );
+}
+
+/** 取与某条记忆关联的边（双向，按强度降序） */
+export async function p3GetAssociationsForMemory(userId: string, memoryId: string, limit = 20): Promise<P3AssociationRow[]> {
+  return all<P3AssociationRow>(
+    `SELECT * FROM memory_associations WHERE user_id = ? AND (mem_a = ? OR mem_b = ?)
+     ORDER BY strength DESC, hit_count DESC LIMIT ?`,
+    [userId, memoryId, memoryId, limit],
+  );
+}
+
+/** 全量读取联想边（可按用户过滤）：启动恢复 restoreFromPersistence 用，从表加载历史联想网络 */
+export async function p3GetAllAssociations(userId?: string, limit?: number, offset = 0): Promise<P3AssociationRow[]> {
+  // Bug 修复：支持分页（limit+offset；不传 limit 时保持原全量行为兼容旧调用方）。
+  // 大数据量场景（6 万+ 行联想表）由调用方按页取数，禁止一次性全表读取。
+  if (userId) {
+    const sql = `SELECT * FROM memory_associations WHERE user_id = ? ORDER BY strength DESC, hit_count DESC` +
+      (limit ? ` LIMIT ? OFFSET ?` : '');
+    return all<P3AssociationRow>(sql, limit ? [userId, limit, offset] : [userId]);
+  }
+  const sql = `SELECT * FROM memory_associations ORDER BY user_id, strength DESC, hit_count DESC` +
+    (limit ? ` LIMIT ? OFFSET ?` : '');
+  return all<P3AssociationRow>(sql, limit ? [limit, offset] : []);
+}
+
+/** 联想衰减巡检：每周期 -step；跌破阈值不再保留（仅删联想边，绝不删记忆本体） */
+export async function p3DecayAssociations(userId: string, step = 0.02, threshold = 0.25): Promise<{ decayed: number; pruned: number }> {
+  const decayed = await run(
+    `UPDATE memory_associations SET strength = MAX(0, strength - ?), last_strengthened_at = datetime('now')
+     WHERE user_id = ? AND strength > 0`,
+    [step, userId],
+  );
+  const pruned = await run(
+    `DELETE FROM memory_associations WHERE user_id = ? AND strength < ?`,
+    [userId, threshold],
+  );
+  return { decayed: decayed.changes ?? 0, pruned: pruned.changes ?? 0 };
+}
+
+export async function p3GetAssociationStats(userId: string): Promise<{
+  totalEdges: number;
+  avgStrength: number;
+  maxStrength: number;
+  minStrength: number;
+  bySource: { source: string; count: number }[];
+}> {
+  const row = await get<any>(
+    `SELECT COUNT(*) AS totalEdges, COALESCE(AVG(strength), 0) AS avgStrength,
+            COALESCE(MAX(strength), 0) AS maxStrength, COALESCE(MIN(strength), 0) AS minStrength
+     FROM memory_associations WHERE user_id = ?`,
+    [userId],
+  );
+  const bySource = await all<{ source: string; count: number }>(
+    'SELECT source, COUNT(*) AS count FROM memory_associations WHERE user_id = ? GROUP BY source',
+    [userId],
+  );
+  return {
+    totalEdges: Number(row?.totalEdges ?? 0),
+    avgStrength: Number(row?.avgStrength ?? 0),
+    maxStrength: Number(row?.maxStrength ?? 0),
+    minStrength: Number(row?.minStrength ?? 0),
+    bySource,
+  };
+}
+
+/** 整用户替换联想边（启动桥接/测试重置用）：先删后插，同事务语义（非事务，失败由调用方回滚策略处理） */
+export async function p3ReplaceAssociationsForUser(userId: string, rows: { memA: string; memB: string; strength: number; source?: string; hitCount?: number }[]): Promise<number> {
+  await run('DELETE FROM memory_associations WHERE user_id = ?', [userId]);
+  for (const r of rows) {
+    await run(
+      `INSERT INTO memory_associations (user_id, mem_a, mem_b, strength, hit_count, source)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(user_id, mem_a, mem_b) DO UPDATE SET strength = excluded.strength, hit_count = excluded.hit_count`,
+      [userId, r.memA, r.memB, Math.min(1, Math.max(0, r.strength)), r.hitCount ?? 1, r.source || 'co_retrieval'],
+    );
+  }
+  return rows.length;
+}
+
+// ── P3 模块4 人格缓慢演化 ──
+
+export interface P3PersonalityDriftRecord {
+  id: number;
+  user_id: string;
+  round: number;
+  signal_summary: string;
+  deltas_json: string;
+  before_json: string;
+  after_json: string;
+  rationale: string;
+  is_public: number;
+  model: string;
+  created_at: string;
+}
+
+export async function p3InsertPersonalityDrift(params: {
+  userId: string;
+  round: number;
+  signalSummary: string;
+  deltas: number[];
+  before: number[];
+  after: number[];
+  rationale: string;
+  isPublic?: boolean;
+  model?: string;
+}): Promise<number> {
+  return run(
+    `INSERT INTO personality_drift_records
+       (user_id, round, signal_summary, deltas_json, before_json, after_json, rationale, is_public, model)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      params.userId, params.round, params.signalSummary,
+      JSON.stringify(params.deltas), JSON.stringify(params.before), JSON.stringify(params.after),
+      params.rationale, params.isPublic ? 1 : 0, params.model || '',
+    ],
+  ).then((r) => Number(r.lastID));
+}
+
+export async function p3ListPersonalityDrift(userId: string, limit = 20): Promise<P3PersonalityDriftRecord[]> {
+  return all<P3PersonalityDriftRecord>(
+    'SELECT * FROM personality_drift_records WHERE user_id = ? ORDER BY round DESC, id DESC LIMIT ?',
+    [userId, limit],
+  );
+}
+
+export async function p3GetPersonalityDriftRound(userId: string): Promise<number> {
+  const row = await get<any>('SELECT COALESCE(MAX(round), 0) AS round FROM personality_drift_records WHERE user_id = ?', [userId]);
+  return Number(row?.round ?? 0);
+}
+
+// ── P3 模块5 情绪系统 ──
+
+export interface P3EmotionStateRow {
+  id: number;
+  user_id: string;
+  vector_json: string;
+  dominant: string;
+  context_json: string;
+  source: string;
+  created_at: string;
+}
+
+export async function p3InsertEmotionState(params: {
+  userId: string;
+  vector: number[];
+  dominant: string;
+  context?: Record<string, unknown>;
+  source?: string;
+}): Promise<number> {
+  return run(
+    `INSERT INTO emotion_system_state (user_id, vector_json, dominant, context_json, source)
+     VALUES (?, ?, ?, ?, ?)`,
+    [params.userId, JSON.stringify(params.vector), params.dominant, JSON.stringify(params.context || {}), params.source || 'decay'],
+  ).then((r) => Number(r.lastID));
+}
+
+export async function p3InsertEmotionEvent(params: {
+  userId: string;
+  eventType: string;
+  delta: Record<string, number>;
+  context?: string;
+}): Promise<number> {
+  return run(
+    `INSERT INTO emotion_system_events (user_id, event_type, delta_json, context) VALUES (?, ?, ?, ?)`,
+    [params.userId, params.eventType, JSON.stringify(params.delta), params.context || ''],
+  ).then((r) => Number(r.lastID));
+}
+
+export async function p3GetLatestEmotionState(userId: string): Promise<P3EmotionStateRow | null> {
+  return get<P3EmotionStateRow>(
+    'SELECT * FROM emotion_system_state WHERE user_id = ? ORDER BY id DESC LIMIT 1',
+    [userId],
+  );
+}
+
+export async function p3GetRecentEmotionStates(userId: string, limit = 20): Promise<P3EmotionStateRow[]> {
+  return all<P3EmotionStateRow>(
+    'SELECT * FROM emotion_system_state WHERE user_id = ? ORDER BY id DESC LIMIT ?',
+    [userId, limit],
+  );
+}
+
+export async function p3GetRecentEmotionEvents(userId: string, limit = 50): Promise<{ id: number; event_type: string; delta_json: string; context: string; created_at: string }[]> {
+  return all<{ id: number; event_type: string; delta_json: string; context: string; created_at: string }>(
+    'SELECT id, event_type, delta_json, context, created_at FROM emotion_system_events WHERE user_id = ? ORDER BY id DESC LIMIT ?',
+    [userId, limit],
+  );
+}
+
+/** 情绪状态有界：只保留最近 keepRows 行（追加模式，旧行清理） */
+export async function p3PruneEmotionStates(userId: string, keepRows = 500): Promise<number> {
+  const r = await run(
+    `DELETE FROM emotion_system_state WHERE user_id = ? AND id NOT IN
+       (SELECT id FROM emotion_system_state WHERE user_id = ? ORDER BY id DESC LIMIT ?)`,
+    [userId, userId, keepRows],
+  );
+  return r.changes ?? 0;
+}
+
+// ── P3 模块7 Apple-Watch 感知占位层 ──
+
+export interface P3WatchEventRow {
+  id: number;
+  user_id: string;
+  source: string;
+  modality: string;
+  payload_json: string;
+  derived_json: string;
+  emotion_delta_json: string;
+  desire_delta_json: string;
+  status: string;
+  received_at: string;
+  processed_at: string | null;
+}
+
+export async function p3InsertWatchEvent(params: {
+  userId: string;
+  source: string;
+  modality: string;
+  payload: Record<string, unknown>;
+  derived?: Record<string, unknown>;
+  emotionDelta?: Record<string, number>;
+  desireDelta?: Record<string, number>;
+  status?: string;
+}): Promise<number> {
+  return run(
+    `INSERT INTO watch_perception_events
+       (user_id, source, modality, payload_json, derived_json, emotion_delta_json, desire_delta_json, status, processed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+    [
+      params.userId, params.source, params.modality,
+      JSON.stringify(params.payload), JSON.stringify(params.derived || {}),
+      JSON.stringify(params.emotionDelta || {}), JSON.stringify(params.desireDelta || {}),
+      params.status || 'processed',
+    ],
+  ).then((r) => Number(r.lastID));
+}
+
+export async function p3ListWatchEvents(userId: string, source?: string, limit = 100): Promise<P3WatchEventRow[]> {
+  if (source) {
+    return all<P3WatchEventRow>(
+      'SELECT * FROM watch_perception_events WHERE user_id = ? AND source = ? ORDER BY id DESC LIMIT ?',
+      [userId, source, limit],
+    );
+  }
+  return all<P3WatchEventRow>(
+    'SELECT * FROM watch_perception_events WHERE user_id = ? ORDER BY id DESC LIMIT ?',
+    [userId, limit],
+  );
+}
+
+export async function p3CountWatchEvents(userId: string): Promise<number> {
+  const row = await get<any>('SELECT COUNT(*) AS c FROM watch_perception_events WHERE user_id = ?', [userId]);
+  return Number(row?.c ?? 0);
+}
+
+/** 感知占位事件有界清理：按保留天数 + 行数硬上限删除最旧（仅占位事件，绝不触碰用户数据） */
+export async function p3PruneWatchEvents(maxRows: number, retentionDays: number): Promise<{ removed: number }> {
+  const removed = await run(
+    `DELETE FROM watch_perception_events WHERE id IN (
+       SELECT id FROM watch_perception_events
+       WHERE received_at < datetime('now', ?)
+          OR id IN (SELECT id FROM watch_perception_events ORDER BY id DESC LIMIT -1 OFFSET ?)
+     )`,
+    [`-${retentionDays} days`, maxRows],
+  );
+  return { removed: removed.changes ?? 0 };
+}
+
+// ── P3 模块8 实体机器人交互适配层 ──
+
+export interface P3RobotRow {
+  id: string;
+  name: string;
+  kind: string;
+  status: 'registered' | 'online' | 'offline' | 'disabled';
+  capabilities: string;
+  firmware: string;
+  owner_uid: string;
+  last_heartbeat_at: string | null;
+  registered_at: string;
+}
+
+export async function p3UpsertRobot(params: {
+  id: string;
+  name: string;
+  kind?: string;
+  capabilities?: string[];
+  firmware?: string;
+  ownerUid?: string;
+}): Promise<void> {
+  await run(
+    `INSERT INTO robot_devices (id, name, kind, capabilities, firmware, owner_uid)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       name = excluded.name,
+       kind = excluded.kind,
+       capabilities = excluded.capabilities,
+       firmware = excluded.firmware`,
+    [
+      params.id, params.name, params.kind || 'generic',
+      JSON.stringify(params.capabilities || []), params.firmware || '', params.ownerUid || 'default',
+    ],
+  );
+}
+
+export async function p3GetRobot(id: string): Promise<P3RobotRow | null> {
+  return get<P3RobotRow>('SELECT * FROM robot_devices WHERE id = ?', [id]);
+}
+
+export async function p3ListRobots(ownerUid?: string): Promise<P3RobotRow[]> {
+  if (ownerUid) {
+    return all<P3RobotRow>('SELECT * FROM robot_devices WHERE owner_uid = ? ORDER BY registered_at DESC', [ownerUid]);
+  }
+  return all<P3RobotRow>('SELECT * FROM robot_devices ORDER BY registered_at DESC');
+}
+
+export async function p3UpdateRobotStatus(id: string, status: P3RobotRow['status'], lastHeartbeatAt?: string): Promise<P3RobotRow | null> {
+  await run(
+    `UPDATE robot_devices SET status = ?, last_heartbeat_at = COALESCE(?, last_heartbeat_at) WHERE id = ?`,
+    [status, lastHeartbeatAt ?? null, id],
+  );
+  return p3GetRobot(id);
+}
+
+export async function p3RemoveRobot(id: string): Promise<void> {
+  await run('DELETE FROM robot_devices WHERE id = ?', [id]);
+  await run('DELETE FROM robot_command_log WHERE robot_id = ?', [id]);
+}
+
+export interface P3RobotCommandRow {
+  id: number;
+  robot_id: string;
+  command: string;
+  params_json: string;
+  correlation_id: string;
+  status: string;
+  result_json: string;
+  created_at: string;
+  acknowledged_at: string | null;
+}
+
+export async function p3InsertRobotCommand(params: {
+  robotId: string;
+  command: string;
+  params?: Record<string, unknown>;
+  correlationId?: string;
+}): Promise<number> {
+  return run(
+    `INSERT INTO robot_command_log (robot_id, command, params_json, correlation_id, status)
+     VALUES (?, ?, ?, ?, 'queued')`,
+    [params.robotId, params.command, JSON.stringify(params.params || {}), params.correlationId || ''],
+  ).then((r) => Number(r.lastID));
+}
+
+export async function p3UpdateRobotCommand(id: number, status: string, result?: Record<string, unknown>): Promise<void> {
+  await run(
+    `UPDATE robot_command_log SET status = ?, result_json = ?, acknowledged_at = CASE WHEN ? IN ('acknowledged','failed','timeout') THEN datetime('now') ELSE acknowledged_at END
+     WHERE id = ?`,
+    [status, JSON.stringify(result || {}), status, id],
+  );
+}
+
+export async function p3ListRobotCommands(robotId: string, limit = 50): Promise<P3RobotCommandRow[]> {
+  return all<P3RobotCommandRow>(
+    'SELECT * FROM robot_command_log WHERE robot_id = ? ORDER BY id DESC LIMIT ?',
+    [robotId, limit],
   );
 }
 

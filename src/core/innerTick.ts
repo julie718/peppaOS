@@ -84,10 +84,13 @@ type InnerTickLLMFailureKind = 'llm_timeout' | 'reasoning_only' | 'empty_content
 
 class InnerTickLLMError extends Error {
   readonly kind: InnerTickLLMFailureKind;
-  constructor(kind: InnerTickLLMFailureKind, message: string) {
+  /** 附加失败上下文（如 reasoning_only 时携带模型思考链原文，供降级抽取心智信息） */
+  readonly details?: { reasoningContent?: string };
+  constructor(kind: InnerTickLLMFailureKind, message: string, details?: { reasoningContent?: string }) {
     super(message);
     this.name = 'InnerTickLLMError';
     this.kind = kind;
+    this.details = details;
   }
 }
 
@@ -748,6 +751,96 @@ function buildFallbackInnerTickOutput(): InnerTickOutput {
   };
 }
 
+/**
+ * Bug 修复：reasoning-only 降级 —— 从模型思考链原文尽力抽取有效心智信息生成快照。
+ * 优先尝试把 reasoning 整体按 schema 解析（推理模型可能在思考链里草拟了完整 JSON）；
+ * 失败则正则抽取「欲望/渴望/想…」「情绪/心情…」条目 + 思考文本作为 thought。
+ * 抽取不到任何信息时返回 null（由调用方继续降级）。isPublic 一律 false（内部推演保守拦截）。
+ */
+function buildSnapshotFromReasoning(reasoningText: string): InnerTickOutput | null {
+  const text = String(reasoningText || '').trim();
+  if (!text) return null;
+
+  // 1) reasoning 内可能已有完整 schema JSON 草稿 → 直接走既有解析+规范化链路
+  try {
+    const parsed = parseInnerTickJson(text);
+    if (parsed && typeof parsed === 'object') {
+      const output = normalizeOutput(parsed);
+      if (output.thought || output.desires.length > 0 || output.goals.length > 0) {
+        (output as InnerTickOutput & { degraded?: string }).degraded = 'reasoning_only';
+        return output;
+      }
+    }
+  } catch { /* 非 JSON 推理文本 → 走正则抽取 */ }
+
+  // 2) 正则抽取欲望条目（如「欲望：xxx」「渴望：xxx」「想探索xxx」）
+  const desires: InnerTickDesire[] = [];
+  const desireRe = /(?:欲望|渴望|想(?:要|做|去)?)[：:]\s*([^\n。；;，,]{2,80})/g;
+  let dm: RegExpExecArray | null;
+  while ((dm = desireRe.exec(text)) && desires.length < 5) {
+    const content = dm[1].trim();
+    if (content && !desires.some(d => d.content === content)) {
+      desires.push({ id: crypto.randomUUID(), content, intensity: 0.6, status: 'active' });
+    }
+  }
+
+  // 3) 情绪条目
+  const moodMatch = text.match(/(?:情绪|心情)[：:]\s*([^\n。；;，,]{2,20})/);
+  const mood: InnerTickMood = {
+    name: toStr(moodMatch?.[1] || '平静').slice(0, 50),
+    intensity: 0.5,
+  };
+
+  const thought = text.replace(/\s+/g, ' ').slice(0, 800);
+  if (desires.length === 0 && !moodMatch && !thought) return null;
+
+  const output: InnerTickOutput = {
+    thought: thought || '（模型仅输出思考链，已从推理过程抽取心智信息）',
+    isPublic: false,
+    mood,
+    desires,
+    goals: [],
+    focus: [],
+    archiveItems: [],
+    triggerInnerTick: false,
+    memoryHints: [],
+  };
+  (output as InnerTickOutput & { degraded?: string }).degraded = 'reasoning_only';
+  return output;
+}
+
+/**
+ * Bug 修复：超时/无素材降级 —— 从当前 life.db 既有状态（活跃欲望 + 最近情绪）生成部分快照，
+ * 拒绝整轮零写入。仅写观测快照表（system_events / inner_tick_snapshot），不写业务状态表。
+ */
+async function buildDegradedSnapshot(reasonKind: string, reasonText: string): Promise<InnerTickOutput> {
+  const emotions = await getRecentEmotions(1).catch(() => [] as any[]);
+  const activeDesires = await getActiveDesires().catch(() => [] as any[]);
+
+  const mood: InnerTickMood = emotions[0]
+    ? { name: toStr(emotions[0]?.emotion_type || '平静').slice(0, 50), intensity: clamp01(emotions[0]?.intensity) }
+    : { name: '平静', intensity: 0.5 };
+
+  const output: InnerTickOutput = {
+    thought: `本轮内部推演${reasonText}（${reasonKind}），未获得模型输出，快照由既有心智状态降级生成。`,
+    isPublic: false,
+    mood,
+    desires: (activeDesires as any[]).slice(0, 5).map((d: any) => ({
+      id: validUuidOrNew(''),
+      content: toStr(d?.desire_text).slice(0, 500),
+      intensity: clamp01(d?.priority),
+      status: 'active' as const,
+    })).filter((d: InnerTickDesire) => d.content),
+    goals: [],
+    focus: [],
+    archiveItems: [],
+    triggerInnerTick: false,
+    memoryHints: [],
+  };
+  (output as InnerTickOutput & { degraded?: string }).degraded = reasonKind;
+  return output;
+}
+
 // ─────────────────────────────────────────────
 // 7.5 Phase2 铁则：最小触发间隔硬锁 + 对外输出拦截器
 // ─────────────────────────────────────────────
@@ -890,7 +983,12 @@ export async function runInnerTick(options: InnerTickOptions = {}): Promise<Inne
     if (!response?.text || !response.text.trim()) {
       // 审计观测到的 deepseek-v4-flash 已知异常：只输出 reasoning、content 为空
       if (response?.reasoningContent) {
-        throw new InnerTickLLMError('reasoning_only', '模型仅输出 reasoning 无有效 content（deepseek-v4-flash 已知异常），content 为空');
+        // Bug 修复：reasoning 原文随错误携带，供降级层抽取欲望/洞察生成快照（避免整轮作废）
+        throw new InnerTickLLMError(
+          'reasoning_only',
+          '模型仅输出 reasoning 无有效 content（deepseek-v4-flash 已知异常），content 为空',
+          { reasoningContent: response.reasoningContent },
+        );
       }
       throw new InnerTickLLMError('empty_content', '模型返回 content 为空');
     }
@@ -903,10 +1001,12 @@ export async function runInnerTick(options: InnerTickOptions = {}): Promise<Inne
     return normalizeOutput(parsed);
   };
 
-  // 推演结果：成功走下方正常链路；失败（超时 / 重试耗尽）输出分级日志后本轮零写入终止。
+  // 推演结果：成功走下方正常链路；失败（超时 / 重试耗尽）输出分级日志后进入降级链路。
   // 超时不重试（重试会再次阻塞整个超时阈值时长，违背超时兜底目的）；格式类失败沿用原单次重试。
-  let output: InnerTickOutput;
+  let output: InnerTickOutput | null = null;
   let failedKind: InnerTickLLMFailureKind | null = null;
+  // 最近一次失败携带的模型思考链原文（reasoning-only 降级用）
+  let lastReasoningContent: string | null = null;
   try {
     output = await attemptInnerTickCall();
     logger.mind(`${TAG} 心智推演完成（首次调用成功）`);
@@ -914,7 +1014,8 @@ export async function runInnerTick(options: InnerTickOptions = {}): Promise<Inne
     const firstKind = firstErr instanceof InnerTickLLMError ? firstErr.kind : 'unknown';
     if (firstKind === 'llm_timeout') {
       failedKind = firstKind;
-      logger.error(`${TAG_ERROR} LLM调用超时（kind=llm_timeout）: ${firstErr?.message || String(firstErr)}；本轮放弃心智推演落库，心智业务表零写入，等待下一轮对话重新触发`);
+      // 日志区分：超时错误（独立文案，与格式异常明确区分）
+      logger.error(`${TAG_ERROR} LLM调用超时（kind=llm_timeout，阈值 ${timeoutMs}ms）: ${firstErr?.message || String(firstErr)}；进入超时降级：尝试从既有心智状态生成部分快照，拒绝整轮空落库`);
     } else {
       logger.warn(`${TAG_WARN} 首次心智推演失败（kind=${firstKind}）: ${firstErr?.message || String(firstErr)}；自动重试（最多1次）`);
       try {
@@ -922,7 +1023,10 @@ export async function runInnerTick(options: InnerTickOptions = {}): Promise<Inne
         logger.info(`${TAG_RETRY} 重试成功，心智推演完成`);
       } catch (retryErr: any) {
         failedKind = retryErr instanceof InnerTickLLMError ? retryErr.kind : 'unknown';
-        logger.error(`${TAG_ERROR} 重试仍失败（kind=${failedKind}）: ${retryErr?.message || String(retryErr)}；本轮放弃心智推演落库，心智业务表零写入，返回兜底输出，不阻断主流程`);
+        if (retryErr instanceof InnerTickLLMError) {
+          lastReasoningContent = retryErr.details?.reasoningContent || null;
+        }
+        logger.error(`${TAG_ERROR} 重试仍失败（kind=${failedKind}）: ${retryErr?.message || String(retryErr)}；进入降级链路，尽力产出部分快照`);
       }
     }
   } finally {
@@ -930,11 +1034,48 @@ export async function runInnerTick(options: InnerTickOptions = {}): Promise<Inne
     if (abortTimer) clearTimeout(abortTimer);
   }
 
-  // ⚠️ 异常终止边界：本轮不执行任何写库（跳过归档 addMemory / life.db 快照 / inner_tick_snapshot 观测表 /
-  // P2 心智演化落库），仅返回兜底输出 —— 保证心智业务表零写入、不产生残缺心智事件；下一轮对话可重新触发。
+  // ⚠️ 异常降级边界（Bug 修复）：不再整轮作废零写入 —— 从已有素材尽力产出可用快照：
+  //   1. reasoning_only（deepseek-v4-flash 只出思考链、content 为空）→ 从思考链提取欲望/洞察生成快照；
+  //   2. llm_timeout → 从当前 life 状态（活跃欲望+最近情绪）生成部分快照；
+  //   3. 无任何可恢复素材（empty_content / parse_error / unknown）→ 维持纯 fallback 兜底。
+  // 降级快照仅写观测表（system_events + inner_tick_snapshot），不执行归档 addMemory / P2 业务状态写入。
   if (failedKind) {
-    return buildFallbackInnerTickOutput();
+    let degradedKind: string = failedKind;
+    if (failedKind === 'reasoning_only' && lastReasoningContent) {
+      const extracted = buildSnapshotFromReasoning(lastReasoningContent);
+      if (extracted) {
+        output = extracted;
+        degradedKind = 'reasoning_only';
+        logger.info(`${TAG} reasoning-only 降级生效：已从模型思考链抽取心智信息生成快照（desires=${extracted.desires.length} mood=${extracted.mood.name}）`);
+      } else {
+        degradedKind = 'reasoning_only_no_content';
+        logger.warn(`${TAG} reasoning-only 降级：思考链中无可提取的心智信息，继续按超时路径生成状态快照`);
+      }
+    }
+    if (!output && (failedKind === 'llm_timeout' || degradedKind !== failedKind)) {
+      // 超时 / reasoning 提取失败：用既有心智状态生成部分快照（真实数据，非纯占位）
+      output = await buildDegradedSnapshot(
+        failedKind,
+        failedKind === 'llm_timeout' ? '超时' : '模型输出异常',
+      );
+      logger.info(`${TAG} 超时/无素材降级：已从既有心智状态生成部分快照（desires=${output.desires.length} mood=${output.mood.name}）`);
+    }
+    if (!output) {
+      return buildFallbackInnerTickOutput();
+    }
+    // 降级快照统一落观测表（仅观测，不写业务状态；与正常路径同表、同结构，便于对照）
+    await persistSnapshot(output);
+    await persistInnerTickSnapshot({
+      output,
+      userId,
+      sessionId: options.sessionId,
+      turnIndex: options.turnIndex,
+      triggerSource: options.triggerSource || 'manual',
+    });
+    logger.warn(`${TAG} 降级快照已落库（degraded=${degradedKind}），本轮为部分心智产出，下一轮对话仍可正常触发`);
+    return output;
   }
+  output = output as InnerTickOutput;
 
   // 处理归档：addMemory（经守卫）+ 从 active 列表移除
   const archivedIds = await processArchives(output, userId);
