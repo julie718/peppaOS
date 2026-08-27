@@ -59,11 +59,14 @@ export class DataSourceManager {
         const result = await source.query(code, type, extra);
         const latency = Date.now() - start;
 
-        // 成功后重置失败计数
+        // Reset failure counter and restore health status after success
+        // Bugfix: When healthCheck timeout/failure sets state to degraded,
+        // original logic only handled unhealthy→healthy, degraded state stuck forever.
         source.consecutiveFailures = 0;
-        if (source.state === 'unhealthy') {
+        if (source.state !== 'healthy') {
+          const prevState = source.state;
           source.state = 'healthy';
-          logger.info(`[DataSource] ${source.name} 熔断恢复`);
+          logger.info(`[DataSource] ${source.name} recovered to healthy (${prevState} → healthy)`);
         }
 
         source.totalQueries++;

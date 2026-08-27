@@ -11,9 +11,8 @@
 import { logger } from '../lib/logger';
 // Phase3: 灰度开关 + InnerTick 心智模块（可选触发，不接管空闲大脑输出）
 import { MIND_SWITCH } from '../../src/config/mindSwitch';
-import { runInnerTick } from '../../src/core/innerTick';
-// 任务4：空闲 InnerTick 触发频率管控（外部路由频率闸门，只作用于空闲触发点，不侵入心智内部逻辑）
-import { allowIdleInnerTick } from '../llm/frequencyGate';
+// Phase-2 修复：后台 session=- 浅层推演管控（2h 硬冷却 / 独立每日熔断 / LLM 健康降级保护；chat_turn 不计入）
+import { runInnerTick, isBackgroundInnerTickInCooldown, isBackgroundInnerTickBreakerOpen, recordBackgroundInnerTick, hasInnerTickLLMFailures } from '../../src/core/innerTick';
 import { getEmotionEngine } from '../life/emotions';
 import { getPersonalityEngine } from '../life/personality';
 import { getLifeSystem } from '../life/index';
@@ -22,8 +21,11 @@ import { queryMemories, promoteMemories } from '../memory/store';
 import type { MentalEventItem } from '../../src/types/innerTickSchema';
 import type { Memory, MemoryTier, MemoryPerspective } from '../memory/types';
 import { consolidateEpisodic, consolidateNarrative, ConsolidationContext } from '../memory/consolidator';
-import { addInteractionMemory, getSignificantMemories } from '../db/lifeDb';
+// Phase-2 修复：后台推演触发条件数据源（情绪大幅波动 / 高权重欲望变动）
+import { addInteractionMemory, getSignificantMemories, getRecentEmotions, getActiveDesires } from '../db/lifeDb';
 import { getLastUserMessageAt } from '../life/userState';
+// Phase-2 修复：降级保护 — CPU 负载判定（与 mainLoop 阈值一致）
+import os from 'os';
 import { getIdleState } from '../context/activity_stream';
 import { getRecentIdleState } from './safety_gate';
 import { perceiveRelation } from '../life/relationshipAwareness';
@@ -42,6 +44,17 @@ const CONFIG = {
   MONTHLY_MAX_PER_MONTH: 1,        // 月度自省每月最多 1 次
   ENABLED: process.env.IDLE_BRAIN_DISABLED !== 'true',
   MONTHLY_ENABLED: process.env.IDLE_BRAIN_MONTHLY_ENABLED !== 'false', // 默认开启
+  // ── Phase-2 修复：后台 session=- 浅层推演管控（替换原 allowIdleInnerTick 1 小时闸门）──
+  // 触发条件：近30min有对话 / 情绪大幅波动 / 高权重欲望变动（任一满足即触发）；
+  // 2h 最小冷却为 core 层代码硬锁（INNER_TICK_BG_MIN_INTERVAL_MS），本配置仅保留触发/降级阈值。
+  BG_TRIGGER_RECENT_DIALOG_MS: 30 * 60 * 1000,    // 近 30 分钟内有对话 → 触发
+  BG_EMOTION_SWING_THRESHOLD: 0.25,               // 最近 4 条情绪强度极差 ≥ 0.25 → 视为大幅波动
+  BG_DESIRE_PRIORITY_THRESHOLD: 0.6,              // 高权重欲望：priority ≥ 0.6
+  BG_DESIRE_CHANGE_WINDOW_MS: 2 * 60 * 60 * 1000, // 高权重欲望近 2h 内创建/更新 → 视为变动
+  BG_CPU_LOAD_MAX: 2.0,                           // 1 分钟平均负载 > 2.0 → CPU 高（与 mainLoop 阈值一致）
+  BG_SQLITE_SLOW_MS: 500,                         // 单次 SQLite 读取 > 500ms → 慢查询
+  BG_LLM_FAIL_WINDOW: 3,                          // 最近 3 次 InnerTick LLM 推演中…
+  BG_LLM_FAIL_THRESHOLD: 2,                       // …≥ 2 次超时/失败 → LLM 连续故障
 };
 
 // ── 状态 ──
@@ -52,6 +65,7 @@ interface IdleBrainState {
   isRunning: boolean;
   totalCycles: number;
   innerMonologueCount: number;
+  lastBackgroundInnerTickAt: number; // Phase-2 修复：上次后台浅层推演时间（观测用；2h 硬锁在 core 层强制）
 }
 
 class IdleBrain {
@@ -63,6 +77,7 @@ class IdleBrain {
     isRunning: false,
     totalCycles: 0,
     innerMonologueCount: 0,
+    lastBackgroundInnerTickAt: 0,
   };
 
   // ── 空闲判定 ──
@@ -223,8 +238,9 @@ class IdleBrain {
       }
 
       // Phase4: 任务末尾派发本任务派生心智事件（非阻塞，失败不影响主流程）
+      // Phase-2 修复：depth=shallow — 人格微漂移只允许深层推演执行，长待机事件派发不落库 personalityDrift
       if (eventList.length > 0) {
-        void runInnerTick({ userId: targetUserId, derivedMentalEvents: eventList }).catch((e: any) =>
+        void runInnerTick({ userId: targetUserId, depth: 'shallow', derivedMentalEvents: eventList }).catch((e: any) =>
           logger.warn(`[IdleBrain] 心智事件派发失败: ${e?.message || e}`),
         );
       }
@@ -309,8 +325,9 @@ class IdleBrain {
       } catch {}
 
       // Phase4: 任务末尾派发本任务派生心智事件（非阻塞，失败不影响主流程）
+      // Phase-2 修复：depth=shallow — 人格微漂移只允许深层推演执行，月度自省事件派发不落库 personalityDrift
       if (eventList.length > 0) {
-        void runInnerTick({ userId: monthlyUserId, derivedMentalEvents: eventList }).catch((e: any) =>
+        void runInnerTick({ userId: monthlyUserId, depth: 'shallow', derivedMentalEvents: eventList }).catch((e: any) =>
           logger.warn(`[IdleBrain] 心智事件派发失败: ${e?.message || e}`),
         );
       }
@@ -318,6 +335,120 @@ class IdleBrain {
       logger.info('[IdleBrain] 月度自省完成');
     } catch (e: any) {
       logger.error('[IdleBrain] 月度自省异常:', e?.message || e);
+    }
+  }
+
+  // ── Phase-2 修复：后台 session=- 浅层推演（触发条件 + 降级保护 + 2h 硬冷却 + 每日熔断）──
+
+  /** SQLite 时间字符串（"YYYY-MM-DD HH:MM:SS" UTC）→ ms 时间戳；非法/空返回 0 */
+  private parseSqliteTs(ts: string | null | undefined): number {
+    if (!ts) return 0;
+    const n = Date.parse(String(ts).replace(' ', 'T') + 'Z');
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  /**
+   * 后台推演触发条件评估（任一满足即触发）：
+   *  1) 近 30min 内有对话（最后用户消息在 30 分钟内）；
+   *  2) 情绪大幅波动（最近 4 条情绪强度极差 ≥ 0.25）；
+   *  3) 高权重欲望变动（priority ≥ 0.6 的活跃欲望近 2h 内创建/更新）。
+   * 返回触发原因与本次 SQLite 读取耗时（供慢查询降级判定复用，避免重复查询）。
+   */
+  private async evaluateBackgroundTrigger(): Promise<{ trigger: string | null; sqliteMs: number }> {
+    // 1) 近 30min 有对话（零 IO，先判）
+    const lastMsg = getLastUserMessageAt();
+    if (lastMsg > 0 && Date.now() - lastMsg <= CONFIG.BG_TRIGGER_RECENT_DIALOG_MS) {
+      return { trigger: `近30min有对话（${Math.round((Date.now() - lastMsg) / 60000)} 分钟前）`, sqliteMs: 0 };
+    }
+
+    // 2) 情绪大幅波动（本次 SQLite 读取顺带计时，供慢查询降级判定）
+    const t0 = Date.now();
+    const emotions = await getRecentEmotions(4).catch(() => [] as any[]);
+    const sqliteMs = Date.now() - t0;
+    if (emotions.length >= 2) {
+      const intensities = emotions.map((e: any) => Number(e.intensity) || 0);
+      const swing = Math.max(...intensities) - Math.min(...intensities);
+      if (swing >= CONFIG.BG_EMOTION_SWING_THRESHOLD) {
+        return { trigger: `情绪大幅波动（最近情绪强度极差 ${swing.toFixed(2)} ≥ ${CONFIG.BG_EMOTION_SWING_THRESHOLD}）`, sqliteMs };
+      }
+    }
+
+    // 3) 高权重欲望变动
+    const desires = await getActiveDesires().catch(() => [] as any[]);
+    const changed = desires.find((d: any) =>
+      Number(d.priority) >= CONFIG.BG_DESIRE_PRIORITY_THRESHOLD &&
+      Math.max(this.parseSqliteTs(d.updated_at), this.parseSqliteTs(d.created_at)) >
+        Date.now() - CONFIG.BG_DESIRE_CHANGE_WINDOW_MS,
+    );
+    if (changed) {
+      return { trigger: `高权重欲望变动（priority=${Number(changed.priority).toFixed(2)}: ${String(changed.desire_text || '').slice(0, 40)}）`, sqliteMs };
+    }
+
+    return { trigger: null, sqliteMs };
+  }
+
+  /** 降级保护：CPU 高 / SQLite 慢查询 / LLM 连续超时 → 返回跳过原因；系统健康返回 null */
+  private backgroundDegradationReason(sqliteMs: number): string | null {
+    // 1) CPU 高（1 分钟平均负载 > 2.0，与 mainLoop 阈值一致）
+    const load1 = os.loadavg()[0];
+    if (load1 > CONFIG.BG_CPU_LOAD_MAX) {
+      return `CPU 负载高（load1=${load1.toFixed(1)} > ${CONFIG.BG_CPU_LOAD_MAX}）`;
+    }
+    // 2) SQLite 慢查询（触发评估中的读取耗时 > 500ms）
+    if (sqliteMs > CONFIG.BG_SQLITE_SLOW_MS) {
+      return `SQLite 慢查询（读取耗时 ${sqliteMs}ms > ${CONFIG.BG_SQLITE_SLOW_MS}ms）`;
+    }
+    // 3) LLM 连续超时/失败（最近 3 次 InnerTick 推演 ≥ 2 次失败）
+    if (hasInnerTickLLMFailures(CONFIG.BG_LLM_FAIL_WINDOW, CONFIG.BG_LLM_FAIL_THRESHOLD)) {
+      return `LLM 连续超时/失败（最近 ${CONFIG.BG_LLM_FAIL_WINDOW} 次 InnerTick 推演 ≥ ${CONFIG.BG_LLM_FAIL_THRESHOLD} 次失败）`;
+    }
+    return null;
+  }
+
+  /**
+   * Phase-2 修复：后台 session=- 浅层推演入口。
+   * 管控链路：触发条件评估 → 降级保护 → 2h 硬冷却 → 独立每日熔断 → fire-and-forget 浅层推演。
+   * 约束：只跑活跃主用户（global.__lastActiveUid），禁止遍历全部 uid；
+   *       chat_turn 对话触发不经过本路径，不计入后台熔断统计；
+   *       2h 最小冷却由 core 层代码硬锁强制（替换原 allowIdleInnerTick 1 小时闸门）。
+   */
+  private async triggerBackgroundInnerTick(userId: string): Promise<void> {
+    try {
+      // 1) 触发条件：近30min有对话 / 情绪大幅波动 / 高权重欲望变动（任一满足才触发）
+      const { trigger, sqliteMs } = await this.evaluateBackgroundTrigger();
+      if (!trigger) {
+        logger.info('[IdleBrain] 后台浅层推演跳过: 无触发条件（近30min无对话、情绪无大幅波动、无高权重欲望变动）');
+        return;
+      }
+
+      // 2) 降级保护：CPU 高 / SQLite 慢查询 / LLM 连续超时 → 直接跳过后台推演
+      const degrade = this.backgroundDegradationReason(sqliteMs);
+      if (degrade) {
+        logger.warn(`[IdleBrain] 后台浅层推演跳过（降级保护）: ${degrade}`);
+        return;
+      }
+
+      // 3) 后台推演 2h 硬冷却（core 层强制；先判避免熔断计数失真）
+      if (isBackgroundInnerTickInCooldown(userId)) {
+        logger.info(`[IdleBrain] 后台浅层推演跳过: 2h 冷却中（user=${userId}，后台 session=- 推演最小间隔 2 小时）`);
+        return;
+      }
+
+      // 4) 后台推演独立每日调用熔断（chat_turn 对话触发不计入本统计）
+      if (isBackgroundInnerTickBreakerOpen()) {
+        logger.warn('[IdleBrain] 后台浅层推演跳过: 今日后台推演熔断已达上限（chat_turn 对话触发不受此熔断约束）');
+        return;
+      }
+      recordBackgroundInnerTick();
+
+      // 5) fire-and-forget 异步推演：不阻塞调度器/本检查循环；浅层只传结构化心智快照（depth=shallow）
+      this.state.lastBackgroundInnerTickAt = Date.now();
+      logger.info(`[IdleBrain] 后台浅层推演触发（user=${userId}，depth=shallow，trigger=${trigger}）`);
+      void runInnerTick({ userId, depth: 'shallow', triggerSource: 'manual' })
+        .then(() => logger.info(`[IdleBrain] 后台浅层推演完成（user=${userId}）`))
+        .catch((e: any) => logger.warn(`[IdleBrain] 后台浅层推演触发失败: ${e?.message || e}`));
+    } catch (e: any) {
+      logger.warn(`[IdleBrain] 后台浅层推演评估异常（本轮跳过）: ${e?.message || e}`);
     }
   }
 
@@ -329,23 +460,14 @@ class IdleBrain {
     this.state.totalCycles++;
 
     try {
-      // ── Phase3 灰度：InnerTick 空闲心智触发（enableInnerTickIdleTrigger，默认关闭）──
-      // 仅作为额外心智推演（LLM 驱动，写 life.db 快照备份），不接管空闲大脑输出；
-      // void 异步非阻塞执行，失败不影响旧逻辑。
-      // 任务4（频率管控，降本关键）：空闲状态（无用户交互）只做轻量状态快照入库（旧 TICK
-      // 快照路径天然完成），不调用大模型做完整深度心智推演 —— 由外部路由频率闸门
-      // allowIdleInnerTick 按配置的最小间隔拦截；用户消息交互(chat_turn)/重要状态变更
-      // （derivedMentalEvents）/目标变更的推演不受此闸门约束（本闸门只作用于此空闲触发点）。
-      // 间隔配置 <= 0 时恒放行，完全保持旧行为。
+      // ── Phase-2 修复：后台 session=- 浅层推演（enableInnerTickIdleTrigger 灰度开关，默认关闭）──
+      // 原 allowIdleInnerTick 1 小时可配置闸门已由 core 层 2 小时硬冷却替换（INNER_TICK_BG_MIN_INTERVAL_MS）；
+      // 新增触发条件（近30min有对话 / 情绪大幅波动 / 高权重欲望变动）、独立每日熔断（chat_turn 不计入）
+      // 与降级保护（CPU 高 / SQLite 慢查询 / LLM 连续超时）。
+      // 只跑活跃主用户（__lastActiveUid），禁止遍历全部 uid；fire-and-forget 异步，不阻塞调度器。
       if (MIND_SWITCH.enableInnerTickIdleTrigger) {
         const userId = ((global as any).__lastActiveUid as string) || 'default';
-        if (!allowIdleInnerTick('idle_brain')) {
-          // 间隔未到：本轮跳过 LLM 深度推演（不触发 runInnerTick），心智/记忆数据零改动
-          return;
-        }
-        void runInnerTick({ userId }).catch((e: any) =>
-          logger.warn(`[IdleBrain] InnerTick 触发失败: ${e?.message || e}`),
-        );
+        await this.triggerBackgroundInnerTick(userId);
       }
 
       // ── Phase3 开关：enableOldIdleBrain=false 时仅跳过旧空闲大脑逻辑执行（实现完整保留，可一键切回）──

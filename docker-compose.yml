@@ -51,6 +51,9 @@ services:
         # 部署: GIT_COMMIT=$(git rev-parse --short HEAD) docker compose up -d --build
         GIT_COMMIT: ${GIT_COMMIT:-unknown}
     container_name: peppaos
+    # Zombie 修复：node 直接作 PID1 不回收孤儿进程 → 容器内僵尸 PID 堆积，
+    # docker compose down 报 "PID xxx is zombie and can not be killed" 无法停止。
+    # init: true 内嵌 tini 作 PID1（信号转发 + 子进程回收），不升级镜像、不动业务配置。
     ports:
       - "3000:3000"
     environment:

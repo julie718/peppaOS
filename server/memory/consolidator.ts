@@ -360,6 +360,9 @@ export async function consolidateNarrative(
   getKimi?: () => any,
   getGlm?: () => any,
   getRelay?: () => any,
+  // Phase-2 修复：skipDispatch=true 时跳过内部浅层派发（由调用方统一以 depth='deep' 深层推演入口派发，
+  // 避免 6h narrative_consolidation 双重 LLM 推演）
+  opts?: { skipDispatch?: boolean },
 ): Promise<DerivedMemoryRecord | null> {
   // Phase4: 本任务派生心智事件收集（替代原直接 addMemory 写入，任务末尾随 runInnerTick 注入）
   const eventList: MentalEventItem[] = [];
@@ -446,7 +449,11 @@ export async function consolidateNarrative(
 
     logger.info(`[NarrativeConsolidator] Created storyline "${title}" (${sample.length} memories, ${windowDays}d window)`);
     // Phase4: 任务末尾派发本任务派生心智事件（非阻塞，失败不影响主流程）
-    dispatchDerivedEvents(ctx.userId, eventList);
+    // Phase-2 修复：6h narrative_consolidation 作为深层推演入口时跳过本浅层派发
+    //（由 scheduler 统一以 depth='deep' 深层推演派发，执行人格微漂移与叙事合并沉淀）
+    if (!opts?.skipDispatch) {
+      dispatchDerivedEvents(ctx.userId, eventList);
+    }
     return narrative;
   } catch (err) {
     logger.error('[NarrativeConsolidator] Failed:', err);

@@ -107,6 +107,13 @@ export interface InnerTickOptions {
   conversationSummary?: string;    // 本轮对话上下文摘要（对话轮次结束后由 chat 链路组装传入，注入 LLM 推演上下文）
   triggerSource?: 'chat_turn' | 'manual'; // 快照触发来源；默认 'manual'
   turnIndex?: number;              // 会话内轮次序号；不传时按该会话快照条数自增推断
+  // ── Phase-2 修复：推演深度分级（浅层/深层）──
+  // shallow：后台 session=- 浅层推演 — 只注入结构化心智快照，禁止灌入原始对话碎片
+  //          （conversationSummary 被拦截丢弃）；人格微漂移（personalityDrift）不落库（仅深层允许执行）。
+  // deep：6h narrative_consolidation 深层推演入口 — 允许携带记忆碎片（derivedMentalEvents），
+  //       执行人格微漂移与叙事合并沉淀。
+  // 不传（如 chat_turn 对话触发）：保留原对话上下文注入行为，但同样不执行人格微漂移（仅深层可执行）。
+  depth?: 'shallow' | 'deep';
   // ── 测试注入（生产调用不传）：覆盖 LLM provider getters，供自测脚本模拟超时/空content 等异常响应 ──
   llmGetters?: Partial<LLMClients>;
   // ── Phase-2：休眠模式 prompt 瘦身（显式覆盖用；不传时按节律模式自动判定）──
@@ -447,7 +454,14 @@ function normalizeOutput(raw: any): InnerTickOutput {
  */
 async function processArchives(output: InnerTickOutput, userId: string): Promise<Set<string>> {
   const archivedIds = new Set<string>();
-  for (const item of output.archiveItems) {
+  // Phase-2 修复：单轮归档任务计数上限（默认 10 条）— LLM 输出超量时本轮只执行前 N 条，
+  // 超限部分留待下一轮（对应条目仍在 active 列表，下轮 LLM 推演可继续归档）；
+  // 快照观测表 inner_tick_snapshot 仍保留完整输出，仅业务侧 addMemory 执行数被截断。
+  const capItems = output.archiveItems.slice(0, INNER_TICK_MAX_ARCHIVES_PER_ROUND);
+  if (output.archiveItems.length > capItems.length) {
+    logger.warn(`${TAG} 单轮归档任务计数上限（${INNER_TICK_MAX_ARCHIVES_PER_ROUND}）: 本轮 ${output.archiveItems.length} 条 → 执行前 ${capItems.length} 条，超限 ${output.archiveItems.length - capItems.length} 条留待下一轮`);
+  }
+  for (const item of capItems) {
     // 1) 守卫校验：InnerTick 白名单调用点（paradigmGuard 内部亦做堆栈白名单检测）
     guardIllegalAddMemory(`InnerTick 归档条目 ${item.type}:${item.id}`);
 
@@ -692,8 +706,17 @@ async function applyRelationshipAdjustment(vector: number[]): Promise<void> {
  * 以真实 innerTick 调用栈验证守卫放行路径（调用方栈含 innerTick.ts → 守卫放行）。
  * 单条失败不阻断其余事件（逐条 try/catch + 日志）。
  */
-export async function applyMentalDriftToBusinessState(output: InnerTickOutput, userId: string): Promise<void> {
-  const events = buildDriftEvents(output);
+export async function applyMentalDriftToBusinessState(
+  output: InnerTickOutput,
+  userId: string,
+  opts?: { allowPersonalityDrift?: boolean },
+): Promise<void> {
+  let events = buildDriftEvents(output);
+  // Phase-2 修复：人格微漂移只允许深层推演执行（浅层/chat_turn 路径在此剔除，不落库；
+  // 快照观测表 inner_tick_snapshot 仍保留 personalityDrift 字段供对照，仅业务状态表不写入）
+  if (opts?.allowPersonalityDrift === false) {
+    events = events.filter((ev) => ev.eventType !== 'personality_drift');
+  }
   if (events.length === 0) return;
 
   // 1) 守卫校验：本文件（src/core/innerTick.ts）为 P2 唯一合法写者 → 白名单放行；
@@ -707,7 +730,17 @@ export async function applyMentalDriftToBusinessState(output: InnerTickOutput, u
   }
 
   // 2) 统一落库业务状态表（逐条独立失败隔离，输出 [P2-MIGRATE] 埋点）
+  // Phase-2 修复：单轮欲望演化任务计数上限（默认 8 条）— LLM 输出超量时本轮只执行前 N 条，
+  // 超限部分留待下一轮推演（快照观测表 inner_tick_snapshot 仍保留完整输出供对照）。
+  let appliedDesireEvolves = 0;
   for (const ev of events) {
+    if (ev.eventType === 'desire_evolve') {
+      if (appliedDesireEvolves >= INNER_TICK_MAX_DESIRE_EVOLVES_PER_ROUND) {
+        logger.warn(`${TAG_P2M} desire_evolve 单轮任务计数上限（${INNER_TICK_MAX_DESIRE_EVOLVES_PER_ROUND}）: 跳过超限事件（${ev.brief}），留待下一轮推演`);
+        continue;
+      }
+      appliedDesireEvolves++;
+    }
     try {
       switch (ev.eventType) {
         case 'emotion_drift': {
@@ -869,6 +902,148 @@ export function innerTickCooldownRemainingMs(userId: string): number {
   return remain > 0 ? remain : 0;
 }
 
+// ─────────────────────────────────────────────
+// 7.6 Phase-2 修复：后台 session=- 推演管控（2h 硬冷却 + 独立每日熔断 + LLM 健康环）
+// ─────────────────────────────────────────────
+
+/**
+ * 后台 session=- 浅层推演最小间隔 2 小时 —— 代码硬锁（替换原 idle_brain 的 1 小时可配置闸门）。
+ * 仅作用于「无派生事件、非 chat_turn」的后台裸推演（当前唯一入口：idle_brain 后台触发）；
+ * 带 derivedMentalEvents 的重要状态变更推演不受此锁约束（保持 Phase4 事件派发语义）。
+ */
+export const INNER_TICK_BG_MIN_INTERVAL_MS = 2 * 60 * 60 * 1000;
+
+const lastBgRunAtByUser = new Map<string, number>();
+
+/** 判断是否为后台裸推演（无会话、无派生事件、非 chat_turn）——受 2h 硬冷却与每日熔断约束的推演类别 */
+export function isBackgroundBareInference(
+  options: Pick<InnerTickOptions, 'triggerSource' | 'derivedMentalEvents'>,
+): boolean {
+  return options.triggerSource !== 'chat_turn' && !(options.derivedMentalEvents && options.derivedMentalEvents.length > 0);
+}
+
+/** 后台推演 2h 冷却检查（true=冷却中应跳过） */
+export function isBackgroundInnerTickInCooldown(userId: string): boolean {
+  const last = lastBgRunAtByUser.get(userId) ?? 0;
+  if (last <= 0) return false;
+  return Date.now() - last < INNER_TICK_BG_MIN_INTERVAL_MS;
+}
+
+// ── 后台推演独立每日调用熔断（chat_turn 对话触发不计入本统计）──
+// 与预算熔断（budgetGate/backgroundGate）相互独立；进程内存计数（重启清零，2h 硬锁兜底防重启连打）。
+const BACKGROUND_DAILY_MAX = (() => {
+  const n = Number(process.env.PEPPA_INNER_TICK_BG_DAILY_MAX);
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 12;
+})();
+
+let bgBreakerDate = '';
+let bgBreakerCount = 0;
+
+/** 后台推演每日熔断：true=今日后台推演额度已耗尽，本轮后台推演应跳过 */
+export function isBackgroundInnerTickBreakerOpen(): boolean {
+  const today = new Date().toISOString().slice(0, 10);
+  if (bgBreakerDate !== today) {
+    bgBreakerDate = today;
+    bgBreakerCount = 0;
+  }
+  return bgBreakerCount >= BACKGROUND_DAILY_MAX;
+}
+
+/** 记录一次后台推演调用（chat_turn 对话触发不经过本函数，天然不计入后台熔断统计） */
+export function recordBackgroundInnerTick(): void {
+  const today = new Date().toISOString().slice(0, 10);
+  if (bgBreakerDate !== today) {
+    bgBreakerDate = today;
+    bgBreakerCount = 0;
+  }
+  bgBreakerCount++;
+}
+
+// ── LLM 健康环（降级保护数据源：连续超时/失败 → 后台推演直接跳过）──
+const LLM_HEALTH_RING_SIZE = 6;
+const llmHealthRing: Array<'ok' | 'timeout' | 'fail'> = [];
+
+function recordInnerTickLLMOutcome(outcome: 'ok' | 'timeout' | 'fail'): void {
+  llmHealthRing.push(outcome);
+  if (llmHealthRing.length > LLM_HEALTH_RING_SIZE) llmHealthRing.shift();
+}
+
+/**
+ * 最近 window 次 LLM 推演中失败（超时/重试耗尽）是否 ≥ threshold 次。
+ * 供后台推演降级保护判定（LLM 连续超时 → 跳过后台 session=- 推演）。
+ */
+export function hasInnerTickLLMFailures(window: number, threshold: number): boolean {
+  const recent = llmHealthRing.slice(-window);
+  if (recent.length < 2) return false;
+  return recent.filter((o) => o === 'timeout' || o === 'fail').length >= threshold;
+}
+
+// ─────────────────────────────────────────────
+// 7.7 Phase-2 修复：duration 限流（慢推演冷却放大）+ 单轮任务计数上限
+// ─────────────────────────────────────────────
+
+// ── duration 限流：上一轮 LLM 推演实际耗时超过 SLOW 阈值 → 本轮最小间隔按 耗时×系数 放大（上限 1h）──
+// 仅作用于非 chat_turn 推演（chat_turn 对话触发恒豁免，保持纯 3 分钟硬锁，用户对话体验不受影响）；
+// LLM 响应正常（耗时 ≤ SLOW 阈值）时有效间隔 = 原 3 分钟硬锁，运行行为不变。
+const INNER_TICK_DURATION_SLOW_MS = (() => {
+  const n = Number(process.env.PEPPA_INNER_TICK_DURATION_SLOW_MS);
+  return Number.isFinite(n) && n >= 1000 ? Math.floor(n) : 20000; // 默认 20s
+})();
+const INNER_TICK_DURATION_BACKOFF_FACTOR = (() => {
+  const n = Number(process.env.PEPPA_INNER_TICK_DURATION_BACKOFF_FACTOR);
+  return Number.isFinite(n) && n >= 1 ? n : 5; // 默认 ×5
+})();
+const INNER_TICK_DURATION_BACKOFF_MAX_MS = (() => {
+  const n = Number(process.env.PEPPA_INNER_TICK_DURATION_BACKOFF_MAX_MS);
+  return Number.isFinite(n) && n >= 60000 ? Math.floor(n) : 60 * 60 * 1000; // 默认 1h
+})();
+
+/** 各用户上一轮 LLM 推演实际耗时（ms）；仅记录确实执行过 LLM 调用轮的耗时（跳过/冷却轮不记录） */
+const lastRoundDurationMsByUser = new Map<string, number>();
+
+/** 记录一轮 LLM 推演实际耗时（runInnerTick 内部调用；导出供观测/自测） */
+export function recordInnerTickRoundDuration(userId: string, durationMs: number): void {
+  if (Number.isFinite(durationMs) && durationMs >= 0) lastRoundDurationMsByUser.set(userId, durationMs);
+}
+
+/** duration 限流生效间隔：上一轮耗时慢 → 冷却放大（上限 1h）；否则原 3 分钟硬锁 */
+export function innerTickEffectiveIntervalMs(userId: string): number {
+  const last = lastRoundDurationMsByUser.get(userId) ?? 0;
+  if (last <= INNER_TICK_DURATION_SLOW_MS) return INNER_TICK_MIN_INTERVAL_MS;
+  return Math.min(
+    Math.max(last * INNER_TICK_DURATION_BACKOFF_FACTOR, INNER_TICK_MIN_INTERVAL_MS),
+    INNER_TICK_DURATION_BACKOFF_MAX_MS,
+  );
+}
+
+/**
+ * duration 限流剩余冷却（>0 = 本轮应跳过）。
+ * chat_turn 对话触发恒返回 0（不参与 duration 限流，保持纯 3 分钟硬锁）；
+ * 锚点与 3 分钟硬锁一致（上一轮开始时刻），慢推演将其后推演间隔整体放大。
+ */
+export function innerTickDurationBackoffRemainingMs(
+  userId: string,
+  triggerSource?: InnerTickOptions['triggerSource'],
+): number {
+  if (triggerSource === 'chat_turn') return 0;
+  const lastRun = lastRunAtByUser.get(userId) ?? 0;
+  if (lastRun <= 0) return 0;
+  const last = lastRoundDurationMsByUser.get(userId) ?? 0;
+  if (last <= INNER_TICK_DURATION_SLOW_MS) return 0;
+  return Math.max(0, innerTickEffectiveIntervalMs(userId) - (Date.now() - lastRun));
+}
+
+// ── 单轮任务计数上限：LLM 输出条目数保护（一轮内实际执行任务数封顶，超限部分留待下一轮）──
+// 快照观测表 inner_tick_snapshot 仍保留 LLM 完整输出（观测不受影响），仅业务侧执行/写入被截断。
+const INNER_TICK_MAX_ARCHIVES_PER_ROUND = (() => {
+  const n = Number(process.env.PEPPA_INNER_TICK_MAX_ARCHIVES_PER_ROUND);
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 10; // 默认单轮归档 ≤ 10 条
+})();
+const INNER_TICK_MAX_DESIRE_EVOLVES_PER_ROUND = (() => {
+  const n = Number(process.env.PEPPA_INNER_TICK_MAX_DESIRE_EVOLVES_PER_ROUND);
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 8; // 默认单轮欲望演化 ≤ 8 条
+})();
+
 /**
  * Phase-2 综合修复：休眠模式 prompt 瘦身总开关。
  * PEPPA_INNER_TICK_SLIM=true（默认）时，半休眠/深度休眠模式下的 inner_tick 快照召回条数减量，
@@ -909,7 +1084,9 @@ export function getPublicInnerTickThought(output: InnerTickOutput | null | undef
  */
 export async function runInnerTick(options: InnerTickOptions = {}): Promise<InnerTickOutput> {
   // P2-3 心智通道：独立落盘 logs/mind.log（同时镜像主控制台）
-  logger.mind(`${TAG} 心智回合开始`);
+  // Phase-2 修复：记录推演深度分级，便于后台浅层/深层路径观测
+  const depth = options.depth ?? 'shallow';
+  logger.mind(`${TAG} 心智回合开始 depth=${depth} trigger=${options.triggerSource || 'manual'}`);
   const userId = options.userId || 'default';
 
   // ── Phase2 铁则2：InnerTick 最小触发间隔 3 分钟硬锁（代码硬锁，不可配置）──
@@ -921,7 +1098,46 @@ export async function runInnerTick(options: InnerTickOptions = {}): Promise<Inne
     (skipped as InnerTickOutput & { skipped: boolean }).skipped = true;
     return skipped;
   }
+
+  // ── Phase-2 修复：duration 限流（慢推演冷却放大）──
+  // chat_turn 对话触发恒返回 0（不受限流，保持纯 3 分钟硬锁，用户对话体验不受影响）；
+  // 上一轮 LLM 推演耗时超过 SLOW 阈值 → 本轮最小间隔按 耗时×系数 放大（上限 1h），慢推演自动降温。
+  const durBackoffMs = innerTickDurationBackoffRemainingMs(userId, options.triggerSource);
+  if (durBackoffMs > 0) {
+    logger.mind(`${TAG} duration 限流 user=${userId} 上一轮 LLM 推演耗时过长，冷却放大至 ${Math.round(innerTickEffectiveIntervalMs(userId) / 1000)}s（剩余 ${Math.round(durBackoffMs / 1000)}s），本轮跳过（chat_turn 对话触发不受此限流约束）`);
+    const skipped = buildFallbackInnerTickOutput();
+    (skipped as InnerTickOutput & { skipped: boolean }).skipped = true;
+    return skipped;
+  }
   lastRunAtByUser.set(userId, Date.now());
+
+  // ── Phase-2 修复：后台 session=- 裸推演 2h 硬冷却 + 独立每日熔断（chat_turn 不计入）──
+  // 仅作用于无派生事件、非 chat_turn 的后台裸推演（idle_brain 后台触发入口）；
+  // 带 derivedMentalEvents 的重要状态变更推演不受约束（保持 Phase4 事件派发语义）。
+  if (isBackgroundBareInference(options)) {
+    if (isBackgroundInnerTickInCooldown(userId)) {
+      logger.mind(`${TAG} 后台推演 2h 硬冷却 user=${userId} 距上次后台推演不足 2 小时，本轮跳过（后台 session=- 推演最小间隔 2 小时，代码硬锁，替换原 idle_brain 1 小时闸门）`);
+      const skipped = buildFallbackInnerTickOutput();
+      (skipped as InnerTickOutput & { skipped: boolean }).skipped = true;
+      return skipped;
+    }
+    if (isBackgroundInnerTickBreakerOpen()) {
+      logger.warn(`${TAG} 后台推演每日熔断 user=${userId} 今日后台推演次数已达上限（${BACKGROUND_DAILY_MAX} 次），本轮跳过（chat_turn 对话触发不计入此统计）`);
+      const skipped = buildFallbackInnerTickOutput();
+      (skipped as InnerTickOutput & { skipped: boolean }).skipped = true;
+      return skipped;
+    }
+    lastBgRunAtByUser.set(userId, Date.now());
+  }
+
+  // ── Phase-2 修复：浅层/深层推演路径区分 ──
+  // 浅层（depth='shallow'，后台 session=-）：只传结构化心智快照，原始对话碎片（conversationSummary）一律拦截丢弃；
+  // 深层（depth='deep'，6h narrative_consolidation）：允许携带记忆碎片（derivedMentalEvents）并执行人格微漂移。
+  const isExplicitShallow = options.depth === 'shallow';
+  if (isExplicitShallow && options.conversationSummary) {
+    logger.warn(`${TAG} 浅层推演拦截原始对话碎片: depth=shallow 仅允许结构化心智快照，conversationSummary 已丢弃（user=${userId}）`);
+  }
+  const summaryForPrompt = isExplicitShallow ? undefined : options.conversationSummary;
 
   // 读取 life.db 历史快照 → 仅渲染为 prompt 文本（不参与运行状态）
   // Phase-2 综合修复：半休眠/深度休眠模式（非 active）自动瘦身快照召回条数；
@@ -933,7 +1149,7 @@ export async function runInnerTick(options: InnerTickOptions = {}): Promise<Inne
   const snapshotText = await loadLifeSnapshotAsText(slim);
   // Phase4: 旧模块派生心智事件（derivedMentalEvents）一并注入 LLM 推演上下文
   // Phase2: 本轮对话上下文摘要（conversationSummary）一并注入，作为对话触发的推演输入素材
-  const systemPrompt = buildInnerTickSystemPrompt(snapshotText, options.derivedMentalEvents, options.conversationSummary);
+  const systemPrompt = buildInnerTickSystemPrompt(snapshotText, options.derivedMentalEvents, summaryForPrompt);
 
   // LLM 配置：沿用用户偏好 provider/model，独立场景标记 inner_tick
   const llm = createLLMRuntime();
@@ -1003,6 +1219,8 @@ export async function runInnerTick(options: InnerTickOptions = {}): Promise<Inne
 
   // 推演结果：成功走下方正常链路；失败（超时 / 重试耗尽）输出分级日志后进入降级链路。
   // 超时不重试（重试会再次阻塞整个超时阈值时长，违背超时兜底目的）；格式类失败沿用原单次重试。
+  // Phase-2 修复：duration 限流数据源 — 记录本轮 LLM 调用段实际耗时（含单次重试；跳过/冷却轮不经过此处）
+  const llmRoundT0 = Date.now();
   let output: InnerTickOutput | null = null;
   let failedKind: InnerTickLLMFailureKind | null = null;
   // 最近一次失败携带的模型思考链原文（reasoning-only 降级用）
@@ -1033,12 +1251,21 @@ export async function runInnerTick(options: InnerTickOptions = {}): Promise<Inne
     // 释放超时计时器（成功/失败路径均需清理，避免悬挂 timer）
     if (abortTimer) clearTimeout(abortTimer);
   }
+  // Phase-2 修复：本轮 LLM 推演实际耗时入账（duration 限流数据源；超时/失败轮同样记录 — 慢轮越久，后续冷却越久）
+  recordInnerTickRoundDuration(userId, Date.now() - llmRoundT0);
 
   // ⚠️ 异常降级边界（Bug 修复）：不再整轮作废零写入 —— 从已有素材尽力产出可用快照：
   //   1. reasoning_only（deepseek-v4-flash 只出思考链、content 为空）→ 从思考链提取欲望/洞察生成快照；
   //   2. llm_timeout → 从当前 life 状态（活跃欲望+最近情绪）生成部分快照；
   //   3. 无任何可恢复素材（empty_content / parse_error / unknown）→ 维持纯 fallback 兜底。
   // 降级快照仅写观测表（system_events + inner_tick_snapshot），不执行归档 addMemory / P2 业务状态写入。
+  // Phase-2 修复：本轮 LLM 健康度入环（降级保护数据源 — LLM 连续超时/失败 → 后台推演直接跳过）
+  if (failedKind) {
+    recordInnerTickLLMOutcome(failedKind === 'llm_timeout' ? 'timeout' : 'fail');
+  } else {
+    recordInnerTickLLMOutcome('ok');
+  }
+
   if (failedKind) {
     let degradedKind: string = failedKind;
     if (failedKind === 'reasoning_only' && lastReasoningContent) {
@@ -1097,8 +1324,9 @@ export async function runInnerTick(options: InnerTickOptions = {}): Promise<Inne
   // 总闸关闭（默认）：不执行任何业务状态写入，emotionDrift/desireEvolve/personalityDrift/
   // relationshipAdjustment 仅作为快照观测内容（维持既有行为）；总闸开启：经
   // MentalEventItem → guardP2MentalStateWrite 守卫校验后写入 emotions/desires/personality/relationship_state。
+  // Phase-2 修复：人格微漂移只允许深层推演执行（depth='deep'），浅层/chat_turn 的 personalityDrift 不落业务状态表。
   if (isP2MigrateEnabled()) {
-    await applyMentalDriftToBusinessState(output, userId);
+    await applyMentalDriftToBusinessState(output, userId, { allowPersonalityDrift: depth === 'deep' });
   }
 
   logger.info(`${TAG} 心智回合结束 (desires=${output.desires.length} goals=${output.goals.length} archived=${archivedIds.size} trigger=${output.triggerInnerTick})`);

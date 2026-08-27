@@ -68,6 +68,9 @@ const DEGRADED_THRESHOLD = 3; // 连续 3 次失败进入降级模式
 const MEMORY_GC_INTERVAL_MS = 30 * 60000;
 // T80: TICK 内每个子任务独立超时（10s），避免单个慢任务（LLM/IO）拖垮整个 TICK
 const TICK_TASK_TIMEOUT_MS = 10000;
+// Phase-2 修复：原 proactive 功能保留，仅加强限频 — 两次 proactive.run 之间最小间隔 30 分钟
+//（proactiveManager 内部各触发器仍有独立冷却，此处为外层兜底节流）
+const PROACTIVE_MIN_INTERVAL_MS = 30 * 60000;
 
 interface LifeState {
   personality: number[];
@@ -105,6 +108,7 @@ export class LifeSystem {
   private lastExploration = 0;            // 上次自主探索时间
   private lastLowPriorityTask = 0;        // 上次低优先级任务处理时间
   private lowPriorityTaskIndex = 0;       // 轮转索引
+  private lastProactiveRun = 0;           // Phase-2：上次 proactive.run 执行时间（外层限频兜底）
   recentInteractions: Array<{ type: string; timestamp: string; text?: string }> = [];  // 交互记录队列
   private interactionCount = 0;           // 交互计数器（每次用户消息+1）
 
@@ -534,7 +538,13 @@ export class LifeSystem {
         { name: 'selfAwareness.reflection', fn: async () => { await this.selfAwareness.triggerReflection(); } },
 
         // 步骤 5.6: 主动行为检查（可能含 LLM 决策 → 独立超时兜底）
-        { name: 'proactive.run', fn: async () => { await proactiveManager.run(); } },
+        // Phase-2 修复：保留原 proactive 功能，仅加强限频 — 最小 30 分钟间隔（外层兜底节流）
+        { name: 'proactive.run', fn: async () => {
+          const now = Date.now();
+          if (now - this.lastProactiveRun < PROACTIVE_MIN_INTERVAL_MS) return;
+          this.lastProactiveRun = now;
+          await proactiveManager.run();
+        } },
 
         // 步骤 5.5: 自我叙事（每24小时一次，LLM 生成 → 独立超时兜底）
         { name: 'narrative.daily', fn: async () => {
@@ -562,7 +572,10 @@ export class LifeSystem {
         } },
 
         // 步骤 4.5: 人格演化 — 每 10 次交互聚合微调一次
-        ...(this.recentInteractions.length >= 10 && this.interactionCount % 10 === 0
+        // Phase-2 修复：p2MigrateEnable 下本 legacy 数值演化停止执行 — 逻辑已迁移至 6h
+        // narrative_consolidation 深层推演入口（server/scheduler.ts dispatchDeepInnerTick 注入
+        // personality_delta_migrated 结构化事件）；人格微漂移仅允许深层推演执行
+        ...(!MIND_SWITCH.p2MigrateEnable && this.recentInteractions.length >= 10 && this.interactionCount % 10 === 0
           ? [{
               name: 'personality.evolution',
               fn: async () => {

@@ -58,10 +58,19 @@ import {
   resetTokenBudgetForTest,
 } from '../server/runtime/tokenBudget';
 import { makeLLMCall } from '../server/llm/providers';
-import { resetPhase3SwitchCache } from '../server/skills_extension/switch';
-import { resetPhase3ConfigCache } from '../server/phase3/config';
-import { runInnerTick } from '../src/core/innerTick';
+// Phase-2 修复：旧 server/phase3/config 模块已并入 skills_extension/switch.ts（config 惰性缓存同一处），
+// 删除指向不存在模块的过期 import — resetPhase3SwitchCache 已覆盖配置缓存重置语义
+import { resetPhase3SwitchCache, isPhase3Enabled } from '../server/skills_extension/switch';
+// Phase-2 修复：duration 限流（慢推演冷却放大）与单轮任务计数上限的验证入口
+import {
+  runInnerTick,
+  recordInnerTickRoundDuration,
+  innerTickEffectiveIntervalMs,
+  innerTickDurationBackoffRemainingMs,
+  applyMentalDriftToBusinessState,
+} from '../src/core/innerTick';
 import * as lifeDb from '../server/db/lifeDb';
+import * as providersMod from '../server/llm/providers';
 
 // ── inner_tick 瘦身测试：mock life.db 快照读取函数（importOriginal 保留其余真实实现）──
 vi.mock('../server/db/lifeDb', async (importOriginal) => {
@@ -389,15 +398,15 @@ describe('8. 门闸并发限流', () => {
 });
 
 describe('9. skills_extension 总闸联动停用', () => {
-  it('PEPPA_PHASE3_SKILL_AUTO_ENABLE=false → p3_skill_gap_scan handler 短路', async () => {
+  it('PEPPA_PHASE3_SKILL_AUTO_ENABLE=false → Phase3 总闸关闭（p3_skill_gap_scan 调度注册已随 phase3 调度任务剥离，改断言现存总闸实现）', async () => {
     process.env.PEPPA_PHASE3_SKILL_AUTO_ENABLE = 'false';
     resetPhase3SwitchCache();
-    resetPhase3ConfigCache();
+    expect(isPhase3Enabled()).toBe(false); // 总闸关闭：整套 Phase3 能力短路
 
-    const spy = vi.spyOn(logger, 'info');
-    const result = await findHandler('p3_skill_gap_scan')();
-    expect(result).toBeNull();
-    expect(spy.mock.calls.some((c) => String(c[0]).includes('PEPPA_PHASE3_SKILL_AUTO_ENABLE=false'))).toBe(true);
+    // 未设置（默认）→ 总闸保持开启（默认行为不变）
+    delete process.env.PEPPA_PHASE3_SKILL_AUTO_ENABLE;
+    resetPhase3SwitchCache();
+    expect(isPhase3Enabled()).toBe(true);
   });
 });
 
@@ -537,5 +546,106 @@ describe('12. inner_tick 休眠模式 prompt 瘦身', () => {
     expect(getRhythmMode()).toBe('half_sleep');
     await runInnerTick({ userId: 'p2-half-sleep-user', llmGetters: failLLMGetters }).catch(() => null);
     expect(mockedLifeDb.getRecentEmotions).toHaveBeenLastCalledWith(4); // 自动 slim
+  });
+});
+
+describe('13. inner_tick duration 限流（慢推演冷却放大；chat_turn 豁免）', () => {
+  // 与 12 相同的「全 provider 立即抛错」getters（chat_turn 豁免测试中本轮需走降级链路完成，不真实调 LLM）
+  const failLLMGetters: any = {};
+  for (const name of ['getDeepSeek', 'getAnthropic', 'getOpenAI', 'getGemini', 'getQwen', 'getArk', 'getXiaomi', 'getKimi', 'getGlm', 'getRelay', 'getOllama', 'getLmStudio']) {
+    failLLMGetters[name] = () => {
+      throw new Error('test: LLM disabled');
+    };
+  }
+
+  it('上一轮耗时超过慢阈值 → 非 chat_turn 本轮跳过（冷却放大）', async () => {
+    vi.useFakeTimers();
+    try {
+      // 第一轮真实推演（LLM 全抛错 → 降级链路完成）→ 建立 3 分钟硬锁锚点（lastRunAtByUser）
+      await runInnerTick({ userId: 'p2-dur-slow-user', llmGetters: failLLMGetters }).catch(() => null);
+      // 注入上一轮 LLM 推演耗时 50s（> 20s 慢阈值）→ 有效间隔 = 50s × 5 = 250s
+      recordInnerTickRoundDuration('p2-dur-slow-user', 50000);
+      expect(innerTickEffectiveIntervalMs('p2-dur-slow-user')).toBe(250 * 1000);
+
+      // 推进 181s：越过 3 分钟硬锁（180s），仍处于 duration 限流窗内（250s）
+      vi.advanceTimersByTime(181 * 1000);
+      expect(innerTickDurationBackoffRemainingMs('p2-dur-slow-user')).toBeGreaterThan(0);
+
+      const mindSpy = vi.spyOn(logger, 'mind');
+      const out = await runInnerTick({ userId: 'p2-dur-slow-user', llmGetters: failLLMGetters });
+      expect((out as any).skipped).toBe(true); // duration 限流跳过，不调用 LLM
+      expect(mindSpy.mock.calls.some((c) => String(c[0]).includes('duration 限流'))).toBe(true);
+      expect(mindSpy.mock.calls.some((c) => String(c[0]).includes('冷却放大'))).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('chat_turn 对话触发豁免 duration 限流（仅纯 3 分钟硬锁生效）', async () => {
+    recordInnerTickRoundDuration('p2-dur-chat-user', 50000);
+    expect(innerTickDurationBackoffRemainingMs('p2-dur-chat-user', 'chat_turn')).toBe(0);
+
+    const mindSpy = vi.spyOn(logger, 'mind');
+    // LLM getters 全部抛错 → 走降级链路完成本轮，不因 duration 限流跳过
+    const out = await runInnerTick({ userId: 'p2-dur-chat-user', triggerSource: 'chat_turn', llmGetters: failLLMGetters });
+    expect((out as any).skipped).not.toBe(true);
+    expect(mindSpy.mock.calls.some((c) => String(c[0]).includes('duration 限流'))).toBe(false);
+  });
+
+  it('耗时正常（≤ 慢阈值）→ 有效间隔保持原 3 分钟硬锁，不触发限流', async () => {
+    recordInnerTickRoundDuration('p2-dur-fast-user', 5000);
+    expect(innerTickDurationBackoffRemainingMs('p2-dur-fast-user')).toBe(0);
+    expect(innerTickEffectiveIntervalMs('p2-dur-fast-user')).toBe(3 * 60 * 1000);
+  });
+});
+
+describe('14. inner_tick 单轮任务计数上限（归档 / 欲望演化）', () => {
+  it('archiveItems 超限 → 单轮最多执行 10 条归档，超限条目留待下轮（active 列表不剔除）', async () => {
+    const desires = Array.from({ length: 15 }, (_, i) => ({ id: `d${i + 1}`, content: `测试欲望${i + 1}`, intensity: 0.5, status: 'active' }));
+    const innerTickJson = {
+      thought: '测试归档上限', isPublic: false,
+      mood: { name: '平静', intensity: 0.5 },
+      desires, goals: [], focus: [], archiveItems: [],
+      triggerInnerTick: false, memoryHints: [],
+      emotionDrift: null, desireEvolve: [], personalityDrift: null, relationshipAdjustment: null,
+    };
+    for (let i = 0; i < 15; i++) {
+      innerTickJson.archiveItems.push({ type: 'desire', id: `d${i + 1}`, reason: '测试归档' });
+    }
+
+    // 全 provider 注入：spy makeLLMCall 直接返回 LLM 文本（不走真实 provider 客户端）
+    const llmSpy = vi.spyOn(providersMod, 'makeLLMCall').mockResolvedValue({
+      text: JSON.stringify(innerTickJson),
+      reasoningContent: null,
+    } as any);
+    const warnSpy = vi.spyOn(logger, 'warn');
+
+    const out = await runInnerTick({ userId: 'p2-cap-archive-user' });
+
+    expect(llmSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls.some((c) => String(c[0]).includes('单轮归档任务计数上限'))).toBe(true);
+    // 15 条归档 → 执行前 10 条 → 剩余 5 条欲望仍留在 active 列表（留待下一轮）
+    expect(out.desires.length).toBe(5);
+  });
+
+  it('desireEvolve 超限 → 单轮最多落库 8 条（applyMentalDriftToBusinessState 直接验证）', async () => {
+    const desireEvolve = Array.from({ length: 12 }, (_, i) => ({
+      content: `测试欲望演化${i + 1}`, intensity: 0.5, status: 'active',
+    }));
+    const output = {
+      thought: '测试欲望演化上限', isPublic: false,
+      mood: { name: '平静', intensity: 0.5 },
+      desires: [], goals: [], focus: [], archiveItems: [],
+      triggerInnerTick: false, memoryHints: [],
+      emotionDrift: undefined, desireEvolve, personalityDrift: undefined, relationshipAdjustment: undefined,
+    } as any;
+
+    const addDesireSpy = vi.spyOn(lifeDb, 'addDesire');
+    const warnSpy = vi.spyOn(logger, 'warn');
+    await applyMentalDriftToBusinessState(output, 'p2-cap-desire-user');
+
+    expect(addDesireSpy).toHaveBeenCalledTimes(8); // 12 条 → 前 8 条落库
+    expect(warnSpy.mock.calls.some((c) => String(c[0]).includes('单轮任务计数上限'))).toBe(true);
+    expect(warnSpy.mock.calls.some((c) => String(c[0]).includes('desire_evolve'))).toBe(true);
   });
 });

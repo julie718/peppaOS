@@ -75,7 +75,10 @@ function isSilentHour(): boolean {
 }
 
 function isThrottled(): boolean {
-  const minutesSinceLast = (Date.now() - state.lastTICKHeartbeatAt) / 60000;
+  // Phase-2 修复：TICK 与 REST 双路径心跳共用冷却窗口 — 取两者最近一次执行时间，
+  // 避免单路径高频刷心跳绕过节流（功能保留，仅加强限频）
+  const latestAt = Math.max(state.lastTICKHeartbeatAt, state.lastRESTHeartbeatAt);
+  const minutesSinceLast = (Date.now() - latestAt) / 60000;
   // 基础间隔，关系状态可能缩短
   const baseInterval = CONFIG.MIN_INTERVAL_MINUTES;
   // 异步获取关系调整（同步fallback用基础值）
@@ -169,7 +172,7 @@ export function recordTICKHeartbeat(): void {
 export function recordRESTHeartbeat(): void {
   resetDailyIfNeeded();
   state.lastRESTHeartbeatAt = Date.now();
-  // 注意：REST 路径不增加 todayCount，也不影响 TICK 节流判断
-  // REST 路径频繁触发（健康数据上报），仅记录时间用于自身追踪
+  // Phase-2 修复：REST 路径仍不增加 todayCount（每日条数上限语义保留），
+  // 但参与 TICK/REST 双源共享节流判断（isThrottled 取最近一次执行时间）
   saveState();
 }

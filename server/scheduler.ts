@@ -28,6 +28,8 @@ import { personalityRegistry } from './personality';
 import { evolvePersonality, generateReviewPrompt, shouldEvolve } from './personality/evolution';
 import { getActiveSocketCount } from './core/mainLoop';
 import { loadEmotionalState } from './personality/state';
+// Phase-2 修复：6h narrative_consolidation 深层推演入口 — 迁移旧 TICK 人格数值演化信号（calculateDeltaFromInteractions）
+import { getLifeSystem } from './life/index';
 import { getSameMonthDayPast, getMonthDayFromISO } from './time/utils';
 import { detectSpatiotemporalPatterns } from './time/spatiotemporal';
 import { cleanupEphemeralAgents } from './agents/orchestrator';
@@ -482,6 +484,41 @@ export function registerScheduledTasks(
     return [...ids];
   }
 
+  // Phase-2 修复：6h narrative_consolidation 深层推演入口 — 统一以 depth='deep' 派发深层 runInnerTick。
+  // 深层语义：允许加载记忆碎片、执行人格微漂移与叙事合并（见 src/core/innerTick.ts 的 depth 选项）；
+  // 同时迁移旧 TICK 的 legacy 人格数值演化逻辑（原 server/life/index.ts personality.evolution 步骤，
+  // 该步骤已在 p2MigrateEnable 下停止执行）— 将数值 delta 作为结构化事件注入，而非原始对话碎片。
+  // fire-and-forget：深层推演异步执行，不阻塞调度器。
+  function dispatchDeepInnerTick(userId: string, title: string, content: string): void {
+    const eventList: MentalEventItem[] = [
+      {
+        source: 'scheduler',
+        eventType: 'narrative_consolidation',
+        brief: '生成跨日叙事故事线',
+        payload: { title, content },
+      },
+    ];
+    try {
+      const life = getLifeSystem();
+      // 与原 TICK 触发条件对齐：存在最近交互样本时才计算数值演化信号（结构性输入，非原始对话碎片）
+      if (life.recentInteractions.length >= 3) {
+        const delta = life.personality.calculateDeltaFromInteractions(life.recentInteractions.slice(-10));
+        if (Array.isArray(delta) && delta.some((d) => Math.abs(d) > 0)) {
+          eventList.push({
+            source: 'scheduler',
+            eventType: 'personality_delta_migrated',
+            brief: '迁移TICK人格数值演化信号至深层推演',
+            payload: { delta, interactionCount: life.recentInteractions.length },
+          });
+        }
+      }
+    } catch (err: any) {
+      logger.warn('[NarrativeConsolidation] personality delta migration skipped:', err.message);
+    }
+    void runInnerTick({ userId, depth: 'deep', triggerSource: 'manual', derivedMentalEvents: eventList })
+      .catch((e) => logger.error('[NarrativeConsolidation] deep innerTick dispatch fail', e));
+  }
+
   // Reminder check-in (every 5 min) — checks all users' reminders
   scheduler.register({
     id: 'reminder_check',
@@ -640,9 +677,12 @@ export function registerScheduledTasks(
             ctx, 7, 6,
             getDeepSeek, getGemini, getOpenAI, getAnthropic, getQwen,
             getOllama, getLmStudio, getArk, getXiaomi, getKimi, getGlm, getRelay,
+            // Phase-2 修复：skipDispatch=true 跳过内部浅层派发，统一走下方深层推演入口（避免双重 LLM 推演）
+            { skipDispatch: true },
           );
           if (result) {
             const title = result.content.match(/^\[(.+?)\]/)?.[1] || '叙事记忆';
+            dispatchDeepInnerTick(userId, title, result.content);
             messages.push(`[${userId}] 记忆叙事已生成: "${title}"`);
           }
         } catch (err: any) {
