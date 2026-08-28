@@ -373,14 +373,23 @@ export function registerChatHandler(
         ...(requestId ? { requestId } : {}),
       });
     };
+    // 每轮唯一 key（输出保护登记用；声明前置，供 finishWithResponse 引用）
+    const interactionId = crypto.randomUUID();
     // ── Phase2 模块3：API 统一返回结构 { content, warnings } ──
     // 所有系统提示（LLM超时/配额/工具报错/磁盘水位/迁移失败等）只进 warnings（铁则6），
     // content 只放对话正文。业务正常时 warnings 为空数组。
     const warnings = new ChatWarnings();
     // 收尾统一出口：合并环境性告警（磁盘水位/迁移失败）后发出 agent:response（content+warnings）
+    // 输出保护（任务清单第 3 项）：正式回复下发即登记；若同轮已下发过正式回复，
+    // 禁止二次 agent:response 覆盖/重复 —— 改为仅追加 agent:error 报错新消息。
     const finishWithResponse = async (text: string, extra: Record<string, any> = {}) => {
       warnings.addAmbient(await buildAmbientWarnings());
-      emitAgent("agent:response", { ...extra, text, content: text, warnings: warnings.toArray() });
+      const { emitProtectedFinal } = await import("../output/protection");
+      emitProtectedFinal(
+        (ev, p) => emitAgent(ev as any, p),
+        requestId || `chat:${uid}:${interactionId}`,
+        { ...extra, text, content: text, warnings: warnings.toArray() },
+      );
     };
     const conversationAgentId = agentId || 'peppa';
     const uid = userIdFn(socket);
@@ -801,8 +810,6 @@ export function registerChatHandler(
           logger.warn(`[ChatHandler] System Prompt ${promptTokens} tokens 仍超预算 ${budget}，保留核心指令继续`);
         }
       }
-
-      const interactionId = crypto.randomUUID();
 
       const emitToolLifecycle = (payload: {
         correlationId: string;
@@ -1242,24 +1249,6 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
                   });
                   socket.emit('chat:conversation_updated', { conversationId, agentId: conversationAgentId, source: 'background_delegation' });
                 }
-                const db = readDB();
-                db.interactions.push({
-                  id: `bg-${interactionId}`,
-                  userId: uid,
-                  agentId: agentId || '',
-                  conversationId: conversationId || '',
-                  content: `Background delegated task: ${storedUserContent}`,
-                  response: content,
-                  role: 'agent',
-                  personality: personality.id,
-                  timestamp: new Date().toISOString(),
-                  mode: 'background_delegation',
-                  cognitiveIntent: cognition.intent.category,
-                  llmWasCalled: true,
-                  domain: resolvedDomain,
-                  orgId: resolvedOrgId,
-                } as any);
-                writeDB(db);
               } catch (persistErr: any) {
                 logger.warn('[BackgroundDelegation] Persist failed:', persistErr?.message || persistErr);
               }
@@ -1636,6 +1625,10 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
               emitAgent("agent:progress", { stage: 'thinking', message: '这个问题我还在想，可能需要一点时间……' });
             }
           }, 3000);
+          // TODO(延后迭代，本次不编码)：脑内私有缓冲区 — 心智/工具中间结果（tool call 记录、
+          // 进度事件、思考链）应保存在内部，待本轮闭环完成才一次性输出前端，避免半成品外泄。
+          // 该改动侵入主循环（runWithTools 回调与 onChunk 出口），须在工具信任/确认流、
+          // 输出保护、天气/股票降级全部验证稳定后再开发。
           try {
           result = await runWithTools(
             boundedMessages,
@@ -1685,14 +1678,22 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
               ...(routedToolPolicy ? { toolPolicy: routedToolPolicy } : {}),
               ...(operationMode === 'assistant' || operationMode === 'autonomous' ? {
                 requestConfirmation: async (toolName: string, args: Record<string, any>): Promise<boolean> => {
-                  return new Promise((resolve) => {
-                    const cid = crypto.randomUUID();
-                    const timeout = setTimeout(() => resolve(false), 30000);
-                    socket.once(`tool:confirm_result:${cid}`, (data: { allowed: boolean }) => {
-                      clearTimeout(timeout);
-                      resolve(data.allowed === true);
-                    });
-                    socket.emit('agent:confirm_tool', { correlationId: cid, name: toolName, arguments: args });
+                  // 统一确认流：信任名单 → autonomous low 风险自动放行 → 弹窗（回执后分级倒计时，三套故障文案）
+                  const { requestToolConfirmation } = await import("../personality/confirm_flow");
+                  return requestToolConfirmation({
+                    uid,
+                    toolName,
+                    args,
+                    autonomous: operationMode === 'autonomous',
+                    channel: {
+                      emit: (ev: string, p: any) => emitAgent(ev, p),
+                      once: (ev: string, cb: (d: any) => void) => { socket.once(ev, cb); return () => socket.off(ev, cb); },
+                    },
+                    emitToolCall: (payload) => emitAgent("agent:tool_call", { name: payload.name, arguments: payload.arguments, result: payload.result, error: payload.error }),
+                    onTrustPromoted: (toolName) => {
+                      emitAgent("agent:notification", { type: 'trust', level: 'info', message: `Tool "${toolName}" is now trusted — future uses will be auto-approved.` });
+                      pushNotification(uid, { type: 'trust', title: 'Tool Trusted', message: `Tool "${toolName}" is now trusted — auto-approved for future use.` });
+                    },
                   });
                 }
               } : {}),
@@ -1856,14 +1857,22 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
                   ...(routedToolPolicy ? { toolPolicy: routedToolPolicy } : {}),
                   ...(operationMode === 'assistant' || operationMode === 'autonomous' ? {
                     requestConfirmation: async (toolName: string, args: Record<string, any>): Promise<boolean> => {
-                      return new Promise((resolve) => {
-                        const cid = crypto.randomUUID();
-                        const timeout = setTimeout(() => resolve(false), 30000);
-                        socket.once(`tool:confirm_result:${cid}`, (data: { allowed: boolean }) => {
-                          clearTimeout(timeout);
-                          resolve(data.allowed === true);
-                        });
-                        socket.emit('agent:confirm_tool', { correlationId: cid, name: toolName, arguments: args });
+                      // 统一确认流：信任名单 → autonomous low 风险自动放行 → 弹窗（回执后分级倒计时，三套故障文案）
+                      const { requestToolConfirmation } = await import("../personality/confirm_flow");
+                      return requestToolConfirmation({
+                        uid,
+                        toolName,
+                        args,
+                        autonomous: operationMode === 'autonomous',
+                        channel: {
+                          emit: (ev: string, p: any) => emitAgent(ev, p),
+                          once: (ev: string, cb: (d: any) => void) => { socket.once(ev, cb); return () => socket.off(ev, cb); },
+                        },
+                        emitToolCall: (payload) => emitAgent("agent:tool_call", { name: payload.name, arguments: payload.arguments, result: payload.result, error: payload.error }),
+                        onTrustPromoted: (toolName) => {
+                          emitAgent("agent:notification", { type: 'trust', level: 'info', message: `Tool "${toolName}" is now trusted — future uses will be auto-approved.` });
+                          pushNotification(uid, { type: 'trust', title: 'Tool Trusted', message: `Tool "${toolName}" is now trusted — auto-approved for future use.` });
+                        },
                       });
                     }
                   } : {}),
@@ -1972,19 +1981,6 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
           );
         }
       }
-
-      // Log interaction
-      const db = readDB();
-      db.interactions.push({
-        id: interactionId, userId: uid, agentId: agentId || '',
-        conversationId: conversationId || '', content: storedUserContent, response: responseText,
-        role: "user", personality: personality.id, timestamp: new Date().toISOString(),
-        cognitiveIntent: cognition.intent.category,
-        llmWasCalled,
-        domain: resolvedDomain,
-        orgId: resolvedOrgId,
-      });
-      writeDB(db);
 
       // ── P1-7: 人格合规拦截 — 流式输出最终落地前对照宪法（轻微润色/严重截断重生成）──
       if (responseText) {

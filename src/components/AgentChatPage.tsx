@@ -470,6 +470,10 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
       const baseId = m.id || `persisted-${index}`;
       const timestamp = m.timestamp || m.createdAt || new Date().toISOString();
       const role = m.role || '';
+      // Phase-2 修复：跳过历史畸形记录 — 遗留 db.interactions.push 直写产物
+      // （role="user" 却携带非空 response；正规 addMessage 的 user 记录恒为 response=''）。
+      // 此类记录会被下方逻辑拆成 user+assistant 两组气泡，造成 UI 双向消息重复。
+      if (role === 'user' && m.response && String(m.response).trim() !== '') return;
       const userText = role === 'assistant' ? '' : (m.content || m.message || '');
       const assistantText = role === 'assistant'
         ? (m.content || m.message || m.response || '')
@@ -904,10 +908,9 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
         }, 5000);
       }
       if (data.status === "idle" || data.status === "error") {
-        // Drop partial streaming chunks that were never finalized
+        // 输出保护（铁则）：已下发的流式内容不可删除/撤销 — 即使服务端未回正式回复，
+        // 也保留已生成的流式气泡（与服务端"思绪搁置"语义一致），异常只能追加新消息。
         if (streamingMsgId.current) {
-          const sid = streamingMsgId.current;
-          setMessages(prev => prev.filter(m => m.id !== sid));
           streamingMsgId.current = null;
         }
       }
@@ -929,19 +932,12 @@ export function AgentChatPage({ t, user, agent, isOpen, onClose, prefillMessage,
         setWorkflowSteps([]);
         seenWorkflowToolEvents.current.clear();
       }, 5000);
-      // P0-3: 服务端明确失败（agent:error）→ REST 兜底占位气泡一并移除，
-      // 避免"兜底回复"与"失败提示"双气泡语义矛盾（下方会追加错误气泡）。
-      if (fallbackMsgIdRef.current) {
-        const fbId = fallbackMsgIdRef.current;
-        fallbackMsgIdRef.current = null;
-        fallbackIsPlaceholderRef.current = false;
-        setMessages(prev => prev.filter(m => m.id !== fbId));
-      }
-      if (streamingMsgId.current) {
-        const sid = streamingMsgId.current;
-        setMessages(prev => prev.filter(m => m.id !== sid));
-        streamingMsgId.current = null;
-      }
+      // 输出保护（铁则）：已下发/已渲染的正式消息（REST 兜底回复、流式内容）禁止删除撤销 —
+      // 失败只能追加新消息（下方错误气泡），不再移除已有气泡。
+      // （原 P0-3 在此处删除兜底占位气泡/流式气泡，已按保护规则移除。）
+      fallbackMsgIdRef.current = null;
+      fallbackIsPlaceholderRef.current = false;
+      streamingMsgId.current = null;
       const message = data.message || (t.failedToRouteNeuralMesh || 'Failed to route through Neural Mesh.');
       setMessages(prev => {
         const text = `${t.requestFailed || 'Request failed'}\n\n${message}`;

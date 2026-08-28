@@ -243,6 +243,9 @@ export function registerTaskHandler(
 
       if (orchestratedText) {
         // Orchestrator handled the task — emit result and skip normal LLM path
+        // 输出保护：正式回复下发即登记，失败路径只允许追加报错（见底部 catch）
+        const { registerFormalDelivered } = await import("../output/protection");
+        registerFormalDelivered(`task:${interactionId}`);
         socket.emit("agent:response", { text: orchestratedText, agentName: personality.name });
         socket.emit("agent:status", { status: "idle" });
         socket.off('agent:task_cancel', onCancel);
@@ -268,36 +271,21 @@ export function registerTaskHandler(
       }
 
       const requestConfirmation = async (toolName: string, args: Record<string, any>): Promise<boolean> => {
-        // Tool trust: if user has approved this tool ≥ 5 times, auto-approve
-        const { getTrustedTools, recordToolApprove, recordToolDeny } = await import("../personality/tool_trust");
-        if (getTrustedTools(uid).includes(toolName)) {
-          socket.emit("agent:tool_call", { name: toolName, arguments: args, result: 'Auto-approved (trusted)', error: undefined });
-          return true;
-        }
-        return new Promise((resolve) => {
-          const cid = crypto.randomUUID();
-          const timeout = setTimeout(() => {
-            socket.emit("agent:tool_call", { name: toolName, arguments: args, result: 'Auto-denied (30s timeout)', error: 'User did not respond' });
-            resolve(false);
-          }, 30000);
-          socket.once(`tool:confirm_result:${cid}`, (data: { allowed: boolean }) => {
-            clearTimeout(timeout);
-            if (data.allowed) {
-              const promoted = recordToolApprove(uid, toolName);
-              if (promoted) {
-                socket.emit("agent:notification", { type: 'trust', level: 'info', message: `Tool "${toolName}" is now trusted — future uses will be auto-approved.` });
-                pushNotification(uid, { type: 'trust', title: 'Tool Trusted', message: `Tool "${toolName}" is now trusted — auto-approved for future use.` });
-              }
-            } else {
-              recordToolDeny(uid, toolName);
-            }
-            resolve(data.allowed === true);
-          });
-          socket.emit('agent:confirm_tool', {
-            correlationId: cid,
-            name: toolName,
-            arguments: args,
-          });
+        // 统一确认流：信任名单 → autonomous low 风险自动放行 → 弹窗（回执后分级倒计时，三套故障文案）
+        const { requestToolConfirmation } = await import("../personality/confirm_flow");
+        return requestToolConfirmation({
+          uid,
+          toolName,
+          args,
+          channel: {
+            emit: (ev: string, p: any) => socket.emit(ev, p),
+            once: (ev: string, cb: (d: any) => void) => { socket.once(ev, cb); return () => socket.off(ev, cb); },
+          },
+          emitToolCall: (payload) => socket.emit("agent:tool_call", { name: payload.name, arguments: payload.arguments, result: payload.result, error: payload.error }),
+          onTrustPromoted: (toolName) => {
+            socket.emit("agent:notification", { type: 'trust', level: 'info', message: `Tool "${toolName}" is now trusted — future uses will be auto-approved.` });
+            pushNotification(uid, { type: 'trust', title: 'Tool Trusted', message: `Tool "${toolName}" is now trusted — auto-approved for future use.` });
+          },
         });
       };
 
@@ -345,6 +333,9 @@ export function registerTaskHandler(
       const holoTask = canOutputHolographic(sensory)
         ? textToHolographicOutput(result.text)
         : undefined;
+      // 输出保护：正式回复下发即登记，后续异常只追加报错、禁止覆盖
+      const { registerFormalDelivered } = await import("../output/protection");
+      registerFormalDelivered(`task:${interactionId}`);
       socket.emit("agent:response", { text: result.text, agentName: personality.name, holographic: holoTask });
       socket.emit("agent:status", { status: "idle" });
 
@@ -451,7 +442,15 @@ export function registerTaskHandler(
     } catch (err: any) {
       logger.error("[Agent Task Error]:", err);
       const cf = handleLLMFailure(cognition?.intent || { category: 'unknown', confidence: 0, entities: {}, needsLLM: true }, err);
-      socket.emit("agent:response", { text: cf.responseText, agentName: personality.name });
+      // 输出保护：若本轮已下发过正式回复，禁止二次 agent:response 覆盖/重复 —— 只追加报错新消息
+      const { hasFormalDelivered, registerFormalDelivered } = await import("../output/protection");
+      const requestKey = `task:${interactionId}`;
+      if (hasFormalDelivered(requestKey)) {
+        socket.emit("agent:error", { message: cf.responseText, requestId: undefined });
+      } else {
+        registerFormalDelivered(requestKey);
+        socket.emit("agent:response", { text: cf.responseText, agentName: personality.name });
+      }
       socket.emit("agent:status", { status: "error" });
     } finally {
       socket.off('agent:task_cancel', onCancel);

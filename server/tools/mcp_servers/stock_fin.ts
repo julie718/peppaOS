@@ -12,6 +12,19 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 const DISCLAIMER = '\n⚠️ 以上仅为客观数据陈列，不构成任何投资建议。投资有风险，决策需自行判断。';
 
+// ── 降级兜底（任务清单第 6 项）──
+// MCP 股票工具报错/无返回/接口失败时，不直接抛出工具错误结束对话：
+// 前置说明"实时行情接口暂时无法获取"，引导 LLM 基于基本面/业务/行业逻辑继续回答，
+// 并严禁编造实时数据。
+const DEGRADED_PREAMBLE = '实时行情接口暂时无法获取';
+const DEGRADED_ANALYSIS_HINT =
+  '请基于你对该公司的基本面、主营业务、所处行业逻辑的已有了解，向用户输出定性分析并说明实时数据暂不可用；'
+  + '不要以工具失败结束对话，不要编造具体实时价格/涨跌幅数字。';
+/** 降级引导（LLM 收到后继续回答用户，不终止会话） */
+export function degradedStockReply(codeOrSubject: string): string {
+  return `${DEGRADED_PREAMBLE}（${codeOrSubject}）。${DEGRADED_ANALYSIS_HINT}` + DISCLAIMER;
+}
+
 // ── 腾讯行情解析（可离线测试的纯函数） ──
 /** 解析腾讯行情返回（v_sh600000="1~浦发银行~600000~现价~昨收~今开~...~成交量(手)~..."） */
 export function parseTencentQuote(raw: string): Record<string, any> | null {
@@ -72,9 +85,10 @@ export async function fetchBoards(limit = 8): Promise<any[]> {
 // ── handlers ──
 async function stockQuote(args: Record<string, any>, userId: string): Promise<string> {
   const code = String(args.code || '').trim();
-  if (!code) throw new Error('code 为必填（6 位股票代码或带前缀）');
+  if (!code) return degradedStockReply('缺少股票代码 — 请向用户确认需要查询哪只股票（代码或名称）');
   const q = await fetchQuote(code);
-  if (!q) return `⚠️ 未获取到 ${code} 行情（代码可能无效或网络异常）`;
+  // 降级兜底：接口失败/无返回 → 不抛错、不结束对话，引导基本面/行业逻辑分析
+  if (!q) return degradedStockReply(code);
   await bumpPreferenceTag(userId, `理财-${code}`, 0.1).catch(() => {});
   // 阶段一·模块2: 数字孪生采集（理财维度）
   await collectBehavior(userId, '理财', code, 0.1).catch(() => {});
@@ -84,9 +98,10 @@ async function stockQuote(args: Record<string, any>, userId: string): Promise<st
 async function stockKline(args: Record<string, any>, userId: string): Promise<string> {
   const code = String(args.code || '').trim();
   const days = Math.min(Math.max(Number(args.days) || 30, 5), 120);
-  if (!code) throw new Error('code 为必填');
+  if (!code) return degradedStockReply('缺少股票代码 — 请向用户确认需要查询哪只股票（代码或名称）');
   const rows = await fetchKline(code, days);
-  if (!rows.length) return `⚠️ 未获取到 ${code} K线数据`;
+  // 降级兜底：K线数据不可用 → 引导基本面/行业逻辑分析，不终止对话
+  if (!rows.length) return degradedStockReply(`${code} 的K线数据`);
   const head = rows.slice(-10);
   const lines = head.map(r => `${r.date}  开${r.open}  收${r.close}  高${r.high}  低${r.low}  量${r.volume}`);
   const closes = rows.map(r => Number(r.close)).filter((v: number) => !isNaN(v));
@@ -97,7 +112,7 @@ async function stockKline(args: Record<string, any>, userId: string): Promise<st
 async function stockNews(args: Record<string, any>, userId: string): Promise<string> {
   // 个股公告与相关资讯：东方财富公告接口（免费）+ 降级说明
   const code = String(args.code || '').trim();
-  if (!code) throw new Error('code 为必填');
+  if (!code) return degradedStockReply('缺少股票代码 — 请向用户确认需要查询哪只股票的公告');
   const n = normalizeStockCode(code).replace(/^(sh|sz)/, '');
   try {
     const url = `https://np-anotice-stock.eastmoney.com/api/security/ann?sr=-1&page_size=5&page_index=1&ann_type=A&stock_list=${n}`;
@@ -115,7 +130,8 @@ async function stockNews(args: Record<string, any>, userId: string): Promise<str
 async function stockBoards(args: Record<string, any>): Promise<string> {
   const limit = Math.min(Math.max(Number(args.limit) || 8, 1), 20);
   const boards = await fetchBoards(limit);
-  if (!boards.length) return '⚠️ 板块数据暂不可用';
+  // 降级兜底：板块数据不可用 → 引导行业逻辑分析，不终止对话
+  if (!boards.length) return degradedStockReply('行业板块数据');
   return `【行业板块涨幅榜 TOP ${boards.length}】\n` + boards.map((b, i) => `${i + 1}. ${b.name}  ${b.changePct}%`).join('\n') + DISCLAIMER;
 }
 

@@ -472,31 +472,21 @@ async function processVoiceInput(
   };
 
   const requestConfirmation = async (toolName: string, args: Record<string, any>): Promise<boolean> => {
-    // Tool trust learning: auto-approve tools the user has trusted
-    const { getTrustedTools, recordToolApprove, recordToolDeny } = await import("../personality/tool_trust");
-    if (getTrustedTools(session.userId).includes(toolName)) {
-      socket.emit("agent:tool_call", { name: toolName, arguments: args, result: 'Auto-approved (trusted)', error: undefined });
-      return true;
-    }
-    return new Promise((resolve) => {
-      const cid = Math.random().toString(36).substring(2, 11);
-      const timeout = setTimeout(() => {
-        socket.emit("agent:tool_call", { name: toolName, arguments: args, result: 'Auto-denied (30s timeout)', error: 'User did not respond' });
-        resolve(false);
-      }, 30000);
-      socket.once(`tool:confirm_result:${cid}`, (data: { allowed: boolean }) => {
-        clearTimeout(timeout);
-        if (data.allowed) {
-          const promoted = recordToolApprove(session.userId, toolName);
-          if (promoted) {
-            socket.emit("agent:notification", { type: 'trust', level: 'info', message: `Tool "${toolName}" is now trusted — future uses will be auto-approved.` });
-          }
-        } else {
-          recordToolDeny(session.userId, toolName);
-        }
-        resolve(data.allowed === true);
-      });
-      socket.emit('agent:confirm_tool', { correlationId: cid, name: toolName, arguments: args });
+    // 统一确认流：信任名单 → autonomous low 风险自动放行 → 弹窗（回执后分级倒计时，三套故障文案）
+    const { requestToolConfirmation } = await import("../personality/confirm_flow");
+    return requestToolConfirmation({
+      uid: session.userId,
+      toolName,
+      args,
+      autonomous: effectiveOperationMode === 'autonomous',
+      channel: {
+        emit: (ev: string, p: any) => socket.emit(ev, p),
+        once: (ev: string, cb: (d: any) => void) => { socket.once(ev, cb); return () => socket.off(ev, cb); },
+      },
+      emitToolCall: (payload) => socket.emit("agent:tool_call", { name: payload.name, arguments: payload.arguments, result: payload.result, error: payload.error }),
+      onTrustPromoted: (toolName) => {
+        socket.emit("agent:notification", { type: 'trust', level: 'info', message: `Tool "${toolName}" is now trusted — future uses will be auto-approved.` });
+      },
     });
   };
 

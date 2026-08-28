@@ -30,8 +30,10 @@ function getToolRisk(name: string, args: Record<string, any> = {}): ToolRisk {
   if (normalized.includes('delete') || normalized.includes('remove') || normalized.includes('rm') || normalized.includes('uninstall')) return 'high';
   if (/\b(rm\s+-rf|format\b|shutdown\b|reboot\b|reg\s+delete|drop\s+table|delete\s+from)\b/i.test(argText)) return 'high';
   if (normalized === 'computer_use' || normalized.includes('run_command') || normalized.includes('terminal') || normalized.includes('shell')) return 'high';
+  // 写文件（write/append/edit）属高风险操作：强制确认，禁止 Always Allow / 自动放行
+  if (normalized.includes('write') || normalized.includes('append_file') || normalized.includes('edit_file')) return 'high';
   if (normalized.includes('wechat') || normalized.includes('message') || normalized.includes('desktop_') || normalized.includes('mouse') || normalized.includes('keyboard')) return 'medium';
-  if (normalized.includes('write') || normalized.includes('save') || normalized.includes('publish') || normalized.includes('install')) return 'medium';
+  if (normalized.includes('save') || normalized.includes('publish') || normalized.includes('install')) return 'medium';
   return 'low';
 }
 
@@ -104,8 +106,10 @@ export function ToolConfirmDialog({ socket, isWallpaperMode = false }: { socket:
         socket.emit(`tool:confirm_result:${data.correlationId}`, { correlationId: data.correlationId, allowed: true });
         return;
       }
-      // 3. Show dialog
+      // 3. Show dialog — 弹窗真正渲染时回执"已展示"（tool:confirm_shown:{cid}），
+      // 服务端收到回执后才启动确认倒计时（low 90s / high 30s）；无回执视为弹窗未送达。
       setPending(prev => [...prev, data]);
+      socket.emit(`tool:confirm_shown:${data.correlationId}`, { correlationId: data.correlationId });
     };
 
     socket.on('agent:confirm_tool', handleConfirm);

@@ -201,7 +201,25 @@ export async function executeNextAutonomousTask(
     const context: ToolContext = {
       userId: task.userId,
       desktopRelay: task.mode === 'desktop' ? desktopRelay : undefined,
-      requestConfirmation: async () => true, // Auto-approve in autonomous mode
+      // 风险分级确认（任务清单第 4 项）：autonomous 模式 low 风险只读工具自动放行；
+      // 高风险（删文件/写文件/shell）强制确认 — 弹窗经用户 room 下发，回执后分级倒计时，
+      // 用户未响应/弹窗未送达 → 默认拒绝（比旧逻辑"全量自动批准"更安全）。
+      requestConfirmation: async (toolName: string, args: Record<string, any>): Promise<boolean> => {
+        const { requestToolConfirmation } = await import("../personality/confirm_flow");
+        return requestToolConfirmation({
+          uid: task.userId,
+          toolName,
+          args,
+          autonomous: true,
+          channel: {
+            emit: (ev: string, p: any) => io.to(`user:${task.userId}`).emit(ev, p),
+            once: (ev: string, cb: (d: any) => void) => { const l = (d: any) => cb(d); io.on(ev, l); return () => io.off(ev, l); },
+          },
+          onTrustPromoted: (toolName) => {
+            io.emit('autonomous:notice', { userId: task.userId, type: 'trust', message: `Tool "${toolName}" is now trusted — auto-approved for future use.` });
+          },
+        });
+      },
       toolPolicy: AUTONOMOUS_POLICY,
       isCancelled: () => cancelled,
       autonomous: true,

@@ -2,6 +2,36 @@
 import { ToolRegistry } from '../registry';
 import { logger } from '../../../logger';
 import { classifyBuiltinToolRisk } from '../../skills_extension/risk_policy';
+import { ToolContext } from '../types';
+import { readDB } from '../../../db_layer';
+
+/**
+ * 参数智能处理（任务清单第 5 项）：
+ *   ① 用户输入包含城市 → 优先使用用户提供城市（LLM 填入 args.city）；
+ *   ② 用户未写城市 → 读取会话内用户定位（location_${userId}，iPhone GPS 写入），查询所在地天气；
+ *   ③ 既无城市也无定位 → 反问用户需要查询哪个城市（返回引导文本，不抛工具错误）。
+ */
+function resolveUserLocation(userId?: string): { city?: string; lat?: number; lng?: number } | null {
+  if (!userId) return null;
+  try {
+    const db = readDB();
+    const setting = (db.settings || []).find((s: any) => s.key === `location_${userId}`);
+    if (!setting) return null;
+    const loc = JSON.parse(setting.value);
+    const lat = Number(loc?.lat);
+    const lng = Number(loc?.lng);
+    if (!lat || !lng) return null;
+    // 定位地址文本命中已知城市名 → 用城市名；否则坐标直查 Open-Meteo
+    // （address 为空时跳过城市匹配，避免空串命中全部键误回退北京）
+    const address = String(loc?.address || '');
+    const cityKey = address ? Object.keys(cityCoords).find(k => address.includes(k) || k.includes(address)) : undefined;
+    return { city: cityKey, lat, lng };
+  } catch { return null; }
+}
+
+/** 缺城市且无定位时的反问引导（非错误：LLM 收到后向用户询问城市） */
+const ASK_CITY_HINT =
+  '用户未提供城市，且当前没有该用户的定位信息。请向用户询问需要查询哪个城市的天气，不要臆测城市，也不要重复调用本工具。';
 
 // 城市名→坐标映射
 // 阶段一·模块1: 导出供 travel-cal-mcp 复用（统一底层，杜绝重复编码）
@@ -59,9 +89,34 @@ export async function fetchWeatherByCity(city: string): Promise<any> {
   return { city, lat, lng, data };
 }
 
-async function weatherCurrent(args: Record<string, any>): Promise<string> {
-  const city = String(args.city || '北京').trim();
-  const [lat, lng] = resolveCoords(city);
+/**
+ * 城市解析（任务清单第 5 项）：
+ *   ① args.city（用户提供城市）→ 优先；
+ *   ② 无 city → 会话内用户定位（address 命中城市名 / 坐标直查）；
+ *   ③ 均无 → 返回反问引导（不报错）。
+ * 返回值：查询坐标；或 { askCity: true } 表示需向用户反问。
+ */
+export function resolveQueryTarget(args: Record<string, any>, context?: ToolContext): { lat: number; lng: number; city: string } | { askCity: true } {
+  const city = String(args.city || '').trim();
+  if (city) {
+    const [lat, lng] = resolveCoords(city);
+    return { lat, lng, city };
+  }
+  const loc = resolveUserLocation(context?.userId);
+  if (loc) {
+    if (loc.city) {
+      const [lat, lng] = resolveCoords(loc.city);
+      return { lat, lng, city: loc.city };
+    }
+    return { lat: loc.lat!, lng: loc.lng!, city: '当前位置' };
+  }
+  return { askCity: true };
+}
+
+async function weatherCurrent(args: Record<string, any>, context?: ToolContext): Promise<string> {
+  const target = resolveQueryTarget(args, context);
+  if ('askCity' in target) return ASK_CITY_HINT;
+  const { city, lat, lng } = target;
 
   try {
     const data = await fetchWeather(lat, lng);
@@ -82,10 +137,11 @@ async function weatherCurrent(args: Record<string, any>): Promise<string> {
   }
 }
 
-async function weatherForecast(args: Record<string, any>): Promise<string> {
-  const city = String(args.city || '北京').trim();
+async function weatherForecast(args: Record<string, any>, context?: ToolContext): Promise<string> {
   const days = Math.min(Math.max(Number(args.days) || 3, 1), 5);
-  const [lat, lng] = resolveCoords(city);
+  const target = resolveQueryTarget(args, context);
+  if ('askCity' in target) return ASK_CITY_HINT;
+  const { city, lat, lng } = target;
 
   try {
     const data = await fetchWeather(lat, lng);
@@ -115,11 +171,12 @@ export function registerWeatherTools(registry: ToolRegistry): void {
   registry.register({
     name: 'weather_current',
     description:
-      '查询城市当前天气，返回温度、天气状况、湿度、风速。支持200+中国城市。使用 Open-Meteo 免费 API，无需 API Key。',
+      '查询城市当前天气，返回温度、天气状况、湿度、风速。支持200+中国城市。使用 Open-Meteo 免费 API，无需 API Key。'
+      + '参数规则：用户明确提到城市时必须填写用户提到的城市；用户未提供城市时省略 city 参数（系统会自动使用用户定位，或引导向用户询问）。',
     parameters: {
       type: 'object',
       properties: {
-        city: { type: 'string', description: '城市名称，如"北京"、"上海"、"杭州"。支持中英文。' },
+        city: { type: 'string', description: '城市名称，如"北京"、"上海"、"杭州"。支持中英文。仅当用户明确提到城市时填写；未提供城市时省略本参数。' },
       },
       required: [],
     },
@@ -131,11 +188,12 @@ export function registerWeatherTools(registry: ToolRegistry): void {
   registry.register({
     name: 'weather_forecast',
     description:
-      '查询城市未来几天天气预报，返回每日天气状况、最高/最低温度、降水概率。最多支持5天预报。',
+      '查询城市未来几天天气预报，返回每日天气状况、最高/最低温度、降水概率。最多支持5天预报。'
+      + '参数规则：用户明确提到城市时必须填写用户提到的城市；用户未提供城市时省略 city 参数（系统会自动使用用户定位，或引导向用户询问）。',
     parameters: {
       type: 'object',
       properties: {
-        city: { type: 'string', description: '城市名称，如"北京"、"上海"。默认"北京"。' },
+        city: { type: 'string', description: '城市名称，如"北京"、"上海"。仅当用户明确提到城市时填写；未提供城市时省略本参数。' },
         days: { type: 'number', description: '预报天数（1-5，默认3）' },
       },
       required: [],
