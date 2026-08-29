@@ -51,7 +51,7 @@ import { composeTriggerContent } from '../proactive/rhythm';
 import { mcpInterceptor, buildToolBlockMessage, applyConstitutionGuard, MCP_MAX_CALLS_PER_TURN, markToolResultTTL } from '../tools/interceptor';
 import { getUnrespondedObservations, markObservationResponded } from "../db/lifeDb";
 import { retrieveChunks } from "../agents/rag";
-import { getSensory } from "./shared";
+import { getSensory, chatInFlight } from "./shared";
 import { processInput, handleLLMFailure, extractSentiment, CognitiveContext } from "../cognition";
 // quick_commands 关键词→MCP 映射已移除
 import { checkLLMAccess, recordUsage, estimateTokens } from "../subscription/proxy";
@@ -459,6 +459,15 @@ export function registerChatHandler(
       }
     }).catch(() => {});
     getLifeSystem().preempt();
+
+    // ── 用户级心智独占互斥锁登记（方案2）──
+    // 会话上下文组装完成、业务逻辑正式执行前，向 chatInFlight 登记当前用户"思考中"：
+    // 本轮处理期间 REST /api/ai/chat 兜底请求将被 409 拦截，杜绝双通路并行执行 runWithTools
+    // （工具重复执行、确认弹窗错乱）。锁生命周期 = 本轮对话处理流程，finally 块必须释放；
+    // 若异常悬挂，shared.ts 的 60s 过期判断自动失效，不会永久卡死用户。
+    const chatLockStartedAt = Date.now();
+    chatInFlight.set(uid, { requestId, startedAt: chatLockStartedAt });
+    logger.info(`[ChatInFlight] 锁登记 userId=${uid} requestId=${requestId || '-'}（60s 内 REST 兜底将被 409 拦截）`);
 
     try {
       // Look up agent record for memory/emotion isolation
@@ -2346,6 +2355,17 @@ const sentiment = extractSentiment(text, cognition.intent?.sentiment);
       clearTimeout(llmTimeout);
       getLifeSystem().resume();
       chatSessionMap.delete(sessionKey);
+      // ── 用户级心智独占互斥锁释放（方案2）──
+      // 必须 finally 释放：正常返回、抛出异常、报错中断，锁一定释放。
+      // 仅当锁仍属于本处理实例时删除（用户新消息抢占后 startedAt 被覆盖，
+      // 旧实例不得误删新实例的锁；若从未登记则忽略）。
+      const chatLock = chatInFlight.get(uid);
+      if (chatLock && chatLock.startedAt === chatLockStartedAt) {
+        chatInFlight.delete(uid);
+        logger.info(`[ChatInFlight] 锁释放 userId=${uid} requestId=${requestId || '-'}`);
+      } else {
+        logger.info(`[ChatInFlight] 锁跳过释放（已被新消息抢占或不存在）userId=${uid}`);
+      }
       // P0-6: 对话轮结束标记 → 激活 IdleBrain 短待机检测（30s 后独处思考/情绪回味）
       try { idleBrain.markConversationEnd(); } catch {}
     }

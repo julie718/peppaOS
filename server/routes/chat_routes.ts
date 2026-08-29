@@ -13,7 +13,7 @@ import { getUserPreferredLLMConfig } from "../llm/user_preferences";
 import { recordTokenUsage } from "../llm/token_tracker";
 import { queryMemoriesVector } from "../memory/store";
 import { loadEmotionalState } from "../personality/state";
-import { getSensory } from "../socket/shared";
+import { getSensory, isChatInFlightLockActive } from "../socket/shared";
 import { readDB, writeDB } from "../../db_layer";
 import { ChatWarnings, buildAmbientWarnings } from "../utils/chatWarnings";
 
@@ -28,6 +28,16 @@ export function mountChatRoutes(router: Router, _jwtSecret: string, llm: {
     const prompt = rawPrompt ?? message;
     const userKey = req.headers["x-api-key"] as string;
     const userId = req.user?.uid || 'anonymous';
+
+    // ── 用户级心智独占互斥锁校验（方案2）──
+    // WebSocket agent:chat 正在为同一用户思考时（锁存在且未超过 60s 过期），
+    // REST /api/ai/chat 兜底请求直接 409 拒绝，防止双通路并行执行 runWithTools
+    // （工具重复执行、确认弹窗错乱）；锁过期自动放行，异常悬挂不会永久卡死用户。
+    // 前端收到 409 后由原有 45s 兜底逻辑静默处理，不新增前端改动。
+    if (isChatInFlightLockActive(userId)) {
+      logger.warn(`[ChatInFlight] REST 兜底被 409 拦截 userId=${userId}（WebSocket 心智思考中，60s 互斥锁生效）`);
+      return res.status(409).json({ error: "Peppa正在思考上一条消息，请稍候。", content: "", warnings: [] });
+    }
 
     const isBYOK = userKey && userKey.length > 5;
     const preferred = getUserPreferredLLMConfig(userId);
